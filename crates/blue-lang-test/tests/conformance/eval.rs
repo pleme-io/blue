@@ -585,15 +585,9 @@ impl Loader for View<'_> {
     }
 
     fn roles(&self, entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
-        use blue_lang_runtime::uses::Role;
         match self.role {
-            Some("generator") => vec![Role::Generator("row".into())],
-            Some("service") => vec![Role::Service("row".into())],
-            Some("binding") => vec![
-                Role::Service("row".into()),
-                Role::Binding("row".into(), "cache".into()),
-            ],
-            _ => self.inner.roles(entry),
+            Some(word) => blue_lang_runtime::uses::Role::named(word, "row"),
+            None => self.inner.roles(entry),
         }
     }
 

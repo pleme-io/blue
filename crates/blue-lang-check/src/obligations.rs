@@ -120,7 +120,7 @@ impl Detector {
 pub enum Refusal {
     /// A rule of the registry, enforced on every door.
     Code(Code),
-    /// A flake check, by name, that every project with `packages` gets.
+    /// A flake check, by name, that judges a whole run or a whole tree.
     Gate(&'static str),
     /// Registered, not yet forced: what blocks it.
     Design(&'static str),
@@ -405,6 +405,14 @@ obligations! {
         profile: Default,
         owner: "COVERAGE.md S3, S4",
     }
+    "strength/deterministic" {
+        when: "a test",
+        evidence: Assertion,
+        detector: Dynamic,
+        refusal: Design("COVERAGE S6: `blue test --rerun N` finds a test whose verdict differs between runs (T8); no gate runs it by default, since a second run doubles a check until H3 rung 3 runs only what changed"),
+        profile: Default,
+        owner: "COVERAGE.md S6; TESTING.md T8",
+    }
     "strength/mutant" {
         when: "a mutation site in a strict package",
         evidence: Mutation,
@@ -414,20 +422,20 @@ obligations! {
         owner: "COVERAGE.md S5",
     }
     "pipeline/stage" {
-        when: "a gate the pre-push hook runs",
+        when: "the program of a Bluefile `check` row",
         evidence: Declared,
         detector: Project,
-        refusal: Design("TESTING T3: `check` options `{stage:, kind:}`"),
+        refusal: Code(Code::B0092),
         profile: Default,
-        owner: "TESTING.md T3",
+        owner: "TESTING.md T3; the `:push` rows are the pre-push gate list (`gen/prepush.b`), `blue test DIR --stage S` runs a stage",
     }
     "pipeline/ci" {
-        when: "a CI workflow file",
+        when: "a CI workflow file of blue's own",
         evidence: Rendering,
         detector: Project,
-        refusal: Design("TESTING T5: `gen/ci.b`"),
+        refusal: Gate("workflows"),
         profile: Default,
-        owner: "TESTING.md T5",
+        owner: "TESTING.md T5: `.github/workflows/ci.yml` is rendered by `gen/ci.b`; `checks.workflows` refuses a workflow no `generate` row renders, beside the 7 hand-written ones `hand_workflows` holds, which only shrink",
     }
     "pipeline/release" {
         when: "a release or delivery step",

@@ -334,7 +334,7 @@ service(
   }
 )
 
-check("hello", "hello.b")
+check("hello", "hello.b", {stage: :ci})
 ```
 
 The program answers `GET /`. [`settei`](../bidamas/CATALOG.md#settei) reads the settings the declaration
@@ -1780,7 +1780,7 @@ service(
   }
 )
 
-check("agent", "agent.b")
+check("agent", "agent.b", {stage: :ci})
 ```
 
 `runtime: :native` with `because: :device` is required: WASI reaches no kernel

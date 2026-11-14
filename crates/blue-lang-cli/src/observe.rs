@@ -54,6 +54,110 @@ pub(crate) struct Watch<'a> {
     pub memo: crate::memo::Mode,
     pub cache: Option<&'a crate::test_cache::TestCache>,
     pub proofs: Option<&'a Path>,
+    pub junit: Option<&'a Path>,
+    pub shard: Option<(usize, usize)>,
+    pub rerun: usize,
+}
+
+/// `I/N`, the shard `--shard` names: the I-th of N, from 1.
+pub(crate) fn shard_of(text: &str) -> Result<(usize, usize), CliError> {
+    let parsed = text
+        .split_once('/')
+        .and_then(|(i, n)| Some((i.parse::<usize>().ok()?, n.parse::<usize>().ok()?)))
+        .filter(|(i, n)| *n > 0 && (1..=*n).contains(i));
+    parsed.ok_or_else(|| {
+        CliError::Usage(format!(
+            "--shard is \"{text}\"; it takes I/N with 1 <= I <= N, as 2/4"
+        ))
+    })
+}
+
+/// The files of shard `i` of `n`: every n-th file of the sorted list, from
+/// the i-th, so the shards of one tree are disjoint and together hold it.
+pub(crate) fn sharded(mut files: Vec<PathBuf>, shard: Option<(usize, usize)>) -> Vec<PathBuf> {
+    files.sort();
+    match shard {
+        None => files,
+        Some((i, n)) => files
+            .into_iter()
+            .enumerate()
+            .filter(|(k, _)| k % n == i - 1)
+            .map(|(_, f)| f)
+            .collect(),
+    }
+}
+
+/// Today, as the runner passes it: `BLUE_TEST_TODAY` when set, else the
+/// clock's UTC date.
+fn today() -> String {
+    std::env::var("BLUE_TEST_TODAY").unwrap_or_else(|_| {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+        blue_lang_runtime::sys::format_rfc3339_utc(secs)[..10].to_string()
+    })
+}
+
+/// Each quarantined test of a run: a failing one held out of the verdict
+/// while its date stands, an expired one left failing, and a passing one
+/// named so its entry can go. Answers the held tests, by name and why.
+fn quarantine(run: &mut FileRun, today: &str) -> Vec<(String, String)> {
+    let entries = blue_lang_pkg::lock::quarantines_of(&run.path);
+    let Some(report) = run.report.as_mut() else {
+        return Vec::new();
+    };
+    let mut held = Vec::new();
+    for (name, q) in entries {
+        let failing = report.failures.iter().any(|f| f.test() == name);
+        if !failing {
+            if report.outcomes.iter().any(|o| o.name == name && o.passed) {
+                eprintln!(
+                    "➖ {}: {name} passes; its quarantine (until {}) can go",
+                    run.path.display(),
+                    q.until
+                );
+            }
+        } else if today <= q.until.as_str() {
+            report.failures.retain(|f| f.test() != name);
+            eprintln!(
+                "⏸ {}: {name} is quarantined until {}: {}",
+                run.path.display(),
+                q.until,
+                q.why
+            );
+            held.push((name, q.why));
+        } else {
+            eprintln!(
+                "❌ {}: {name}'s quarantine ended on {}, so it fails again",
+                run.path.display(),
+                q.until
+            );
+        }
+    }
+    held
+}
+
+/// The tests whose verdict differed between runs of the same tree, with how
+/// many of the runs they passed.
+fn flaky(runs: &[Vec<FileRun>]) -> Vec<(PathBuf, String, usize)> {
+    let mut seen: std::collections::BTreeMap<(PathBuf, String), Vec<bool>> =
+        std::collections::BTreeMap::new();
+    for pass in runs {
+        for run in pass {
+            if let Some(r) = &run.report {
+                for o in &r.outcomes {
+                    let failed = r.failures.iter().any(|f| f.test() == o.name);
+                    seen.entry((run.path.clone(), o.name.clone()))
+                        .or_default()
+                        .push(o.passed && !failed);
+                }
+            }
+        }
+    }
+    seen.into_iter()
+        .filter(|(_, v)| v.iter().any(|p| *p) && v.iter().any(|p| !*p))
+        .map(|((p, n), v)| (p, n, v.iter().filter(|x| **x).count()))
+        .collect()
 }
 
 /// `blue test PATH [--filter PATTERN] [--coverage [--json]] [--allow CAP]
@@ -75,7 +179,7 @@ pub(crate) fn test(
     let (filter, json) = (watch.filter, watch.json);
     let tree = path.is_dir();
     let files = if tree {
-        test_files(path)
+        sharded(test_files(path), watch.shard)
     } else {
         vec![path.to_path_buf()]
     };
@@ -89,7 +193,51 @@ pub(crate) fn test(
         identify: Some(blue_lang_mondou::def_hash::identify),
         ..blue_lang_test::Guard::default()
     };
-    let runs = run_files(&files, watch, &guard, facts.is_some())?;
+    let mut runs = run_files(&files, watch, &guard, facts.is_some())?;
+    let unstable = if watch.rerun > 1 {
+        let again = Watch {
+            cache: None,
+            coverage: false,
+            proofs: None,
+            ..*watch
+        };
+        let mut passes = Vec::new();
+        for _ in 1..watch.rerun {
+            passes.push(run_files(&files, &again, &guard, false)?);
+        }
+        let mut all = vec![std::mem::take(&mut runs)];
+        all.extend(passes);
+        let found = flaky(&all);
+        runs = all.swap_remove(0);
+        for (p, n, k) in &found {
+            eprintln!(
+                "⚠️ flaky: {}: {n} passed {k} of {} runs",
+                p.display(),
+                watch.rerun
+            );
+        }
+        found.len()
+    } else {
+        0
+    };
+    let today = today();
+    let held: Vec<Vec<(String, String)>> = runs.iter_mut().map(|r| quarantine(r, &today)).collect();
+    if let Some(file) = watch.junit {
+        let suites: Vec<crate::junit::Suite<'_>> = runs
+            .iter()
+            .zip(&held)
+            .map(|(r, q)| crate::junit::Suite {
+                path: &r.path,
+                report: r.report.as_ref(),
+                errors: &r.errors,
+                quarantined: q,
+            })
+            .collect();
+        std::fs::write(file, crate::junit::render(&suites)).map_err(|source| CliError::Write {
+            path: file.display().to_string(),
+            source,
+        })?;
+    }
     if let Some(cache) = watch.cache {
         let keys: Vec<String> = runs.iter().flat_map(|r| r.passed_keys.clone()).collect();
         cache.record(&keys);
@@ -167,7 +315,11 @@ pub(crate) fn test(
         }
         return Ok(ExitCode::FAILURE);
     }
-    Ok(if failed == 0 && broken == 0 {
+    let quarantined: usize = held.iter().map(Vec::len).sum();
+    if quarantined > 0 {
+        println!("{quarantined} quarantined test(s) held out of the verdict");
+    }
+    Ok(if failed == 0 && broken == 0 && unstable == 0 {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

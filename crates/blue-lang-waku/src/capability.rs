@@ -218,6 +218,7 @@ const MANIFEST_NAMES: &[&str] = &[
     "verify",
     "coverage",
     "skip",
+    "quarantine",
 ];
 
 /// `blue_lang_runtime::sys::install_process`, 2026-08-13.

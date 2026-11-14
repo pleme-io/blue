@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:eadad70afaf26157b7eb2bdaaeef157f3d5aa99e3a65970896e909b1db251798",
+  "bluefile_b3": "b3:c2b988fd09f40b1df8cbc9a3ed7892bdc10203cc382b52e8ee1bd5fddf6618fd",
   "manifest": {
     "schema": 1,
     "name": "blue-examples",
@@ -15,64 +15,82 @@
     "tools": [],
     "checks": {
       "data": {
-        "file": "02_data.b"
+        "file": "02_data.b",
+        "stage": "ci"
       },
       "errors": {
-        "file": "05_errors.b"
+        "file": "05_errors.b",
+        "stage": "ci"
       },
       "files": {
-        "file": "01_files.b"
+        "file": "01_files.b",
+        "stage": "ci"
       },
       "kernel-counter": {
         "file": "14_kernel_counter.b",
         "inputs": [
           "14_kernel_counter.b"
-        ]
+        ],
+        "stage": "ci"
       },
       "kernel-deny": {
         "file": "15_kernel_deny.b",
         "inputs": [
           "15_kernel_deny.b"
-        ]
+        ],
+        "stage": "ci"
       },
       "lists-and-maps": {
-        "file": "03_lists_and_maps.b"
+        "file": "03_lists_and_maps.b",
+        "stage": "ci"
       },
       "namespaces": {
-        "file": "16_namespaces.b"
+        "file": "16_namespaces.b",
+        "stage": "ci"
       },
       "network": {
-        "file": "11_network.b"
+        "file": "11_network.b",
+        "stage": "ci"
       },
       "processes": {
-        "file": "09_processes.b"
+        "file": "09_processes.b",
+        "stage": "ci"
       },
       "processes-and-supervision": {
-        "file": "12_processes_and_supervision.b"
+        "file": "12_processes_and_supervision.b",
+        "stage": "ci"
       },
       "records": {
-        "file": "17_records.b"
+        "file": "17_records.b",
+        "stage": "ci"
       },
       "rust-primitive": {
-        "file": "07_rust_primitive.b"
+        "file": "07_rust_primitive.b",
+        "stage": "ci"
       },
       "script": {
-        "file": "00_script.b"
+        "file": "00_script.b",
+        "stage": "ci"
       },
       "strings": {
-        "file": "04_strings.b"
+        "file": "04_strings.b",
+        "stage": "ci"
       },
       "tatara-forms": {
-        "file": "08_tatara_forms.b"
+        "file": "08_tatara_forms.b",
+        "stage": "ci"
       },
       "testing": {
-        "file": "06_testing.b"
+        "file": "06_testing.b",
+        "stage": "ci"
       },
       "using-a-bidama": {
-        "file": "10_using_a_bidama.b"
+        "file": "10_using_a_bidama.b",
+        "stage": "ci"
       },
       "web-site": {
-        "file": "13_web_site.b"
+        "file": "13_web_site.b",
+        "stage": "ci"
       }
     },
     "apps": {},

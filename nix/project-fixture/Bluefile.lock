@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f7faf05e8bdca153fc05f821516e5390365b10724cd25e19b675d6d7d6395512",
+  "bluefile_b3": "b3:0f32715f803bbd9f2e4a749064bcf7116809ea1da620a9367ba89be6889e2c94",
   "manifest": {
     "schema": 1,
     "name": "project-fixture",
@@ -36,7 +36,8 @@
     },
     "checks": {
       "smoke": {
-        "file": "checks/smoke.b"
+        "file": "checks/smoke.b",
+        "stage": "ci"
       }
     },
     "apps": {

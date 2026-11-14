@@ -191,6 +191,9 @@ pub enum SpecError {
     /// A `query` whose text is not a query (`blue_lang_mondou::QueryError`).
     #[error("{reason}")]
     Query { reason: String },
+    /// A `quarantine` entry that names no test or no date.
+    #[error("{reason}")]
+    Quarantine { reason: String },
     #[error("`{field}` is empty")]
     Empty { field: &'static str },
     #[error("`{field}` must be {expected}, got {got}")]

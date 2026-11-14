@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:5607fc25ae710a85bf5b2ec6db15cec38b6e39dafc43051b4054dd85d8153062",
+  "bluefile_b3": "b3:1952c99a098b57c17d6c3181029e9f1b9f12802683afc98607f8598d7e0724d6",
   "manifest": {
     "schema": 1,
     "name": "blue-kernel-agent",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {
       "agent": {
-        "file": "agent.b"
+        "file": "agent.b",
+        "stage": "ci"
       }
     },
     "apps": {},

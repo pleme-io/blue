@@ -106,6 +106,7 @@ it; `blue explain --list` lists them.
 | B0089 | tautological-assertion | error | a test of a bidama asserts something the code could fail: never a bare literal, never one expression compared with itself |
 | B0090 | untargeted-definition | error | each definition of a bidama is named by a test of its file: called, referenced, or its `target:` |
 | B0091 | unexpected-raise | error | each tag a definition of a bidama raises is named by a test of its file, the way a test expects it |
+| B0092 | unstaged-check | error | the program of a Bluefile `check` row is gated at a declared stage: its row names `stage:` (`:push`, `:ci` or `:release`) |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -163,9 +164,10 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | strength/assertion | a test block of a bidama | assertion | static | B0088 | default | 0 |
 | strength/tautology | an assertion that holds whatever the code does (`assert true`, `x == x`) | assertion | static | B0089 | default | 0 |
 | strength/slice | an assertion whose backward slice reaches no definition outside the test | assertion | dynamic | design: COVERAGE CV4: a data-flow slice in the recorder | default | 0 |
+| strength/deterministic | a test | assertion | dynamic | design: COVERAGE S6: `blue test --rerun N` finds a test whose verdict differs between runs (T8); no gate runs it by default, since a second run doubles a check until H3 rung 3 runs only what changed | default | 0 |
 | strength/mutant | a mutation site in a strict package | mutation | dynamic | design: COVERAGE CV5: heni per site, incremental by identity; the ratio ratchet holds today (checks.heni-mutations) | strict | 0 |
-| pipeline/stage | a gate the pre-push hook runs | declared | project | design: TESTING T3: `check` options `{stage:, kind:}` | default | 0 |
-| pipeline/ci | a CI workflow file | rendering | project | design: TESTING T5: `gen/ci.b` | default | 0 |
+| pipeline/stage | the program of a Bluefile `check` row | declared | project | B0092 | default | 0 |
+| pipeline/ci | a CI workflow file of blue's own | rendering | project | checks.workflows | default | 0 |
 | pipeline/release | a release or delivery step | declared | project | design: TESTING T7 | default | 0 |
 
 ## The reuse ratchet

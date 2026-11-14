@@ -4,6 +4,7 @@
 Bluefile.lock merge=blue-generated
 /bidamas/NAMES.md merge=union
 /.gitattributes merge=blue-generated
+/.github/workflows/ci.yml merge=blue-generated
 /.github/workflows/kernel-matrix.yml merge=blue-generated
 /AGENTS.md merge=blue-generated
 /CLAUDE.md merge=blue-generated

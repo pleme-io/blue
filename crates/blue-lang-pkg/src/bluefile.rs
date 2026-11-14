@@ -161,6 +161,10 @@ pub struct Project {
     /// reason.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub skips: BTreeMap<String, String>,
+    /// `quarantine(test, why, until)`: a failing test held out of the
+    /// verdict until a date, keyed `file::name` from the project root.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub quarantines: BTreeMap<String, Quarantine>,
     /// `generate(name, output, program)`: a committed file a blue program
     /// writes. Skipped when empty, so the locks of packages that generate
     /// nothing keep their bytes.
@@ -338,6 +342,64 @@ pub struct Check {
     pub file: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+}
+
+/// The stages a `check` row may name: the earliest runner that gates on it.
+/// Every row is a nix check whatever its stage; `push` also runs before a
+/// push, `release` before a release.
+pub const CHECK_STAGES: &[&str] = &["push", "ci", "release"];
+
+/// A quarantined test: why it is held out and the last day it may be.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Quarantine {
+    pub why: String,
+    pub until: String,
+}
+
+/// Whether `text` is a `YYYY-MM-DD` date.
+#[must_use]
+pub fn is_date(text: &str) -> bool {
+    let b = text.as_bytes();
+    b.len() == 10
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b.iter()
+            .enumerate()
+            .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+        && (1..=12).contains(&text[5..7].parse::<u8>().unwrap_or(0))
+        && (1..=31).contains(&text[8..10].parse::<u8>().unwrap_or(0))
+}
+
+fn quarantine_of(
+    test: &str,
+    why: &str,
+    until: &str,
+) -> Result<Quarantine, crate::deploy::SpecError> {
+    use crate::deploy::SpecError;
+    if !test.contains("::") {
+        return Err(SpecError::Quarantine {
+            reason: format!(
+                "`{test}` names no test: write `file.b::test name`, the file from the project root"
+            ),
+        });
+    }
+    if why.trim().is_empty() {
+        return Err(SpecError::Missing { field: "why" });
+    }
+    if !is_date(until) {
+        return Err(SpecError::Quarantine {
+            reason: format!("`until` is a date, YYYY-MM-DD, got `{until}`"),
+        });
+    }
+    Ok(Quarantine {
+        why: why.to_string(),
+        until: until.to_string(),
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -938,19 +1000,27 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "check",
-        signature: "check(name, file[, inputs])",
-        doc: "A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. `inputs` lists the project paths the tests read, found under $GEN_ROOT.",
+        signature: "check(name, file[, inputs][, {stage:, kind:}])",
+        doc: "A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. `inputs` lists the project paths the tests read, found under $GEN_ROOT. The options name the row's `stage:` (`:push`, `:ci`, `:release`: the earliest runner that gates on it; `blue test DIR --stage S` runs the rows of a stage, and the pre-push gate list is the `:push` rows) and the `kind:` of test it holds (a test kind). The program of a row that declares no stage is B0092.",
         min: 2,
-        max: 3,
+        max: 4,
         record: |c, into| {
             let name = c.text(0, "name")?;
+            let (inputs, options) = match (c.args.get(2), c.args.get(3)) {
+                (Some(Value::Map(_)), None) => (Vec::new(), Some(2)),
+                (Some(_), Some(_)) => (c.paths(2, "inputs")?, Some(3)),
+                (Some(_), None) => (c.paths(2, "inputs")?, None),
+                (None, _) => (Vec::new(), None),
+            };
+            let (stage, kind) = match options {
+                Some(i) => check_options(&c, i)?,
+                None => (None, None),
+            };
             let check = Check {
                 file: c.path(1, "file")?,
-                inputs: if c.args.len() > 2 {
-                    c.paths(2, "inputs")?
-                } else {
-                    Vec::new()
-                },
+                inputs,
+                stage,
+                kind,
             };
             insert_once(&mut into.project.checks, c.word, name, check)
         },
@@ -1066,6 +1136,22 @@ const WORDS: &[Word] = &[
             match skip_of(&gate, &why) {
                 Ok(()) => insert_once(&mut into.project.skips, c.word, gate, why),
                 Err(error) => refuse(into, c.word, gate, error),
+            }
+        },
+    },
+    Word {
+        name: "quarantine",
+        signature: "quarantine(test, why, until)",
+        doc: "Holds one failing test out of `blue test`'s verdict until a date: `quarantine(\"gen/land.b::a land waits\", \"the runner's clock skews\", \"2026-12-31\")`. The test still runs and is reported quarantined; after `until` it counts again, and a quarantined test that passes is named so its entry can go. A test is `file::name`, the file from the project root; no why or no date refuses the entry.",
+        min: 3,
+        max: 3,
+        record: |c, into| {
+            let test = c.text(0, "test")?;
+            let why = c.text(1, "why")?;
+            let until = c.text(2, "until")?;
+            match quarantine_of(&test, &why, &until) {
+                Ok(q) => insert_once(&mut into.project.quarantines, c.word, test, q),
+                Err(error) => refuse(into, c.word, test, error),
             }
         },
     },
@@ -1197,6 +1283,44 @@ const WORDS: &[Word] = &[
         },
     },
 ];
+
+/// The `stage:` and `kind:` of a `check` row's options map, each refused
+/// when it names no stage or no test kind, and the map refused when it holds
+/// any other key.
+fn check_options(c: &Call<'_>, i: usize) -> Result<(Option<String>, Option<String>), Malformed> {
+    if !matches!(&c.args[i], Value::Map(_)) {
+        return Err(c.type_error(i, "options", "a record"));
+    }
+    let spec = blue_lang_runtime::json::value_to_json(&c.args[i]);
+    let fields = spec.as_object().cloned().unwrap_or_default();
+    const KEYS: &[&str] = &["stage", "kind"];
+    if let Some(k) = fields.keys().find(|k| !KEYS.contains(&k.as_str())) {
+        return Err(Malformed::Choice {
+            word: c.word,
+            param: "options",
+            expected: KEYS,
+            got: k.clone(),
+        });
+    }
+    let pick = |key: &'static str, allowed: &'static [&'static str]| {
+        fields
+            .get(key)
+            .map(|v| match v.as_str() {
+                Some(s) if allowed.contains(&s) => Ok(s.to_string()),
+                _ => Err(Malformed::Choice {
+                    word: c.word,
+                    param: key,
+                    expected: allowed,
+                    got: v.to_string(),
+                }),
+            })
+            .transpose()
+    };
+    Ok((
+        pick("stage", CHECK_STAGES)?,
+        pick("kind", blue_lang_syntax::TEST_KINDS)?,
+    ))
+}
 
 /// Record a refused entry and let the manifest go on, so the next refused
 /// entry is reported too. A second entry of a refused name is still a
@@ -1790,6 +1914,8 @@ mod tests {
             .chain(["verify"])
             // T2, 2026-11-13: the coverage policy and a default gate's skip.
             .chain(["coverage", "skip"])
+            // T8, 2026-11-14: a failing test held out of the verdict until a date.
+            .chain(["quarantine"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
@@ -2148,6 +2274,30 @@ mod tests {
             serde_json::to_string(&bare.checks["unit"]).unwrap(),
             "{\"file\":\"tests/unit.b\"}"
         );
+    }
+
+    #[test]
+    fn check_records_its_stage_and_kind_with_or_without_inputs() {
+        let p = project_of(
+            "check(\"land\", \"gen/land.b\", [\"gen\"], {stage: :push, kind: :unit})\ncheck(\"docs\", \"gen/docs.b\", {stage: :ci})",
+        );
+        assert_eq!(p.checks["land"].stage.as_deref(), Some("push"));
+        assert_eq!(p.checks["land"].kind.as_deref(), Some("unit"));
+        assert_eq!(p.checks["land"].inputs, vec!["gen"]);
+        assert_eq!(p.checks["docs"].stage.as_deref(), Some("ci"));
+        assert!(p.checks["docs"].inputs.is_empty());
+        assert_eq!(
+            serde_json::to_string(&p.checks["docs"]).unwrap(),
+            "{\"file\":\"gen/docs.b\",\"stage\":\"ci\"}"
+        );
+        for bad in [
+            "check(\"x\", \"x.b\", {stage: :nightly})",
+            "check(\"x\", \"x.b\", {kind: :fuzz})",
+            "check(\"x\", \"x.b\", [\"x\"], {stages: :push})",
+            "check(\"x\", \"x.b\", [\"x\"], [\"y\"])",
+        ] {
+            refusal_of(bad);
+        }
     }
 
     #[test]

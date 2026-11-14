@@ -82,6 +82,7 @@ mod doc;
 mod door;
 mod facts;
 mod inputs;
+mod junit;
 mod memo;
 mod observe;
 mod prefetch;
@@ -96,6 +97,7 @@ mod scaffold;
 mod script;
 mod sigint;
 mod source_lines;
+mod stage;
 mod test_cache;
 mod watch;
 mod witness;
@@ -427,9 +429,30 @@ enum Cmd {
     },
     /// Check the file (as `blue check` does), then run its `test` blocks. A
     /// directory runs every `.b` file under it holding a `test` block, in
-    /// parallel, and ends with one summary line.
+    /// parallel, and ends with one summary line. With `--stage`, a project
+    /// directory runs instead the Bluefile `check` rows of that stage, in
+    /// the lock's order.
     Test {
         file: PathBuf,
+        /// Run the `check` rows of the project in FILE whose row declares
+        /// this stage: push, ci or release.
+        #[arg(long, value_name = "STAGE")]
+        stage: Option<String>,
+        /// With `--stage`, only the rows that declare this test kind.
+        #[arg(long, value_name = "KIND", requires = "stage")]
+        kind: Option<String>,
+        /// Write the run as JUnit XML to FILE: a suite per file, a case per
+        /// test.
+        #[arg(long, value_name = "FILE")]
+        junit: Option<PathBuf>,
+        /// Run only shard I of N of a directory's files (`--shard 2/4`): the
+        /// shards of one tree are disjoint and together hold it.
+        #[arg(long, value_name = "I/N")]
+        shard: Option<String>,
+        /// Run the tests N times, the cache off after the first, and fail
+        /// on a test whose verdict differs between runs: a flaky test.
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        rerun: usize,
         /// Run only the tests whose name contains PATTERN.
         #[arg(long, value_name = "PATTERN")]
         filter: Option<String>,
@@ -1545,6 +1568,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Test {
             file,
+            stage: Some(stage),
+            kind,
+            ..
+        } => stage::run(&file, &stage, kind.as_deref()),
+        Cmd::Test {
+            file,
             filter,
             coverage,
             json,
@@ -1553,7 +1582,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             allow,
             facts,
             proofs,
+            junit,
+            shard,
+            rerun,
+            ..
         } => {
+            let shard = shard.as_deref().map(observe::shard_of).transpose()?;
             let facts = facts::path(facts);
             let cache = test_cache::TestCache::open(no_cache, coverage || facts.is_some())
                 .map_err(CliError::Usage)?;
@@ -1578,6 +1612,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     memo: memo::mode(no_memo, &cfg),
                     cache: cache.as_ref(),
                     proofs: proofs.as_deref(),
+                    junit: junit.as_deref(),
+                    shard,
+                    rerun,
                 },
                 receipt::hold_for(asked, facts.as_deref()),
                 facts.as_deref(),

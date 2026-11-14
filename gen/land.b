@@ -4252,7 +4252,7 @@ test "land.yml refuses a batch at a step of its own while BLUE_LAND_BATCH is off
   assert length(before_first(land, "name: #{batch_off_step}")) <
     length(before_first(land, "name: #{turn_step}"))
   assert contains?(land, "BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}")
-  assert contains?(ci, "BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}")
+  assert contains?(ci, "BLUE_LAND_BATCH: \"${{ vars.BLUE_LAND_BATCH }}\"")
 end
 
 test "the turn refuses a batch while BLUE_LAND_BATCH is off and holds the same land when it is not a batch"

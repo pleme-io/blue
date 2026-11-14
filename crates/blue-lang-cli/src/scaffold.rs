@@ -110,7 +110,7 @@ const KERNEL_BLUEFILE: &str = r##"# __NAME__'s build facts. After an edit, `blue
 package("__NAME__", "0.1.0")
 
 allow(%i[clock environment filesystem kernel_bpf process])
-check("__NAME__", "__NAME__.b", ["__NAME__.b"])
+check("__NAME__", "__NAME__.b", ["__NAME__.b"], {stage: :push})
 "##;
 
 const KERNEL: &str = r##"@moduledoc """

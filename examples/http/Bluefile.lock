@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:551eedc72be8544ec000169b6957ca9110b42baaaffac8ec16024cb679089df8",
+  "bluefile_b3": "b3:6a347698f2b69b5389b9a91674a0094526d5ea251e6dd6067cac159d6084af21",
   "manifest": {
     "schema": 1,
     "name": "blue-http",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {
       "greeter": {
-        "file": "greeter.b"
+        "file": "greeter.b",
+        "stage": "ci"
       }
     },
     "apps": {},

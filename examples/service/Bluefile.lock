@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:db1c0545cea9e2e65144c3b6cc2bb091568d09d69eafe5135b0d2ebf45b6f516",
+  "bluefile_b3": "b3:8bc810cf8e2ef3e01e18971756e52817b971b8c6c51835b4a77342de2aadc9aa",
   "manifest": {
     "schema": 1,
     "name": "blue-hello",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {
       "hello": {
-        "file": "hello.b"
+        "file": "hello.b",
+        "stage": "ci"
       }
     },
     "apps": {},

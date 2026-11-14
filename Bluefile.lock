@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:291c2df346e2234529fd3a08c9a7328a3fab6c3be370e80e057522f4b8c1dec4",
+  "bluefile_b3": "b3:8cef029376184a0dbad0236c4e13f7b4df1719cb6bb2727025977b043e90d385",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -31,22 +31,26 @@
         "file": "gen/quality.b",
         "inputs": [
           "bidamas"
-        ]
+        ],
+        "stage": "ci"
       },
       "chart-gate": {
-        "file": "nix/chart-gate.b"
+        "file": "nix/chart-gate.b",
+        "stage": "push"
       },
       "consumers": {
         "file": "gen/consumers.b",
         "inputs": [
           "gen/consumers.json"
-        ]
+        ],
+        "stage": "ci"
       },
       "core-models": {
         "file": "gen/core-models.b",
         "inputs": [
           "bidamas"
-        ]
+        ],
+        "stage": "ci"
       },
       "docs": {
         "file": "gen/docs.b",
@@ -64,23 +68,28 @@
           "bidamas",
           "crates",
           "tree-sitter-blue"
-        ]
+        ],
+        "stage": "ci"
       },
       "heni-mutations": {
-        "file": "gen/heni-gate.b"
+        "file": "gen/heni-gate.b",
+        "stage": "ci"
       },
       "kernel-compile": {
         "file": "gen/kernel-compile.b",
         "inputs": [
           "kernel",
           "bidamas"
-        ]
+        ],
+        "stage": "ci"
       },
       "kernel-new": {
-        "file": "gen/kernel-new.b"
+        "file": "gen/kernel-new.b",
+        "stage": "ci"
       },
       "kernel-run": {
-        "file": "kernel/run.b"
+        "file": "kernel/run.b",
+        "stage": "ci"
       },
       "land": {
         "file": "gen/land.b",
@@ -89,7 +98,8 @@
           "gen/merge.b",
           "gen/regen.b",
           ".github/workflows"
-        ]
+        ],
+        "stage": "ci"
       },
       "markdown-laws": {
         "file": "gen/markdown-laws.b",
@@ -104,56 +114,76 @@
           "examples",
           "rules",
           "spec"
-        ]
+        ],
+        "stage": "ci"
       },
       "merge-driver": {
         "file": "gen/merge.b",
         "inputs": [
           "gen/merge.b",
           "gen/regen.b"
-        ]
+        ],
+        "stage": "push"
       },
       "model-eval": {
         "file": "eval/score_test.b",
         "inputs": [
           "eval"
-        ]
+        ],
+        "stage": "ci"
       },
       "okite-laws": {
-        "file": "gen/okite-laws.b"
+        "file": "gen/okite-laws.b",
+        "stage": "push"
       },
       "prepush": {
         "file": "gen/prepush.b",
         "inputs": [
           "Bluefile.lock"
-        ]
+        ],
+        "stage": "push"
       },
       "project-rules": {
-        "file": "rules/conventions.b"
+        "file": "rules/conventions.b",
+        "stage": "push"
       },
       "proof": {
         "file": "gen/proof.b",
         "inputs": [
           "gen/proof.b"
-        ]
+        ],
+        "stage": "push"
       },
       "regen-untracked": {
         "file": "gen/regen_test.b",
         "inputs": [
           "gen/regen.b"
-        ]
+        ],
+        "stage": "push"
       },
       "release": {
-        "file": "gen/release.b"
+        "file": "gen/release.b",
+        "stage": "push"
       },
       "test-beside-judge": {
-        "file": "gen/test-beside.b"
+        "file": "gen/test-beside.b",
+        "stage": "ci"
       },
       "verb-graph": {
-        "file": "gen/verb-graph.b"
+        "file": "gen/verb-graph.b",
+        "stage": "ci"
       },
       "vm-run": {
-        "file": "nix/vm-run.b"
+        "file": "nix/vm-run.b",
+        "stage": "push"
+      },
+      "workflows": {
+        "file": "gen/ci.b",
+        "inputs": [
+          ".github/workflows",
+          "Bluefile.lock"
+        ],
+        "stage": "push"
       }
     },
     "apps": {},
@@ -190,6 +220,13 @@
           "Bluefile.lock",
           "docs",
           "bidamas"
+        ]
+      },
+      "ci": {
+        "output": ".github/workflows/ci.yml",
+        "program": "gen/ci.b",
+        "inputs": [
+          "Bluefile.lock"
         ]
       },
       "claude": {

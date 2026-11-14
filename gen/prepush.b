@@ -1,3 +1,5 @@
+use("jisho", %i[from_entries merge])
+
 use("moji", %i[glob_match? take_chars])
 
 use("retsu", %i[all_but_last enumerate first flat_map last reject rest])
@@ -151,6 +153,61 @@ def gate_table()
       inputs: %w[**/*.md LICENSE **/.gitignore llms.txt llms-full.txt]
     }
   ]
+end
+
+@doc """
+declared_gates: The pre-push gates the Bluefile declares: each `check` row
+whose `stage:` is push, as a light gate that reads its program and its inputs
+and runs `blue test` on the program, held to its declared inputs as nix runs
+it. A row of another stage, or with none (B0092), is no pre-push gate.
+
+    map((g) -> g[:id], declared_gates({"land" => {"file" => "gen/land.b", "stage" => "push"}, "docs" => {"file" => "gen/docs.b", "stage" => "ci"}})) #=> ["check-land"]
+    declared_gates({"land" => {"file" => "gen/land.b", "stage" => "push", "inputs" => ["gen"]}})[0][:inputs] #=> ["gen/land.b", "gen", "gen/**"]
+    declared_gates(nil) #=> []
+"""
+def declared_gates(checks)
+  map(
+    fn(e)
+      row = last(e)
+      {
+        id: "check-#{first(e)}",
+        label: "check #{first(e)}",
+        weight: :light,
+        program: row["file"],
+        inputs: append(
+          [row["file"]],
+          flat_map(row["inputs"] or [], (i) -> [i, "#{i}/**"])
+        )
+      }
+    end,
+    filter((e) -> last(e)["stage"] == "push", map_entries(checks or {}))
+  )
+end
+
+@doc """
+locked_checks: The `check` rows of the lock beside this program's project
+root (GEN_ROOT, else the working directory), by name; none when there is no
+lock.
+
+    map?(locked_checks) #=> true
+"""
+def locked_checks()
+  lock = path_join(getenv("GEN_ROOT", "."), "Bluefile.lock")
+  if path_exists(lock)
+    json_read(read_file(lock))["manifest"]["checks"] or {}
+  else
+    {}
+  end
+end
+
+@doc """
+pipeline_table: The gates a push runs from: the host gates of gate_table, which
+are no Bluefile row yet, then the Bluefile's push rows.
+
+    count(pipeline_table) >= count(gate_table) #=> true
+"""
+def pipeline_table()
+  append(gate_table, declared_gates(locked_checks))
 end
 
 @doc """
@@ -895,12 +952,12 @@ def main()
     exit_with(0)
   end
   full = full?(getenv("BLUE_PREPUSH_FULL"))
-  skip = skipped(getenv("BLUE_PREPUSH_SKIP"), gate_table)
+  skip = skipped(getenv("BLUE_PREPUSH_SKIP"), pipeline_table)
   if map?(skip)
     write_stderr(
       unlines(
         [
-          "prepush: BLUE_PREPUSH_SKIP names #{skip[:refused]}, which is no gate; it takes gate ids from: #{join(map((g) -> g[:id], reject((g) -> g[:weight] == :none, gate_table)), ", ")}"
+          "prepush: BLUE_PREPUSH_SKIP names #{skip[:refused]}, which is no gate; it takes gate ids from: #{join(map((g) -> g[:id], reject((g) -> g[:weight] == :none, pipeline_table)), ", ")}"
         ]
       )
     )
@@ -947,7 +1004,7 @@ def main()
       (p) -> lines_of(git(["diff", "--name-only", last(p), first(p)]))
     )
   )
-  table = gate_table
+  table = pipeline_table
   chosen = if blind
     {
       ids: map((g) -> g[:id], filter((g) -> g[:weight] != :none, table)),
@@ -1035,7 +1092,27 @@ def main()
   else
     scoped_dirs
   end
-  runners = {
+  declared = from_entries(
+    map(
+      fn(g)
+        [
+          g[:id],
+          [
+            [
+              g[:label],
+              fn()
+                verdict(
+                  exec_capture("#{bin}/blue", "test", "#{root}/#{g[:program]}")
+                )
+              end
+            ]
+          ]
+        ]
+      end,
+      reject((g) -> g[:program].nil?, table)
+    )
+  )
+  hand = {
     "cargo-fmt" => [
       [
         "cargo fmt",
@@ -1236,6 +1313,7 @@ def main()
       ]
     ]
   }
+  runners = merge(hand, declared)
   ids = reject(
     (id) -> member?(id, skip),
     planned(chosen[:ids], {full:, landing:}, table)
@@ -1557,4 +1635,19 @@ test "a dirty tree never skips"
     "t1",
     true
   ).nil?
+end
+
+test "the Bluefile's push rows are pre-push gates, and no row of another stage is"
+  ids = map((g) -> g[:id], declared_gates(locked_checks))
+  assert member?("check-prepush", ids)
+  assert member?("check-merge-driver", ids)
+  assert not member?("check-docs", ids)
+  assert member?(
+    "check-merge-driver",
+    selection(["gen/merge.b"], pipeline_table)[:ids]
+  )
+end
+
+test "the host gates hold at 18 and only fall: a gate leaves gate_table when a Bluefile check row with stage push runs it"
+  assert count(reject((g) -> g[:weight] == :none, gate_table)) == 18
 end

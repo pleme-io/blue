@@ -1,203 +1,145 @@
-name: ci
-
-# Thin shim onto substrate's reusable cargo-ci.yml — the fleet standard
-# (★ pleme-actions: "a hand-authored composite action inside a workflow is
-# drift"; a consumer is a 5-line shim). Modelled on magma's, 2026-08-01.
-#
-# ── WHY THIS EXISTS: 464 GREEN TESTS AND NOTHING RAN THEM ──────────────
-#
-# Until this file, blue's only workflow was `auto-release.yml`, which
-# delegates to substrate's cargo-auto-release.yml and contains **zero**
-# `cargo test`. It asserts that publishing succeeds and nothing about
-# whether the code is correct.
-#
-# The gap was not what it looked like from the outside, and the difference
-# matters for anyone tempted to "fix CI" the obvious way:
-#
-#   - Actions on this repo were already ENABLED
-#     (`gh api repos/pleme-io/blue/actions/permissions` -> enabled: true).
-#   - The flake ALREADY exposes checks. Measured, not assumed:
-#     `nix eval blue#checks.aarch64-darwin --apply builtins.attrNames`
-#     -> [ "build" "gen-confirm" ], inherited from substrate's
-#     workspace-release -> tool-release (`tool-release.nix:587`).
-#
-# So the missing piece was never "blue has no checks". It is that
-# **`checks.tests` does not exist anywhere in the fleet**:
-# `tool-release.nix:193` resolves buildMode to "lockfile", and
-# `test-check.nix:110-129` returns `ok = false` for lockfile — so
-# `nix flake check` COMPILES the workspace and never runs a test. Adding a
-# `checks` output to this flake would therefore have armed nothing.
-#
-# `cargo-ci.yml` is what closes it: one job runs `nix flake check` (the
-# compile gate that already existed), the other runs `cargo test` in the
-# devShell (the 464 that did not).
-#
-# ── WHAT THIS DOES NOT COVER, said out loud ────────────────────────────
-#
-# `cargo test --workspace` does not run the `spec/*.b` conformance corpus
-# through the CLI, only through `blue-lang-test`'s harness. And nothing
-# here gates the formatter against real files the way `fmt --write` would —
-# the laws are property tests over trees, and this repo has three separate
-# receipts of a formatting law passing over output no human would write.
-
-on:
-  push:
-    branches:
-      - main
+jobs:
+  blue:
+    outputs:
+      held: "${{ steps.turn.outputs.held }}"
+      proven: "${{ steps.proof.outputs.proven }}"
+    permissions:
+      actions: "read"
+      contents: "read"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - id: "blue"
+        uses: "pleme-io/actions/nix-build@main"
+        with:
+          flake-ref: ".#default"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - env:
+          BLUE_LAND_BATCH: "${{ vars.BLUE_LAND_BATCH }}"
+          GH_TOKEN: "${{ github.token }}"
+        id: "turn"
+        if: "${{ github.event_name == 'push' && startsWith(github.ref_name, 'land/') && !startsWith(github.ref_name, 'land/dry-') && vars.BLUE_LAND_TURN != 'off' }}"
+        name: "take the land turn before the suite runs"
+        run: "held=\"$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn \"$GITHUB_RUN_ID\" \"$GITHUB_REF_NAME\" \"$GITHUB_SHA\")\"\necho \"held=$held\" >> \"$GITHUB_OUTPUT\""
+      - continue-on-error: true
+        id: "proof"
+        name: "read the suite proof noted on this commit"
+        run: "echo \"proven=$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/proof.b -- --verify HEAD)\" >> \"$GITHUB_OUTPUT\""
+      - continue-on-error: true
+        env:
+          OUT: "${{ steps.blue.outputs.out-path }}"
+        name: "export blue's closure for the jobs that build it again"
+        run: "nix copy --to \"file://$RUNNER_TEMP/blue-closure?compression=zstd\" \"$OUT\"\necho \"$OUT\" > \"$RUNNER_TEMP/blue-closure/out-path\""
+      - continue-on-error: true
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "blue-closure"
+          path: "${{ runner.temp }}/blue-closure"
+          retention-days: 1
+  check:
+    if: "${{ needs.blue.outputs.held != 'false' }}"
+    needs: "blue"
+    secrets: "inherit"
+    uses: "pleme-io/substrate/.github/workflows/cargo-ci.yml@main"
+    with:
+      cargo-test: "${{ needs.blue.outputs.proven != 'true' }}"
+      closure-artifact: "blue-closure"
+      flake-check-shards: "${{ fromJSON(vars.BLUE_FLAKE_CHECK_SHARDS || '6') }}"
+      runner: "${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}"
+      test-args: "--workspace --no-fail-fast"
+      test-runner: "ubuntu-latest"
+  consumers:
+    if: "${{ needs.blue.outputs.held != 'false' }}"
+    needs: "blue"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "pleme-io/actions/nix-setup@main"
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - continue-on-error: true
+        uses: "actions/download-artifact@v4"
+        with:
+          name: "blue-closure"
+          path: "${{ runner.temp }}/blue-closure"
+      - continue-on-error: true
+        run: "nix copy --from \"file://$RUNNER_TEMP/blue-closure\" --no-check-sigs \"$(cat \"$RUNNER_TEMP/blue-closure/out-path\")\""
+      - id: "blue"
+        uses: "pleme-io/actions/nix-build@main"
+        with:
+          flake-ref: ".#default"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - run: "${{ steps.blue.outputs.out-path }}/bin/blue gen/consumers.b sweep --clone \"$RUNNER_TEMP/consumers\""
+  first-gates:
+    if: "${{ needs.blue.outputs.held != 'false' && github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_FIRST_GATES != 'off' }}"
+    needs: "blue"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "pleme-io/actions/nix-setup@main"
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - continue-on-error: true
+        uses: "actions/download-artifact@v4"
+        with:
+          name: "blue-closure"
+          path: "${{ runner.temp }}/blue-closure"
+      - continue-on-error: true
+        run: "nix copy --from \"file://$RUNNER_TEMP/blue-closure\" --no-check-sigs \"$(cat \"$RUNNER_TEMP/blue-closure/out-path\")\""
+      - id: "blue"
+        uses: "pleme-io/actions/nix-build@main"
+        with:
+          flake-ref: ".#default"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - env:
+          BLUE: "${{ steps.blue.outputs.out-path }}/bin/blue"
+        id: "gates"
+        run: "echo \"checks=$(\"$BLUE\" run --quiet gen/prepush.b -- --first-gates x86_64-linux)\" >> \"$GITHUB_OUTPUT\"\ndirname \"$BLUE\" >> \"$GITHUB_PATH\""
+      - uses: "pleme-io/actions/nix-flake-check@main"
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          only: "${{ steps.gates.outputs.checks }}"
+  stop-on-red:
+    continue-on-error: true
+    if: "${{ needs.blue.outputs.held != 'false' && github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_STOP_ON_RED != 'off' }}"
+    needs: "blue"
+    permissions:
+      actions: "write"
+      contents: "read"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "pleme-io/actions/nix-setup@main"
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - continue-on-error: true
+        uses: "actions/download-artifact@v4"
+        with:
+          name: "blue-closure"
+          path: "${{ runner.temp }}/blue-closure"
+      - continue-on-error: true
+        run: "nix copy --from \"file://$RUNNER_TEMP/blue-closure\" --no-check-sigs \"$(cat \"$RUNNER_TEMP/blue-closure/out-path\")\""
+      - id: "blue"
+        uses: "pleme-io/actions/nix-build@main"
+        with:
+          flake-ref: ".#default"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - env:
+          GH_TOKEN: "${{ github.token }}"
+        run: "${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --stop-on-red \"$GITHUB_RUN_ID\""
+name: "ci"
+"on":
   pull_request:
     branches:
-      - main
-  workflow_dispatch: {}
+      - "main"
+  push:
+    branches:
+      - "main"
   workflow_call:
     outputs:
       held:
         description: "false when a land run does not hold the land turn (gen/land.b --turn); empty otherwise"
-        value: ${{ jobs.blue.outputs.held }}
-
+        value: "${{ jobs.blue.outputs.held }}"
+  workflow_dispatch: {}
 permissions:
-  contents: read
-
-jobs:
-  blue:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      proven: ${{ steps.proof.outputs.proven }}
-      held: ${{ steps.turn.outputs.held }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: blue
-        uses: pleme-io/actions/nix-build@main
-        with:
-          flake-ref: ".#default"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: take the land turn before the suite runs
-        id: turn
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'land/') && !startsWith(github.ref_name, 'land/dry-') && vars.BLUE_LAND_TURN != 'off' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}
-        run: |
-          held="$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
-          echo "held=$held" >> "$GITHUB_OUTPUT"
-      - name: read the suite proof noted on this commit
-        id: proof
-        continue-on-error: true
-        run: echo "proven=$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/proof.b -- --verify HEAD)" >> "$GITHUB_OUTPUT"
-      - name: export blue's closure for the jobs that build it again
-        continue-on-error: true
-        env:
-          OUT: ${{ steps.blue.outputs.out-path }}
-        run: |
-          nix copy --to "file://$RUNNER_TEMP/blue-closure?compression=zstd" "$OUT"
-          echo "$OUT" > "$RUNNER_TEMP/blue-closure/out-path"
-      - uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: blue-closure
-          path: ${{ runner.temp }}/blue-closure
-          retention-days: 1
-
-  check:
-    needs: blue
-    if: ${{ needs.blue.outputs.held != 'false' }}
-    uses: pleme-io/substrate/.github/workflows/cargo-ci.yml@main
-    with:
-      # blue git-deps tatara-lisp by rev over https. The reusable carries
-      # `pleme-io/actions/git-credentials`, which is the reason to use it
-      # rather than hand-write the job: a hand-written cargo job touching a
-      # private pleme-io git dep dies on `failed to acquire username/password
-      # from local configuration`, and that is a fleet class, not a quirk.
-      test-args: "--workspace --no-fail-fast"
-      runner: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}
-      test-runner: ubuntu-latest
-      cargo-test: ${{ needs.blue.outputs.proven != 'true' }}
-      closure-artifact: blue-closure
-      flake-check-shards: ${{ fromJSON(vars.BLUE_FLAKE_CHECK_SHARDS || '6') }}
-    secrets: inherit
-
-  first-gates:
-    needs: blue
-    if: ${{ needs.blue.outputs.held != 'false' && github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_FIRST_GATES != 'off' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pleme-io/actions/nix-setup@main
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: blue-closure
-          path: ${{ runner.temp }}/blue-closure
-      - continue-on-error: true
-        run: nix copy --from "file://$RUNNER_TEMP/blue-closure" --no-check-sigs "$(cat "$RUNNER_TEMP/blue-closure/out-path")"
-      - id: blue
-        uses: pleme-io/actions/nix-build@main
-        with:
-          flake-ref: ".#default"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - id: gates
-        env:
-          BLUE: ${{ steps.blue.outputs.out-path }}/bin/blue
-        run: |
-          echo "checks=$("$BLUE" run --quiet gen/prepush.b -- --first-gates x86_64-linux)" >> "$GITHUB_OUTPUT"
-          dirname "$BLUE" >> "$GITHUB_PATH"
-      - uses: pleme-io/actions/nix-flake-check@main
-        with:
-          only: ${{ steps.gates.outputs.checks }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  consumers:
-    needs: blue
-    if: ${{ needs.blue.outputs.held != 'false' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pleme-io/actions/nix-setup@main
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: blue-closure
-          path: ${{ runner.temp }}/blue-closure
-      - continue-on-error: true
-        run: nix copy --from "file://$RUNNER_TEMP/blue-closure" --no-check-sigs "$(cat "$RUNNER_TEMP/blue-closure/out-path")"
-      - id: blue
-        uses: pleme-io/actions/nix-build@main
-        with:
-          flake-ref: ".#default"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: ${{ steps.blue.outputs.out-path }}/bin/blue gen/consumers.b sweep --clone "$RUNNER_TEMP/consumers"
-
-  stop-on-red:
-    needs: blue
-    if: ${{ needs.blue.outputs.held != 'false' && github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_STOP_ON_RED != 'off' }}
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pleme-io/actions/nix-setup@main
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: blue-closure
-          path: ${{ runner.temp }}/blue-closure
-      - continue-on-error: true
-        run: nix copy --from "file://$RUNNER_TEMP/blue-closure" --no-check-sigs "$(cat "$RUNNER_TEMP/blue-closure/out-path")"
-      - id: blue
-        uses: pleme-io/actions/nix-build@main
-        with:
-          flake-ref: ".#default"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: ${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --stop-on-red "$GITHUB_RUN_ID"
+  contents: "read"

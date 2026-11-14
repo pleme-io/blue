@@ -396,3 +396,38 @@ row(
   covers("rule:B0091"),
   bidama("kagi")
 )
+
+row(
+  "testing.B0092",
+  unlines(
+    [
+      "def gate()",
+      "  1",
+      "end",
+      "",
+      "test \"gate\"",
+      "  assert gate == 1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0092"]),
+  covers("rule:B0092"),
+  role("gate")
+)
+
+row(
+  "testing.B0092.staged",
+  unlines(
+    [
+      "def gate()",
+      "  1",
+      "end",
+      "",
+      "test \"gate\"",
+      "  assert gate == 1",
+      "end"
+    ]
+  ),
+  diagnoses([]),
+  role("staged-gate")
+)

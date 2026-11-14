@@ -43,4 +43,4 @@ workload(
   }
 )
 
-check("hello", "hello.b")
+check("hello", "hello.b", {stage: :ci})

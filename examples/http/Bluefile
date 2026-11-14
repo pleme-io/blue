@@ -12,4 +12,4 @@ service(
   }
 )
 
-check("greeter", "greeter.b")
+check("greeter", "greeter.b", {stage: :ci})

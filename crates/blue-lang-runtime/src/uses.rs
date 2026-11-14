@@ -202,6 +202,30 @@ pub enum Role {
     /// A binding of a service (`cache`, `schema`): it owes a `kind:
     /// :contract` test.
     Binding(String, String),
+    /// The program of `check(name, …)`, with the stage its row declares: a
+    /// row that declares none is B0092.
+    Gate(String, Option<String>),
+}
+
+impl Role {
+    /// The roles a witness or a conformance row names by one word, for a row
+    /// called `name`: `generator`, `service`, `binding` (a service that binds
+    /// a cache), `gate` (a check row with no stage) and `staged-gate` (one
+    /// with `stage: :push`).
+    #[must_use]
+    pub fn named(word: &str, name: &str) -> Vec<Role> {
+        match word {
+            "generator" => vec![Role::Generator(name.into())],
+            "service" => vec![Role::Service(name.into())],
+            "binding" => vec![
+                Role::Service(name.into()),
+                Role::Binding(name.into(), "cache".into()),
+            ],
+            "gate" => vec![Role::Gate(name.into(), None)],
+            "staged-gate" => vec![Role::Gate(name.into(), Some("push".into()))],
+            _ => Vec::new(),
+        }
+    }
 }
 
 /// A loader that resolves nothing, and says so.

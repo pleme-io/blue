@@ -245,6 +245,40 @@ pub fn project_points(
         .collect()
 }
 
+/// B0092 for each `check` row whose program is the entry file and which
+/// declares no `stage:`. The finding sits on the file's first form, so `#
+/// waive B0092: reason` above it holds the file's debt.
+#[must_use]
+pub fn unstaged_gates(
+    forms: &[Spanned],
+    is_entry: &dyn Fn(usize) -> bool,
+    gates: &[String],
+) -> Vec<Diagnostic> {
+    let Some((first, form)) = forms
+        .iter()
+        .enumerate()
+        .find(|(i, f)| is_entry(*i) && !blue_lang_syntax::doc::is_doctest(f))
+    else {
+        return Vec::new();
+    };
+    gates
+        .iter()
+        .map(|n| {
+            Diagnostic::new(
+                Code::B0092,
+                format!(
+                    "this file is the program of check(\"{n}\", …), whose row declares no `stage:`"
+                ),
+                form.span,
+            )
+            .at_top_level(first)
+            .with_help(format!(
+                "give the row its earliest gate: `check(\"{n}\", file, inputs, {{stage: :push}})` (or `:ci`, `:release`), then `blue lock`; or `# waive B0092: reason` above the file's first form"
+            ))
+        })
+        .collect()
+}
+
 fn call_graph(p: &Program<'_>) -> BTreeMap<usize, BTreeSet<usize>> {
     let mut defs: BTreeMap<String, usize> = BTreeMap::new();
     for (i, form) in p.forms.iter().enumerate() {

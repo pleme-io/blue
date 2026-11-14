@@ -22,16 +22,7 @@ struct Imports(
 
 impl Loader for Imports {
     fn roles(&self, _entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
-        use blue_lang_runtime::uses::Role;
-        match self.3 {
-            Some("generator") => vec![Role::Generator("witness".into())],
-            Some("service") => vec![Role::Service("witness".into())],
-            Some("binding") => vec![
-                Role::Service("witness".into()),
-                Role::Binding("witness".into(), "cache".into()),
-            ],
-            _ => Vec::new(),
-        }
+        blue_lang_runtime::uses::Role::named(self.3.unwrap_or(""), "witness")
     }
 
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {

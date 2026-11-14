@@ -27,5 +27,5 @@ bounds({steps: 1_000_000, alloc_bytes: 67_108_864})
 virtualize(:clock, {using: :deterministic_stepped, at_ms: 0, step_ms: 5})
 virtualize(:entropy, {using: :seeded_prng, seed: "ibuki-docking", for: %w[shomei]})
 
-check("app", "app.b", ["Bluefile.lock"])
+check("app", "app.b", ["Bluefile.lock"], {stage: :ci})
 app("pacer", "app.b")

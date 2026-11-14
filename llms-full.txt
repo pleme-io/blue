@@ -230,8 +230,8 @@ rendered:
 |---|---|
 | Built-in names | 399: 372 functions, 14 special forms, 13 macros |
 | Surface forms | 36, with 13 operators and 26 reserved words |
-| Check rules | 88: 42 fix themselves, 8 suggest a fix |
-| Bluefile words | 31 |
+| Check rules | 89: 42 fix themselves, 8 suggest a fix |
+| Bluefile words | 32 |
 | Commands | 61 |
 
 ## The standard library
@@ -679,7 +679,7 @@ service(
   }
 )
 
-check("hello", "hello.b")
+check("hello", "hello.b", {stage: :ci})
 ```
 
 The program answers `GET /`. `settei` reads the settings the declaration
@@ -2166,7 +2166,7 @@ service(
   }
 )
 
-check("agent", "agent.b")
+check("agent", "agent.b", {stage: :ci})
 ```
 
 `runtime: :native` with `because: :device` is required: WASI reaches no kernel

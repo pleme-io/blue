@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:cd09e5c212b9175fbb4646a2141db1ae358b1bfb2ff91fd8ec407a94e460e929",
+  "bluefile_b3": "b3:3d3da684ca5c4a4b54751f9997325abafeaa37a6ffe1b7cadf709d1ef0a681e3",
   "manifest": {
     "schema": 1,
     "name": "ibuki-docking",
@@ -16,7 +16,8 @@
         "file": "app.b",
         "inputs": [
           "Bluefile.lock"
-        ]
+        ],
+        "stage": "ci"
       }
     },
     "apps": {
@@ -67,6 +68,7 @@
       "clock"
     ],
     "packages": {
+      "baito": [],
       "deeta": [],
       "ibuki": [],
       "ibuki-docking": [
@@ -81,6 +83,7 @@
       "ran": [],
       "retsu": [],
       "ronri": [],
+      "seikika": [],
       "shinsuu": [],
       "shomei": [],
       "shuugou": []

@@ -40,16 +40,7 @@ impl Loader for Imports {
     /// A rule that judges a project point has its witness checked as the
     /// program of that row: `generator`, `service`, or a `binding` service.
     fn roles(&self, _entry: &std::path::Path) -> Vec<blue_lang_runtime::uses::Role> {
-        use blue_lang_runtime::uses::Role;
-        match self.3 {
-            Some("generator") => vec![Role::Generator("witness".into())],
-            Some("service") => vec![Role::Service("witness".into())],
-            Some("binding") => vec![
-                Role::Service("witness".into()),
-                Role::Binding("witness".into(), "cache".into()),
-            ],
-            _ => Vec::new(),
-        }
+        blue_lang_runtime::uses::Role::named(self.3.unwrap_or(""), "witness")
     }
 
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
@@ -588,5 +579,33 @@ fn a_project_point_is_discharged_only_by_a_test_of_its_kind() {
         codes_as(with("rendering"), &[], None, None, None),
         Vec::<Code>::new(),
         "a file no row names owes nothing"
+    );
+}
+
+/// **A check row's program is refused until its row declares a stage.** The
+/// row's stage, not the tests in the file, discharges B0092, so a staged row
+/// is clean whatever its tests declare, and a file no row names owes nothing.
+///
+/// Red run (2026-11-13): `unstaged_gates` removed from the check stage: `a
+/// check row with no stage: []`.
+#[test]
+fn a_check_row_is_discharged_by_its_declared_stage() {
+    let gate = "def gate()\n  1\nend\n\ntest \"gate\"\n  assert gate == 1\nend\n";
+    assert_eq!(
+        codes_as(gate, &[], None, None, Some("gate")),
+        vec![Code::B0092],
+        "a check row with no stage"
+    );
+    assert_eq!(
+        codes_as(gate, &[], None, None, Some("staged-gate")),
+        Vec::<Code>::new(),
+        "a check row with stage: :push"
+    );
+    assert_eq!(codes_as(gate, &[], None, None, None), Vec::<Code>::new());
+    let waived = "# waive B0092: the row's stage waits on its first timing\ndef gate()\n  1\nend\n\ntest \"gate\"\n  assert gate == 1\nend\n";
+    assert_eq!(
+        codes_as(waived, &[], None, None, Some("gate")),
+        Vec::<Code>::new(),
+        "a waiver above the first form holds the file's debt"
     );
 }

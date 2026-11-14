@@ -75,20 +75,24 @@ generate("verbs-table", "docs/verbs/merged/verbs.tsv", "gen/verbs/verbs.b", ["bi
 generate("edges-table", "docs/verbs/merged/edges.tsv", "gen/verbs/edges.b", ["bidamas"])
 generate("contracts-table", "docs/verbs/contracts.tsv", "gen/verbs/contracts.b", ["bidamas"])
 generate("kernel-matrix", ".github/workflows/kernel-matrix.yml", "gen/kernel-matrix.b", ["Bluefile.lock"])
+# blue's CI workflow, rendered (docs/TESTING.md T5); the workflows check refuses
+# a workflow no generate row renders, beside the hand-written ones it holds.
+generate("ci", ".github/workflows/ci.yml", "gen/ci.b", ["Bluefile.lock"])
+check("workflows", "gen/ci.b", [".github/workflows", "Bluefile.lock"], {stage: :push})
 generate("node-nix", "nix/node-fixture/configuration.nix", "nix/node-fixture/node.b")
 generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/toriyose/danpen/fixtures/schema/kensa.graphql"])
 generate("settings", "docs/SETTINGS.md", "gen/core-models.b", ["bidamas"])
-check("core-models", "gen/core-models.b", ["bidamas"])
-check("okite-laws", "gen/okite-laws.b")
-check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
-check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"])
-check("land", "gen/land.b", ["gen/land.b", "gen/merge.b", "gen/regen.b", ".github/workflows"])
-check("proof", "gen/proof.b", ["gen/proof.b"])
-check("prepush", "gen/prepush.b", ["Bluefile.lock"])
-check("catalog-quality", "gen/quality.b", ["bidamas"])
-check("release", "gen/release.b")
-check("docs", "gen/docs.b", ["docs", "Bluefile.lock", "nix/node-fixture", "AGENTS.md", "CLAUDE.md", "README.md", "llms.txt", "llms-full.txt", ".gitattributes", ".github", "bidamas", "crates", "tree-sitter-blue"])
-check("markdown-laws", "gen/markdown-laws.b", ["Bluefile.lock", "docs", "AGENTS.md", "Bluefile", "llms.txt", "bidamas", "crates", "examples", "rules", "spec"])
+check("core-models", "gen/core-models.b", ["bidamas"], {stage: :ci})
+check("okite-laws", "gen/okite-laws.b", {stage: :push})
+check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"], {stage: :push})
+check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"], {stage: :push})
+check("land", "gen/land.b", ["gen/land.b", "gen/merge.b", "gen/regen.b", ".github/workflows"], {stage: :ci})
+check("proof", "gen/proof.b", ["gen/proof.b"], {stage: :push})
+check("prepush", "gen/prepush.b", ["Bluefile.lock"], {stage: :push})
+check("catalog-quality", "gen/quality.b", ["bidamas"], {stage: :ci})
+check("release", "gen/release.b", {stage: :push})
+check("docs", "gen/docs.b", ["docs", "Bluefile.lock", "nix/node-fixture", "AGENTS.md", "CLAUDE.md", "README.md", "llms.txt", "llms-full.txt", ".gitattributes", ".github", "bidamas", "crates", "tree-sitter-blue"], {stage: :ci})
+check("markdown-laws", "gen/markdown-laws.b", ["Bluefile.lock", "docs", "AGENTS.md", "Bluefile", "llms.txt", "bidamas", "crates", "examples", "rules", "spec"], {stage: :ci})
 receipt("docs", %i[nist_sa_5 nist_sa_11])
 
 # The repository's own check rules, written in blue: `blue check` runs each
@@ -96,12 +100,12 @@ receipt("docs", %i[nist_sa_5 nist_sa_11])
 # (docs/DIAGNOSTICS.md, "Project rules"). The check runs the rules' tests.
 rule("R0001", "rules/conventions.b", "nil_predicate")
 rule("R0002", "rules/conventions.b", "index_nil")
-check("project-rules", "rules/conventions.b")
-check("kernel-run", "kernel/run.b")
-check("kernel-new", "gen/kernel-new.b")
-check("chart-gate", "nix/chart-gate.b")
-check("vm-run", "nix/vm-run.b")
-check("kernel-compile", "gen/kernel-compile.b", ["kernel", "bidamas"])
+check("project-rules", "rules/conventions.b", {stage: :push})
+check("kernel-run", "kernel/run.b", {stage: :ci})
+check("kernel-new", "gen/kernel-new.b", {stage: :ci})
+check("chart-gate", "nix/chart-gate.b", {stage: :push})
+check("vm-run", "nix/vm-run.b", {stage: :push})
+check("kernel-compile", "gen/kernel-compile.b", ["kernel", "bidamas"], {stage: :ci})
 
 # Every kernel word against real kernels, in machines: the floor, the line plo
 # runs and nixpkgs' newest, and plo's line with FPROBE on, built from source,
@@ -148,8 +152,8 @@ vm_check(
 # The verb graph (bidamas/mokuroku/graph, docs/verbs/H/DESIGN.md): gates G1,
 # G2, G4, G7 and G9 over its rows, held by a hadome baseline of recorded debt,
 # each with a fixture that names its bad row.
-check("verb-graph", "gen/verb-graph.b")
-check("heni-mutations", "gen/heni-gate.b")
+check("verb-graph", "gen/verb-graph.b", {stage: :ci})
+check("heni-mutations", "gen/heni-gate.b", {stage: :ci})
 
 # Tests live beside what they test (docs/TESTING.md): every bidama definition
 # is reached by a test in its package, or waived with a why and a date, or
@@ -157,11 +161,11 @@ check("heni-mutations", "gen/heni-gate.b")
 # project's default gate (T2); this names the program that holds blue's own
 # policy, and the check runs that program's judge tests.
 coverage("gen/test-beside.b")
-check("test-beside-judge", "gen/test-beside.b")
-check("consumers", "gen/consumers.b", ["gen/consumers.json"])
+check("test-beside-judge", "gen/test-beside.b", {stage: :ci})
+check("consumers", "gen/consumers.b", ["gen/consumers.json"], {stage: :ci})
 
 # How well a model writes blue (docs/HORIZON.md, H9): ten golden tasks under
 # eval/tasks, each a prompt, hidden tests and a reference solution, scored by
 # eval/score.b. The check holds every reference at ten of ten and breaks one to
 # prove the scorer can say no.
-check("model-eval", "eval/score_test.b", ["eval"])
+check("model-eval", "eval/score_test.b", ["eval"], {stage: :ci})

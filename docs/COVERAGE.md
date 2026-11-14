@@ -193,4 +193,5 @@ touched (H3 rung 3).
 | S1, S2 | tested, enforced on every door (B0088, B0089); the corpus holds no debt |
 | R2, E2 | tested, ratcheted (B0090 at 3413, B0091 at 194): `blue census` holds each count exactly until it reaches zero, then the rule is an error on every door |
 | B1, B2, B4, E1, E3 (CV1, CV2) | tested, gated: `blue test --coverage` probes each arm of every `if`, `cond`, `case`, `?` and `rescue` of the file's definitions (`blue_lang_test::Arms`, the record `blue_lang_runtime::arms`, so a spawned process's arms count) and prints the untaken ones as `untaken`; `checks.test-beside` holds them at `unbranched: <pkg> <n>` debt, which may only shrink |
+| S6 | the detector is built, the gate is not: `blue test --rerun N` fails a test whose verdict differs between runs (TESTING.md T8); the registry row `strength/deterministic` is design until a gate runs it |
 | Every other obligation | DESIGN (a `design` row of the registry, with what blocks it) |

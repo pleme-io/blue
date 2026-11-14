@@ -15,4 +15,4 @@ service(
   }
 )
 
-check("agent", "agent.b")
+check("agent", "agent.b", {stage: :ci})

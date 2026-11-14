@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2421c148abb4b2d6dafb6791290e74ce38ae85228484b15e21ee50da5d67c463",
+  "bluefile_b3": "b3:42c8d81d649ffffe3703da67528f4fd4ff56c908b1bef56912daf160ac855ab6",
   "manifest": {
     "schema": 1,
     "name": "blue-frontend",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {
       "profile": {
-        "file": "views/profile.b"
+        "file": "views/profile.b",
+        "stage": "ci"
       }
     },
     "apps": {},

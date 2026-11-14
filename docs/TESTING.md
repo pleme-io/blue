@@ -68,7 +68,7 @@ to dissolve.
 | mutation testing | `bidamas/heni/heni.b`, `gen/heni-gate.b` | each mutation must make the package's tests fail; `BLUE_HENI_OFF=1` is its off switch. Before a push, the `heni-finds` pre-push gate (`blue gen/heni-gate.b finds PATH...`, `heni --finds`) runs no test and fails when a rewrite of a changed package leaves a mutation's `find` matching other than once; `BLUE_PREPUSH_SKIP=heni-finds` turns it off |
 | ratchet | `bidamas/hadome/hadome.b` | recorded debt may shrink or hold, never grow |
 | Bluefile words | `crates/blue-lang-pkg/src/bluefile.rs:425` (`WORDS`) | `package`, `needs`, `posture`, `source`, `packages`, `run`, `tool`, `check`, `app`, `generate`, `rule`, `catalog`, `image`, `workload`, `service`, `frontend` |
-| `check(name, file)` | `bluefile.rs:512`, `nix/project.nix:44`, `bidamas/mk-bidama.nix:405-411` | `checks.<name>` runs `blue test file`; a file with no tests fails |
+| `check(name, file[, inputs][, {stage:, kind:}])` | `crates/blue-lang-pkg/src/bluefile.rs` (`CHECK_STAGES`), `nix/project.nix`, `bidamas/mk-bidama.nix` | `checks.<name>` runs `blue test file`; a file with no tests fails; the row's `stage:` is the earliest runner that gates on it (T3) |
 | `packages(dir)` | `nix/project.nix:440` | `checks.bidama-test-<pkg>` per package, plus form, collision, lock and solver checks |
 | `rule(code, file, def)` | `docs/DIAGNOSTICS.md` "Project rules" | a blue definition run by `blue check` on every top-level form, under a pure frame |
 | `generate(name, out, program)` | `bluefile.rs:540` | a committed file and its program, gated fresh |
@@ -323,12 +323,14 @@ Every knob is a blue entry, judged alone, with a default:
 
 | Knob | Entry | Default |
 |---|---|---|
-| reporter | `report(:text \| :json \| :junit \| :sarif)` | `:text`; JSON exists (`--coverage --json`) |
+| reporter | `blue test --junit FILE` (built, T8); SARIF is not built | text; JSON with `--coverage --json` |
 | order and seed | `order(:declared \| :random, seed)` | declared; tests are already order-free by fork |
 | parallelism | `jobs(n)` | one process per file today (`blue test DIR` runs files in parallel) |
 | kinds selected | `blue test --kind integration` | every kind the runner's capabilities allow |
 | fixture providers | `provider(name, program)`: a run that brings up a fake (valkey, pg) for integration tests | none |
-| shards | `shard(n, i)` | 1 of 1 |
+| shards | `blue test DIR --shard I/N` (built, T8): every N-th file of the sorted tree from the I-th, so the shards are disjoint and together hold it | 1 of 1 |
+| flaky | `blue test --rerun N` (built, T8): the tests run N times, the cache off after the first, and a test whose verdict differs fails the run | 1 run |
+| quarantine | `quarantine("file.b::test", why, until)` in the Bluefile (built, T8): a failing test held out of the verdict while `until` stands, failing again after it; one that passes is named so its entry can go; the date is the runner's (`BLUE_TEST_TODAY`, else the UTC clock) | none |
 
 Its renderings are the runners: the nix check, the pre-push gate and the CI
 workflow read the same entries.
@@ -336,14 +338,24 @@ workflow read the same entries.
 ## 9. One SDLC entry: the Bluefile and the blue binary
 
 **The pipeline is the Bluefile.** A gate is a `check(name, file)` row. A
-rendering is a `generate` row. The order of rows is the order of gates. No
-new Bluefile word is minted for the pipeline: `check` gains an options map
-(`{stage: :push | :ci | :release, kind:}`) in phase T3.
+rendering is a `generate` row. No new Bluefile word is minted for the
+pipeline: `check` takes an options map, `{stage: :push | :ci | :release,
+kind:}` (T3, built). The stage is the earliest runner that gates on the row:
+every row is a nix check whatever its stage, a `:push` row also runs before
+a push, a `:release` row before a release. `kind:` names the test kind the
+row holds. A row that declares no stage is B0092 on its program, on every
+door that checks tests.
 
-**The runner verb is `blue test`.** `blue test FILE` runs one file today.
-`blue test .` (a directory holding a Bluefile) runs the Bluefile's `check`
-rows in order, then every package's tests: the whole gate list. `--stage` and
-`--kind` select. No `blue sdlc` or `blue gate` verb: it would be a second
+```
+check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"], {stage: :push})
+```
+
+**The runner verb is `blue test`.** `blue test FILE` runs one file, and
+`blue test DIR` every file under DIR that holds a test, as before.
+`blue test DIR --stage S [--kind K]` runs instead the `check` rows of the
+project in DIR whose row declares that stage (and kind), in the lock's
+order, each held to its declared inputs as nix runs it; a stage with no row
+says so and passes. No `blue sdlc` or `blue gate` verb: it would be a second
 name for "run the declared tests".
 
 **Who calls it:**
@@ -351,8 +363,8 @@ name for "run the declared tests".
 | Runner | Today | Destination |
 |---|---|---|
 | nix | `checks.<name>` = `blue test file`, one derivation per row, cached | unchanged: nix is the hermetic, cached executor of each row |
-| pre-push | `gen/prepush.b`: a hand table of 12 gates in blue (`gate_table`) | `blue test . --stage push`; host gates (cargo fmt, gen tie) become `check` rows |
-| CI | `ci.yml` uses substrate's `cargo-ci.yml` | a `generate("ci", ".github/workflows/ci.yml", "gen/ci.b")` row renders a workflow whose one job step is `nix flake check` or `blue test . --stage ci`; gated fresh |
+| pre-push | `gen/prepush.b`: the Bluefile's `:push` rows (`declared_gates`, from the lock) after the 18 host gates of `gate_table`, which hold at 18 and only fall | `blue test . --stage push`; each host gate (cargo fmt, gen tie) becomes a `check` row |
+| CI | `.github/workflows/ci.yml`, rendered by `gen/ci.b` (`generate("ci", …)`, gated fresh); its `check` job is substrate's `cargo-ci.yml`, which runs `nix flake check`, every `check` row whatever its stage | unchanged; the logic of each job moves into a `check` row |
 | release | `auto-release.yml` uses substrate's `rust-auto-release.yml` | the same rendering, with `--stage release` gates before the substrate flow |
 
 **No big bang with `pleme-io/actions` and substrate.** The rendered workflow
@@ -375,8 +387,8 @@ or stays outside blue by design.
 | 2. each check's body | ✅ built | One `blue test` call per check (`bidamas/mk-bidama.nix`). |
 | 3. freshness compare | ❌ not built | `mkFreshCheck` compares with `cmp` in sh (`bidamas/mk-bidama.nix`). Phase T6 moves it to a `blue test` gate. |
 | 4. pre-push hook | ✅ built | It stays as glue by design: `.githooks/pre-push` is 4 lines of sh that call `gen/prepush.b`. |
-| 5. pre-push gate list | ⏳ in progress | `gate_table` in `gen/prepush.b` is blue, but a hand list. Phase T3 derives it from `check` rows with `stage: :push`. |
-| 6. CI workflow | ❌ not built | `.github/workflows/ci.yml` is hand YAML with no logic. Phase T5 renders it from `gen/ci.b`, which does not exist. |
+| 5. pre-push gate list | ⏳ in progress | `gen/prepush.b` derives a gate from each `check` row with `stage: :push` (`declared_gates`, `pipeline_table`). 18 host gates (cargo fmt, the census, conformance) are still a hand list in `gate_table`; a test holds them at 18, so each one that becomes a row lowers it. |
+| 6. CI workflow | ✅ built | `gen/ci.b` renders `.github/workflows/ci.yml` (T5); `checks.workflows` refuses a workflow no `generate` row renders. Seven workflows are still hand YAML, held in `hand_workflows`, which only shrinks. |
 | 7. CI logic | ❌ not built | substrate `cargo-ci.yml` and the actions' `run.tlisp`. Phase T5 moves the logic into the Bluefile's checks. |
 | 8. release | ❌ not built | substrate `rust-auto-release.yml`. Phase T7. |
 | 9. action renderer | ❌ not built | actions `defaction-render` (curl and python `render.py`). Phase T7. |
@@ -532,12 +544,12 @@ stateDiagram-v2
 |---|---|---|---|
 | T1 | coverage hard block on blue's own bidamas: `tesuto` policy words, `gen/test-beside.b`, `check("test-beside")`, pre-push gate | every new untested definition in blue is red | landed |
 | T2 | the gate in `lib.project`: every project with `packages` gets it by default; read coverage from the `bidama-test-<pkg>` outputs (no second run) | fleet-wide block, half the time | landed |
-| T3 | `check` options `{stage:, kind:}`; `blue test .` runs the Bluefile's rows; `gen/prepush.b` derived from them | one gate list for nix, pre-push and CI | medium |
+| T3 | `check` options `{stage:, kind:}`; `blue test DIR --stage S` runs the Bluefile's rows; `gen/prepush.b` derived from them | one gate list for nix, pre-push and CI | landed |
 | T4 | test options map (`kind`, `allow`, `fakes`) and the integration-point finding: a `service` binding, a `generate` row or a seam with no test of its kind | integration tests beside their points | effect and seam points built (B0083, B0084); project points next |
-| T5 | `gen/ci.b` renders blue's own CI workflow; the logic moves into `check` rows | CI is a rendering | small |
+| T5 | `gen/ci.b` renders blue's own CI workflow; the logic moves into `check` rows | CI is a rendering | landed (the rendering and its gate); the logic moving into rows is ongoing |
 | T6 | BDD words: `describe`, `around`, `case`, `changes?`, `fake`, `spy`, `calls`, `freeze`, `fixture`, `conforms?` | RSpec-depth tests in blue | medium |
 | T7 | release and delivery steps as blue (`defaction-render` in blue, kensa's delivery step) | the last non-blue logic leaves the pipeline | large |
-| T8 | reporters (JUnit, SARIF), shards, quarantine with until, flaky detection | CI ergonomics | small each |
+| T8 | reporters (JUnit, SARIF), shards, quarantine with until, flaky detection | CI ergonomics | JUnit, shards, quarantine and flaky detection landed; SARIF next |
 
 ## 16. Ledger
 
@@ -556,12 +568,12 @@ Every obligation blue forces, and its state, is one row of
 | a named skip: `tesuto::skip_for`, `SKIP name: why`, `BLUE_TEST_SKIP=refuse` | ✅ built | `crates/blue-lang-test/src/lib.rs` (a skip is never a pass), `crates/blue-lang-cli/tests/scripts.rs`, `gen/kernel-new.b`. |
 | the test cache: on by default; `BLUE_TEST_CACHE=off` or `--no-cache` turns it off | ✅ built | Section 10; `crates/blue-lang-cli/tests/test_cache.rs`, 8 tests (among them `a_changed_callee_runs_its_test_again`, `a_test_that_reaches_the_host_is_never_cached`, `an_unknown_cache_value_is_refused`). |
 | T2: the coverage gate in `lib.project` for every project with `packages` | ✅ built | `nix/project.nix` `coverageGate` and `testRuns`, `nix/test-beside.b` (its tests, red then green on a fixture project), tesuto's `judge_coverage`; Bluefile words `coverage(file)` and `skip(gate, why)` (`blue-lang-pkg` tests). |
-| T3: `check` options `{stage:, kind:}`; `blue test .` | ❌ not built | `crates/blue-lang-pkg/src/bluefile.rs` reads no `stage:` option. |
+| T3: `check` options `{stage:, kind:}`; `blue test DIR --stage S`; pre-push derived from the `:push` rows | ✅ built | `check` takes `{stage:, kind:}` (a stage or kind blue does not know refuses the Bluefile); the lock records both; B0092 refuses the program of a row with no stage on every door that checks tests (registry row `pipeline/stage`, held 0: every row of blue's 10 Bluefiles names its stage); `blue test DIR --stage S [--kind K]` runs a stage's rows; `gen/prepush.b` runs the 10 `:push` rows beside its 18 host gates, held at 18. Tests: `crates/blue-lang-cli/tests/stage.rs` (3), `crates/blue-lang-runtime/tests/rules.rs` `a_check_row_is_discharged_by_its_declared_stage`, `blue-lang-pkg` `check_records_its_stage_and_kind_with_or_without_inputs` and `a_check_program_s_role_carries_the_stage_its_row_declares`, `gen/prepush.b` (2 new). |
 | T4: test options `kind:`, `allow:`, `fakes:`; the integration-point finding | ✅ built | The options (parser, B0068 order, B0069 for `allow:`, the harness holds a test to its `allow:`); B0083 (effect point), B0084 (seam point), B0085 (rendering), B0086 (service), B0087 (binding) on every door that checks tests. Held debt (waivers): 97 effect, 22 seam, 31 rendering, 2 service, 1 binding; paid: `shisutemu::run_capture`, `shisutemu::terminal?`, `shomei::random`, `gen/diagnostics.b`. Tests: `crates/blue-lang-runtime/tests/rules.rs` (each witness, `an_effect_point_is_discharged_only_by_a_test_of_its_kind`, `a_project_point_is_discharged_only_by_a_test_of_its_kind`), `blue-lang-syntax` `test_form`, `blue-lang-test` `a_test_runs_held_to_the_capabilities_it_declares`, `census::held`. Judging `fakes:` against declared seams is T6. |
-| T5: `gen/ci.b` renders blue's own CI workflow | ❌ not built | No `gen/ci.b`. |
+| T5: `gen/ci.b` renders blue's own CI workflow | ✅ built | `generate("ci", ".github/workflows/ci.yml", "gen/ci.b", ["Bluefile.lock"])`, gated fresh; its rendering test reads the YAML back as the workflow it renders (and actionlint reads it clean). `check("workflows", "gen/ci.b", …, {stage: :push})` refuses a workflow no `generate` row renders (registry row `pipeline/ci`); the hand-written ones (auto-release, gen-spec, land, post-merge, registry-flakehub, registry-sui, runner-overflow) are held in `hand_workflows`, and one that becomes a rendering must leave it. Tests: `gen/ci.b` (6). |
 | T6: BDD words (`describe`, `around`, `case`, `changes?`, `fake`, `spy`, `calls`, `freeze`, `fixture`, `conforms?`) | ❌ not built | `tesuto` has `raises?`, `snapshot` and `caught` only. The planned words are `absent` rows in `bidamas/mokuroku/graph/tesuto-provisional.b`. |
 | T7: release and delivery steps as blue | ❌ not built | Rows 8 to 10 of section 9. |
-| T8: reporters (JUnit, SARIF), shards, quarantine, flaky detection | ❌ not built | No reporter in `crates/`. |
+| T8: reporters (JUnit, SARIF), shards, quarantine, flaky detection | ⏳ in progress | Built: `blue test --junit FILE`, `--shard I/N`, `--rerun N` (flaky), the Bluefile word `quarantine(test, why, until)` (no why, no date or no `file::test` refuses the entry; an expired one fails again). Tests: `crates/blue-lang-cli/tests/report.rs` (5). Not built: SARIF; no gate runs `--rerun` by default (registry row `strength/deterministic`, design). |
 
 Related: [`SAFETY.md`](SAFETY.md) (capabilities, row 8; scripts get project
 checks, row 16), [`ABSENCE.md`](ABSENCE.md) (absence as its own state),

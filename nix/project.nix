@@ -41,7 +41,7 @@
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
 # | `tool(name[, platforms])` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps; with `platforms`, only on those (`linux`, `darwin`), and skipped elsewhere |
 # | `run(name, file[, reads[, inputs]])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out`, `RUN_READS/<read>` holding each read run's output, and `inputs` under `$GEN_ROOT` |
-# | `check(name, file[, inputs])` | `checks.<name>`: `blue test file`; `inputs` are the project paths the tests read, under `$GEN_ROOT` |
+# | `check(name, file[, inputs][, {stage:, kind:}])` | `checks.<name>`: `blue test file`, whatever its stage; `inputs` are the project paths the tests read, under `$GEN_ROOT`; `stage` (push, ci, release) is read by `blue test DIR --stage` and the pre-push gate list |
 # | `app(name, file)` | `apps.<name>` and `packages.<name>`: the program installed as a command (`mkBlueApp`, the project's bidamas and tools) that runs `blue run file` from the caller's directory, and an `overlays.default` entry `<name>` for a consumer's package set; with a runner, `packages.appliance-<name>` (`nix/bundle.nix`: `blue bundle` seals the program and the lock's verified capabilities onto `blue-appliance`, one executable held to them, pure when the lock records none) and, on Linux, `packages.appliance-<name>-image` (that executable alone in a scratch image) |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
@@ -108,7 +108,7 @@ let
     "sources" "packages" "runs" "tools" "tool_platforms" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends" "vm_checks"
     "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
-    "bounds" "tier" "target" "verify" "coverage" "skips"
+    "bounds" "tier" "target" "verify" "coverage" "skips" "quarantines"
   ];
 
   readLock = src:

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:5b508b2b646d89de2677d03bbb2063a0525fa4b2676fd97d5c5a43a446bff9d7",
+  "bluefile_b3": "b3:b01ec1a8a3e43ab7bef28df7ee305a422ed99c6cac5a9583c99aead8c6327676",
   "manifest": {
     "schema": 1,
     "name": "source-fixture",
@@ -26,7 +26,8 @@
     "tools": [],
     "checks": {
       "reaches": {
-        "file": "checks/reaches.b"
+        "file": "checks/reaches.b",
+        "stage": "ci"
       }
     },
     "apps": {},

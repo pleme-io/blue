@@ -1937,6 +1937,27 @@ Assert what the code answers against a value it could fail to answer. Debt
 is `# waive B0089: reason` above the test, counted against the row
 `strength/tautology`.",
     }
+    B0092 {
+        slug: "unstaged-check",
+        severity: Error,
+        fix: None,
+        law: "the program of a Bluefile `check` row is gated at a declared stage: its row names `stage:` (`:push`, `:ci` or `:release`)",
+        witness: "def gate()\n  1\nend\n\ntest \"gate\"\n  assert gate == 1\nend\n",
+        role: "gate",
+        explanation: "\
+The pipeline is the Bluefile (docs/TESTING.md section 9): a gate is a `check`
+row, and its stage says where it gates first. Every row is a nix check; a
+`:push` row also runs before a push (the pre-push gate list is the `:push`
+rows, `gen/prepush.b`), a `:release` row before a release, and `blue test DIR
+--stage S` runs the rows of one stage:
+
+    check(\"land\", \"gen/land.b\", [\"gen/land.b\"], {stage: :push})
+
+The rule reads the program's role from the lock above it, on every door that
+checks tests, so a row with no stage is refused the moment its program is
+checked. Debt is `# waive B0092: reason` above the file's first form,
+counted by `blue census` against the row `pipeline/stage`.",
+    }
 }
 
 impl Code {

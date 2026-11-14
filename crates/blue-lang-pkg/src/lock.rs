@@ -315,6 +315,49 @@ pub fn pin_of(name: &str, url: &str, json: &str) -> Result<Pin, LockError> {
     })
 }
 
+/// The quarantined tests of the entry file, by test name, from the nearest
+/// project above it whose lock holds a `quarantine` naming the file.
+#[must_use]
+pub fn quarantines_of(entry: &Path) -> Vec<(String, crate::bluefile::Quarantine)> {
+    let Ok(entry) = std::fs::canonicalize(entry) else {
+        return Vec::new();
+    };
+    for dir in entry.ancestors().skip(1) {
+        if let Ok(text) = std::fs::read_to_string(dir.join(LOCK_FILE)) {
+            if let Ok(lock) = serde_json::from_str::<Lock>(&text) {
+                let found: Vec<_> = lock
+                    .manifest
+                    .project
+                    .quarantines
+                    .into_iter()
+                    .filter_map(|(key, q)| {
+                        let (file, name) = key.split_once("::")?;
+                        std::fs::canonicalize(dir.join(file))
+                            .is_ok_and(|p| p == entry)
+                            .then(|| (name.to_string(), q))
+                    })
+                    .collect();
+                if !found.is_empty() {
+                    return found;
+                }
+            }
+        }
+        if dir.join(".git").exists() {
+            break;
+        }
+    }
+    Vec::new()
+}
+
+/// The `check` rows the lock in `dir` records, by name; `None` when `dir`
+/// holds no lock blue can read.
+#[must_use]
+pub fn locked_checks(dir: &Path) -> Option<BTreeMap<String, crate::bluefile::Check>> {
+    let text = std::fs::read_to_string(dir.join(LOCK_FILE)).ok()?;
+    let lock: Lock = serde_json::from_str(&text).ok()?;
+    Some(lock.manifest.project.checks)
+}
+
 pub fn locked_needs(dir: &Path) -> Option<BTreeMap<String, Range>> {
     let text = std::fs::read_to_string(dir.join(LOCK_FILE)).ok()?;
     let lock: Lock = serde_json::from_str(&text).ok()?;
@@ -368,8 +411,8 @@ pub fn frontend_of(entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
 }
 
 /// What the entry file is to the nearest project above it whose lock names
-/// it: the program of each `generate` and `service` row, and each binding of
-/// such a service.
+/// it: the program of each `generate`, `service` and `check` row, and each
+/// binding of such a service.
 #[must_use]
 pub fn roles_of(entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
     use blue_lang_runtime::uses::Role;
@@ -401,6 +444,13 @@ pub fn roles_of(entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
                         roles.push(Role::Binding(n.clone(), "schema".to_string()));
                     }
                 }
+                roles.extend(
+                    project
+                        .checks
+                        .iter()
+                        .filter(|(_, c)| is_entry(&c.file))
+                        .map(|(n, c)| Role::Gate(n.clone(), c.stage.clone())),
+                );
                 if !roles.is_empty() {
                     return roles;
                 }
@@ -967,6 +1017,35 @@ mod tests {
 
     fn confirm(src: &str, text: Option<&str>) -> Result<Freshness, LockError> {
         super::confirm(src, &rows(src), text)
+    }
+
+    #[test]
+    fn a_check_program_s_role_carries_the_stage_its_row_declares() {
+        use blue_lang_runtime::uses::Role;
+        let root = std::env::temp_dir().join(format!("blue-gate-roles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("gen")).unwrap();
+        let src = "package(\"p\", \"0.1.0\")\ncheck(\"land\", \"gen/land.b\", {stage: :push})\ncheck(\"docs\", \"gen/docs.b\")\n";
+        let text = render(&lock(src, &canned()).expect("lock")).expect("render");
+        std::fs::write(root.join(LOCK_FILE), text).unwrap();
+        for f in ["gen/land.b", "gen/docs.b", "gen/other.b"] {
+            std::fs::write(root.join(f), "def x()\n  1\nend\n").unwrap();
+        }
+        assert_eq!(
+            roles_of(&root.join("gen/land.b")),
+            vec![Role::Gate("land".into(), Some("push".into()))]
+        );
+        assert_eq!(
+            roles_of(&root.join("gen/docs.b")),
+            vec![Role::Gate("docs".into(), None)]
+        );
+        assert_eq!(roles_of(&root.join("gen/other.b")), Vec::<Role>::new());
+        assert_eq!(
+            locked_checks(&root).map(|c| c.keys().cloned().collect::<Vec<_>>()),
+            Some(vec!["docs".to_string(), "land".to_string()])
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

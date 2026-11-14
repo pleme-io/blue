@@ -31,7 +31,7 @@ service(
   }
 )
 
-check("hello", "hello.b")
+check("hello", "hello.b", {stage: :ci})
 ```
 
 The program answers `GET /`. `settei` reads the settings the declaration

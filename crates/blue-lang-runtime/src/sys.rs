@@ -1291,7 +1291,7 @@ fn install_clock<H: 'static>(interp: &mut Interpreter<H>) {
 }
 
 /// Format a unix-seconds timestamp as RFC-3339 UTC (no external crate).
-pub(crate) fn format_rfc3339_utc(unix_secs: i64) -> String {
+pub fn format_rfc3339_utc(unix_secs: i64) -> String {
     let (y, m, d, h, mi, s) = seconds_to_datetime(unix_secs);
     format!("{y:04}-{m:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
 }

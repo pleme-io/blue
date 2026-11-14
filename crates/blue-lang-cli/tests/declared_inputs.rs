@@ -78,7 +78,7 @@ fn fixture(base: &Path, name: &str, inputs: &str) -> PathBuf {
     std::fs::write(
         dir.join("Bluefile"),
         format!(
-            "package(\"fixture\", \"0.1.0\")\n\ncheck(\"reads\", \"t.b\", {inputs})\ngenerate(\"page\", \"out.txt\", \"g.b\", {inputs})\n"
+            "package(\"fixture\", \"0.1.0\")\n\ncheck(\"reads\", \"t.b\", {inputs}, {{stage: :ci}})\ngenerate(\"page\", \"out.txt\", \"g.b\", {inputs})\n"
         ),
     )
     .expect("Bluefile");
@@ -179,7 +179,7 @@ fn a_declared_input_git_does_not_track_is_refused_as_the_sandbox_would_not_see_i
     std::fs::write(dir.join("more/c.md"), "# C\n").unwrap();
     std::fs::write(
         dir.join("Bluefile"),
-        "package(\"fixture\", \"0.1.0\")\n\ncheck(\"reads\", \"t.b\", [\"more\"])\n",
+        "package(\"fixture\", \"0.1.0\")\n\ncheck(\"reads\", \"t.b\", [\"more\"], {stage: :ci})\n",
     )
     .unwrap();
     assert!(blue(&dir, &["lock", "."], &[]).status.success());
@@ -192,7 +192,7 @@ fn a_declared_input_git_does_not_track_is_refused_as_the_sandbox_would_not_see_i
     );
     std::fs::write(
         dir.join("Bluefile"),
-        "package(\"fixture\", \"0.1.0\")\n\ncheck(\"reads\", \"t.b\", [\"more/c.md\"])\n",
+        "package(\"fixture\", \"0.1.0\")\n\ncheck(\"reads\", \"t.b\", [\"more/c.md\"], {stage: :ci})\n",
     )
     .unwrap();
     assert!(blue(&dir, &["lock", "."], &[]).status.success());

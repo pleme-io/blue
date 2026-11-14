@@ -35,7 +35,7 @@ service(
   }
 )
 
-check("agent", "agent.b")
+check("agent", "agent.b", {stage: :ci})
 ```
 
 `runtime: :native` with `because: :device` is required: WASI reaches no kernel

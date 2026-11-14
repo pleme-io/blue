@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2b28ab8ae04234c6031b499c718a31d679336ac71f6944a0134d2303eedc124d",
+  "bluefile_b3": "b3:035fadc7a9dc6ed71b370efeeec4ead16ca6e00b23e02686e1e1f5d5556591fd",
   "manifest": {
     "schema": 1,
     "name": "component-fixture",
@@ -15,7 +15,8 @@
     "tools": [],
     "checks": {
       "greeter": {
-        "file": "greeter.b"
+        "file": "greeter.b",
+        "stage": "ci"
       }
     },
     "apps": {},

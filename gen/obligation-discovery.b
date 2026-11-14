@@ -62,9 +62,7 @@ def main()
   )
 end
 
-test "the committed report's tables read as a Markdown reader reads them, each with one width per section", {
-  kind: :rendering
-}
+test "each table of the report has one width", {kind: :rendering}
   text = read_file(path_join(root, "docs/OBLIGATION-DISCOVERY.md"))
   tables = filter(
     (s) -> contains?(s, "|---"),

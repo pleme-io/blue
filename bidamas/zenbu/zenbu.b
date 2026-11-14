@@ -64,6 +64,7 @@ use("deeta", [:get_str])
 use("eigyou")
 use("fairu")
 use("fuuin")
+use("gaisou")
 use("gamen")
 use("gitto")
 use("gurafu")
@@ -184,6 +185,7 @@ test "every bidama in the distribution answers through this one import"
   assert sabi::valid_ident?("OPERATOR_ALIASES") == true
   assert saishikou::retrying({times: 1}, () -> 1) == 1
   assert root("a") != root(:a)
+  assert gaisou::pair_key("B0002", "B0001") == "B0001|B0002"
   assert umu::value_or(umu::from_nil(nil), 7) == 7
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"

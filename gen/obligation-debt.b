@@ -28,7 +28,7 @@ def main()
   )
 end
 
-test "the history reads back as discovery reads it, and a second render appends nothing", {
+test "the history reads back, and a second render appends nothing", {
   kind: :rendering
 }
   dir = temp_dir("obligation-debt")

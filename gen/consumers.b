@@ -116,7 +116,12 @@ def recorded()
       "refused: ola-mundo:ola.b:B0092 1",
       "refused: pangea-architectures:gen/fleet-llm.b:B0085 1",
       "refused: pangea-architectures:gen/kensa-arsenal.b:B0085 1",
+      "refused: rubrica:gen/schema.b:B0085 1",
+      "refused: rubrica:gen/schema_table.b:B0085 1",
+      "refused: rubrica:rubrica.b:B0086 1",
+      "refused: rubrica:rubrica.b:B0092 1",
       "refused: rubrica:stamp_test.b:B0092 1",
+      "refused: rubrica:views/documents.b:B0092 1",
       "refused: zukai:crates/zukai-confluence/tests/pages.b:B0001 31",
       "refused: zukai:crates/zukai-kata/tests/patterns.b:B0001 20"
     ]

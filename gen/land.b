@@ -93,7 +93,16 @@ def unknown_flag(words)
       starts_with?(w, "--") and
         not member?(
           w,
-          %w[--dry --watch --proven --no-queue --no-regen --no-prose --no-batch]
+          %w[
+            --dry
+            --watch
+            --proven
+            --no-queue
+            --no-regen
+            --no-prose
+            --no-batch
+            --compose-in-place
+          ]
         ) and
         not starts_with?(w, "--requeue=") and
         not starts_with?(w, "--queue-minutes=")
@@ -1954,8 +1963,8 @@ def fetch_tries(left, wait)
   end
 end
 
-def driver_args()
-  if path_exists(".githooks/merge-generated")
+def driver_args(dir)
+  if path_exists(path_join(dir, ".githooks/merge-generated"))
     [
       "-c",
       "merge.blue-generated.driver=.githooks/merge-generated %O %A %B %P %Y"
@@ -1965,21 +1974,29 @@ def driver_args()
   end
 end
 
-def blue_here()
-  if path_exists(".githooks/blue")
+def blue_here(dir)
+  if path_exists(path_join(dir, ".githooks/blue"))
     ".githooks/blue"
   else
     self_exe
   end
 end
 
-def regen_failure()
+def git_at(dir, args)
+  exec_capture("git", "-C", dir, *args)
+end
+
+def ask_at(dir, args)
+  gitto::out_or(dir, args, "")
+end
+
+def regen_failure(dir)
   failed = reduce(
     fn(why, args)
       if not why.nil?
         why
       else
-        r = exec_capture(blue_here, *args)
+        r = exec_capture("env", "-C", dir, blue_here(dir), *args)
         if status_of(r) != 0
           "rebased onto origin/main, but `blue #{join(args, " ")}` failed; fix it and land again: #{stderr_of(r)}"
         end
@@ -1988,14 +2005,17 @@ def regen_failure()
     nil,
     [%w[lock .], %w[run --quiet gen/regen.b]]
   )
-  if failed.nil? and ask(%w[status --porcelain --untracked-files=no]) != ""
-    exec_check("git", "add", "-u")
-    exec_check(
-      "git",
-      "commit",
-      "-q",
-      "-m",
-      "regen after rebasing onto #{ask(%w[rev-parse --short origin/main])}"
+  if failed.nil? and
+      ask_at(dir, %w[status --porcelain --untracked-files=no]) != ""
+    git_at(dir, %w[add -u])
+    git_at(
+      dir,
+      [
+        "commit",
+        "-q",
+        "-m",
+        "regen after rebasing onto #{ask_at(dir, %w[rev-parse --short origin/main])}"
+      ]
     )
     say("the rebase left generated files stale; regenerated and committed them")
   end
@@ -2003,7 +2023,7 @@ def regen_failure()
 end
 
 def regenerate()
-  failed = regen_failure
+  failed = regen_failure(".")
   if not failed.nil?
     quit(1, failed)
   end
@@ -2061,9 +2081,9 @@ def rebase_stop(paths, why, settling)
   end
 end
 
-def settle_locks(paths)
+def settle_locks(dir, paths)
   map(
-    (p) -> exec_check("git", "checkout", "--ours", "--", p),
+    (p) -> git_at(dir, ["checkout", "--ours", "--", p]),
     filter((p) -> member?(p, %w[Cargo.gen.lock Cargo.lock]), paths)
   )
   failure = reduce(
@@ -2071,7 +2091,7 @@ def settle_locks(paths)
       if not why.nil?
         why
       else
-        r = exec_capture(*step)
+        r = exec_capture("env", "-C", dir, *step)
         if status_of(r) != 0
           "`#{join(step, " ")}` failed: #{trim(stderr_of(r))}"
         end
@@ -2081,40 +2101,48 @@ def settle_locks(paths)
     settle_steps(paths)
   )
   if failure.nil?
-    exec_check(
-      "git",
-      *append(
+    git_at(
+      dir,
+      append(
         %w[add --],
-        filter((p) -> path_exists(p), %w[Cargo.gen.lock Cargo.lock])
+        filter(
+          (p) -> path_exists(path_join(dir, p)),
+          %w[Cargo.gen.lock Cargo.lock]
+        )
       )
     )
   end
   failure
 end
 
-def continue_rebase()
-  if exec_ok?("git", "diff", "--cached", "--quiet")
-    exec_capture("git", *append(driver_args, %w[rebase --skip]))
+def continue_rebase(dir)
+  if status_of(git_at(dir, %w[diff --cached --quiet])) == 0
+    git_at(dir, append(driver_args(dir), %w[rebase --skip]))
   else
     exec_capture(
       "env",
       "GIT_EDITOR=true",
       "git",
-      *append(driver_args, %w[rebase --continue])
+      "-C",
+      dir,
+      *append(driver_args(dir), %w[rebase --continue])
     )
   end
 end
 
-def through(a, r)
+def through(a, dir, r)
   if status_of(r) != 0
-    paths = git_lines(%w[diff --name-only --diff-filter=U])
+    paths = filter(
+      (l) -> l != "",
+      moji::lines(ask_at(dir, %w[diff --name-only --diff-filter=U]))
+    )
     if a[:regen] and lock_conflict?(paths)
-      failure = settle_locks(paths)
+      failure = settle_locks(dir, paths)
       if failure.nil?
         say(
-          "settled #{join(paths, ", ")} at #{ask(%w[log -1 --format=%h REBASE_HEAD])}: main's side, #{join(map((s) -> join(s, " "), settle_steps(paths)), ", ")}"
+          "settled #{join(paths, ", ")} at #{ask_at(dir, %w[log -1 --format=%h REBASE_HEAD])}: main's side, #{join(map((s) -> join(s, " "), settle_steps(paths)), ", ")}"
         )
-        through(a, continue_rebase)
+        through(a, dir, continue_rebase(dir))
       else
         {paths:, why: "", settling: failure}
       end
@@ -2136,7 +2164,8 @@ def catch_up(a)
   guard_lock(a)
   stopped = through(
     a,
-    exec_capture("git", *append(driver_args, %w[rebase -q origin/main]))
+    ".",
+    git_at(".", append(driver_args("."), %w[rebase -q origin/main]))
   )
   if not stopped.nil?
     exec_check("git", "rebase", "--abort")
@@ -2358,19 +2387,55 @@ end
 @doc """
 compose: A batch's tree: each land's own commits, in queue order, rebased onto
 main and the lands before it as catch_up rebases one (the merge driver, the
-settled locks), then regenerated once. It works on a detached HEAD and returns to
-the branch, so the branch never moves. Answers `{tip:, stop:}`, stop naming the
-land that does not rebase or the regeneration that failed.
+settled locks), then regenerated once. By default it works in a fresh worktree
+of main's commit, removed after, so nothing the leading land's worktree holds
+beside its commits (an untracked file, an edit not committed) reaches the batch
+or its regeneration, and that worktree is never touched. --compose-in-place
+composes on a detached HEAD in the leading land's own worktree instead and
+returns to the branch, as land did before. Answers `{tip:, stop:}`, stop naming
+the land that does not rebase or the regeneration that failed.
 """
 def compose(a, b)
-  guard_lock(a)
-  home = ask(%w[symbolic-ref -q --short HEAD])
-  back = if home == ""
-    ask(%w[rev-parse HEAD])
+  if a[:compose] == :in_place
+    guard_lock(a)
+    home = ask(%w[symbolic-ref -q --short HEAD])
+    back = if home == ""
+      ask(%w[rev-parse HEAD])
+    else
+      home
+    end
+    exec_check("git", "checkout", "-q", "--detach", "origin/main")
+    c = compose_at(a, b, ".")
+    exec_check("git", "checkout", "-q", back)
+    c
   else
-    home
+    tree = path_join(temp_dir("land-compose"), "tree")
+    made = git_at(
+      ".",
+      [
+        "worktree",
+        "add",
+        "-q",
+        "--detach",
+        tree,
+        ask(%w[rev-parse origin/main])
+      ]
+    )
+    if status_of(made) != 0
+      {
+        tip: ask(%w[rev-parse origin/main]),
+        stop: "a fresh worktree for the batch could not be made: #{trim(stderr_of(made))}"
+      }
+    else
+      c = compose_at(a, b, tree)
+      git_at(".", ["worktree", "remove", "--force", tree])
+      git_at(".", %w[worktree prune])
+      c
+    end
   end
-  exec_check("git", "checkout", "-q", "--detach", "origin/main")
+end
+
+def compose_at(a, b, dir)
   got = reduce(
     fn(acc, m)
       if not acc[:stop].nil?
@@ -2378,10 +2443,11 @@ def compose(a, b)
       else
         stopped = through(
           a,
-          exec_capture(
-            "git",
-            *append(
-              driver_args,
+          dir,
+          git_at(
+            dir,
+            append(
+              driver_args(dir),
               [
                 "rebase",
                 "-q",
@@ -2394,9 +2460,9 @@ def compose(a, b)
           )
         )
         if stopped.nil?
-          {tip: ask(%w[rev-parse HEAD]), stop: nil}
+          {tip: ask_at(dir, %w[rev-parse HEAD]), stop: nil}
         else
-          exec_check("git", "rebase", "--abort")
+          git_at(dir, %w[rebase --abort])
           {
             tip: acc[:tip],
             stop: "#{m[:ref]} does not rebase onto main and the lands before it: #{rebase_stop(stopped[:paths], stopped[:why], stopped[:settling])}"
@@ -2408,13 +2474,11 @@ def compose(a, b)
     b
   )
   stop = if got[:stop].nil? and a[:regen]
-    regen_failure
+    regen_failure(dir)
   else
     got[:stop]
   end
-  tip = ask(%w[rev-parse HEAD])
-  exec_check("git", "checkout", "-q", back)
-  {tip:, stop:}
+  {tip: ask_at(dir, %w[rev-parse HEAD]), stop:}
 end
 
 def try_batch(a, b, left, minutes)
@@ -2728,7 +2792,15 @@ def main()
   end
   a = assoc(
     assoc(
-      assoc(land_args(argv), :batch, not member?("--no-batch", argv)),
+      assoc(
+        assoc(land_args(argv), :batch, not member?("--no-batch", argv)),
+        :compose,
+        if member?("--compose-in-place", argv)
+          :in_place
+        else
+          :fresh
+        end
+      ),
       :started,
       now_ms
     ),
@@ -2738,7 +2810,7 @@ def main()
   unknown = unknown_flag(argv)
   if not unknown.nil?
     tell(
-      "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --no-batch, --requeue=N and --queue-minutes=N"
+      "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --no-batch, --compose-in-place, --requeue=N and --queue-minutes=N"
     )
     exit_with(2)
   end
@@ -4154,6 +4226,61 @@ test "the land at the front of the queue tests the land queued behind it with it
     assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{member}"]) !=
       ""
     rm_rf(root)
+  end
+end
+
+test "a batch is composed in a fresh worktree of its own commit, so a file the leading land's worktree holds untracked never reaches the batch's regeneration, while --compose-in-place keeps the old path, where it does and the queued land is blamed for it"
+  if self_exe != nil
+    batch_made = fn(flags)
+      root = landing_fixture
+      work = path_join(root, "work")
+      committed(work, [%w[other.txt other]], "topic")
+      lead = ticket_name(recently(120), "land/topic")
+      as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+      queued(root, "member", [%w[member.txt member]], recently(60))
+      write_file(path_join(work, "notes/ant"), "ant")
+      r = watched(root, batch_gh(root, []), flags)
+      as_tester(work, %w[fetch -q origin])
+      made = trim(
+        stdout_of(
+          exec_capture(
+            "git",
+            "-C",
+            work,
+            "show",
+            "refs/remotes/origin/land/batch-topic:made.txt"
+          )
+        )
+      )
+      seen = {
+        status: status_of(r),
+        said: stderr_of(r),
+        made:,
+        kept: path_exists(path_join(work, "notes/ant")),
+        home: as_tester(work, %w[symbolic-ref -q --short HEAD]),
+        trees: count(
+          filter(
+            (l) -> starts_with?(l, "worktree "),
+            moji::lines(as_tester(work, %w[worktree list --porcelain]))
+          )
+        )
+      }
+      rm_rf(root)
+      seen
+    end
+    fresh = batch_made([])
+    assert fresh[:status] == 0
+    assert fresh[:made] == "base"
+    assert fresh[:kept]
+    assert fresh[:home] == "topic"
+    assert fresh[:trees] == 1
+    assert not contains?(fresh[:said], "blamed")
+    here = batch_made(["--compose-in-place"])
+    assert contains?(here[:said], "land/member is blamed")
+    assert contains?(here[:said], "notes/ant")
+    assert here[:made] == ""
+    assert here[:kept]
+    assert here[:home] == "topic"
   end
 end
 

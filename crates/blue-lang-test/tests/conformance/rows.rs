@@ -179,6 +179,10 @@ pub struct Row {
     /// rules that judge a bidama's own file (B0056–B0060) see it; the static
     /// door checks it, the cli door is blind to it.
     pub bidama: Option<String>,
+    /// `role("generator")`: the program is the program of that project row
+    /// (`generator`, `service`, or a `binding` service), as the project-point
+    /// rules (B0085-B0087) see it; the static door checks it.
+    pub role: Option<String>,
 }
 
 impl Row {
@@ -364,6 +368,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
         isolate: false,
         frontend: None,
         bidama: None,
+        role: None,
     };
     for option in options {
         let (name, args) = head_of(option).ok_or_else(|| label("an option is a call".into()))?;
@@ -412,6 +417,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
             }
             "frontend" => row.frontend = Some(one_str("frontend", args).map_err(label)?.to_owned()),
             "bidama" => row.bidama = Some(one_str("bidama", args).map_err(label)?.to_owned()),
+            "role" => row.role = Some(one_str("role", args).map_err(label)?.to_owned()),
             "doctests" if args.is_empty() => row.src = with_doctests(&row.src).map_err(label)?,
             "host" if args.is_empty() => row.host = true,
             "isolate" if args.is_empty() => row.isolate = true,

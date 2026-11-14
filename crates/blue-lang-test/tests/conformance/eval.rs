@@ -515,6 +515,7 @@ pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
             roots,
             row.frontend.as_deref(),
             row.bidama.as_deref(),
+            row.role.as_deref(),
         )),
         Expect::Formats(_) => match blue_lang_pkg::canonical::format_with(
             &blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
@@ -548,6 +549,7 @@ struct View<'a> {
     inner: blue_lang_pkg::load_path::LoadPath,
     table: Option<&'a str>,
     bidama: Option<&'a str>,
+    role: Option<&'a str>,
 }
 
 impl Loader for View<'_> {
@@ -582,6 +584,19 @@ impl Loader for View<'_> {
         self.inner.moved(name)
     }
 
+    fn roles(&self, entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
+        use blue_lang_runtime::uses::Role;
+        match self.role {
+            Some("generator") => vec![Role::Generator("row".into())],
+            Some("service") => vec![Role::Service("row".into())],
+            Some("binding") => vec![
+                Role::Service("row".into()),
+                Role::Binding("row".into(), "cache".into()),
+            ],
+            _ => self.inner.roles(entry),
+        }
+    }
+
     fn frontend(&self, entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
         match self.table {
             Some(t) => Some(blue_lang_runtime::uses::Frontend {
@@ -598,6 +613,7 @@ fn static_codes(
     roots: &[PathBuf],
     frontend: Option<&str>,
     bidama: Option<&str>,
+    role: Option<&str>,
 ) -> Vec<String> {
     if let Some(d) = blue_lang_runtime::pipeline::syntax_diagnostic(src) {
         return vec![d.code.as_str().to_owned()];
@@ -606,6 +622,7 @@ fn static_codes(
         inner: blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
         table: frontend,
         bidama,
+        role,
     };
     let entry = Entry {
         path: Some(Path::new(ROW_FILE)),
@@ -695,9 +712,10 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 .into(),
         );
     }
-    if row.bidama.is_some() {
+    if row.bidama.is_some() || row.role.is_some() {
         return Obs::Blind(
-            "a bidama row is a bidama's own file, which only the static door is handed".into(),
+            "a bidama or role row is a file a project names, which only the static door is handed"
+                .into(),
         );
     }
     let file = env.scratch.join(format!("row-{n}.b"));
@@ -893,8 +911,8 @@ pub fn component(env: &mut Env, row: &Row, n: usize) -> Obs {
             row.expect.kind()
         ));
     }
-    if row.frontend.is_some() || row.bidama.is_some() {
-        return Obs::Blind("a frontend or bidama row is handed only to the static door".into());
+    if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
+        return Obs::Blind("a frontend, bidama or role row is handed only to the static door".into());
     }
     let dir = env.scratch.join(format!("component-{n}"));
     if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -1004,7 +1022,7 @@ fn door_failure(stderr: &str, door: &str) -> Obs {
 /// Whether `ev` observes rows of this kind at all (so a blind reading is the
 /// design, not a gap).
 pub fn observes(ev: Ev, row: &Row) -> bool {
-    if row.frontend.is_some() || row.bidama.is_some() {
+    if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
         return ev == Ev::Static;
     }
     match (&row.expect, ev) {

@@ -159,7 +159,7 @@ row(
       "end"
     ]
   ),
-  diagnoses(["B0056"]),
+  diagnoses(%w[B0056 B0090]),
   covers("rule:B0056"),
   bidama("kagi")
 )
@@ -182,7 +182,7 @@ row(
       "end"
     ]
   ),
-  diagnoses(["B0057"]),
+  diagnoses(%w[B0057 B0090]),
   covers("rule:B0057"),
   bidama("kagi")
 )
@@ -201,7 +201,7 @@ row(
       "end"
     ]
   ),
-  diagnoses(["B0058"]),
+  diagnoses(%w[B0058 B0090]),
   covers("rule:B0058"),
   bidama("kagi")
 )
@@ -226,7 +226,7 @@ row(
       "end"
     ]
   ),
-  diagnoses(["B0059"]),
+  diagnoses(%w[B0059 B0090]),
   covers("rule:B0059"),
   bidama("kagi")
 )
@@ -253,7 +253,7 @@ row(
       "end"
     ]
   ),
-  diagnoses(["B0060"]),
+  diagnoses(%w[B0060 B0090]),
   covers("rule:B0060"),
   bidama("kagi")
 )
@@ -275,6 +275,10 @@ row(
       "\"\"\"",
       "def kagi()",
       "  1",
+      "end",
+      "",
+      "test \"kagi is one\"",
+      "  assert kagi == 1",
       "end"
     ]
   ),

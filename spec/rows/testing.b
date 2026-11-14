@@ -120,7 +120,10 @@ row(
 row(
   "testing.declaration.unknown_key",
   join_lines(["test \"t\", {tags: [:slow]}", "  assert true", "end"]),
-  fails(:parse, "a test declares `satisfies:` and `target:`")
+  fails(
+    :parse,
+    "a test declares `satisfies:`, `target:`, `kind:`, `allow:` and `fakes:`"
+  )
 )
 
 row(
@@ -156,4 +159,240 @@ row(
     ]
   ),
   value(":ran")
+)
+
+row(
+  "testing.B0083",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi asks the machine.",
+      "",
+      "    1 + 1 #=> 2",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi runs `date`.",
+      "",
+      "    1 + 1 #=> 2",
+      "\"\"\"",
+      "def kagi()",
+      "  exec_capture(\"date\")",
+      "end"
+    ]
+  ),
+  diagnoses(%w[B0083 B0090]),
+  covers("rule:B0083"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0083.discharged_by_an_integration_test",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi asks the machine.",
+      "",
+      "    1 + 1 #=> 2",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi runs `date`.",
+      "",
+      "    1 + 1 #=> 2",
+      "\"\"\"",
+      "def kagi()",
+      "  exec_capture(\"date\")",
+      "end",
+      "",
+      "test \"kagi\", {kind: :integration, allow: [:process]}",
+      "  assert kagi != nil",
+      "end"
+    ]
+  ),
+  diagnoses([]),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0084",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi asks hito for the date.",
+      "",
+      "    1 + 1 #=> 2",
+      "\"\"\"",
+      "",
+      "use(\"sp_seam\", [:sp_ask])",
+      "",
+      "@doc \"\"\"",
+      "kagi answers what sp_seam asked.",
+      "",
+      "    1 + 1 #=> 2",
+      "\"\"\"",
+      "def kagi()",
+      "  sp_ask",
+      "end"
+    ]
+  ),
+  diagnoses(%w[B0084 B0090]),
+  covers("rule:B0084"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0085",
+  unlines(
+    [
+      "def main()",
+      "  write_file(getenv(\"GEN_OUT\", \"out.txt\"), \"x\")",
+      "end"
+    ]
+  ),
+  diagnoses(["B0085"]),
+  covers("rule:B0085"),
+  role("generator")
+)
+
+row(
+  "testing.B0086",
+  unlines(["def main()", "  1", "end"]),
+  diagnoses(["B0086"]),
+  covers("rule:B0086"),
+  role("service")
+)
+
+row(
+  "testing.B0087",
+  unlines(
+    [
+      "def main()",
+      "  1",
+      "end",
+      "",
+      "test \"serves\", {kind: :e2e}",
+      "  assert main == 1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0087"]),
+  covers("rule:B0087"),
+  role("binding")
+)
+
+row(
+  "testing.B0088",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is one.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "def kagi()",
+      "  1",
+      "end",
+      "",
+      "test \"kagi runs\"",
+      "  kagi",
+      "end"
+    ]
+  ),
+  diagnoses(["B0088"]),
+  covers("rule:B0088"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0089",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is one.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "def kagi()",
+      "  1",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  one = kagi",
+      "  assert one == one",
+      "end"
+    ]
+  ),
+  diagnoses(["B0089"]),
+  covers("rule:B0089"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0090",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is one.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "def kagi()",
+      "  1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0090"]),
+  covers("rule:B0090"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0091",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi refuses a negative.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi gives back a count.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "def kagi(n)",
+      "  if n < 0",
+      "    raise(:negative, \"no\")",
+      "  end",
+      "  n",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  assert kagi(2) == 2",
+      "end"
+    ]
+  ),
+  diagnoses(["B0091"]),
+  covers("rule:B0091"),
+  bidama("kagi")
 )

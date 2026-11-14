@@ -25,6 +25,7 @@ mutation testing for a blue package. Layers, lowest first: the defaults, `~/.con
 | Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
 |---|---|---|---|---|---|---|---|---|---|
 | `blue` | text | `unset` | any text |  | `HENI_BLUE` | `--blue` | file, env, flag |  | the blue that runs the tests; the one running heni when unset |
+| `finds` | bool | `false` | any bool |  | `HENI_FINDS` | `--finds` | flag |  | run no test; fail when a mutation no longer finds its text exactly once |
 | `test` | text | `unset` | any text |  | `HENI_TEST` | `--test` | file, env, flag |  | the test file to run, relative to the package |
 
 

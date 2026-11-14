@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:1c08848fc144debf31a4c53739ecbadf07b3a6131ff2706495c5d8e19134bf1f",
+  "bluefile_b3": "b3:c2aa725c6c87828643ae2402132cbb37043ac5325908868e1ea87d84613b8b31",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -371,6 +371,13 @@
       },
       "settings": {
         "output": "docs/SETTINGS.md",
+        "program": "gen/core-models.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
+      "settings-schema": {
+        "output": "docs/settings.schema.json",
         "program": "gen/core-models.b",
         "inputs": [
           "bidamas"

@@ -7,6 +7,14 @@
         "description": "the blue that runs the tests; the one running heni when unset",
         "type": "string"
       },
+      "finds": {
+        "default": false,
+        "description": "run no test; fail when a mutation no longer finds its text exactly once",
+        "type": "boolean",
+        "x-set-by": [
+          "flag"
+        ]
+      },
       "test": {
         "description": "the test file to run, relative to the package",
         "type": "string"

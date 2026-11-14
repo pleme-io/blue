@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-399 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+401 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -428,6 +428,13 @@ Higher binding power binds tighter.
 | `getenv` | `getenv(name[, default])` | 1..2 | An environment variable, or default (nil when none is given). |
 | `self_exe` | `self_exe` | 0 | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
 
+### Terminal input
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `is_terminal` | `is_terminal(fd)` | 1 | Whether the stream fd (0 input, 1 output, 2 errors) is a terminal; false for any other number. Needs the terminal capability. |
+| `read_line` | `read_line` | 0 | One line from standard input without its line break, or nil at the end of input. Needs the terminal capability. |
+
 ### Time
 
 | name | call | arity | meaning |
@@ -631,7 +638,7 @@ Higher binding power binds tighter.
 
 ### Called where written bare
 
-A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 17 built-in names therefore run, with their effects, wherever they are written bare:
+A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 18 built-in names therefore run, with their effects, wherever they are written bare:
 
 | name | meaning |
 |---|---|
@@ -649,6 +656,7 @@ A function that takes no parameters is CALLED where its name is written: `now_ms
 | `now_ms` | Unix time in milliseconds. |
 | `now_ns` | Unix time in nanoseconds. |
 | `now_rfc3339` | The current UTC time as RFC 3339 text. |
+| `read_line` | One line from standard input without its line break, or nil at the end of input. Needs the terminal capability. |
 | `remaining` | Milliseconds left before this process's deadline, or nil when it holds none. |
 | `self` | This process's pid. The program itself is 0. |
 | `self_exe` | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |

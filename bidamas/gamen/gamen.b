@@ -2999,3 +2999,14 @@ test "answered asks again after each unclear answer and gives the first clear on
     (t) -> choose_answer(t, %w[a b])
   ).nil?
 end
+
+test "answered starts at the line it is told"
+  lines = %w[2 x 1]
+  assert answered(
+    "c?",
+    (i) -> lines[i],
+    (_t) -> nil,
+    (t) -> choose_answer(t, %w[a b]),
+    1
+  ) == "a"
+end

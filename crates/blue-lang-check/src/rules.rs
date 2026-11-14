@@ -1909,7 +1909,7 @@ not refused: each side runs the code.",
         fix: None,
         law: "each definition of a bidama is named by a test of its file: called, referenced, or its `target:`",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 3413,
+        ratchet: 3408,
         package: "kagi",
         explanation: "\
 A definition reached only through a caller is tested only as far as the
@@ -1999,7 +1999,7 @@ above the union.",
         fix: None,
         law: "a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out",
         witness: "@moduledoc \"\"\"\nkagi adds an optional step.\n\n    kagi(1) #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi adds b when given.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(a, b?)\n  if b.nil?\n    a\n  else\n    a + b\n  end\nend\n\ntest \"kagi\"\n  assert kagi(1) == 1\nend\n",
-        ratchet: 11,
+        ratchet: 10,
         package: "kagi",
         explanation: "\
 An optional parameter is two behaviours, the argument given and the

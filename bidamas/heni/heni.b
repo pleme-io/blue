@@ -726,7 +726,7 @@ test "status is nil without a capture and the capture's status with one"
 end
 
 test "heni's settings and frame render a command line whose flags are its knobs"
-  assert settei::defaults_of(settings) == {blue: nil, test: nil}
+  assert settei::defaults_of(settings) == {blue: nil, test: nil, finds: false}
   assert frame[:name] == "heni"
   assert get(
     hikisuu::parse(%w[p m.json], settei::cli_spec(settings, frame)),

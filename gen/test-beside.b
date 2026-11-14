@@ -46,11 +46,6 @@ def waivers()
       "2027-04-30"
     ),
     waive(
-      "settei::settled",
-      "it reads the discovered config file and the process environment and writes warnings to stderr; settei::settle is its body, tested with a given file and environment",
-      "2027-04-30"
-    ),
-    waive(
       "settei::command",
       "it reads the process's argv, the config file and the environment, and may end it with exit_with(64); settei::line is its body, tested with a given line, file and environment, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line",
       "2027-04-30"
@@ -105,7 +100,7 @@ def recorded()
       "unbranched: deeta 95",
       "unbranched: eigyou 48",
       "unbranched: fairu 1",
-      "unbranched: gamen 17",
+      "unbranched: gamen 18",
       "unbranched: gitto 15",
       "unbranched: happa 8",
       "unbranched: heni 8",
@@ -117,7 +112,7 @@ def recorded()
       "unbranched: junjo 1",
       "unbranched: junni 2",
       "unbranched: kaaneru 245",
-      "unbranched: kakehashi 194",
+      "unbranched: kakehashi 198",
       "unbranched: kazu 3",
       "unbranched: keiyu 1",
       "unbranched: khipu 22",
@@ -136,7 +131,7 @@ def recorded()
       "unbranched: sabi 10",
       "unbranched: saishikou 1",
       "unbranched: seikika 46",
-      "unbranched: settei 31",
+      "unbranched: settei 59",
       "unbranched: shinchoku 38",
       "unbranched: shinsatsu 1",
       "unbranched: shinsuu 2",

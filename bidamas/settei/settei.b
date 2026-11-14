@@ -3272,3 +3272,12 @@ end
 test "settled answers the defaults of a model when no file or environment sets it"
   assert settled("settei-test-none", {p: knob(7)}) == {p: 7}
 end
+
+test "reload takes the flags given, and form_run starts at the line it is told"
+  m = {p: knob(1, {set_by: %i[file env flag]})}
+  r = reload("a", m, settle("a", m, nil, no_env), nil, no_env, {"p" => 3})
+  assert r[:changes] == [{key: "p", from: "1", to: "3", source: :flag}]
+  f = form("a", m, settle("a", m, nil, no_env))
+  lines = %w[p=9 p=2 apply]
+  assert form_run(f, (i) -> lines[i], (_t) -> nil, 1) == {p: 2}
+end

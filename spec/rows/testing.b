@@ -431,3 +431,127 @@ row(
   diagnoses([]),
   role("staged-gate")
 )
+
+row(
+  "testing.B0093",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is its argument.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "def kagi(a)",
+      "  a",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  assert kagi(1) == 1",
+      "  xs = [1, 2]",
+      "  assert xs == [1, 2]",
+      "end"
+    ]
+  ),
+  diagnoses(["B0093"]),
+  covers("rule:B0093"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0094",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    circle(1).r #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "shape is a circle or a square.",
+      "",
+      "    circle(1).r #=> 1",
+      "\"\"\"",
+      "union shape = circle(r) | square(s)",
+      "",
+      "test \"kagi\"",
+      "  assert circle(1).r == 1",
+      "end"
+    ]
+  ),
+  diagnoses(%w[B0090 B0090 B0094]),
+  covers("rule:B0094"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0095",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is its argument.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "def kagi(a, b?)",
+      "  if b.nil?",
+      "    a",
+      "  else",
+      "    a + b",
+      "  end",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  assert kagi(1) == 1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0095"]),
+  covers("rule:B0095"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0096",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi({enabled: true}) #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi runs when enabled.",
+      "",
+      "    kagi({enabled: true}) #=> 1",
+      "\"\"\"",
+      "def kagi(cfg)",
+      "  if cfg[:enabled]",
+      "    1",
+      "  else",
+      "    0",
+      "  end",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  assert kagi({enabled: true}) == 1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0096"]),
+  covers("rule:B0096"),
+  bidama("kagi")
+)

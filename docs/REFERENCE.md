@@ -787,3 +787,7 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0090` | untargeted-definition | each definition of a bidama is named by a test of its file: called, referenced, or its `target:` | refused |
 | `B0091` | unexpected-raise | each tag a definition of a bidama raises is named by a test of its file, the way a test expects it | refused |
 | `B0092` | unstaged-check | the program of a Bluefile `check` row is gated at a declared stage: its row names `stage:` (`:push`, `:ci` or `:release`) | refused |
+| `B0093` | unsliced-assertion | each assertion of a test of a bidama reads code: its backward slice, through the test's own bindings, reaches a definition or a builtin, not only literals | refused |
+| `B0094` | unbuilt-variant | each arm of a union a bidama declares is constructed by a test of its file | refused |
+| `B0095` | optional-shape-untested | a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out | refused |
+| `B0096` | flag-one-state | a definition that reads an `enable` or `enabled` field is tested with the flag both true and false | refused |

@@ -228,6 +228,22 @@ pub const GAPS: &[Gap] = &[
         code: Code::B0091,
         why: "a test that expects a refusal names the input that causes it, which a person chooses",
     },
+    Gap {
+        code: Code::B0093,
+        why: "an assertion that reads code says what the code must answer, which a person chooses",
+    },
+    Gap {
+        code: Code::B0094,
+        why: "a test that builds an arm says what its consumers must answer for it, which a person chooses",
+    },
+    Gap {
+        code: Code::B0095,
+        why: "a call with or without an optional argument says what each shape answers, which a person chooses",
+    },
+    Gap {
+        code: Code::B0096,
+        why: "a test of a flag off says what off must do, which a person chooses",
+    },
 ];
 
 /// The evolution rules that block a program: ratcheted, error severity.

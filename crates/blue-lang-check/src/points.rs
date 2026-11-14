@@ -397,6 +397,350 @@ pub fn strength(p: &Program<'_>) -> Vec<Diagnostic> {
     out
 }
 
+fn local_values<'a>(form: &'a Spanned, out: &mut BTreeMap<String, Vec<&'a Spanned>>) {
+    if let Some(items) = form.as_list() {
+        if let [head, name, value] = items {
+            if head.as_symbol() == Some("define") {
+                if let Some(n) = name.as_symbol() {
+                    out.entry(n.to_string()).or_default().push(value);
+                }
+            }
+        }
+        for i in items {
+            local_values(i, out);
+        }
+    }
+}
+
+fn asserted<'a>(form: &'a Spanned, out: &mut Vec<&'a Spanned>) {
+    if let Some(items) = form.as_list() {
+        if let [head, _, e] = items {
+            if head.as_symbol() == Some(blue_lang_syntax::LOWERED_ASSERT) {
+                out.push(e);
+                return;
+            }
+        }
+        for i in items {
+            asserted(i, out);
+        }
+    }
+}
+
+fn symbols_in(form: &Spanned, out: &mut BTreeSet<String>) {
+    if let Some(s) = form.as_symbol() {
+        out.insert(s.to_string());
+    }
+    if let Some(items) = form.as_list() {
+        for i in items {
+            symbols_in(i, out);
+        }
+    }
+}
+
+/// The builtins an assertion judges with, which reach no code under test:
+/// comparison, logic, a field of a value, and the list and map a literal
+/// lowers to.
+const JUDGING: &[&str] = &[
+    "equal?",
+    "eq?",
+    "==",
+    "!=",
+    "not",
+    "and",
+    "or",
+    "<",
+    ">",
+    "<=",
+    ">=",
+    "blue-field",
+    "list",
+    "hash-map",
+    "quote",
+];
+
+/// Whether the assertion `e` of test form `t` depends on code: a reference
+/// inside it resolves to a definition or to a builtin it does not merely
+/// judge with, or a local it reads was bound from an expression that does,
+/// followed through the test's own bindings.
+fn sliced(
+    p: &Program<'_>,
+    t: usize,
+    e: &Spanned,
+    locals: &BTreeMap<String, Vec<&Spanned>>,
+    seen: &mut BTreeSet<String>,
+) -> bool {
+    let reaches_def = p.references.iter().any(|r| {
+        r.top_level == t
+            && r.span.start >= e.span.start
+            && r.span.end <= e.span.end
+            && match &r.ns {
+                Target::Def(..) => true,
+                Target::Builtin(n) => !JUDGING.contains(&n.as_str()),
+                _ => false,
+            }
+    });
+    if reaches_def {
+        return true;
+    }
+    let mut names = BTreeSet::new();
+    symbols_in(e, &mut names);
+    names.into_iter().any(|n| {
+        locals.get(&n).is_some_and(|values| {
+            seen.insert(n.clone()) && values.iter().any(|v| sliced(p, t, v, locals, seen))
+        })
+    })
+}
+
+/// B0093 for an assertion of a test whose backward slice reaches no code:
+/// it reads only literals, the builtins an assertion judges with and locals
+/// bound from them, so it holds or fails whatever the code under test does
+/// (docs/COVERAGE.md S3). The slice follows the test's own bindings; a call
+/// of any definition or of any other builtin ends it.
+#[must_use]
+pub fn sliced_assertions(p: &Program<'_>) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) || blue_lang_syntax::doc::is_doctest(form) {
+            continue;
+        }
+        let Some(parts) = blue_lang_syntax::test_parts(form) else {
+            continue;
+        };
+        let mut locals = BTreeMap::new();
+        local_values(parts.body, &mut locals);
+        let mut asserts = Vec::new();
+        asserted(parts.body, &mut asserts);
+        for e in asserts {
+            if e.as_list().is_none() && e.as_symbol().is_none() {
+                continue;
+            }
+            if !sliced(p, i, e, &locals, &mut BTreeSet::new()) {
+                out.push(
+                    Diagnostic::new(
+                        Code::B0093,
+                        format!(
+                            "an assertion of test \"{}\" reads no code, only literals, so it holds or fails whatever the code does",
+                            parts.name
+                        ),
+                        e.span,
+                    )
+                    .at_top_level(i)
+                    .with_help("assert on what a definition answers: call the code under test inside the assertion or in the binding it reads"),
+                );
+            }
+        }
+    }
+    out
+}
+
+fn test_forms(p: &Program<'_>) -> Vec<usize> {
+    p.forms
+        .iter()
+        .enumerate()
+        .filter(|(i, f)| {
+            (p.is_entry)(*i)
+                && blue_lang_syntax::test_parts(f).is_some()
+                && !blue_lang_syntax::doc::is_doctest(f)
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+fn calls_in<'a>(form: &'a Spanned, out: &mut Vec<&'a [Spanned]>) {
+    if let Some(items) = form.as_list() {
+        out.push(items);
+        for i in items {
+            calls_in(i, out);
+        }
+    }
+}
+
+fn optional_params(form: &Spanned) -> Option<(&str, usize, usize)> {
+    let items = form.as_list()?;
+    if items.first()?.as_symbol()? != "define" {
+        return None;
+    }
+    let sig = items.get(1)?.as_list()?;
+    let name = sig.first()?.as_symbol()?;
+    let params: Vec<&str> = sig[1..].iter().filter_map(Spanned::as_symbol).collect();
+    let at = params.iter().position(|p| *p == "&optional")?;
+    let rest = params[at + 1..]
+        .iter()
+        .take_while(|p| !p.starts_with('&'))
+        .count();
+    (rest > 0).then_some((name, at, at + rest))
+}
+
+/// B0095 for a definition with optional parameters that the tests of its
+/// file call, but never both with every optional argument given and with
+/// one absent (docs/COVERAGE.md D2). A definition no test calls is B0090's.
+#[must_use]
+pub fn optional_shapes(p: &Program<'_>) -> Vec<Diagnostic> {
+    let tests = test_forms(p);
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) {
+            continue;
+        }
+        let Some((name, required, total)) = optional_params(form) else {
+            continue;
+        };
+        let target = key(&(p.namespace_of)(i), name);
+        let mut arities = BTreeSet::new();
+        for &t in &tests {
+            let mut lists = Vec::new();
+            calls_in(&p.forms[t], &mut lists);
+            for items in lists {
+                let Some(head) = items.first() else { continue };
+                let names_it = p.references.iter().any(|r| {
+                    r.top_level == t
+                        && r.span == head.span
+                        && matches!(&r.ns, Target::Def(ns, n) if key(ns, n) == target)
+                });
+                if names_it {
+                    arities.insert(items.len() - 1);
+                }
+            }
+        }
+        if arities.is_empty() {
+            continue;
+        }
+        let given = arities.iter().any(|a| *a >= total);
+        let absent = arities.iter().any(|a| *a >= required && *a < total);
+        if !(given && absent) {
+            let missing = if given { "absent" } else { "given" };
+            out.push(
+                Diagnostic::new(
+                    Code::B0095,
+                    format!("no test calls `{name}` with its optional argument {missing}"),
+                    name_span(form).unwrap_or(form.span),
+                )
+                .at_top_level(i)
+                .with_help(format!("call `{name}` in a test of this file with every optional argument given and with one left out")),
+            );
+        }
+    }
+    out
+}
+
+/// B0094 for an arm of a union the file declares that no test of the file
+/// constructs (docs/COVERAGE.md D1, the constructed half).
+#[must_use]
+pub fn variants(p: &Program<'_>) -> Vec<Diagnostic> {
+    let tests: BTreeSet<usize> = test_forms(p).into_iter().collect();
+    let constructed: BTreeSet<String> = p
+        .references
+        .iter()
+        .filter(|r| tests.contains(&r.top_level))
+        .filter_map(|r| match &r.ns {
+            Target::Def(ns, n) => Some(key(ns, n)),
+            _ => None,
+        })
+        .collect();
+    let mut records: BTreeMap<String, (usize, &Spanned)> = BTreeMap::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if let Some(r) = blue_lang_syntax::record::record_parts(form) {
+            if let Some(pred) = r.predicate.as_symbol() {
+                records.insert(pred.to_string(), (i, r.name));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) {
+            continue;
+        }
+        let Some(u) = blue_lang_syntax::union::declared(form) else {
+            continue;
+        };
+        let union = u.name.as_symbol().unwrap_or_default();
+        for arm in u.arms {
+            let Some(pred) = arm.as_symbol() else {
+                continue;
+            };
+            let Some((ri, name)) = records.get(pred) else {
+                continue;
+            };
+            let Some(n) = name.as_symbol() else { continue };
+            if !constructed.contains(&key(&(p.namespace_of)(*ri), n)) {
+                out.push(
+                    Diagnostic::new(
+                        Code::B0094,
+                        format!("no test constructs `{n}`, an arm of union `{union}`"),
+                        arm.span,
+                    )
+                    .at_top_level(i)
+                    .with_help(format!("build a `{n}` in a test of this file and assert what the union's consumers answer for it")),
+                );
+            }
+        }
+    }
+    out
+}
+
+const FLAGS: &[&str] = &["enable", "enabled"];
+
+fn flag_reads(form: &Spanned) -> bool {
+    match form.as_list() {
+        Some(items) => {
+            let read = matches!(
+                items,
+                [head, _, k] if matches!(head.as_symbol(), Some("blue-field" | "get" | "blue-index"))
+                    && k.as_keyword().is_some_and(|k| FLAGS.contains(&k))
+            );
+            read || items.iter().any(flag_reads)
+        }
+        None => false,
+    }
+}
+
+fn flag_values(form: &Spanned, out: &mut BTreeSet<String>) {
+    if let Some(items) = form.as_list() {
+        for pair in items.windows(2) {
+            if pair[0].as_keyword().is_some_and(|k| FLAGS.contains(&k)) {
+                out.insert(pair[1].to_sexp().to_string());
+            }
+        }
+        for i in items {
+            flag_values(i, out);
+        }
+    }
+}
+
+/// B0096 for a definition that reads an `enable` or `enabled` field when the
+/// tests of its file never set the flag both on and off (docs/COVERAGE.md
+/// C1): behaviour configured off must still work, and off must do nothing.
+#[must_use]
+pub fn flags(p: &Program<'_>) -> Vec<Diagnostic> {
+    let mut seen = BTreeSet::new();
+    for t in test_forms(p) {
+        flag_values(&p.forms[t], &mut seen);
+    }
+    let both = seen.contains("#t") && seen.contains("#f");
+    if both {
+        return Vec::new();
+    }
+    p.forms
+        .iter()
+        .enumerate()
+        .filter(|(i, f)| {
+            (p.is_entry)(*i)
+                && blue_lang_syntax::test_parts(f).is_none()
+                && blue_lang_syntax::doc::defined_name(f).is_some()
+                && flag_reads(f)
+        })
+        .map(|(i, f)| {
+            Diagnostic::new(
+                Code::B0096,
+                "this definition reads an `enabled` flag that no test of its file sets both true and false".to_string(),
+                name_span(f).unwrap_or(f.span),
+            )
+            .at_top_level(i)
+            .with_help("test it with `enabled: true` and with `enabled: false`: off must still work and must do nothing")
+        })
+        .collect()
+}
+
 fn raised_tags(form: &Spanned, out: &mut BTreeSet<String>) {
     if let Some(items) = form.as_list() {
         if items.first().and_then(Spanned::as_symbol) == Some("raise") {

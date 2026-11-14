@@ -236,15 +236,15 @@ obligations! {
         when: "an `@doc` example",
         evidence: Unit,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV3: doctests run today (B0057 forces the example); a failing doctest is a red test, not yet a registry finding"),
+        refusal: Gate("bidama-test"),
         profile: Default,
-        owner: "COVERAGE.md R3",
+        owner: "COVERAGE.md R3: every `bidama-test-<pkg>` check runs each `@doc` example as a test, so one that stops holding is a red check; B0057 (ratcheted) forces the example",
     }
     "reach/dead" {
         when: "a definition reachable from neither an entry point nor a test",
         evidence: Unit,
         detector: Static,
-        refusal: Design("COVERAGE CV3: needs the call graph from every entry point"),
+        refusal: Design("COVERAGE CV3: every definition of a bidama is public today (docs/STDLIB.md), so none is dead by construction; a dead private definition is decidable from the call graph once private definitions land"),
         profile: Default,
         owner: "COVERAGE.md R4",
     }
@@ -358,28 +358,28 @@ obligations! {
         owner: "COVERAGE.md E3; a `rescue` handler is an arm",
     }
     "data/variant" {
-        when: "a variant of a declared union",
+        when: "an arm of a union a bidama declares",
         evidence: Unit,
         detector: Static,
-        refusal: Design("COVERAGE CV3"),
+        refusal: Code(Code::B0094),
         profile: Default,
-        owner: "COVERAGE.md D1",
+        owner: "COVERAGE.md D1, the constructed half (a test builds each arm); that a test consumes each arm is the dynamic half, not yet forced",
     }
     "data/optional" {
-        when: "an optional parameter or a nilable value",
-        evidence: Branch,
-        detector: Dynamic,
-        refusal: Design("COVERAGE CV1: argument shapes per call site"),
-        profile: Default,
-        owner: "COVERAGE.md D2",
-    }
-    "config/flag" {
-        when: "an `enable` or `enabled` field",
+        when: "a definition with optional parameters that the tests of its file call",
         evidence: Branch,
         detector: Static,
-        refusal: Design("COVERAGE CV3"),
+        refusal: Code(Code::B0095),
         profile: Default,
-        owner: "COVERAGE.md C1",
+        owner: "COVERAGE.md D2, the optional-parameter half, read from each call's argument count in the file's tests; a nilable value seen both nil and present is the dynamic half, not yet forced",
+    }
+    "config/flag" {
+        when: "a definition that reads an `enable` or `enabled` field",
+        evidence: Branch,
+        detector: Static,
+        refusal: Code(Code::B0096),
+        profile: Default,
+        owner: "COVERAGE.md C1: the file's tests set the flag both true and false",
     }
     "strength/assertion" {
         when: "a test block of a bidama",
@@ -398,12 +398,20 @@ obligations! {
         owner: "COVERAGE.md S2",
     }
     "strength/slice" {
-        when: "an assertion whose backward slice reaches no definition outside the test",
+        when: "an assertion whose backward slice, through the test's bindings, reaches only literals",
+        evidence: Assertion,
+        detector: Static,
+        refusal: Code(Code::B0093),
+        profile: Default,
+        owner: "COVERAGE.md S3 (CV4), the static slice: a definition or a builtin beyond comparison, logic and literal shapes ends it; a slice through effects (a value written by the code and read back) counts as reaching code",
+    }
+    "strength/checked" {
+        when: "an executed statement no assertion's slice reads",
         evidence: Assertion,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV4: a data-flow slice in the recorder"),
-        profile: Default,
-        owner: "COVERAGE.md S3, S4",
+        refusal: Design("COVERAGE CV4 strict: checked coverage needs a dynamic data-flow slice in the recorder"),
+        profile: Strict,
+        owner: "COVERAGE.md S4",
     }
     "strength/deterministic" {
         when: "a test",

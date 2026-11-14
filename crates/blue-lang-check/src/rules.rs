@@ -1958,6 +1958,71 @@ checks tests, so a row with no stage is refused the moment its program is
 checked. Debt is `# waive B0092: reason` above the file's first form,
 counted by `blue census` against the row `pipeline/stage`.",
     }
+    B0093 {
+        slug: "unsliced-assertion",
+        severity: Error,
+        fix: None,
+        law: "each assertion of a test of a bidama reads code: its backward slice, through the test's own bindings, reaches a definition or a builtin, not only literals",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\ntest \"kagi\"\n  assert kagi == 1\n  two = [1, 2]\n  assert two == [1, 2]\nend\n",
+        ratchet: 5,
+        package: "kagi",
+        explanation: "\
+An assertion that reads only literals and the test's own locals bound from
+them holds or fails whatever the code under test does (docs/COVERAGE.md
+S3): `two = [1, 2]; assert two == [1, 2]` checks nothing the bidama
+answers. The rule follows each assertion's names back through the test's
+bindings; a call or reference of any definition, or of a builtin beyond the
+comparisons, logic and literal shapes an assertion judges with, ends the
+slice, and the assertion holds. A bare literal is B0089's.
+Debt is `# waive B0093: reason` above the test, counted against the row
+`strength/slice`.",
+    }
+    B0094 {
+        slug: "unbuilt-variant",
+        severity: Error,
+        fix: None,
+        law: "each arm of a union a bidama declares is constructed by a test of its file",
+        witness: "@moduledoc \"\"\"\nkagi holds a shape.\n\n    circle(1).r #=> 1\n\"\"\"\n\n@doc \"\"\"\nshape is a circle or a square.\n\n    circle(1).r #=> 1\n\"\"\"\nunion shape = circle(r) | square(s)\n\ntest \"kagi\"\n  assert circle(1).r == 1\nend\n",
+        ratchet: 2,
+        package: "kagi",
+        explanation: "\
+A union says a value is one of its arms, so a consumer answers each arm
+(docs/COVERAGE.md D1). An arm no test builds is an answer no test has
+seen. The rule reads the union's arms from the AST and asks that a test of
+the file reference each arm's constructor. That a test consumes each arm is
+the dynamic half of D1, not yet forced. Debt is `# waive B0094: reason`
+above the union.",
+    }
+    B0095 {
+        slug: "optional-shape-untested",
+        severity: Error,
+        fix: None,
+        law: "a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out",
+        witness: "@moduledoc \"\"\"\nkagi adds an optional step.\n\n    kagi(1) #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi adds b when given.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(a, b?)\n  if b.nil?\n    a\n  else\n    a + b\n  end\nend\n\ntest \"kagi\"\n  assert kagi(1) == 1\nend\n",
+        ratchet: 11,
+        package: "kagi",
+        explanation: "\
+An optional parameter is two behaviours, the argument given and the
+argument absent (docs/COVERAGE.md D2). The rule counts the arguments of each
+call of the definition in the file's tests and asks for a call with every
+optional argument and a call that leaves one out. A definition no test calls
+is B0090's. Debt is `# waive B0095: reason` above the definition.",
+    }
+    B0096 {
+        slug: "flag-one-state",
+        severity: Error,
+        fix: None,
+        law: "a definition that reads an `enable` or `enabled` field is tested with the flag both true and false",
+        witness: "@moduledoc \"\"\"\nkagi runs when enabled.\n\n    kagi({enabled: true}) #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi answers 1 when enabled.\n\n    kagi({enabled: true}) #=> 1\n\"\"\"\ndef kagi(cfg)\n  if cfg[:enabled]\n    1\n  else\n    0\n  end\nend\n\ntest \"kagi\"\n  assert kagi({enabled: true}) == 1\nend\n",
+        ratchet: 6,
+        package: "kagi",
+        explanation: "\
+Behaviour is configured off, never deleted, so a flag is two states that
+must both work: on does the thing, off does nothing (docs/COVERAGE.md C1).
+The rule finds each definition that reads `:enable` or `:enabled` and asks
+that the file's tests set the flag to `true` and to `false`. Debt is
+`# waive B0096: reason` above the definition.",
+    }
 }
 
 impl Code {

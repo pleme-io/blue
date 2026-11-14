@@ -609,3 +609,62 @@ fn a_check_row_is_discharged_by_its_declared_stage() {
         "a waiver above the first form holds the file's debt"
     );
 }
+
+const COVERED_HEAD: &str =
+    "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi(1) #=> 1\n\"\"\"\n\n";
+
+fn kagi_with(body: &str, keep: Code) -> Vec<Code> {
+    let src: &'static str = Box::leak(format!("{COVERED_HEAD}{body}").into_boxed_str());
+    quiet(codes_as(src, &[], None, Some("kagi"), None), Some(keep))
+        .into_iter()
+        .filter(|c| *c == keep)
+        .collect()
+}
+
+/// **Each static coverage obligation fires on its gap and is discharged by
+/// the test that closes it**: an assertion on literals (B0093) by one that
+/// reads code, an unbuilt union arm (B0094) by a test that builds it, one
+/// optional shape (B0095) by a call of the other, one flag state (B0096) by
+/// a test of the other.
+///
+/// Red run (2026-11-14): each detector answering none: `an assertion on
+/// literals: []`.
+#[test]
+fn each_static_coverage_gap_is_discharged_by_the_test_that_closes_it() {
+    let def = "@doc \"\"\"\nkagi is its argument.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(a, b?)\n  if b.nil?\n    a\n  else\n    a + b\n  end\nend\n\n";
+    let literal = format!("{def}test \"t\"\n  assert kagi(1, 2) == 3\n  assert kagi(1) == 1\n  xs = [1, 2]\n  assert xs == [1, 2]\nend\n");
+    assert_eq!(
+        kagi_with(&literal, Code::B0093),
+        vec![Code::B0093],
+        "an assertion on literals"
+    );
+    let read = format!("{def}test \"t\"\n  assert kagi(1, 2) == 3\n  xs = [kagi(1), 2]\n  assert xs == [1, 2]\nend\n");
+    assert_eq!(kagi_with(&read, Code::B0093), Vec::<Code>::new());
+    let one_shape = format!("{def}test \"t\"\n  assert kagi(1) == 1\nend\n");
+    assert_eq!(
+        kagi_with(&one_shape, Code::B0095),
+        vec![Code::B0095],
+        "only the absent shape"
+    );
+    let both = format!("{def}test \"t\"\n  assert kagi(1) == 1\n  assert kagi(1, 2) == 3\nend\n");
+    assert_eq!(kagi_with(&both, Code::B0095), Vec::<Code>::new());
+    let union = "@doc \"\"\"\nshape is a circle or a square.\n\n    circle(1).r #=> 1\n\"\"\"\nunion shape = circle(r) | square(s)\n\n";
+    let one_arm = format!("{union}test \"t\"\n  assert circle(1).r == 1\nend\n");
+    assert_eq!(
+        kagi_with(&one_arm, Code::B0094),
+        vec![Code::B0094],
+        "square unbuilt"
+    );
+    let every_arm =
+        format!("{union}test \"t\"\n  assert circle(1).r == 1\n  assert square(2).s == 2\nend\n");
+    assert_eq!(kagi_with(&every_arm, Code::B0094), Vec::<Code>::new());
+    let flag = "@doc \"\"\"\nkagi runs when enabled.\n\n    kagi({enabled: true}) #=> 1\n\"\"\"\ndef kagi(cfg)\n  if cfg[:enabled]\n    1\n  else\n    0\n  end\nend\n\n";
+    let on_only = format!("{flag}test \"t\"\n  assert kagi({{enabled: true}}) == 1\nend\n");
+    assert_eq!(
+        kagi_with(&on_only, Code::B0096),
+        vec![Code::B0096],
+        "only on"
+    );
+    let on_and_off = format!("{flag}test \"t\"\n  assert kagi({{enabled: true}}) == 1\n  assert kagi({{enabled: false}}) == 0\nend\n");
+    assert_eq!(kagi_with(&on_and_off, Code::B0096), Vec::<Code>::new());
+}

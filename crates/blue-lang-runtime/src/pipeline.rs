@@ -1566,6 +1566,10 @@ fn point_diagnostics(
     let mut out = blue_lang_check::points::check(&p);
     out.extend(blue_lang_check::points::strength(&p));
     out.extend(blue_lang_check::points::reach(&p));
+    out.extend(blue_lang_check::points::sliced_assertions(&p));
+    out.extend(blue_lang_check::points::variants(&p));
+    out.extend(blue_lang_check::points::optional_shapes(&p));
+    out.extend(blue_lang_check::points::flags(&p));
     out
 }
 

@@ -107,6 +107,10 @@ it; `blue explain --list` lists them.
 | B0090 | untargeted-definition | error | each definition of a bidama is named by a test of its file: called, referenced, or its `target:` |
 | B0091 | unexpected-raise | error | each tag a definition of a bidama raises is named by a test of its file, the way a test expects it |
 | B0092 | unstaged-check | error | the program of a Bluefile `check` row is gated at a declared stage: its row names `stage:` (`:push`, `:ci` or `:release`) |
+| B0093 | unsliced-assertion | error | each assertion of a test of a bidama reads code: its backward slice, through the test's own bindings, reaches a definition or a builtin, not only literals |
+| B0094 | unbuilt-variant | error | each arm of a union a bidama declares is constructed by a test of its file |
+| B0095 | optional-shape-untested | error | a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out |
+| B0096 | flag-one-state | error | a definition that reads an `enable` or `enabled` field is tested with the flag both true and false |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -143,8 +147,8 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 |---|---|---|---|---|---|---|
 | reach/definition | a definition in a project with `packages` | unit | dynamic | checks.test-beside | default | 0 |
 | reach/target | a public definition no test names directly (`target:` or a call in a test body) | unit | static | B0090 | default | 0 |
-| reach/doctest | an `@doc` example | unit | dynamic | design: COVERAGE CV3: doctests run today (B0057 forces the example); a failing doctest is a red test, not yet a registry finding | default | 0 |
-| reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: needs the call graph from every entry point | default | 0 |
+| reach/doctest | an `@doc` example | unit | dynamic | checks.bidama-test | default | 0 |
+| reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: every definition of a bidama is public today (docs/STDLIB.md), so none is dead by construction; a dead private definition is decidable from the call graph once private definitions land | default | 0 |
 | point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 97 |
 | point/seam | a definition that calls an imported word which names such a builtin | integration | static | B0084 | default | 22 |
 | point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 31 |
@@ -158,12 +162,13 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | error/raise | a `raise` site | branch | dynamic | checks.test-beside | default | 0 |
 | error/expected | a raised tag | raise | static | B0091 | default | 0 |
 | error/handler | a `rescue` handler | branch | dynamic | checks.test-beside | default | 0 |
-| data/variant | a variant of a declared union | unit | static | design: COVERAGE CV3 | default | 0 |
-| data/optional | an optional parameter or a nilable value | branch | dynamic | design: COVERAGE CV1: argument shapes per call site | default | 0 |
-| config/flag | an `enable` or `enabled` field | branch | static | design: COVERAGE CV3 | default | 0 |
+| data/variant | an arm of a union a bidama declares | unit | static | B0094 | default | 0 |
+| data/optional | a definition with optional parameters that the tests of its file call | branch | static | B0095 | default | 0 |
+| config/flag | a definition that reads an `enable` or `enabled` field | branch | static | B0096 | default | 0 |
 | strength/assertion | a test block of a bidama | assertion | static | B0088 | default | 0 |
 | strength/tautology | an assertion that holds whatever the code does (`assert true`, `x == x`) | assertion | static | B0089 | default | 0 |
-| strength/slice | an assertion whose backward slice reaches no definition outside the test | assertion | dynamic | design: COVERAGE CV4: a data-flow slice in the recorder | default | 0 |
+| strength/slice | an assertion whose backward slice, through the test's bindings, reaches only literals | assertion | static | B0093 | default | 0 |
+| strength/checked | an executed statement no assertion's slice reads | assertion | dynamic | design: COVERAGE CV4 strict: checked coverage needs a dynamic data-flow slice in the recorder | strict | 0 |
 | strength/deterministic | a test | assertion | dynamic | design: COVERAGE S6: `blue test --rerun N` finds a test whose verdict differs between runs (T8); no gate runs it by default, since a second run doubles a check until H3 rung 3 runs only what changed | default | 0 |
 | strength/mutant | a mutation site in a strict package | mutation | dynamic | design: COVERAGE CV5: heni per site, incremental by identity; the ratio ratchet holds today (checks.heni-mutations) | strict | 0 |
 | pipeline/stage | the program of a Bluefile `check` row | declared | project | B0092 | default | 0 |

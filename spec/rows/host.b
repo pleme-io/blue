@@ -220,6 +220,22 @@ row("host.cwd", "string?(cwd)", value("true"), covers("builtin:cwd"), host())
 row("host.argv", "list?(argv)", value("true"), covers("builtin:argv"), host())
 
 row(
+  "host.is_terminal",
+  "[is_terminal(7), boolean?(is_terminal(0))]",
+  value("[false, true]"),
+  covers("builtin:is_terminal"),
+  host()
+)
+
+row(
+  "host.read_line",
+  join_lines(["l = read_line", "l.nil? or string?(l)"]),
+  value("true"),
+  covers("builtin:read_line"),
+  host()
+)
+
+row(
   "host.argv_get",
   "argv_get(999, :none)",
   value(":none"),

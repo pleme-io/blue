@@ -102,6 +102,141 @@ rescue e
 end
 
 @doc """
+around: f(v) between setup and teardown, where v is what setup() answers; teardown(v) runs whether f returned or raised, and f's value or error is kept.
+
+    around(() -> 2, (v) -> v, (v) -> v + 1) #=> 3
+"""
+def around(setup, teardown, f)
+  v = setup()
+  begin
+    f(v)
+  ensure
+    teardown(v)
+  end
+end
+
+@doc """
+changes?: whether running f changes what probe() answers.
+
+    changes?(() -> 1, () -> nil) #=> false
+"""
+def changes?(probe, f)
+  before = probe()
+  f()
+  probe() != before
+end
+
+@doc """
+fixture: the text of the file `name` kept in `dir` beside the test. A fixture that is not there raises `:fixture_missing`, never an empty text.
+
+    (fixture("/nonexistent", "a.json") rescue :missing) #=> :missing
+"""
+def fixture(dir, name)
+  path = path_join(dir, name)
+  if path_exists(path)
+    read_file(path)
+  else
+    raise(:fixture_missing, "no fixture #{name} in #{dir}")
+  end
+end
+
+@doc """
+breaches: the keys of a contract a provider breaks: each key the provider lacks or holds as nil, or whose value the contract's predicate refuses. A contract is a map of key to predicate.
+
+    breaches({port: 80}, {port: (p) -> p > 0}) #=> []
+    breaches({}, {port: (p) -> p > 0}) #=> [:port]
+"""
+def breaches(provider, contract)
+  map(
+    (e) -> first(e),
+    filter(
+      fn(e)
+        keeps = last(e)
+        v = get(provider, first(e))
+        v.nil? or not keeps(v)
+      end,
+      map_entries(contract)
+    )
+  )
+end
+
+@doc """
+conforms?: whether a provider keeps every key of a contract.
+
+    conforms?({port: 80}, {port: (p) -> p > 0}) #=> true
+"""
+def conforms?(provider, contract)
+  breaches(provider, contract) == []
+end
+
+@doc """
+recorded_calls: a spy recorder's step: a `[:call, x]` message appends x to what it has seen, and `[:calls, pid]` sends `[:calls, seen]` to pid and keeps seen.
+
+    recorded_calls([:call, 2], [1]) #=> [1, 2]
+"""
+def recorded_calls(m, seen)
+  if first(m) == :calls
+    send(last(m), [:calls, seen])
+    seen
+  else
+    append(seen, [last(m)])
+  end
+end
+
+@doc """
+spy: a stand-in that records each argument it is called with and answers what f answers. Call it as `s[:call](x)`; `calls(s)` reads the arguments back in order.
+
+    spy((x) -> x)[:call](2) #=> 2
+"""
+def spy(f)
+  recorder = spawn_server(recorded_calls, [])
+  {
+    pid: recorder,
+    call: fn(x)
+      send(recorder, [:call, x])
+      f(x)
+    end
+  }
+end
+
+@doc """
+calls: the arguments a spy was called with, in order.
+
+    calls(spy((x) -> x)) #=> []
+"""
+def calls(s)
+  send(s[:pid], [:calls, self])
+  last(receive(%i[calls _]))
+end
+
+@doc """
+describe: run each case of a group, `[label, f]`, and raise `:described` naming every case that raised, each as `name label: message`; answers how many cases ran.
+
+    describe("adds", [["one", () -> 1 + 1]]) #=> 1
+"""
+def describe(name, cases)
+  failed = filter(
+    (c) -> c != nil,
+    map(
+      fn(c)
+        e = caught(last(c))
+        if e.nil?
+          nil
+        else
+          "#{name} #{first(c)}: #{e.message}"
+        end
+      end,
+      cases
+    )
+  )
+  if failed == []
+    size(cases)
+  else
+    raise(:described, join(failed, line_break))
+  end
+end
+
+@doc """
 uncovered: The definitions no test reached, from one record of
 `blue test --coverage --json`. A record with no uncovered list is refused:
 absent coverage is not full coverage.
@@ -767,4 +902,76 @@ test "a matrix written by matrix_text has no findings, and every kind of wrong r
   assert matrix_findings(axes, verdict, flipped, states) ==
     [[:decision_disagrees, "y\tq\twant stop"]]
   assert duplicate_rows([]) == []
+end
+
+test "around runs teardown after f returns and after f raises, and keeps f's answer"
+  dir = fresh_dir("around")
+  mark = path_join(dir, "torn")
+  assert around(() -> 2, (v) -> write_file(mark, to_s(v)), (v) -> v * 3) == 6
+  assert read_file(mark) == "2"
+  rm_rf(mark)
+  e = caught(
+    fn()
+      around(
+        () -> 5,
+        (v) -> write_file(mark, to_s(v)),
+        (_v) -> raise(:oops, "in f")
+      )
+    end
+  )
+  assert e.kind == :oops
+  assert read_file(mark) == "5"
+end
+
+test "changes? sees a change f makes and no change when f leaves the probe alone"
+  dir = fresh_dir("changes")
+  file = path_join(dir, "n")
+  write_file(file, "1")
+  assert changes?(() -> read_file(file), () -> write_file(file, "2")) == true
+  assert changes?(() -> read_file(file), () -> read_file(file)) == false
+end
+
+test "fixture reads a file beside the test and refuses one that is not there"
+  dir = fresh_dir("fixture")
+  write_file(path_join(dir, "a.json"), "{}")
+  assert fixture(dir, "a.json") == "{}"
+  assert caught(() -> fixture(dir, "b.json")).kind == :fixture_missing
+end
+
+test "conforms? holds a provider to every key of a contract and breaches names each broken key"
+  contract = {port: (p) -> p > 0, host: (h) -> h != ""}
+  assert conforms?({port: 80, host: "a"}, contract) == true
+  assert conforms?({port: 0, host: "a"}, contract) == false
+  assert breaches({host: ""}, contract) == %i[host port]
+  assert breaches({port: 1, host: "a", extra: 1}, contract) == []
+end
+
+test "a spy answers what f answers and records each argument in order"
+  s = spy((x) -> x * 2)
+  assert calls(s) == []
+  assert s[:call](1) == 2
+  assert s[:call](5) == 10
+  assert calls(s) == [1, 5]
+  assert recorded_calls([:call, 3], [1]) == [1, 3]
+end
+
+test "describe counts the cases it ran and names every case that raised"
+  assert describe(
+    "math",
+    [["adds", () -> 1 + 1], ["subtracts", () -> 2 - 1]]
+  ) == 2
+  e = caught(
+    fn()
+      describe(
+        "math",
+        [
+          ["adds", () -> 1 + 1],
+          ["divides", () -> raise(:oops, "no")],
+          ["fails", () -> raise(:oops, "twice")]
+        ]
+      )
+    end
+  )
+  assert e.kind == :described
+  assert e.message == "math divides: no#{line_break}math fails: twice"
 end

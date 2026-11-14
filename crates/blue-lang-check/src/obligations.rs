@@ -293,6 +293,14 @@ obligations! {
         held: 1,
         owner: "TESTING.md section 5, T4",
     }
+    "point/fake" {
+        when: "a test that declares `fakes:`",
+        evidence: Integration,
+        detector: Static,
+        refusal: Code(Code::B0097),
+        profile: Default,
+        owner: "TESTING.md T6: a declared fake stands in for a point the test reaches",
+    }
     "flow/branch" {
         when: "an `if`, `unless`, ternary, `case` arm or guard",
         evidence: Branch,
@@ -313,7 +321,7 @@ obligations! {
         when: "a loop or recursion that may run zero times",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV5: strict profile"),
+        refusal: Design("COVERAGE CV5: the arm recorder (`blue_lang_test::Arms`) probes each arm of a decision, not how many times a loop ran"),
         profile: Strict,
         owner: "COVERAGE.md B5",
     }
@@ -321,7 +329,7 @@ obligations! {
         when: "an `and` or `or` operand in a decision (MC/DC)",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV5: strict profile"),
+        refusal: Design("COVERAGE CV5: the arm recorder (`blue_lang_test::Arms`) probes each arm of a decision, not each `and` or `or` operand's outcome"),
         profile: Strict,
         owner: "COVERAGE.md B6",
     }
@@ -329,7 +337,7 @@ obligations! {
         when: "a comparison with a literal in a branch",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV5: strict profile"),
+        refusal: Design("COVERAGE CV5: the arm recorder (`blue_lang_test::Arms`) probes each arm of a decision, not the values a comparison saw on each side of its literal"),
         profile: Strict,
         owner: "COVERAGE.md B7",
     }
@@ -425,9 +433,9 @@ obligations! {
         when: "a mutation site in a strict package",
         evidence: Mutation,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV5: heni per site, incremental by identity; the ratio ratchet holds today (checks.heni-mutations)"),
+        refusal: Gate("heni-mutations"),
         profile: Strict,
-        owner: "COVERAGE.md S5",
+        owner: "COVERAGE.md S5 (CV5): a package with a mutation file (`bidamas/heni/mutations`) is strict; `checks.heni-mutations` refuses a survivor beyond the baseline's, a new package records none, and the baseline's survivors (0) only fall. Incremental by identity waits on H3 rung 3",
     }
     "pipeline/stage" {
         when: "the program of a Bluefile `check` row",
@@ -446,12 +454,12 @@ obligations! {
         owner: "TESTING.md T5: `.github/workflows/ci.yml` is rendered by `gen/ci.b`; `checks.workflows` refuses a workflow no `generate` row renders, beside the 7 hand-written ones `hand_workflows` holds, which only shrink",
     }
     "pipeline/release" {
-        when: "a release or delivery step",
-        evidence: Declared,
+        when: "a release or delivery step of blue's own",
+        evidence: Rendering,
         detector: Project,
-        refusal: Design("TESTING T7"),
+        refusal: Gate("workflows"),
         profile: Default,
-        owner: "TESTING.md T7",
+        owner: "TESTING.md T7: `.github/workflows/auto-release.yml` is rendered by `gen/auto-release.b` (generate row `auto-release`, gated fresh) and left `hand_workflows`; the bump, tag and publish it calls are substrate's `rust-auto-release.yml`, and the action renderer and kensa's delivery step live in their own repositories",
     }
 }
 

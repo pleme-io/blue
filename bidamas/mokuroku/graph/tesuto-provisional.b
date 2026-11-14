@@ -35,10 +35,10 @@ verb(
   "calls",
   {
     kind: :pure,
-    shape: "calls(spy) -> [call]",
+    shape: "calls(spy) -> [argument]",
     laterals: ["test"],
     fleet: nil,
-    today: "absent",
+    today: "exists:tesuto",
     meaning: "the recorded calls of a spy, in order",
     wave: 2,
     origin: "F"
@@ -65,10 +65,10 @@ verb(
   "conforms?",
   {
     kind: :effect,
-    shape: "conforms?(provider, contract) -> verdict",
+    shape: "conforms?(provider, contract) -> bool",
     laterals: ["test"],
     fleet: nil,
-    today: "absent",
+    today: "exists:tesuto",
     meaning: "whether a provider meets a contract",
     wave: 3,
     origin: "F"
@@ -125,10 +125,10 @@ verb(
   "fixture",
   {
     kind: :effect,
-    shape: "fixture(name) -> content",
+    shape: "fixture(dir, name) -> content",
     laterals: ["test"],
     fleet: "pleme-testing",
-    today: "absent",
+    today: "exists:tesuto",
     meaning: "read a file kept beside the test",
     wave: 0,
     origin: "F"
@@ -333,10 +333,10 @@ verb(
   "spy",
   {
     kind: :effect,
-    shape: "spy(target, f) -> spy",
+    shape: "spy(f) -> spy",
     laterals: ["test"],
     fleet: nil,
-    today: "absent",
+    today: "exists:tesuto",
     meaning: "wrap a function so its calls are recorded",
     wave: 2,
     origin: "F"

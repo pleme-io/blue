@@ -179,7 +179,7 @@ touched (H3 rung 3).
 | CV2 | the judge forces CV1's ids at enforce with the ratchet; TESTING.md T2 (every project, not only blue's bidamas) | blue's bidamas hold at recorded debt; a new untested arm in a fixture package fails |
 | CV3 | static obligations R2, R4, E2, S1, S2, D1, C1 | each with a fixture that must fail; built: R2, E2, S1, S2, D1 (constructed), D2 (optional parameters), C1; R4 waits on private definitions |
 | CV4 | slicing: S3 by default, S4 in strict | an assertion on a constant reads red; built: S3 as a static slice (B0093); S4 needs the dynamic slice |
-| CV5 | strict profile: B5-B7, D3-D4, S5 incremental by identity; solver-proved equivalence (H6) | a strict package with a surviving mutant fails |
+| CV5 | strict profile: B5-B7, D3-D4, S5 incremental by identity; solver-proved equivalence (H6) | a strict package with a surviving mutant fails; built: S5 (a package with a mutation file is strict, `checks.heni-mutations`); B5-B7 need loop, operand and boundary probes in the arm recorder |
 
 ## 8. Tier ledger
 
@@ -198,5 +198,6 @@ touched (H3 rung 3).
 | D1, constructed half | tested, ratcheted (B0094 at 2, both arms of `kyohi::result`): a test of the file builds each arm of a union the bidama declares; that a test consumes each arm is not forced |
 | D2, optional-parameter half | tested, ratcheted (B0095 at 11): a definition the file's tests call is called with every optional argument given and with one left out, read from the calls' argument counts; a nilable value seen both nil and present is not forced |
 | C1 | tested, ratcheted (B0096 at 6): a definition that reads `:enable` or `:enabled` is tested with the flag both true and false |
+| S5 (CV5) | tested, gated (post-merge): a package with a mutation file (`bidamas/heni/mutations`) is strict. `checks.heni-mutations` refuses a survivor beyond the baseline's, `gen/heni-gate.b record` records no new survivor with or without a receipt, and the baseline's survivors (0 across 42 packages) only fall. Incremental by identity waits on H3 rung 3 |
 | S6 | the detector is built, the gate is not: `blue test --rerun N` fails a test whose verdict differs between runs (TESTING.md T8); the registry row `strength/deterministic` is design until a gate runs it |
 | Every other obligation | DESIGN (a `design` row of the registry, with what blocks it) |

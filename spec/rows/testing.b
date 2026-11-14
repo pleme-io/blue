@@ -555,3 +555,32 @@ row(
   covers("rule:B0096"),
   bidama("kagi")
 )
+
+row(
+  "testing.B0097",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi holds one value.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is one.",
+      "",
+      "    kagi #=> 1",
+      "\"\"\"",
+      "def kagi()",
+      "  1",
+      "end",
+      "",
+      "test \"kagi\", {fakes: [:valkey]}",
+      "  assert kagi == 1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0097"]),
+  covers("rule:B0097"),
+  bidama("kagi")
+)

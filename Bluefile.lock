@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:8cef029376184a0dbad0236c4e13f7b4df1719cb6bb2727025977b043e90d385",
+  "bluefile_b3": "b3:1c08848fc144debf31a4c53739ecbadf07b3a6131ff2706495c5d8e19134bf1f",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -212,6 +212,10 @@
         "inputs": [
           "crates/blue-lang-cli/blue/arika.b"
         ]
+      },
+      "auto-release": {
+        "output": ".github/workflows/auto-release.yml",
+        "program": "gen/auto-release.b"
       },
       "book": {
         "output": "docs/BOOK.md",

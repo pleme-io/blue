@@ -668,3 +668,55 @@ fn each_static_coverage_gap_is_discharged_by_the_test_that_closes_it() {
     let on_and_off = format!("{flag}test \"t\"\n  assert kagi({{enabled: true}}) == 1\n  assert kagi({{enabled: false}}) == 0\nend\n");
     assert_eq!(kagi_with(&on_and_off, Code::B0096), Vec::<Code>::new());
 }
+
+fn fake_codes(body: &str, imports: &'static [(&'static str, &'static str)]) -> Vec<Code> {
+    let src: &'static str = Box::leak(format!("{COVERED_HEAD}{body}").into_boxed_str());
+    codes_as(src, imports, None, Some("kagi"), None)
+        .into_iter()
+        .filter(|c| *c == Code::B0097)
+        .collect()
+}
+
+/// **A declared fake stands in for a point its test reaches.** A test that
+/// declares `fakes:` and reaches nothing that meets the host is B0097; one
+/// that reaches a seam through an imported word, or an effect of its own
+/// file, through a caller, is clean, and a test with no `fakes:` owes
+/// nothing.
+///
+/// Red run (2026-11-14): `fakes` removed from the check stage: `a fake with
+/// no seam: []`.
+#[test]
+fn a_declared_fake_is_discharged_only_by_a_point_its_test_reaches() {
+    let pure = "@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\n";
+    assert_eq!(
+        fake_codes(
+            &format!("{pure}test \"t\", {{fakes: [:valkey]}}\n  assert kagi == 1\nend\n"),
+            &[]
+        ),
+        vec![Code::B0097],
+        "a fake with no seam"
+    );
+    assert_eq!(
+        fake_codes(&format!("{pure}test \"t\"\n  assert kagi == 1\nend\n"), &[]),
+        Vec::<Code>::new(),
+        "no fakes declared"
+    );
+    let seam = "use(\"hito\", [:ask])\n\n@doc \"\"\"\nkagi answers what hito asked.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  ask\nend\n\n@doc \"\"\"\nouter calls kagi.\n\n    1 + 1 #=> 2\n\"\"\"\ndef outer()\n  kagi\nend\n\n";
+    assert_eq!(
+        fake_codes(
+            &format!("{seam}test \"t\", {{kind: :integration, allow: [:process], fakes: [:date]}}\n  assert outer != \"\"\nend\n"),
+            &[("hito", "def ask()\n  exec_capture(\"date\")\nend\n")]
+        ),
+        Vec::<Code>::new(),
+        "a seam reached through a caller"
+    );
+    let effect = "@doc \"\"\"\nkagi reads a date.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  exec_capture(\"date\")\nend\n\n";
+    assert_eq!(
+        fake_codes(
+            &format!("{effect}test \"t\", {{kind: :integration, allow: [:process], fakes: [:date]}}\n  assert kagi != \"\"\nend\n"),
+            &[]
+        ),
+        Vec::<Code>::new(),
+        "an effect of its own file"
+    );
+}

@@ -2023,6 +2023,23 @@ The rule finds each definition that reads `:enable` or `:enabled` and asks
 that the file's tests set the flag to `true` and to `false`. Debt is
 `# waive B0096: reason` above the definition.",
     }
+    B0097 {
+        slug: "fake-without-seam",
+        severity: Error,
+        fix: None,
+        law: "a test that declares `fakes:` reaches a point a fake stands in for: an effect point, or a seam whose imported word reaches the host",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\ntest \"kagi\", {fakes: [:valkey]}\n  assert kagi == 1\nend\n",
+        package: "kagi",
+        explanation: "\
+A fake stands in for the outside side of a seam: a store, a service, a
+clock (docs/TESTING.md section 5, T6). A test that declares `fakes:` and
+reaches no point that meets the host has nothing for its fake to stand in
+for, so the declaration says something the test does not do. The rule
+follows the test's calls, through the definitions of its file and the
+bidama words it imports, to a host builtin outside the ambient set (B0083
+lists the set). Debt is `# waive B0097: reason` above the test, counted
+against the row `point/fake`.",
+    }
 }
 
 impl Code {

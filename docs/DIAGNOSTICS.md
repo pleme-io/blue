@@ -111,6 +111,7 @@ it; `blue explain --list` lists them.
 | B0094 | unbuilt-variant | error | each arm of a union a bidama declares is constructed by a test of its file |
 | B0095 | optional-shape-untested | error | a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out |
 | B0096 | flag-one-state | error | a definition that reads an `enable` or `enabled` field is tested with the flag both true and false |
+| B0097 | fake-without-seam | error | a test that declares `fakes:` reaches a point a fake stands in for: an effect point, or a seam whose imported word reaches the host |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -154,11 +155,12 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 31 |
 | point/service | the program of a Bluefile `service(...)` row | e2e | project | B0086 | service | 2 |
 | point/binding | a `cache` or `schema` binding of a `service(...)` row | contract | project | B0087 | service | 1 |
+| point/fake | a test that declares `fakes:` | integration | static | B0097 | default | 0 |
 | flow/branch | an `if`, `unless`, ternary, `case` arm or guard | branch | dynamic | checks.test-beside | default | 0 |
 | flow/early-return | a `?` early return | branch | dynamic | checks.test-beside | default | 0 |
-| flow/loop | a loop or recursion that may run zero times | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
-| flow/condition | an `and` or `or` operand in a decision (MC/DC) | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
-| flow/boundary | a comparison with a literal in a branch | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| flow/loop | a loop or recursion that may run zero times | branch | dynamic | design: COVERAGE CV5: the arm recorder (`blue_lang_test::Arms`) probes each arm of a decision, not how many times a loop ran | strict | 0 |
+| flow/condition | an `and` or `or` operand in a decision (MC/DC) | branch | dynamic | design: COVERAGE CV5: the arm recorder (`blue_lang_test::Arms`) probes each arm of a decision, not each `and` or `or` operand's outcome | strict | 0 |
+| flow/boundary | a comparison with a literal in a branch | branch | dynamic | design: COVERAGE CV5: the arm recorder (`blue_lang_test::Arms`) probes each arm of a decision, not the values a comparison saw on each side of its literal | strict | 0 |
 | error/raise | a `raise` site | branch | dynamic | checks.test-beside | default | 0 |
 | error/expected | a raised tag | raise | static | B0091 | default | 0 |
 | error/handler | a `rescue` handler | branch | dynamic | checks.test-beside | default | 0 |
@@ -170,10 +172,10 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | strength/slice | an assertion whose backward slice, through the test's bindings, reaches only literals | assertion | static | B0093 | default | 0 |
 | strength/checked | an executed statement no assertion's slice reads | assertion | dynamic | design: COVERAGE CV4 strict: checked coverage needs a dynamic data-flow slice in the recorder | strict | 0 |
 | strength/deterministic | a test | assertion | dynamic | design: COVERAGE S6: `blue test --rerun N` finds a test whose verdict differs between runs (T8); no gate runs it by default, since a second run doubles a check until H3 rung 3 runs only what changed | default | 0 |
-| strength/mutant | a mutation site in a strict package | mutation | dynamic | design: COVERAGE CV5: heni per site, incremental by identity; the ratio ratchet holds today (checks.heni-mutations) | strict | 0 |
+| strength/mutant | a mutation site in a strict package | mutation | dynamic | checks.heni-mutations | strict | 0 |
 | pipeline/stage | the program of a Bluefile `check` row | declared | project | B0092 | default | 0 |
 | pipeline/ci | a CI workflow file of blue's own | rendering | project | checks.workflows | default | 0 |
-| pipeline/release | a release or delivery step | declared | project | design: TESTING T7 | default | 0 |
+| pipeline/release | a release or delivery step of blue's own | rendering | project | checks.workflows | default | 0 |
 
 ## The reuse ratchet
 

@@ -1570,6 +1570,7 @@ fn point_diagnostics(
     out.extend(blue_lang_check::points::variants(&p));
     out.extend(blue_lang_check::points::optional_shapes(&p));
     out.extend(blue_lang_check::points::flags(&p));
+    out.extend(blue_lang_check::points::fakes(&p));
     out
 }
 

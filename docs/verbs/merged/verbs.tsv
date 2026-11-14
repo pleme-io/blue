@@ -2506,13 +2506,13 @@ E	tenkai?	verify	effect	verify(rollout) -> verdict	deadline,validate	forge	absen
 E	tenkai?	watch	stream	watch(rollout, f, opts) -> nil	cancel,deadline	shinchoku	absent	call f per step or health change	2	watch(rollout, f, opts) -> nil	yes
 F	tesuto?	affected	pure	affected(changes, graph) -> [test]	test	-	absent	the tests that depend on changed code	3		na
 F	tesuto?	assert	effect	assert(expr) -> nil	error,test	blue-lang-test	rust:blue-lang-test	fail the test with a structural diff when expr is false	0		na
-F	tesuto?	calls	pure	calls(spy) -> [call]	test	-	absent	the recorded calls of a spy, in order	2		na
+F	tesuto?	calls	pure	calls(spy) -> [argument]	test	-	exists:tesuto	the arguments a spy was called with, in order	2		na
 F	tesuto?	case	decl	case(name, f) -> test	test	blue-lang-test	rust:blue-lang-test	declare one named test	0	case(name, f) -> test	yes
-F	tesuto?	conforms?	effect	conforms?(provider, contract) -> verdict	test	-	absent	whether a provider meets a contract	3		na
+F	tesuto?	conforms?	effect	conforms?(provider, contract) -> bool	test	-	exists:tesuto	whether a provider keeps every key of a contract	3		na
 F	tesuto?	contract	decl	contract(consumer, provider, interactions) -> contract	test,validate	-	absent	declare what a consumer expects of a provider	3		na
 F	tesuto?	cover	effect	cover(target, opts) -> coverage	resource,test	-	absent	run tests and record which code ran	3		na
 F	tesuto?	fake	effect	fake(target, impl, f) -> value	capability,test	-	absent	replace a dependency by a fake while f runs	2		na
-F	tesuto?	fixture	effect	fixture(name) -> content	test	pleme-testing	absent	read a file kept beside the test	0		na
+F	tesuto?	fixture	effect	fixture(dir, name) -> content	test	pleme-testing	exists:tesuto	the text of the file `name` kept in `dir` beside the test	0		na
 F	tesuto?	flaky?	pure	flaky?(history, test) -> Bool	test	-	absent	whether a test both passed and failed on one revision	2		na
 F	tesuto?	freeze	effect	freeze(instant, f) -> value	test,time	-	absent	run f with the clock fixed at an instant	1	freeze(instant, f) -> value	yes
 F	tesuto?	fuzz	effect	fuzz(target, opts) -> [crash]	deadline,resource,test	caixa-cargo-fuzz	absent	feed generated inputs until something fails or time ends	3		na
@@ -2526,7 +2526,7 @@ F	tesuto?	rerun	effect	rerun(test, n) -> [result]	retry,test	-	absent	run one te
 F	tesuto?	run	effect	run(target, opts) -> report	deadline,process,test	blue-lang-test	rust:blue-lang-test	run every test under a target in parallel	0	run(target, opts) -> report	yes
 F	tesuto?	shard	pure	shard(tests, n, i) -> [test]	test	-	absent	the i-th of n balanced groups of tests	2		na
 F	tesuto?	snapshot	effect	snapshot(value, opts) -> nil	serialize,test	blue-lang-test	exists:tesuto	compare a value with its stored copy; update on request	0	snapshot(value, opts) -> nil	yes
-F	tesuto?	spy	effect	spy(target, f) -> spy	test	-	absent	wrap a function so its calls are recorded	2		na
+F	tesuto?	spy	effect	spy(f) -> spy	test	-	exists:tesuto	a stand-in that records each argument it is called with and answers what f answers	2		na
 F	tesuto?	uncovered	pure	uncovered(coverage) -> [span]	test	-	absent	code that no test reached	3		na
 F	tesuto?	watch	stream	watch(paths, opts) -> nil	cancel,test	blue-lang-cli	rust:blue-lang-cli	rerun tests when a watched file changes	0	watch(paths, f, opts) -> nil	no
 D	tokumei	budget	decl	budget(epsilon, opts) -> budget	config	-	absent	total privacy a dataset may spend	2	budget(epsilon, opts) -> budget	yes

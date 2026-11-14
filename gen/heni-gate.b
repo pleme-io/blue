@@ -138,10 +138,51 @@ def problems(rows, key, r)
       [
         "#{key}: caught #{ratio_text(now)}, below its recorded #{ratio_text(was)}; #{survived_text(r)}"
       ]
+    elsif strict_refusal(rows, key, now) != nil
+      ["#{strict_refusal(rows, key, now)}; #{survived_text(r)}"]
     else
       []
     end
   end
+end
+
+@doc """
+strict_refusal: why one package's measured ratio breaks the strict profile (docs/COVERAGE.md CV5, S5): a package with a mutation file catches every mutant, so a package the baseline has no row for may record no survivor, and a recorded one never more survivors than it holds. nil when it holds.
+
+    strict_refusal([], "kazu", {caught: 2, total: 2}) #=> nil
+    strict_refusal([], "kazu", {caught: 1, total: 2}) #=> "kazu: 1 survivor(s), and the strict profile holds 0 for it"
+"""
+def strict_refusal(rows, key, q)
+  was = recorded_ratio(rows, key)
+  held = if was.nil?
+    0
+  else
+    was[:total] - was[:caught]
+  end
+  now = q[:total] - q[:caught]
+  if now > held
+    "#{key}: #{to_s(now)} survivor(s), and the strict profile holds #{to_s(held)} for it"
+  end
+end
+
+@doc """
+survivors_held: the survivors a baseline holds as debt, across every package: the strict profile's ratchet, which only falls.
+
+    survivors_held(parse("heni-caught: a 1\nheni-total: a 3\n")) #=> 2
+"""
+def survivors_held(rows)
+  reduce(
+    fn(n, k)
+      q = recorded_ratio(rows, k)
+      if q.nil?
+        n
+      else
+        n + q[:total] - q[:caught]
+      end
+    end,
+    0,
+    unique(map((r) -> r[:key], rows))
+  )
 end
 
 def rose?(rows, key, r)
@@ -266,9 +307,21 @@ def record(receipt)
     end,
     measured
   )
+  strict = filter(
+    (x) -> x != nil,
+    map((m) -> strict_refusal(rows, m[:key], score(m[:r])), measured)
+  )
   if not is_empty(unsound)
     write_stderr(unlines(judge([], unsound)))
     write_stderr(unlines(["refused: a run that is not sound records nothing"]))
+    exit_with(1)
+  elsif not is_empty(strict)
+    write_stderr(unlines(strict))
+    write_stderr(
+      unlines(
+        ["refused: the strict profile records no new survivor, with or without a receipt; write the test that catches it"]
+      )
+    )
     exit_with(1)
   elsif not is_empty(fell) and receipt.nil?
     write_stderr(unlines(judge(rows, fell)))
@@ -423,6 +476,12 @@ test "a survivor below the recorded ratio names its package and itself"
   grown = fixture_run([[0, :caught], [1, :caught], [2, :survived]])
   assert judge(rows, [{key: "kazu", r: grown}]) ==
     ["kazu: caught 2/3, below its recorded 2/2; survived: m-2"]
+  wider = parse(unlines(["heni-caught: kazu 1", "heni-total: kazu 2"]))
+  doubled = fixture_run(
+    [[0, :caught], [1, :survived], [2, :caught], [3, :survived]]
+  )
+  assert judge(wider, [{key: "kazu", r: doubled}]) ==
+    ["kazu: 2 survivor(s), and the strict profile holds 1 for it; survived: m-1, m-3"]
   assert judge([], [{key: "kazu", r: held}]) ==
     ["kazu: caught 2/2 and the baseline has no row for it; record it: blue gen/heni-gate.b record"]
   refused = assoc(held, :refused, 1)
@@ -510,4 +569,16 @@ test "a finds check reads the specs a changed path touches, and names a stranded
   assert scoped(all, ["docs/README.md"]) == []
   assert scoped(all, []) == all
   assert stranded_in(specs) == ""
+end
+
+test "the strict profile records no new survivor, and the committed baseline holds none"
+  rows = parse(unlines(["heni-caught: kazu 1", "heni-total: kazu 2"]))
+  assert strict_refusal(rows, "kazu", {caught: 2, total: 3}).nil?
+  assert strict_refusal(rows, "kazu", {caught: 1, total: 3}) ==
+    "kazu: 2 survivor(s), and the strict profile holds 1 for it"
+  assert strict_refusal(rows, "neko", {caught: 4, total: 4}).nil?
+  assert strict_refusal(rows, "neko", {caught: 3, total: 4}) ==
+    "neko: 1 survivor(s), and the strict profile holds 0 for it"
+  assert survivors_held(rows) == 1
+  assert survivors_held(parse(read_file(baseline_path))) == 0
 end

@@ -312,11 +312,10 @@ hand_workflows: The workflows still written by hand: debt that only shrinks. A
 workflow leaves this list when a `generate` row renders it; a new workflow is
 rendered from its first commit.
 
-    count(hand_workflows) #=> 7
+    count(hand_workflows) #=> 6
 """
 def hand_workflows()
   %w[
-    .github/workflows/auto-release.yml
     .github/workflows/gen-spec.yml
     .github/workflows/land.yml
     .github/workflows/post-merge.yml

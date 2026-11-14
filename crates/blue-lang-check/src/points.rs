@@ -741,6 +741,63 @@ pub fn flags(p: &Program<'_>) -> Vec<Diagnostic> {
         .collect()
 }
 
+/// B0097: each test of the entry file that declares `fakes:` reaches a
+/// point it stands in for: an effect point, or a seam whose imported word
+/// reaches the host.
+#[must_use]
+pub fn fakes(p: &Program<'_>) -> Vec<Diagnostic> {
+    let calls = call_graph(p);
+    let touching: BTreeSet<usize> = p
+        .references
+        .iter()
+        .filter(|r| matches!(&r.ns, Target::Builtin(n) if (p.point_capability)(n).is_some()))
+        .map(|r| r.top_level)
+        .collect();
+    let mut out = Vec::new();
+    for t in test_forms(p) {
+        let Some(meta) = blue_lang_syntax::test_parts(&p.forms[t])
+            .and_then(|parts| parts.meta)
+            .and_then(blue_lang_syntax::test_meta)
+        else {
+            continue;
+        };
+        let Some(&(_, at)) = meta.fakes.first() else {
+            continue;
+        };
+        let mut seen = BTreeSet::from([t]);
+        let mut todo = vec![t];
+        let mut reached = false;
+        while let Some(k) = todo.pop() {
+            if touching.contains(&k) {
+                reached = true;
+                break;
+            }
+            for &j in calls.get(&k).into_iter().flatten() {
+                if seen.insert(j) {
+                    todo.push(j);
+                }
+            }
+        }
+        if reached {
+            continue;
+        }
+        let named: Vec<String> = meta.fakes.iter().map(|(f, _)| format!(":{f}")).collect();
+        out.push(
+            Diagnostic::new(
+                Code::B0097,
+                format!(
+                    "this test declares `fakes: [{}]`, and nothing it reaches meets the host, so there is no seam for a fake to stand in for",
+                    named.join(", ")
+                ),
+                at,
+            )
+            .at_top_level(t)
+            .with_help("reach the effect or seam point the fake stands in for from this test, or leave `fakes:` out"),
+        );
+    }
+    out
+}
+
 fn raised_tags(form: &Spanned, out: &mut BTreeSet<String>) {
     if let Some(items) = form.as_list() {
         if items.first().and_then(Spanned::as_symbol) == Some("raise") {

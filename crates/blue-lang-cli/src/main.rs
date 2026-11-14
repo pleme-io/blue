@@ -84,6 +84,7 @@ mod facts;
 mod inputs;
 mod junit;
 mod memo;
+mod obligations;
 mod observe;
 mod prefetch;
 mod query;
@@ -623,6 +624,13 @@ enum Cmd {
         cmd: crash::CrashCmd,
     },
     #[command(
+        about = "The obligation graph: list the registry, print the facts discovery reads, discover relations and candidate obligations, keep the history"
+    )]
+    Obligations {
+        #[command(subcommand)]
+        cmd: obligations::ObligationsCmd,
+    },
+    #[command(
         about = "arika, blue's word search: the word a draft already is (like), or a word by name (word)"
     )]
     Arika {
@@ -1014,6 +1022,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             arika::run(arika::ArikaCmd::Context { word, json, from }).map_err(CliError::Fmt)
         }
         Cmd::Receipt { cmd } => Ok(receipt::run(cmd)),
+        Cmd::Obligations { cmd } => obligations::run(cmd).map_err(CliError::Pkg),
         Cmd::Run {
             file,
             inputs,

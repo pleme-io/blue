@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c2aa725c6c87828643ae2402132cbb37043ac5325908868e1ea87d84613b8b31",
+  "bluefile_b3": "b3:a1c5597f1740d532e5a7746e4840d7091cc621fe17bcdc1e1192bd9740beffc7",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -348,6 +348,28 @@
       "node-nix": {
         "output": "nix/node-fixture/configuration.nix",
         "program": "nix/node-fixture/node.b"
+      },
+      "obligation-debt": {
+        "output": "gen/obligation-debt.tsv",
+        "program": "gen/obligation-debt.b",
+        "inputs": [
+          "gen/obligation-debt.tsv"
+        ]
+      },
+      "obligation-discovery": {
+        "output": "docs/OBLIGATION-DISCOVERY.md",
+        "program": "gen/obligation-discovery.b",
+        "inputs": [
+          "Bluefile.lock",
+          "bench",
+          "bidamas",
+          "crates/blue-lang-cli/blue",
+          "examples",
+          "gen",
+          "kernel",
+          "nix",
+          "rules"
+        ]
       },
       "okite-rules": {
         "output": "bidamas/okite/RULES.md",

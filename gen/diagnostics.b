@@ -54,6 +54,39 @@ def obligations_table(rows)
 end
 
 @doc """
+kind_row: The relation-kinds-table row of one kind from `blue reference`.
+
+    kind_row({"kind" => "implies", "symmetric" => false, "sources" => ["census"], "action" => "order", "enabled" => true, "law" => "l"}) #=> "| implies | one way | census | order | on | l |"
+"""
+def kind_row(k)
+  way = if k["symmetric"]
+    "both ways"
+  else
+    "one way"
+  end
+  on = if k["enabled"]
+    "on"
+  else
+    "off"
+  end
+  "| #{k["kind"]} | #{way} | #{join(k["sources"], ", ")} | #{k["action"]} | #{on} | #{md_cell(k["law"])} |"
+end
+
+@doc """
+relation_row: The relations-table row of one decided edge from `blue reference`: its state, and why when rejected or off.
+
+    relation_row({"kind" => "trades", "a" => "B1", "b" => "B2", "state" => "rejected", "why" => "w", "tier" => "observed", "evidence" => "e"}) #=> "| B1 | trades | B2 | rejected: w | observed | e |"
+"""
+def relation_row(r)
+  state = if r["why"].nil?
+    r["state"]
+  else
+    "#{r["state"]}: #{r["why"]}"
+  end
+  "| #{r["a"]} | #{r["kind"]} | #{r["b"]} | #{md_cell(state)} | #{r["tier"]} | #{md_cell(r["evidence"])} |"
+end
+
+@doc """
 reference_fact: The text a hon block of this page becomes: `rules` or `obligations`, from one `blue reference`; any other fact is refused.
 
     reference_fact({"rules" => [], "obligations" => []}, ["rules", []]) #=> join_lines(["| code | slug | severity | law |", "|---|---|---|---|"])
@@ -64,10 +97,30 @@ def reference_fact(reference, fact)
     join_lines(codes_table(reference["rules"]))
   elsif fact[0] == "obligations"
     join_lines(obligations_table(reference["obligations"]))
+  elsif fact[0] == "relation-kinds"
+    join_lines(
+      append(
+        [
+          "| kind | direction | sources | action | state | law |",
+          "|---|---|---|---|---|---|"
+        ],
+        map(kind_row, reference["relation_kinds"])
+      )
+    )
+  elsif fact[0] == "relations"
+    join_lines(
+      append(
+        [
+          "| a | kind | b | state | tier | evidence |",
+          "|---|---|---|---|---|---|"
+        ],
+        map(relation_row, reference["relations"])
+      )
+    )
   else
     raise(
       :unknown_fact,
-      "gen/diagnostics.md names the fact `#{fact[0]}`; this page renders `rules` and `obligations`"
+      "gen/diagnostics.md names the fact `#{fact[0]}`; this page renders `rules`, `obligations`, `relation-kinds` and `relations`"
     )
   end
 end
@@ -100,5 +153,13 @@ test "every rule and every obligation render, and no fact is left", {
   )
   assert contains?(page, "| B0085 | untested-rendering |")
   assert contains?(page, "| point/rendering |")
+  assert contains?(
+    page,
+    "| exclusive | both ways | registry, census | B0100 | on |"
+  )
+  assert contains?(
+    page,
+    "| B0090 | exclusive | B0095 | ratified | corroborated |"
+  )
   assert not contains?(page, "```hon")
 end

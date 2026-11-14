@@ -34,6 +34,66 @@ pub struct Census {
     pub findings: BTreeMap<Code, BTreeSet<String>>,
     pub by_package: BTreeMap<(Code, String), BTreeSet<String>>,
     pub waived: BTreeMap<Code, BTreeSet<String>>,
+    pub sites: BTreeSet<Site>,
+    pub forms: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Site {
+    pub file: String,
+    pub line: usize,
+    pub head: String,
+    pub code: Code,
+    pub waived: Option<String>,
+}
+
+impl Site {
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "fact": "site",
+            "file": self.file,
+            "line": self.line,
+            "head": self.head,
+            "code": self.code.as_str(),
+            "state": if self.waived.is_some() { "waived" } else { "finding" },
+            "reason": self.waived,
+        })
+    }
+}
+
+fn site_of(
+    root: &Path,
+    program: &blue_lang_runtime::uses::ResolvedProgram,
+    d: &blue_lang_check::Diagnostic,
+    waived: Option<String>,
+) -> Option<Site> {
+    let file = program
+        .owner_of(d.top_level)
+        .and_then(|id| program.file(id))?;
+    let path = file.path.as_ref()?;
+    let form = program.forms().get(d.top_level)?;
+    let line = blue_lang_syntax::Span::line_col(&file.text, form.span.start).0;
+    let head = file
+        .text
+        .get(form.span.start..form.span.end)
+        .and_then(|t| t.lines().next())
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(72)
+        .collect();
+    Some(Site {
+        file: path
+            .strip_prefix(root)
+            .unwrap_or(path)
+            .display()
+            .to_string(),
+        line,
+        head,
+        code: d.code,
+        waived,
+    })
 }
 
 impl Census {
@@ -91,11 +151,44 @@ impl Census {
 /// A file that does not parse or whose imports do not resolve: the census
 /// has nothing to count there, and a skipped file would under-count.
 pub fn take(root: &Path) -> Result<Census, String> {
-    let files = blue_lang_pkg::corpus::files(root);
+    take_files(root, blue_lang_pkg::corpus::files(root))
+}
+
+#[must_use]
+pub fn files_under(root: &Path, dirs: &[String]) -> Vec<std::path::PathBuf> {
+    let skipped = blue_lang_pkg::corpus::FIXTURE_DISTRIBUTIONS
+        .iter()
+        .chain(blue_lang_pkg::corpus::DATA_DIRECTORIES)
+        .chain(blue_lang_pkg::corpus::EVAL_TASKS)
+        .chain(blue_lang_pkg::corpus::OWN_ROOT_FIXTURES);
+    let skipped: Vec<&str> = skipped.copied().collect();
+    let mut out: Vec<std::path::PathBuf> = dirs
+        .iter()
+        .flat_map(|d| {
+            let at = root.join(d);
+            if at.is_file() {
+                vec![at]
+            } else {
+                blue_lang_pkg::corpus::files(&at)
+            }
+        })
+        .filter(|p| {
+            let rel = p.strip_prefix(root).unwrap_or(p);
+            !skipped.iter().any(|s| rel.starts_with(s))
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+pub fn take_files(root: &Path, files: Vec<std::path::PathBuf>) -> Result<Census, String> {
     let loader = blue_lang_pkg::corpus::load_path(root, &files);
     let mut findings: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     let mut by_package: BTreeMap<(Code, String), BTreeSet<String>> = BTreeMap::new();
     let mut waived: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
+    let mut sites: BTreeSet<Site> = BTreeSet::new();
+    let mut forms = 0;
     for path in &files {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let checked = check_entry(
@@ -116,6 +209,24 @@ pub fn take(root: &Path) -> Result<Census, String> {
             .file(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
             .and_then(|f| f.package.as_deref())
             .map(|p| blue_lang_syntax::root_of(p).to_string());
+        forms += (0..checked.program.forms().len())
+            .filter(|i| {
+                checked.program.owner_of(*i)
+                    == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            })
+            .count();
+        let owed = |d: &&blue_lang_check::Diagnostic| {
+            blue_lang_check::obligations::of_code(d.code).is_some()
+        };
+        for d in checked
+            .outcome
+            .census
+            .iter()
+            .chain(checked.outcome.diagnostics.iter().filter(ratcheted))
+            .chain(checked.outcome.diagnostics.iter().filter(owed))
+        {
+            sites.extend(site_of(root, &checked.program, d, None));
+        }
         for d in checked
             .outcome
             .census
@@ -145,6 +256,12 @@ pub fn take(root: &Path) -> Result<Census, String> {
                 w.waiver.reason
             );
             waived.entry(w.waiver.code).or_default().insert(shown);
+            sites.extend(site_of(
+                root,
+                &checked.program,
+                &w.diagnostic,
+                Some(w.waiver.reason.clone()),
+            ));
         }
     }
     Ok(Census {
@@ -152,6 +269,8 @@ pub fn take(root: &Path) -> Result<Census, String> {
         findings,
         by_package,
         waived,
+        sites,
+        forms,
     })
 }
 

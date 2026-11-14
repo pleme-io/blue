@@ -2074,6 +2074,25 @@ declared fact, so no NetworkPolicy, unit or kakoi profile is drawn from it
 peers and the ports on the row. The corpus does not hold yet, so the census
 counts each finding against the row's ratchet, which may only fall.",
     }
+    B0100 {
+        slug: "exclusive-waivers",
+        severity: Error,
+        fix: None,
+        law: "a form never waives both codes of a ratified exclusive relation: one of the two covers nothing",
+        witness: "@moduledoc \"\"\"\nkagi adds an optional step.\n\n    kagi(1) #=> 1\n\"\"\"\n\n# waive B0095: the witness waives both of an exclusive pair\n# waive B0090: the witness waives both of an exclusive pair\n@doc \"\"\"\nkagi adds b when given.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(a, b?)\n  if b.nil?\n    a\n  else\n    a + b\n  end\nend\n\ntest \"kagi\"\n  assert kagi(1) == 1\n  assert kagi(1, 2) == 3\nend\n",
+        package: "kagi",
+        explanation: "\
+Two obligations are exclusive when no form can owe both: the corpus never
+shows them together though chance expects it, and the registry ratified the
+edge (`blue_lang_check::relations`, docs/OBLIGATION-GRAPH.md). A form that
+waives both waives one that covers nothing, and the one it covers is the one
+the form owes. The check refuses the later waiver and drops it, so it
+neither silences a finding nor reports as unused (B0008).
+
+Keep the waiver of the code the form owes and delete the other. The pairs
+are listed by `blue obligations list`; a pair configured off in the registry
+is not refused.",
+    }
 }
 
 impl Code {

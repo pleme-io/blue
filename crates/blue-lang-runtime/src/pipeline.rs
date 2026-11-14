@@ -1266,7 +1266,7 @@ fn check_stage_in(
     let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers
         .into_iter()
         .partition(|w| w.code == blue_lang_check::Code::B0070);
-    let (obligation_waivers, waivers): (Vec<_>, Vec<_>) = waivers
+    let (mut obligation_waivers, waivers): (Vec<_>, Vec<_>) = waivers
         .into_iter()
         .partition(|w| blue_lang_check::obligations::of_code(w.code).is_some());
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
@@ -1276,11 +1276,16 @@ fn check_stage_in(
                 .file(ResolvedProgram::ENTRY)
                 .is_some_and(|f| f.package.is_some()));
     if points_found {
+        let refused = blue_lang_check::relations::refuse_exclusive_waivers(&mut obligation_waivers);
+        outcome
+            .diagnostics
+            .extend(refused.into_iter().filter(|d| is_entry(d.top_level)));
         outcome.waived.extend(blue_lang_check::waiver::apply(
             &mut outcome.diagnostics,
             obligation_waivers,
             &is_entry,
         ));
+        blue_lang_check::relations::annotate(&mut outcome.diagnostics);
     }
     if with_tests && outcome.ok() {
         outcome.diagnostics.extend(reimplemented_words_in(

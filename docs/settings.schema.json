@@ -1,4 +1,56 @@
 {
+  "gaisou": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "min_confidence": {
+        "default": 90,
+        "description": "implies: the share of b's sites that also owe a",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer",
+        "x-unit": "percent"
+      },
+      "min_expected": {
+        "default": 2,
+        "description": "exclusive: the co-occurrences chance must expect before a zero is evidence",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "min_lift": {
+        "default": 300,
+        "description": "co-occurs: the sites owing both, over what chance expects",
+        "minimum": 100,
+        "type": "integer",
+        "x-unit": "percent"
+      },
+      "min_sources": {
+        "default": 2,
+        "description": "the independent sources an edge needs to be corroborated",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "min_support": {
+        "default": 3,
+        "description": "the fewest sites (or changes) an edge needs before it is proposed",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "min_waivers": {
+        "default": 5,
+        "description": "the waivers of one code with one reason before the reason is a candidate obligation",
+        "minimum": 2,
+        "type": "integer"
+      },
+      "off": {
+        "default": "",
+        "description": "relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together",
+        "type": "string"
+      }
+    },
+    "title": "gaisou settings",
+    "type": "object"
+  },
   "heni": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,

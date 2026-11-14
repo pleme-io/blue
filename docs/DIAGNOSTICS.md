@@ -114,6 +114,7 @@ it; `blue explain --list` lists them.
 | B0097 | fake-without-seam | error | a test that declares `fakes:` reaches a point a fake stands in for: an effect point, or a seam whose imported word reaches the host |
 | B0098 | raw-environment-read | error | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name |
 | B0099 | undeclared-access | error | the program of a `service(...)` row runs under the `access` that row declares, never the default |
+| B0100 | exclusive-waivers | error | a form never waives both codes of a ratified exclusive relation: one of the two covers nothing |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -152,6 +153,8 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | reach/target | a public definition no test names directly (`target:` or a call in a test body) | unit | static | B0090 | default | 0 |
 | reach/doctest | an `@doc` example | unit | dynamic | checks.bidama-test | default | 0 |
 | reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: every definition of a bidama is public today (docs/STDLIB.md), so none is dead by construction; a dead private definition is decidable from the call graph once private definitions land | default | 0 |
+| doc/definition | a public definition of a bidama | declared | static | B0056 | default | 0 |
+| doc/example | a `@doc` | unit | static | B0057 | default | 0 |
 | point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 97 |
 | point/seam | a definition that calls an imported word which names such a builtin | integration | static | B0084 | default | 22 |
 | point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 32 |
@@ -185,6 +188,39 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | pipeline/stage | the program of a Bluefile `check` row | declared | project | B0092 | default | 0 |
 | pipeline/ci | a CI workflow file of blue's own | rendering | project | checks.workflows | default | 0 |
 | pipeline/release | a release or delivery step of blue's own | rendering | project | checks.workflows | default | 0 |
+
+## Relations between obligations
+
+Obligations are nodes of a graph; a relation is an edge between two codes
+(docs/OBLIGATION-GRAPH.md). `blue obligations discover` mines edges from the
+census, the consumer rows, the registry's debt history and the registry's own
+text, and docs/OBLIGATION-DISCOVERY.md is its report. An edge does nothing
+until a row of `blue_lang_check::relations` decides it: a ratified edge is a
+compiler fact, a rejected one says why and is not proposed again, and an edge
+or a kind configured off keeps its row while the check stage ignores it. Each
+kind names the sources that may evidence it and what a ratified edge makes the
+check stage do: `order` reports the implied code first, `note` names the
+related code and its law in the help line, and a code refuses a waiver set
+the edge makes impossible.
+
+| kind | direction | sources | action | state | law |
+|---|---|---|---|---|---|
+| implies | one way | census, consumers | order | on | where a holds, b holds: every site that owes b also owes a, so paying a is the first step to paying b |
+| co-occurs | both ways | census, consumers | note | on | a and b are owed on the same sites more often than chance: a shared root no obligation names |
+| exclusive | both ways | registry, census | B0100 | on | a and b are never owed on one form, though chance expects them to be: one form cannot owe both, so a form that waives both waives one that covers nothing |
+| trades | one way | history | note | on | a change that paid a's debt raised b's: fixing a tends to owe b next |
+| fixed-together | both ways | history | note | on | a's debt and b's fell in the same changes: one fix pays both |
+
+| a | kind | b | state | tier | evidence |
+|---|---|---|---|---|---|
+| B0090 | exclusive | B0095 | ratified | corroborated | census: 0 of 15236 forms owe both where chance expects 2; registry: B0095 hands a definition no test calls to B0090 |
+| B0056 | exclusive | B0085 | rejected: population, not law: B0085 judges the first form of a generate program and B0056 a bidama's definition, so the zero says where each rule applies, not that one excludes the other | observed | census: 0 of 15236 forms owe both where chance expects 3 |
+| B0085 | exclusive | B0090 | rejected: population, not law: B0085 judges the first form of a generate program and B0090 a bidama's definition, so the zero says where each rule applies, not that one excludes the other | observed | census: 0 of 15236 forms owe both where chance expects 6 |
+| B0012 | trades | B0016 | ratified | observed | history: 18 of 86 changes paid B0012 and raised B0016 |
+| B0015 | trades | B0016 | ratified | observed | history: 10 of 86 changes paid B0015 and raised B0016 |
+| B0012 | fixed-together | B0015 | ratified | observed | history: 20 of 86 changes paid both |
+| B0056 | fixed-together | B0057 | ratified | observed | history: 4 of 86 changes paid both |
+| B0056 | fixed-together | B0058 | ratified | observed | history: 4 of 86 changes paid both |
 
 ## The reuse ratchet
 

@@ -33,6 +33,8 @@ pub struct Reference {
     uncallable: usize,
     rules: Vec<RuleRow>,
     obligations: Vec<ObligationRow>,
+    relation_kinds: serde_json::Value,
+    relations: serde_json::Value,
     commands: Vec<CommandRow>,
 }
 
@@ -251,6 +253,8 @@ pub fn reference() -> Reference {
                 owner: o.owner,
             })
             .collect(),
+        relation_kinds: crate::obligations::registry()["kinds"].clone(),
+        relations: crate::obligations::registry()["relations"].clone(),
         commands: commands(&<crate::Cli as clap::CommandFactory>::command()),
     }
 }

@@ -65,7 +65,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test nix/vm-run.b` | `checks.vm-run` |
 | `blue test gen/ci.b` | `checks.workflows` |
 
-Generated files, never edited by hand: the 34 paths `Bluefile.lock` names under `catalog` and each `generated` entry's `output`.
+Generated files, never edited by hand: the 36 paths `Bluefile.lock` names under `catalog` and each `generated` entry's `output`.
 
 ## Writing blue programs
 

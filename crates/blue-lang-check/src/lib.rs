@@ -52,6 +52,7 @@ pub mod points;
 pub mod project;
 pub mod properties;
 pub mod records;
+pub mod relations;
 pub mod respell;
 pub mod rules;
 pub mod shape;

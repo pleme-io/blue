@@ -55,6 +55,28 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 obligations
 ```
 
+## Relations between obligations
+
+Obligations are nodes of a graph; a relation is an edge between two codes
+(docs/OBLIGATION-GRAPH.md). `blue obligations discover` mines edges from the
+census, the consumer rows, the registry's debt history and the registry's own
+text, and docs/OBLIGATION-DISCOVERY.md is its report. An edge does nothing
+until a row of `blue_lang_check::relations` decides it: a ratified edge is a
+compiler fact, a rejected one says why and is not proposed again, and an edge
+or a kind configured off keeps its row while the check stage ignores it. Each
+kind names the sources that may evidence it and what a ratified edge makes the
+check stage do: `order` reports the implied code first, `note` names the
+related code and its law in the help line, and a code refuses a waiver set
+the edge makes impossible.
+
+```hon
+relation-kinds
+```
+
+```hon
+relations
+```
+
 ## The reuse ratchet
 
 `blue census --reuse [ROOT]` counts copies per package, against the hadome

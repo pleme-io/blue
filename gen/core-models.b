@@ -6,6 +6,7 @@ core-models: every blue program in this repository that declares a core model, a
 
 # waive B0085: rendering debt recorded 2026-11-13: no test of this generator declared kind: :rendering feeds its output to the output's reader yet
 use("deeta")
+use("gaisou")
 use("heni")
 use("jisho", [:from_entries])
 use("kakehashi")
@@ -53,6 +54,17 @@ def programs()
       param: "line_opts"
     },
     {
+      app: "gaisou",
+      file: "bidamas/gaisou/gaisou.b",
+      settings: gaisou::settings,
+      frame: {
+        name: "gaisou",
+        about: "obligation discovery: the thresholds a mined edge meets before blue obligations discover proposes it"
+      },
+      param: "s",
+      door: :settled
+    },
+    {
       app: "tehai",
       file: "bidamas/kakehashi/tehai/tehai.b",
       settings: kakehashi::tehai::config_model,
@@ -69,7 +81,7 @@ end
 @doc """
 schemas: the JSON Schema of every program's settings, by app: the config file's schema, the chart values' schema and the MCP tool's input.
 
-    retsu::first(map_entries(schemas))[0] #=> "heni"
+    retsu::first(map_entries(schemas))[0] #=> "gaisou"
 """
 def schemas()
   from_entries(

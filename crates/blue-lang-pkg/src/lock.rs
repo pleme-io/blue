@@ -416,10 +416,18 @@ pub fn frontend_of(entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
 #[must_use]
 pub fn roles_of(entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
     use blue_lang_runtime::uses::Role;
-    let Ok(entry) = std::fs::canonicalize(entry) else {
+    let Ok(canonical) = std::fs::canonicalize(entry) else {
         return Vec::new();
     };
-    for dir in entry.ancestors().skip(1) {
+    let written = std::path::absolute(entry).unwrap_or_else(|_| entry.to_path_buf());
+    let entry = canonical;
+    let dirs: Vec<&Path> = written
+        .ancestors()
+        .skip(1)
+        .take_while(|d| !d.join(".git").exists())
+        .chain(entry.ancestors().skip(1))
+        .collect();
+    for dir in dirs {
         if let Ok(text) = std::fs::read_to_string(dir.join(LOCK_FILE)) {
             if let Ok(lock) = serde_json::from_str::<Lock>(&text) {
                 let project = &lock.manifest.project;
@@ -1020,6 +1028,29 @@ mod tests {
 
     fn confirm(src: &str, text: Option<&str>) -> Result<Freshness, LockError> {
         super::confirm(src, &rows(src), text)
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_generator_reached_through_a_symlinked_input_keeps_its_role() {
+        use blue_lang_runtime::uses::Role;
+        let base = std::env::temp_dir().join(format!("blue-linked-roles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let store = base.join("store");
+        let root = base.join("root");
+        std::fs::create_dir_all(store.join("a-gen")).unwrap();
+        std::fs::create_dir_all(store.join("b-lock")).unwrap();
+        std::fs::create_dir_all(&root).unwrap();
+        let src = "package(\"p\", \"0.1.0\")\ngenerate(\"g\", \"out.txt\", \"gen/g.b\")\n";
+        let text = render(&lock(src, &canned()).expect("lock")).expect("render");
+        std::fs::write(store.join("b-lock").join(LOCK_FILE), text).unwrap();
+        std::fs::write(store.join("a-gen/g.b"), "def x()\n  1\nend\n").unwrap();
+        std::os::unix::fs::symlink(store.join("a-gen"), root.join("gen")).unwrap();
+        std::os::unix::fs::symlink(store.join("b-lock").join(LOCK_FILE), root.join(LOCK_FILE))
+            .unwrap();
+        let roles = roles_of(&root.join("gen/g.b"));
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(roles, vec![Role::Generator("g".into())]);
     }
 
     #[test]

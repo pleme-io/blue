@@ -676,3 +676,39 @@ row(
   diagnoses([]),
   role("service")
 )
+
+row(
+  "testing.B0100",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi adds an optional step.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "",
+      "# waive B0095: both of an exclusive pair",
+      "# waive B0090: both of an exclusive pair",
+      "@doc \"\"\"",
+      "kagi adds b when given.",
+      "",
+      "    kagi(1) #=> 1",
+      "\"\"\"",
+      "def kagi(a, b?)",
+      "  if b.nil?",
+      "    a",
+      "  else",
+      "    a + b",
+      "  end",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  assert kagi(1) == 1",
+      "  assert kagi(1, 2) == 3",
+      "end"
+    ]
+  ),
+  diagnoses(["B0100"]),
+  covers("rule:B0100"),
+  bidama("kagi")
+)

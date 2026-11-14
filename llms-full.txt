@@ -239,7 +239,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-70 packages, 6128 definitions, 2093 tests.
+71 packages, 6150 definitions, 2113 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -251,6 +251,7 @@ rendered:
 - [eigyou](bidamas/CATALOG.md#eigyou) (営業, open for business) — what a running service answers, guards and reports.
 - [fairu](bidamas/CATALOG.md#fairu) (ファイル) — files: paths and the files they name.
 - [fuuin](bidamas/CATALOG.md#fuuin) (封印) — k-of-n threshold signing: a group whose key no one share holds, signed by any k of its n shares in two rounds, RFC 9591 FROST over Ed25519.
+- [gaisou](bidamas/CATALOG.md#gaisou) (外挿) — obligation extrapolation: relations between obligations, and candidate obligations, mined from evidence.
 - [gamen](bidamas/CATALOG.md#gamen) (画面) — screen: what a program shows, as values: colors and themes, UI trees rendered to HTML, and styled text, tables and trees on the terminal.
 - [gitto](bidamas/CATALOG.md#gitto) (ギット) — git, as verbs: a repository read as commits, refs, branches and files, and written by commit, fetch, merge, push and clone.
 - [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.

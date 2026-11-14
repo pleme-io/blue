@@ -83,6 +83,11 @@ check("workflows", "gen/ci.b", [".github/workflows", "Bluefile.lock"], {stage: :
 generate("node-nix", "nix/node-fixture/configuration.nix", "nix/node-fixture/node.b")
 generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/toriyose/danpen/fixtures/schema/kensa.graphql"])
 generate("settings", "docs/SETTINGS.md", "gen/core-models.b", ["bidamas"])
+# The obligation graph (docs/OBLIGATION-GRAPH.md): the registry's debt per
+# code, one row per change, and the discovery report mined from the census of
+# these paths, the consumer rows and that history.
+generate("obligation-debt", "gen/obligation-debt.tsv", "gen/obligation-debt.b", ["gen/obligation-debt.tsv"])
+generate("obligation-discovery", "docs/OBLIGATION-DISCOVERY.md", "gen/obligation-discovery.b", ["Bluefile.lock", "bench", "bidamas", "crates/blue-lang-cli/blue", "examples", "gen", "kernel", "nix", "rules"])
 generate("settings-schema", "docs/settings.schema.json", "gen/core-models.b", ["bidamas"])
 check("core-models", "gen/core-models.b", ["bidamas"], {stage: :ci})
 check("okite-laws", "gen/okite-laws.b", {stage: :push})

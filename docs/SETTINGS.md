@@ -72,6 +72,21 @@ a fleet repository judged against its standard. Layers, lowest first: the defaul
 | `tree` | bool | `false` | any bool |  | `KIJUN_TREE` | `--tree` | flag |  | also judge the merged module tree of each configuration |
 
 
+## gaisou
+
+obligation discovery: the thresholds a mined edge meets before blue obligations discover proposes it. Layers, lowest first: the defaults, `~/.config/gaisou/gaisou.yaml` (or the file `GAISOU_CONFIG` names), then the environment. A bad value is refused for its key alone and warned on stderr.
+
+| Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
+|---|---|---|---|---|---|---|---|---|---|
+| `min_confidence` | int | `90` | 1..100 | percent | `GAISOU_MIN_CONFIDENCE` |  | file, env |  | implies: the share of b's sites that also owe a |
+| `min_expected` | int | `2` | 1 or more |  | `GAISOU_MIN_EXPECTED` |  | file, env |  | exclusive: the co-occurrences chance must expect before a zero is evidence |
+| `min_lift` | int | `300` | 100 or more | percent | `GAISOU_MIN_LIFT` |  | file, env |  | co-occurs: the sites owing both, over what chance expects |
+| `min_sources` | int | `2` | 1 or more |  | `GAISOU_MIN_SOURCES` |  | file, env |  | the independent sources an edge needs to be corroborated |
+| `min_support` | int | `3` | 1 or more |  | `GAISOU_MIN_SUPPORT` |  | file, env |  | the fewest sites (or changes) an edge needs before it is proposed |
+| `min_waivers` | int | `5` | 2 or more |  | `GAISOU_MIN_WAIVERS` |  | file, env |  | the waivers of one code with one reason before the reason is a candidate obligation |
+| `off` | text |  | any text |  | `GAISOU_OFF` |  | file, env |  | relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together |
+
+
 ## tehai
 
 the nix builders and substituters that answer: each declared one probed, and the live files written from those that did. Layers, lowest first: the defaults, `~/.config/tehai/tehai.yaml` (or the file `TEHAI_CONFIG` names), then the environment. A bad value is refused for its key alone and warned on stderr.

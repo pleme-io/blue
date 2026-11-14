@@ -223,6 +223,10 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue crash dump CRASH` | What a crash violated and where: its class, the host name and capability a breach demanded, the breaching call's file, line and column, the hold, the exit and the mailbox. |
 | `blue crash bisect CRASH` | The fewest messages the process took that still replay to the same crash, found by delta debugging against deterministic replay; the reduced trace is written beside the original under its own hash. |
 | `blue crash immunize CRASH` | The crash's regression lock: a test that spawns the target, sends it the fewest messages that crashed it and asserts it took them, red until the target is fixed. |
+| `blue obligations list` | Every obligation, relation kind and ratified relation, as the registry states them. |
+| `blue obligations facts [ROOT]` | The evidence discovery reads: one JSON line per registry row, the form denominator and every obligation site (finding or waiver) under ROOT. |
+| `blue obligations discover [ROOT]` | Mine relations between obligations and candidate obligations from the facts of ROOT, the recorded history and the consumer rows, and print the discovery report; --check fails when the committed report differs. |
+| `blue obligations history [FILE]` | Append the registry's debt per code to the history file when it moved since the last row, or with --backfill rebuild it from git; the history discovery reads for trades and fixes made together. |
 | `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
 | `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
 | `blue arika emit [ROOT]` | Write the header SNAPSHOT.json for the bidamas under ROOT (each package's RFC 9162 unit_root and row count, and the snapshot_root over them) and, with --facts, the facts: every definition the engine sees as one JSON line (readable id, def_hash, shape hashes, gloss, file, line, legacy names). |
@@ -259,16 +263,16 @@ rendered:
 |---|---|
 | Built-in names | 401: 374 functions, 14 special forms, 13 macros |
 | Surface forms | 36, with 13 operators and 26 reserved words |
-| Check rules | 96: 42 fix themselves, 8 suggest a fix |
+| Check rules | 97: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 32 |
-| Commands | 61 |
+| Commands | 65 |
 
 ## The standard library
 
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-70 packages, 6128 definitions, 2093 tests.
+71 packages, 6150 definitions, 2113 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -280,6 +284,7 @@ rendered:
 - [eigyou](bidamas/CATALOG.md#eigyou) (営業, open for business) — what a running service answers, guards and reports.
 - [fairu](bidamas/CATALOG.md#fairu) (ファイル) — files: paths and the files they name.
 - [fuuin](bidamas/CATALOG.md#fuuin) (封印) — k-of-n threshold signing: a group whose key no one share holds, signed by any k of its n shares in two rounds, RFC 9591 FROST over Ed25519.
+- [gaisou](bidamas/CATALOG.md#gaisou) (外挿) — obligation extrapolation: relations between obligations, and candidate obligations, mined from evidence.
 - [gamen](bidamas/CATALOG.md#gamen) (画面) — screen: what a program shows, as values: colors and themes, UI trees rendered to HTML, and styled text, tables and trees on the terminal.
 - [gitto](bidamas/CATALOG.md#gitto) (ギット) — git, as verbs: a repository read as commits, refs, branches and files, and written by commit, fetch, merge, push and clone.
 - [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.

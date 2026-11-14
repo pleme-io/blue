@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:28999a890649f665993271ed0053fc53d339c89887cb57455e67e59f9dfa4e5a",
+  "manifest": {
+    "schema": 1,
+    "name": "gaisou",
+    "version": "0.1.0",
+    "needs": {
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "settei": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "toolchain"
+  },
+  "sources": {}
+}

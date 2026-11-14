@@ -802,3 +802,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0097` | fake-without-seam | a test that declares `fakes:` reaches a point a fake stands in for: an effect point, or a seam whose imported word reaches the host | refused |
 | `B0098` | raw-environment-read | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name | refused |
 | `B0099` | undeclared-access | the program of a `service(...)` row runs under the `access` that row declares, never the default | refused |
+| `B0100` | exclusive-waivers | a form never waives both codes of a ratified exclusive relation: one of the two covers nothing | refused |

@@ -248,6 +248,22 @@ obligations! {
         profile: Default,
         owner: "COVERAGE.md R4",
     }
+    "doc/definition" {
+        when: "a public definition of a bidama",
+        evidence: Declared,
+        detector: Static,
+        refusal: Code(Code::B0056),
+        profile: Default,
+        owner: "OBLIGATION-GRAPH.md: ratified from discovery (unregistered-debt); docs/STDLIB.md, the @doc a definition carries",
+    }
+    "doc/example" {
+        when: "a `@doc`",
+        evidence: Unit,
+        detector: Static,
+        refusal: Code(Code::B0057),
+        profile: Default,
+        owner: "OBLIGATION-GRAPH.md: ratified from discovery (unregistered-debt); the example `reach/doctest` runs",
+    }
     "point/effect" {
         when: "a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock)",
         evidence: Integration,

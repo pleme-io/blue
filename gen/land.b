@@ -613,15 +613,17 @@ end
 @doc """
 releases_beside_main?: Whether an auto-release workflow, as its text reads,
 releases in tag mode: the release commit sits beside main, reachable only by
-its tag, so it never moves main and a land has nothing to wait for.
+its tag, so it never moves main and a land has nothing to wait for. The value
+reads the same written plain or quoted, as a rendered workflow writes it.
 
     releases_beside_main?("      release-ref-mode: tag") #=> true
+    releases_beside_main?("      release-ref-mode: \"tag\"") #=> true
     releases_beside_main?("      release-ref-mode: branch") #=> false
     releases_beside_main?("") #=> false
 """
 def releases_beside_main?(workflow)
   find_first(
-    (l) -> trim(l) == "release-ref-mode: tag",
+    (l) -> replace(trim(l), "\"", "") == "release-ref-mode: tag",
     moji::lines(workflow)
   ) != nil
 end

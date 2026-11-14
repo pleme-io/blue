@@ -69,6 +69,8 @@
 //! vocabulary competing with dojo; it is the first facet, waiting for the
 //! border.
 
+pub mod bounded;
+
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 

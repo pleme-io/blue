@@ -835,60 +835,18 @@ pub const ROW_STEPS: usize = tatara_lisp_eval::vm::DEFAULT_FUEL;
 
 pub const CHILD_LIMIT: std::time::Duration = std::time::Duration::from_secs(45);
 
-/// Run `cmd` to completion within [`CHILD_LIMIT`], with its output captured.
-///
-/// The one subprocess shape both children use (the `blue` binary and the
-/// runner's own isolated mode). A run past the limit is killed, and a death
-/// by signal — a stack overflow aborts — is returned as the observation.
 pub fn output_within(cmd: &mut Command) -> Result<std::process::Output, Obs> {
-    use std::io::Read as _;
-    use std::process::Stdio;
-    let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| Obs::Blind(format!("cannot spawn {cmd:?}: {e}")))?;
-    // Drain both pipes on threads, so a chatty child cannot block on a full
-    // pipe while this side waits for it to exit.
-    let mut out = child.stdout.take().expect("piped stdout");
-    let mut err = child.stderr.take().expect("piped stderr");
-    let t_out = std::thread::spawn(move || {
-        let mut b = Vec::new();
-        let _ = out.read_to_end(&mut b);
-        b
-    });
-    let t_err = std::thread::spawn(move || {
-        let mut b = Vec::new();
-        let _ = err.read_to_end(&mut b);
-        b
-    });
-    let start = std::time::Instant::now();
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(s)) => break s,
-            Ok(None) if start.elapsed() > CHILD_LIMIT => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(Obs::Crashed(format!(
-                    "runaway: still running after {CHILD_LIMIT:?}"
-                )));
-            }
-            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
-            Err(e) => return Err(Obs::Crashed(format!("cannot wait on the child: {e}"))),
-        }
-    };
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt as _;
-        if let Some(sig) = status.signal() {
-            return Err(Obs::Crashed(format!("the process died on signal {sig}")));
-        }
-    }
-    Ok(std::process::Output {
-        status,
-        stdout: t_out.join().unwrap_or_default(),
-        stderr: t_err.join().unwrap_or_default(),
-    })
+    use blue_lang_test::bounded::Unbounded;
+    blue_lang_test::bounded::output_within(cmd, CHILD_LIMIT, std::time::Duration::from_secs(5))
+        .map_err(|u| match u {
+            Unbounded::Spawn(e) => Obs::Blind(e),
+            Unbounded::Runaway(l) => Obs::Crashed(format!("runaway: still running after {l:?}")),
+            Unbounded::Wait(e) => Obs::Crashed(format!("cannot wait on the child: {e}")),
+            Unbounded::Signal(sig) => Obs::Crashed(format!("the process died on signal {sig}")),
+            Unbounded::HeldOpen(g) => Obs::Crashed(format!(
+                "a process the child left behind held its output open {g:?} after it exited"
+            )),
+        })
 }
 
 pub fn component(env: &mut Env, row: &Row, n: usize) -> Obs {

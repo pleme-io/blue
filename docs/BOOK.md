@@ -1902,6 +1902,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [Diagnostics](DIAGNOSTICS.md): what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
 - [blue examples](EXAMPLES.md): one tested program per common task, ready to paste as examples
 - [Glossary: blue's terms and the concepts they name](GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
+- [Obligation discovery](OBLIGATION-DISCOVERY.md): the relations between obligations and the candidate obligations blue obligations discover mines from the corpus, each with its evidence, tier and state (generated)
 - [blue language reference](REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
 - [blue roadmap](ROADMAP.md): the one blue roadmap, one row per track with its state and the evidence for it, and every conflict ruled once
 - [Safety first: blue's posture, row by row](SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
@@ -1942,6 +1943,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [MARKDOWN — Markdown is a first-class blue value](MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates
 - [naturalize(tree-sitter) — the destination, before the build](NATURALIZE-TREESITTER.md): tree-sitter naturalized: the grammar spec and what is emitted from it
+- [The obligation graph](OBLIGATION-GRAPH.md): the relations between obligations, discovered from evidence and decided as registry rows that extend the check stage (design and first run, 2026-11-14)
 - [OPERATORS — short notation for what blue says most, keyed to the blueshift](OPERATORS.md): short notation for what blue says most, keyed to the blueshift (design)
 - [P2P: a zero-server peer network in blue, and a game platform on it](P2P.md): a zero-server peer network in blue with capability memory regions, fault-scoped tamper evidence, and a game platform on it (design, destination approved 2026-11-09)
 - [Performance: blue as a scripting language and as a tool](PERFORMANCE.md): what blue costs today, where the time goes, and the order to remove it

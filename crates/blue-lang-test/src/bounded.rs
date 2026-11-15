@@ -1,4 +1,3 @@
-use std::io::Read as _;
 use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};

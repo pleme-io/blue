@@ -49,6 +49,9 @@ libc = "0.2"
 # store dependency.
 rustls = { workspace = true }
 webpki-roots = { workspace = true }
+# `usb_control_in` — the raw control transfer a USB BootRom protocol needs.
+# Pure Rust (see the workspace entry's CONTAIN THE C note).
+nusb = { workspace = true }
 tameshi = { version = "0.1.9", default-features = false, features = ["threshold"], optional = true }
 rand_core = { version = "0.6", default-features = false, optional = true }
 blue-lang-senses = { workspace = true, optional = true }

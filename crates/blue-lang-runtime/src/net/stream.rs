@@ -228,6 +228,67 @@ fn serial_open(path: &str, name: &'static str, span: Span) -> Result<Value, Eval
     })))
 }
 
+/// One raw USB control transfer, device-to-host — `usb_control_in`. The
+/// BootRom protocols speak SETUP packets a CDC serial channel cannot carry
+/// (a class-IN request that reaches the ROM's own handler), so the net
+/// surface holds the raw reach: the device is found by vendor and product
+/// id, opened, and one IN control request is put to its default endpoint.
+/// The `request_type` is the whole bmRequestType byte (0xA1 is class-IN to
+/// an interface); the answer is the bytes the device returned.
+fn usb_control_in(
+    vid: u16,
+    pid: u16,
+    request_type: u8,
+    request: u8,
+    value: u16,
+    index: u16,
+    length: u16,
+    timeout_ms: u64,
+    name: &'static str,
+    span: Span,
+) -> Result<Value, EvalError> {
+    use nusb::transfer::{Control, ControlType, Recipient};
+    let control_type = match (request_type >> 5) & 0b11 {
+        0 => ControlType::Standard,
+        1 => ControlType::Class,
+        _ => ControlType::Vendor,
+    };
+    let recipient = match request_type & 0b11 {
+        0 => Recipient::Device,
+        1 => Recipient::Interface,
+        2 => Recipient::Endpoint,
+        _ => Recipient::Other,
+    };
+    let device = nusb::list_devices()
+        .map_err(|e| fail(name, e, span))?
+        .find(|d| d.vendor_id() == vid && d.product_id() == pid)
+        .ok_or_else(|| {
+            fail(
+                name,
+                format!("no USB device {:04x}:{:04x} is attached", vid, pid),
+                span,
+            )
+        })?
+        .open()
+        .map_err(|e| fail(name, e, span))?;
+    let mut buf = vec![0u8; length as usize];
+    let n = device
+        .control_in_blocking(
+            Control {
+                control_type,
+                recipient,
+                request,
+                value,
+                index,
+            },
+            &mut buf,
+            std::time::Duration::from_millis(timeout_ms),
+        )
+        .map_err(|e| fail(name, e, span))?;
+    buf.truncate(n);
+    Ok(byte_list(&buf))
+}
+
 fn bytes_of(v: &Value, name: &'static str, span: Span) -> Result<Vec<u8>, EvalError> {
     match v {
         Value::Str(s) => Ok(s.as_bytes().to_vec()),
@@ -301,6 +362,41 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
                     span,
                 ))
             }
+        },
+    );
+    interp.register_fn(
+        "usb_control_in",
+        Arity::Exact(8),
+        |args: &[Value], _h: &mut H, span| {
+            let name: &'static str = "usb_control_in";
+            let vid = u16::try_from(arg_int(&args[0], name, span)?)
+                .map_err(|_| fail(name, "vid is 0 to 65535", span))?;
+            let pid = u16::try_from(arg_int(&args[1], name, span)?)
+                .map_err(|_| fail(name, "pid is 0 to 65535", span))?;
+            let request_type = u8::try_from(arg_int(&args[2], name, span)?)
+                .map_err(|_| fail(name, "request_type is 0 to 255", span))?;
+            let request = u8::try_from(arg_int(&args[3], name, span)?)
+                .map_err(|_| fail(name, "request is 0 to 255", span))?;
+            let value = u16::try_from(arg_int(&args[4], name, span)?)
+                .map_err(|_| fail(name, "value is 0 to 65535", span))?;
+            let index = u16::try_from(arg_int(&args[5], name, span)?)
+                .map_err(|_| fail(name, "index is 0 to 65535", span))?;
+            let length = u16::try_from(arg_int(&args[6], name, span)?)
+                .map_err(|_| fail(name, "length is 0 to 65535", span))?;
+            let timeout_ms = u64::try_from(arg_int(&args[7], name, span)?)
+                .map_err(|_| fail(name, "timeout_ms is a millisecond count", span))?;
+            usb_control_in(
+                vid,
+                pid,
+                request_type,
+                request,
+                value,
+                index,
+                length,
+                timeout_ms,
+                name,
+                span,
+            )
         },
     );
     interp.register_fn(

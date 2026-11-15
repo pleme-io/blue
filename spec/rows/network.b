@@ -279,3 +279,11 @@ row(
   covers("builtin:nats_inbox"),
   host()
 )
+
+row(
+  "network.usb_control_in.absent_device_refused",
+  "usb_control_in(65534, 65535, 161, 0, 0, 0, 10, 100)",
+  fails(:eval, "no USB device fffe:ffff"),
+  covers("builtin:usb_control_in"),
+  host()
+)

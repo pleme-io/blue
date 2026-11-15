@@ -59,6 +59,11 @@ rustls = { version = "0.23", default-features = false, features = [
   "tls12",
 ] }
 webpki-roots = "0.26"
+# USB device access for the net surface (`usb_control_in`, the raw control
+# transfer a BootRom speaks). `nusb` is pure Rust on every platform it serves
+# — its macOS, Linux and Windows backends are Rust against the OS tables, no
+# libusb linkage (CONTAIN THE C: no `-sys` binding, no vendored C USB stack).
+nusb = "0.1"
 
 # The evaluator is optimized even in a debug or test build. Every in-process
 # door — the conformance suite's walker, vm and wasm columns, `cargo test` of a

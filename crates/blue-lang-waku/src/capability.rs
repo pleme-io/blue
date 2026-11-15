@@ -228,6 +228,7 @@ const PROCESS_NAMES: &[&str] = &[
     "exec_capture",
     "exec_with_stdin",
     "exec_exchange",
+    "exec_within",
     "exec_with_env",
     "exec_into",
     "exit_with",

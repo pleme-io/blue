@@ -20,6 +20,7 @@
 //! exec_with_stdin(payload, cmd, arg…) → capture form
 //! exec_exchange(bytes, n, ms, cmd, arg…) → capture form, stdout as a list of bytes
 //! exec_with_env(pairs, cmd, arg…)    → capture form
+//! exec_within(ms, cmd, arg…) → capture form plus (:timed_out B); the child's process group ends at ms
 //!
 //! read_file(path)            → contents as a string
 //! write_file(path, contents) → nil
@@ -210,6 +211,19 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
+        "exec_within",
+        Arity::AtLeast(2),
+        |args: &[Value], _h: &mut H, span| {
+            let wait_ms = u64::try_from(arg_int(&args[0], "exec_within", span)?).map_err(|_| {
+                EvalError::native_fn("exec_within", "the deadline must not be negative", span)
+            })?;
+            let (cmd, rest) = split_cmd(&args[1..], "exec_within", span)?;
+            within(std::time::Duration::from_millis(wait_ms), &cmd, &rest)
+                .map_err(|e| EvalError::native_fn("exec_within", e.to_string(), span))
+        },
+    );
+
+    interp.register_fn(
         "exec_with_env",
         Arity::AtLeast(2),
         |args: &[Value], _h: &mut H, span| {
@@ -345,6 +359,78 @@ fn capture_result(out: &std::process::Output) -> Value {
             Value::Str(Arc::from(String::from_utf8_lossy(&out.stderr).as_ref())),
         ]),
     ])
+}
+
+fn within(wait: std::time::Duration, cmd: &str, rest: &[Arc<str>]) -> std::io::Result<Value> {
+    use std::io::Read;
+    let mut c = Command::new(cmd);
+    c.args(rest.iter().map(|s| s.as_ref()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        c.process_group(0);
+    }
+    let mut child = c.spawn()?;
+    let drain = |pipe: Option<Box<dyn Read + Send>>| {
+        let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        std::thread::spawn(move || {
+            let mut text = Vec::new();
+            if let Some(mut p) = pipe {
+                let _ = p.read_to_end(&mut text);
+            }
+            let _ = tx.send(text);
+        });
+        rx
+    };
+    let out = drain(
+        child
+            .stdout
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let err = drain(
+        child
+            .stderr
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let deadline = std::time::Instant::now() + wait;
+    let (status, passed) = loop {
+        if let Some(st) = child.try_wait()? {
+            break (st.code().unwrap_or(-1), false);
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = blue_lang_proc::group::end(child.id());
+            let _ = child.kill();
+            let _ = child.wait();
+            break (-1, true);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    let grace = std::time::Duration::from_secs(2);
+    let read = |rx: std::sync::mpsc::Receiver<Vec<u8>>| {
+        let got = if passed {
+            rx.recv_timeout(grace).unwrap_or_default()
+        } else {
+            rx.recv().unwrap_or_default()
+        };
+        Value::Str(Arc::from(String::from_utf8_lossy(&got).as_ref()))
+    };
+    Ok(Value::list(vec![
+        Value::list(vec![
+            Value::Keyword(Arc::from("status")),
+            Value::Int(i64::from(status)),
+        ]),
+        Value::list(vec![Value::Keyword(Arc::from("stdout")), read(out)]),
+        Value::list(vec![Value::Keyword(Arc::from("stderr")), read(err)]),
+        Value::list(vec![
+            Value::Keyword(Arc::from("timed_out")),
+            Value::Bool(passed),
+        ]),
+    ]))
 }
 
 fn exchange(
@@ -1609,6 +1695,48 @@ mod tests {
         let v = run(r#"(exec_exchange (list) 4 200 "sh" "-c" "printf ab; sleep 30")"#);
         assert!(start.elapsed() < std::time::Duration::from_secs(10));
         assert_eq!(stdout_bytes(&v), vec![97, 98]);
+    }
+
+    fn entry_of(v: &Value, key: &str) -> Value {
+        let Value::List(entries) = v else {
+            panic!("expected an alist, got {v:?}");
+        };
+        entries
+            .iter()
+            .find_map(|entry| match entry {
+                Value::List(pair)
+                    if pair.len() == 2 && matches!(&pair[0], Value::Keyword(k) if &**k == key) =>
+                {
+                    Some(pair[1].clone())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no :{key} in {v:?}"))
+    }
+
+    #[test]
+    fn exec_within_returns_the_capture_of_a_child_that_ends_in_time() {
+        let v = run(r#"(exec_within 5000 "sh" "-c" "printf out; printf err >&2; exit 3")"#);
+        assert!(matches!(entry_of(&v, "status"), Value::Int(3)));
+        assert!(matches!(entry_of(&v, "stdout"), Value::Str(s) if &*s == "out"));
+        assert!(matches!(entry_of(&v, "stderr"), Value::Str(s) if &*s == "err"));
+        assert!(matches!(entry_of(&v, "timed_out"), Value::Bool(false)));
+    }
+
+    #[test]
+    fn exec_within_ends_the_whole_process_group_at_the_deadline() {
+        let start = std::time::Instant::now();
+        let v = run(r#"(exec_within 300 "sh" "-c" "printf ab; sleep 60 & wait")"#);
+        assert!(start.elapsed() < std::time::Duration::from_secs(10));
+        assert!(matches!(entry_of(&v, "timed_out"), Value::Bool(true)));
+        assert!(matches!(entry_of(&v, "status"), Value::Int(-1)));
+        assert!(matches!(entry_of(&v, "stdout"), Value::Str(s) if &*s == "ab"));
+    }
+
+    #[test]
+    fn exec_within_refuses_a_negative_deadline() {
+        let err = run_err(r#"(exec_within -1 "true")"#);
+        assert!(err.contains("must not be negative"), "{err}");
     }
 
     #[test]

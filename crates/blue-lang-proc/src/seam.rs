@@ -62,3 +62,19 @@ pub(crate) fn poll(
         })
         .collect())
 }
+
+pub fn end_group(leader: u32) -> Result<(), String> {
+    let pid = libc::pid_t::try_from(leader).map_err(|_| format!("{leader} is not a process id"))?;
+    if pid <= 0 {
+        return Err(format!("{leader} is not a process id"));
+    }
+    let status = unsafe { libc::kill(-pid, libc::SIGKILL) };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "kill process group {leader}: {}",
+            std::io::Error::last_os_error()
+        ))
+    }
+}

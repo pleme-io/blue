@@ -19,7 +19,7 @@ fn exactly_one_module_may_use_unsafe_and_it_is_the_darwin_seam() {
     let seam = std::fs::read_to_string(src.join("seam.rs")).expect("seam.rs");
     assert_eq!(
         seam.matches("unsafe {").count(),
-        3,
-        "the seam is three calls: setpriority, getpriority and poll"
+        4,
+        "the seam is four calls: setpriority, getpriority, poll and kill"
     );
 }

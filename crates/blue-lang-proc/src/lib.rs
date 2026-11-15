@@ -58,6 +58,7 @@ use tatara_lisp_eval::{ErrorObj, EvalError, Interpreter, Value};
 
 pub mod bisect;
 pub mod code;
+pub mod group;
 pub mod image;
 pub mod mailbox;
 pub mod node;

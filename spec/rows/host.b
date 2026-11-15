@@ -331,6 +331,14 @@ row(
 )
 
 row(
+  "host.exec_within",
+  "exec_within(5000, \"printf\", \"x\")",
+  value("[[:status, 0], [:stdout, \"x\"], [:stderr, \"\"], [:timed_out, false]]"),
+  covers("builtin:exec_within"),
+  host()
+)
+
+row(
   "host.exec_with_stdin",
   "exec_with_stdin(\"abc\", \"cat\")",
   value("[[:status, 0], [:stdout, \"abc\"], [:stderr, \"\"]]"),

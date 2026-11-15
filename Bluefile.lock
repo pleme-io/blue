@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:fff435cab5cd35975a673f55edf4c14e4552e89ed1e32c3b3f029a1bbf61691f",
+  "bluefile_b3": "b3:8d632e63c2a74a9cd11fc57c72bb9b1c606eb2a887061b8d9453b5058e7d8484",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -140,7 +140,10 @@
       "prepush": {
         "file": "gen/prepush.b",
         "inputs": [
-          "Bluefile.lock"
+          "Bluefile.lock",
+          "nix/source-fixture",
+          "nix/project-fixture/bidamas",
+          "nix/bidama-root-fixture"
         ],
         "stage": "push"
       },

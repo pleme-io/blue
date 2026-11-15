@@ -675,6 +675,101 @@ def full?(v)
   end
 end
 
+@doc """
+lock_projects: The lock directories that are projects: a lock whose manifest
+names packages or sources. A package's needs resolve against the roots of the
+project it sits in, so its lock is judged with that project's load path.
+
+    lock_projects([[".", {"packages" => ["bidamas"], "sources" => {}}], ["bidamas/retsu", {"packages" => [], "sources" => {}}], ["fx", {"packages" => [], "sources" => {"up" => {"url" => "u", "dir" => "d"}}}]]) #=> [".", "fx"]
+"""
+def lock_projects(manifests)
+  map(
+    first,
+    filter(
+      fn(e)
+        m = last(e)
+        (m["packages"] or []) != [] or (m["sources"] or {}) != {}
+      end,
+      manifests
+    )
+  )
+end
+
+def home_source()
+  "github:pleme-io/blue"
+end
+
+@doc """
+lock_roots: The load path a project's locks are judged with: its package roots,
+then each source's root. A source that names this repository is read from this
+tree, as checks.source-fixture hands the engine this tree for that fetch; any
+other source is read from the store path its lock pins, when that path is here.
+
+    lock_roots("/r", "nix/fx", {"packages" => ["bidamas"], "sources" => {"up" => {"url" => "github:pleme-io/blue", "dir" => "nix/up"}}}, {}) #=> ["/r/nix/fx/bidamas", "/r/nix/up"]
+    lock_roots("/r", "fx", {"packages" => ["bidamas"], "sources" => {"far" => {"url" => "github:o/far", "dir" => "b"}}}, {"far" => {"storePath" => "/nonexistent/far"}}) #=> ["/r/fx/bidamas"]
+"""
+def lock_roots(root, project, m, pins)
+  own = map((p) -> path_join(root, project, p), m["packages"] or [])
+  sourced = flat_map(
+    jisho::entries(m["sources"] or {}),
+    fn(e)
+      s = last(e)
+      pinned = (get(pins, first(e)) or {})["storePath"]
+      if s["url"] == home_source
+        [path_join(root, s["dir"])]
+      elsif not pinned.nil? and is_dir?(path_join(pinned, s["dir"]))
+        [path_join(pinned, s["dir"])]
+      else
+        []
+      end
+    end
+  )
+  append(own, sourced)
+end
+
+@doc """
+confirm_locks: The locks gate. Each lock directory is judged with the load path
+of the project it sits in, the roots it needs, ahead of the BLUE_PATH the push
+runs with; green only when every lock is fresh.
+"""
+def confirm_locks(bin, root, dirs, ldirs)
+  locks = map(
+    (d) -> [d, json_read(read_file(path_join(root, d, "Bluefile.lock")))],
+    dirs
+  )
+  projects = lock_projects(map((l) -> [first(l), last(l)["manifest"]], locks))
+  owner = (d) -> lock_dir_of(projects, "#{d}/Bluefile")
+  inherited = reject((p) -> p == "", split(getenv("BLUE_PATH", ""), ":"))
+  verdicts = map(
+    fn(p)
+      lock = last(first(filter((l) -> first(l) == p, locks)))
+      path = append(
+        lock_roots(root, p, lock["manifest"], lock["sources"] or {}),
+        inherited
+      )
+      verdict(
+        exec_with_env(
+          [["BLUE_PATH", join(path, ":")]],
+          "#{bin}/blue",
+          "bluefile",
+          "--confirm",
+          *map(
+            (d) -> path_join(root, d, "Bluefile"),
+            filter((d) -> owner(d) == p, ldirs)
+          )
+        )
+      )
+    end,
+    distinct(map(owner, ldirs))
+  )
+  red = filter((v) -> first(v) == :red, verdicts)
+  if red == []
+    [:green, ""]
+  else
+    [:red, join(map(last, red), "")]
+  end
+end
+
 def lines_of(text)
   reject((l) -> l == "", split(text, line_break))
 end
@@ -935,6 +1030,8 @@ def main()
   hook = getenv("BLUE_PREPUSH_GLOBAL_HOOK", "")
   fed = if getenv("BLUE_PREPUSH_HOOK") == "1"
     read_file("/dev/stdin")
+  elsif getenv("BLUE_PREPUSH_FED", "") != ""
+    read_file(getenv("BLUE_PREPUSH_FED"))
   else
     ""
   end
@@ -1138,14 +1235,7 @@ def main()
           if ldirs == []
             [:green, ""]
           else
-            verdict(
-              exec_capture(
-                "#{bin}/blue",
-                "bluefile",
-                "--confirm",
-                *map((d) -> "#{d}/Bluefile", ldirs)
-              )
-            )
+            confirm_locks(bin, root, dirs, ldirs)
           end
         end
       ]
@@ -1650,4 +1740,53 @@ end
 
 test "the host gates hold at 18 and only fall: a gate leaves gate_table when a Bluefile check row with stage push runs it"
   assert count(reject((g) -> g[:weight] == :none, gate_table)) == 18
+end
+
+def source_fixture_tree()
+  from = getenv("GEN_ROOT", ".")
+  tree = path_join(temp_dir("locks"), "tree")
+  map(
+    fn(d)
+      mkdir_p(path_join(tree, path_dirname(d)))
+      exec_capture("cp", "-RL", path_join(from, d), path_join(tree, d))
+    end,
+    %w[nix/source-fixture nix/project-fixture/bidamas nix/bidama-root-fixture]
+  )
+  exec_capture("chmod", "-R", "u+w", tree)
+  tree
+end
+
+test "the locks gate judges a source fixture's package with the roots its project sources, green when fresh and red when its lock is stale"
+  if self_exe != nil
+    tree = source_fixture_tree
+    bin = dir_of(self_exe)
+    dirs = %w[nix/source-fixture nix/source-fixture/bidamas/kakeru]
+    kakeru = path_join(tree, "nix/source-fixture/bidamas/kakeru")
+    unrooted = exec_with_env(
+      [["BLUE_PATH", ""]],
+      "#{bin}/blue",
+      "bluefile",
+      "--confirm",
+      path_join(kakeru, "Bluefile")
+    )
+    assert first(verdict(unrooted)) == :red
+    assert confirm_locks(bin, tree, dirs, dirs) == [:green, ""]
+    write_program(
+      path_join(kakeru, "kakeru.b"),
+      unlines(
+        [
+          "use(\"fixture\", [:double])",
+          "",
+          "def quadruple(n)",
+          "  double(double(n))",
+          "end"
+        ]
+      )
+    )
+    stale = confirm_locks(bin, tree, dirs, dirs)
+    assert first(stale) == :red
+    assert contains?(last(stale), "kakeru")
+    assert contains?(last(stale), "stale")
+    assert contains?(last(stale), "needs")
+  end
 end

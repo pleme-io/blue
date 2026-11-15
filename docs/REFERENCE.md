@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-401 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+402 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -415,6 +415,7 @@ Higher binding power binds tighter.
 | `exec_ok?` | `exec_ok?(cmd, args...)` | 1+ | Whether a command exits 0. |
 | `exec_with_env` | `exec_with_env(env, cmd, args...)` | 2+ | exec_capture with extra environment variables, given as [[name, value], …]. |
 | `exec_with_stdin` | `exec_with_stdin(input, cmd, args...)` | 2+ | exec_capture, with input written to the command's stdin. The INPUT comes first. |
+| `exec_within` | `exec_within(ms, cmd, args...)` | 2+ | Run a command, no shell, for at most ms: the capture form of exec_capture plus [:timed_out, b]. A child still running at ms is ended with its whole process group, and :status is -1. |
 | `exit_with` | `exit_with(code)` | 1 | End the program now with this exit status, after flushing stdout and stderr. A typed outcome a caller must branch on (EX_TEMPFAIL 75 for a hold) leaves this way, not as an uncaught error. |
 | `sh_exec` | `sh_exec(script)` | 1 | Run a script through sh; the same result as exec_capture. Prefer exec_capture, which cannot be injected into. |
 

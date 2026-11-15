@@ -353,7 +353,8 @@ def reap(ref, runs)
     beaten = beats_of(text)
     map(
       fn(t)
-        gone = exec_capture(
+        gone = net(
+          :push,
           "env",
           "BLUE_PREPUSH_OFF=1",
           "git",
@@ -382,7 +383,8 @@ def reap(ref, runs)
     )
     map(
       fn(v)
-        gone = exec_capture(
+        gone = net(
+          :push,
           "env",
           "BLUE_PREPUSH_OFF=1",
           "git",
@@ -1377,7 +1379,8 @@ def run_of(ref, sha)
         sleep(3)
         trim(
           stdout_of(
-            exec_capture(
+            net(
+              :gh,
               "gh",
               "run",
               "list",
@@ -1402,7 +1405,8 @@ def run_of(ref, sha)
 end
 
 def runs_of(workflow, fields)
-  cap = exec_capture(
+  cap = net(
+    :gh,
     "gh",
     "run",
     "list",
@@ -1423,7 +1427,8 @@ def land_runs()
 end
 
 def queue_refs()
-  cap = exec_capture(
+  cap = net(
+    :fetch,
     "git",
     "ls-remote",
     "origin",
@@ -1460,7 +1465,8 @@ def beat(ref)
     (b) -> ":refs/heads/#{b[:name]}",
     filter((b) -> b[:ref] == ref, beats)
   )
-  exec_capture(
+  net(
+    :push,
     "env",
     "BLUE_PREPUSH_OFF=1",
     "git",
@@ -1484,7 +1490,8 @@ def enqueue(ref, head)
   if at.nil?
     at = stamp(rfc3339_of_ms(now_ms))
   end
-  pushed = exec_capture(
+  pushed = net(
+    :push,
     "env",
     "BLUE_PREPUSH_OFF=1",
     "git",
@@ -1503,7 +1510,8 @@ end
 def dequeue(ref)
   map(
     fn(t)
-      exec_capture(
+      net(
+        :push,
         "env",
         "BLUE_PREPUSH_OFF=1",
         "git",
@@ -1553,7 +1561,14 @@ def beside(ticket, named)
     at = head_of(text, name)
     if at.nil?
       nil
-    elsif exec_check("git", "fetch", "-q", "origin", "refs/heads/#{name}") != 0
+    elsif net_check(
+        :fetch,
+        "git",
+        "fetch",
+        "-q",
+        "origin",
+        "refs/heads/#{name}"
+      ) != 0
       nil
     elsif ask(["rev-parse", "#{at}^"]) == head_of(text, ticket)
       ask(["log", "-1", "--format=%B", at])
@@ -1566,7 +1581,8 @@ def take_alone(ref, ticket)
   if not why.nil?
     say("#{trim(why)}; this land keeps its place and lands alone next")
     enqueue(ref, ask(%w[rev-parse origin/main]))
-    exec_capture(
+    net(
+      :push,
       "env",
       "BLUE_PREPUSH_OFF=1",
       "git",
@@ -1689,9 +1705,7 @@ def wait_run(id, tick?)
     tick()
   end
   ended = run_ended(
-    stdout_of(
-      exec_capture("gh", "run", "view", id, "--json", "status,conclusion")
-    )
+    stdout_of(net(:gh, "gh", "run", "view", id, "--json", "status,conclusion"))
   )
   if ended.nil?
     sleep(poll_seconds)
@@ -1712,7 +1726,8 @@ variable BLUE_LAND_STOP_ON_RED=off skips the job.
 def stop_on_red(id)
   jobs = json_parse(
     stdout_of(
-      exec_capture(
+      net(
+        :gh,
         "gh",
         "run",
         "view",
@@ -1730,7 +1745,7 @@ def stop_on_red(id)
     say(
       "#{red} is red, so this land cannot reach main; cancelling the rest of run #{id} so the next land starts"
     )
-    exec_check("gh", "run", "cancel", id)
+    net_check(:gh, "gh", "run", "cancel", id)
   elsif not suite_done?(jobs)
     sleep(poll_seconds)
     stop_on_red(id)
@@ -1787,7 +1802,8 @@ def absorb_release(sha, ref, left)
       "the rebased tree is not the tested tree with main's release files: #{join(extra, ", ")} #{drift}"
     )
   end
-  pushed = exec_check(
+  pushed = net_check(
+    :push,
     "git",
     "push",
     "--atomic",
@@ -1861,7 +1877,7 @@ fast-forwards. Off: the repository variable BLUE_LAND_TURN=off.
 """
 def hold_turn(id, ref, sha)
   if ask(%w[rev-parse --is-shallow-repository]) == "true"
-    exec_check("git", "fetch", "-q", "--unshallow", "origin")
+    net_check(:fetch, "git", "fetch", "-q", "--unshallow", "origin")
   end
   touched_at = fn()
     fetch_main
@@ -1939,6 +1955,162 @@ def lock_race?(text)
 end
 
 @doc """
+net_setting: The setting that holds the deadline, in seconds, of each kind of
+network step land takes: a push, a fetch or ls-remote, and a gh call.
+
+    net_setting(:push) #=> "BLUE_LAND_PUSH_SECONDS"
+    net_setting(:fetch) #=> "BLUE_LAND_FETCH_SECONDS"
+    net_setting(:gh) #=> "BLUE_LAND_GH_SECONDS"
+"""
+def net_setting(kind)
+  get(
+    {
+      push: "BLUE_LAND_PUSH_SECONDS",
+      fetch: "BLUE_LAND_FETCH_SECONDS",
+      gh: "BLUE_LAND_GH_SECONDS"
+    },
+    kind
+  )
+end
+
+@doc """
+net_seconds: The deadline of a network step: the count its setting gives, else
+the kind's default; nil for a value that is no count of seconds, which land
+refuses rather than wait without one.
+
+    net_seconds(:push, nil) #=> 300
+    net_seconds(:fetch, "") #=> 300
+    net_seconds(:gh, nil) #=> 120
+    net_seconds(:gh, "45") #=> 45
+    net_seconds(:push, "0") #=> nil
+    net_seconds(:push, "soon") #=> nil
+"""
+def net_seconds(kind, given)
+  if given.nil? or given == ""
+    get({push: 300, fetch: 300, gh: 120}, kind)
+  else
+    n = to_int(given)
+    if n.nil? or n < 1
+      nil
+    else
+      n
+    end
+  end
+end
+
+@doc """
+step_of: The step a network command is, as land names it: the command with the
+`env` settings it runs under left out.
+
+    step_of(["env", "BLUE_PREPUSH_OFF=1", "git", "push", "-q", "origin", ":refs/heads/land/x"]) #=> "git push -q origin :refs/heads/land/x"
+    step_of(["gh", "run", "view", "7"]) #=> "gh run view 7"
+"""
+def step_of(words)
+  if words != [] and (first(words) == "env" or contains?(first(words), "="))
+    step_of(retsu::rest(words))
+  else
+    join(words, " ")
+  end
+end
+
+@doc """
+deadline_text: What land says when a network step passes its deadline: the
+typed error `deadline:`, the step, the seconds and the setting that moves them.
+
+    deadline_text("git push --force origin a:refs/heads/land/x", :push, 300) #=> "deadline: git push --force origin a:refs/heads/land/x did not finish in 300 s (BLUE_LAND_PUSH_SECONDS); the remote did not answer, so land stops rather than wait"
+"""
+def deadline_text(step, kind, seconds)
+  "deadline: #{step} did not finish in #{to_s(seconds)} s (#{net_setting(kind)}); the remote did not answer, so land stops rather than wait"
+end
+
+def deadline_code()
+  75
+end
+
+@doc """
+net: Run one network step under its deadline and return its capture. A step
+still running at the deadline is ended with its process group, and land exits
+75 with deadline_text, so a dropped network never holds a land, or the queue
+behind it, silent.
+"""
+def net(kind, *words)
+  given = getenv(net_setting(kind))
+  seconds = net_seconds(kind, given)
+  if seconds.nil?
+    quit(
+      2,
+      "#{net_setting(kind)} is \"#{given}\"; it takes a count of seconds, as 300"
+    )
+  end
+  r = exec_within(seconds * 1000, *words)
+  if json_get(r, :timed_out) == true
+    write_stderr(stderr_of(r))
+    quit(deadline_code, deadline_text(step_of(words), kind, seconds))
+  end
+  r
+end
+
+def net_check(kind, *words)
+  r = net(kind, *words)
+  write_stdout(stdout_of(r))
+  write_stderr(stderr_of(r))
+  status_of(r)
+end
+
+@doc """
+gated_settings: The settings a land push runs under once its pre-push gates
+have run apart from it, so the push's deadline measures the network alone.
+
+    gated_settings([]) #=> ["BLUE_PREPUSH_OFF=1"]
+    gated_settings(["BLUE_PREPUSH_OFF=1"]) #=> ["BLUE_PREPUSH_OFF=1"]
+"""
+def gated_settings(settings)
+  if member?("BLUE_PREPUSH_OFF=1", settings)
+    settings
+  else
+    append(settings, ["BLUE_PREPUSH_OFF=1"])
+  end
+end
+
+@doc """
+pushed_line: The line git writes to a pre-push hook for a push of `sha` to
+`ref`, judged against main as a new ref is.
+
+    pushed_line("land/x", "ab12") #=> "refs/heads/land/x ab12 refs/heads/land/x 0000000000000000000000000000000000000000"
+"""
+def pushed_line(ref, sha)
+  "refs/heads/#{ref} #{sha} refs/heads/#{ref} 0000000000000000000000000000000000000000"
+end
+
+def gate_push(ref, sha, settings)
+  if not member?("BLUE_PREPUSH_OFF=1", settings) and
+      path_exists("gen/prepush.b") and
+      ask(%w[config core.hooksPath]) == ".githooks"
+    fed = path_join(temp_dir("land-gate"), "fed")
+    mkdir_p(path_dirname(fed))
+    write_file(fed, unlines([pushed_line(ref, sha)]))
+    gated = exec_check(
+      "env",
+      "BLUE_PREPUSH_FED=#{fed}",
+      self_exe,
+      "run",
+      "--quiet",
+      "gen/prepush.b",
+      "--",
+      "origin",
+      ask(%w[remote get-url origin])
+    )
+    if gated != 0
+      quit(
+        1,
+        "the pre-push gates are red for #{take_chars(sha, 10)}; their words are above"
+      )
+    end
+  end
+  gated_settings(settings)
+end
+
+@doc """
 fetch_main: Fetch origin's main. A ref lock another worktree holds is waited
 out, up to four tries one, two and four seconds apart; any other failure, or a
 lock that outlasts the tries, ends the land with git's words.
@@ -1948,7 +2120,7 @@ def fetch_main()
 end
 
 def fetch_tries(left, wait)
-  r = exec_capture("git", "fetch", "-q", "origin", "main")
+  r = net(:fetch, "git", "fetch", "-q", "origin", "main")
   if status_of(r) != 0
     words = trim(stderr_of(r))
     if lock_race?(words) and left > 1
@@ -2261,13 +2433,20 @@ def push_land(ref)
 end
 
 def push_at(ref, sha, settings)
-  if repush?(ask(["ls-remote", "origin", "refs/heads/#{ref}"]), sha)
+  gated = gate_push(ref, sha, settings)
+  if repush?(
+    trim(
+      stdout_of(net(:fetch, "git", "ls-remote", "origin", "refs/heads/#{ref}"))
+    ),
+    sha
+  )
     say(
       "#{ref} already names #{take_chars(sha, 10)}; deleting it first, so the push starts a new run"
     )
-    if exec_check(
+    if net_check(
+        :push,
         "env",
-        *append(settings, ["git", "push", "-q", "origin", ":refs/heads/#{ref}"])
+        *append(gated, ["git", "push", "-q", "origin", ":refs/heads/#{ref}"])
       ) != 0
       quit(
         1,
@@ -2275,10 +2454,11 @@ def push_at(ref, sha, settings)
       )
     end
   end
-  if exec_check(
+  if net_check(
+      :push,
       "env",
       *append(
-        settings,
+        gated,
         ["git", "push", "--force", "origin", "#{sha}:refs/heads/#{ref}"]
       )
     ) != 0
@@ -2315,7 +2495,8 @@ end
 def jobs_of(found)
   json_parse(
     stdout_of(
-      exec_capture(
+      net(
+        :gh,
         "gh",
         "run",
         "view",
@@ -2370,7 +2551,8 @@ def batch_members(ref, ticket)
     batch_of(filter((t) -> alive?(t, beats_of(text), since), queue), ref, mine)
   end
   if behind != []
-    exec_capture(
+    net(
+      :fetch,
       "git",
       "fetch",
       "-q",
@@ -2526,7 +2708,7 @@ def try_batch(a, b, left, minutes)
       say(
         "#{json_get(older, :headBranch)} took the same turn first; stopping run #{found} and trying the batch again behind it"
       )
-      exec_check("gh", "run", "cancel", found)
+      net_check(:gh, "gh", "run", "cancel", found)
       try_batch(a, b, left, minutes)
     else
       say("following run #{found} of #{names}")
@@ -2589,7 +2771,8 @@ def mark_beside(m, name, message)
     1
   else
     status_of(
-      exec_capture(
+      net(
+        :push,
         "env",
         "BLUE_PREPUSH_OFF=1",
         "git",
@@ -2743,7 +2926,7 @@ def follow(given, left, minutes)
     say(
       "#{json_get(older, :headBranch)} took the same turn first; stopping this run and queueing behind it"
     )
-    exec_check("gh", "run", "cancel", found)
+    net_check(:gh, "gh", "run", "cancel", found)
     follow(a, left, minutes)
   else
     say("following run #{found}")
@@ -4815,4 +4998,25 @@ test "land.yml cancels a running land only when BLUE_LAND_CANCEL_IN_PROGRESS is 
     land,
     "cancel-in-progress: ${{ vars.BLUE_LAND_CANCEL_IN_PROGRESS == 'on' }}"
   )
+end
+
+test "a push the remote never answers ends at its deadline with a typed error naming the step, as the push to a land ref that hung for 1 h 27 min on 2026-11-15 did not"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    as_tester(
+      work,
+      %w[config remote.origin.pushurl ssh://never.invalid/blue.git]
+    )
+    as_tester(work, ["config", "core.sshCommand", "sleep 90;:"])
+    t0 = now_ms
+    r = land_with(["BLUE_LAND_PUSH_SECONDS=3"], root, [])
+    took = now_ms - t0
+    assert took < 60000
+    assert status_of(r) == 75
+    assert contains?(stderr_of(r), "deadline: git push")
+    assert contains?(stderr_of(r), "BLUE_LAND_PUSH_SECONDS")
+    rm_rf(root)
+  end
 end

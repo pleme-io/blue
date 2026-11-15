@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the relations between obligations, discovered from evidence and decided as registry rows that extend the check stage (design and first run, 2026-11-14)
+---
+
 # The obligation graph
 
 Blue's obligation engine (`crates/blue-lang-check/src/obligations.rs`, the

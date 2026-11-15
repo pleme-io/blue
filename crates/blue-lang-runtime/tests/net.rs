@@ -443,9 +443,9 @@ fn tcp_connect_ms_refuses_a_bad_port_or_timeout() {
 }
 
 #[test]
-fn https_and_unreachable_hosts_raise() {
+fn unreachable_hosts_raise() {
     let err = run_err("http_request(\"GET\", \"https://example.invalid/\", nil, nil, 500)");
-    assert!(err.contains("https is not supported"), "{err}");
+    assert!(err.contains("http_request") || err.contains("example.invalid"), "{err}");
     let port = free_port();
     let err = run_err(&format!(
         "http_request(\"GET\", \"http://127.0.0.1:{port}/\", nil, nil, 500)"

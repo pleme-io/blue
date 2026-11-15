@@ -1,8 +1,9 @@
 //! HTTP/1.1 over a `TcpStream`, one request per connection.
 //!
-//! Plain `http://` only. The workspace carries no TLS implementation, and
-//! adding one is a dependency decision this module does not make; an
-//! `https://` URL is refused by name rather than sent in the clear.
+//! `http://` in the clear and `https://` over TLS (rustls with the Mozilla
+//! root set, so server certificates are verified — never a `dangerous`
+//! verifier). The handshake wraps the same socket the plain path reads, so
+//! every timeout below still comes from the TCP stream.
 //!
 //! The request closes its connection (`Connection: close`), so a response
 //! ends at its `Content-Length`, at the last chunk of a chunked body, or at
@@ -11,6 +12,8 @@
 
 use std::fmt;
 use std::io::{ErrorKind, Read, Write};
+use std::net::TcpStream;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::{dial, split_host_port};
@@ -24,6 +27,7 @@ pub enum HttpError {
     Io(String),
     Timeout(String),
     Response(String),
+    Tls(String),
 }
 
 impl fmt::Display for HttpError {
@@ -34,6 +38,7 @@ impl fmt::Display for HttpError {
             HttpError::Io(why) => write!(f, "{why}"),
             HttpError::Timeout(why) => write!(f, "timed out: {why}"),
             HttpError::Response(why) => write!(f, "malformed response: {why}"),
+            HttpError::Tls(why) => write!(f, "tls: {why}"),
         }
     }
 }
@@ -45,19 +50,16 @@ pub struct Target {
     pub host: String,
     pub port: u16,
     pub path: String,
+    pub tls: bool,
 }
 
 pub fn parse_url(url: &str) -> Result<Target, HttpError> {
-    let rest = match url.split_once("://") {
-        Some(("http", rest)) => rest,
-        Some(("https", _)) => {
-            return Err(HttpError::Url(format!(
-                "{url}: https is not supported; blue's HTTP client speaks plain http only"
-            )));
-        }
+    let (tls, rest) = match url.split_once("://") {
+        Some(("http", rest)) => (false, rest),
+        Some(("https", rest)) => (true, rest),
         Some((scheme, _)) => {
             return Err(HttpError::Url(format!(
-                "{url}: scheme {scheme:?} is not http"
+                "{url}: scheme {scheme:?} is not http or https"
             )));
         }
         None => return Err(HttpError::Url(format!("{url}: no scheme (http://…)"))),
@@ -78,9 +80,15 @@ pub fn parse_url(url: &str) -> Result<Target, HttpError> {
             "{url}: the path has whitespace or control characters; percent-encode them"
         )));
     }
-    let (host, port) =
-        split_host_port(authority, 80).map_err(|why| HttpError::Url(format!("{url}: {why}")))?;
-    Ok(Target { host, port, path })
+    let default_port = if tls { 443 } else { 80 };
+    let (host, port) = split_host_port(authority, default_port)
+        .map_err(|why| HttpError::Url(format!("{url}: {why}")))?;
+    Ok(Target {
+        host,
+        port,
+        path,
+        tls,
+    })
 }
 
 fn is_token(s: &str) -> bool {
@@ -271,6 +279,70 @@ fn dechunk(mut rest: &[u8]) -> Result<Option<Vec<u8>>, HttpError> {
     }
 }
 
+fn tls_config() -> Arc<rustls::ClientConfig> {
+    static CONFIG: std::sync::OnceLock<Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            let roots = rustls::RootCertStore {
+                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+            };
+            Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth(),
+            )
+        })
+        .clone()
+}
+
+fn server_name(host: &str) -> Result<rustls::pki_types::ServerName<'static>, HttpError> {
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        Ok(rustls::pki_types::ServerName::IpAddress(ip.into()))
+    } else {
+        rustls::pki_types::DnsName::try_from(host.to_string())
+            .map(rustls::pki_types::ServerName::DnsName)
+            .map_err(|e| HttpError::Tls(format!("{host} is not a name TLS can verify: {e}")))
+    }
+}
+
+enum Wire {
+    Plain(TcpStream),
+    Tls(rustls::StreamOwned<rustls::ClientConnection, TcpStream>),
+}
+
+impl Wire {
+    fn sock(&self) -> &TcpStream {
+        match self {
+            Wire::Plain(s) => s,
+            Wire::Tls(s) => &s.sock,
+        }
+    }
+}
+
+impl Write for Wire {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Wire::Plain(s) => s.write(buf),
+            Wire::Tls(s) => s.write(buf),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Wire::Plain(s) => s.flush(),
+            Wire::Tls(s) => s.flush(),
+        }
+    }
+}
+
+impl Read for Wire {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Wire::Plain(s) => s.read(buf),
+            Wire::Tls(s) => s.read(buf),
+        }
+    }
+}
+
 pub fn request(
     method: &str,
     url: &str,
@@ -281,7 +353,24 @@ pub fn request(
     let target = parse_url(url)?;
     let wire = encode_request(method, &target, headers, body)?;
     let deadline = Instant::now() + timeout;
-    let mut stream = dial(&target.host, target.port, timeout).map_err(HttpError::Io)?;
+    let stream = dial(&target.host, target.port, timeout).map_err(HttpError::Io)?;
+    let mut wire_socket = if target.tls {
+        let conn = rustls::ClientConnection::new(tls_config(), server_name(&target.host)?)
+            .map_err(|e| HttpError::Tls(format!("{url}: {e}")))?;
+        Wire::Tls(rustls::StreamOwned::new(conn, stream))
+    } else {
+        Wire::Plain(stream)
+    };
+    exchange(&mut wire_socket, method, url, &wire, deadline)
+}
+
+fn exchange(
+    stream: &mut Wire,
+    method: &str,
+    url: &str,
+    wire: &[u8],
+    deadline: Instant,
+) -> Result<Response, HttpError> {
     let left = |what: &str| {
         let d = deadline.saturating_duration_since(Instant::now());
         if d.is_zero() {
@@ -291,9 +380,10 @@ pub fn request(
         }
     };
     stream
+        .sock()
         .set_write_timeout(Some(left("sending")?))
         .map_err(|e| HttpError::Io(e.to_string()))?;
-    stream.write_all(&wire).map_err(|e| match e.kind() {
+    stream.write_all(wire).map_err(|e| match e.kind() {
         ErrorKind::WouldBlock | ErrorKind::TimedOut => {
             HttpError::Timeout(format!("{method} {url}: sending"))
         }
@@ -304,6 +394,7 @@ pub fn request(
     let mut chunk = [0u8; 16 * 1024];
     loop {
         stream
+            .sock()
             .set_read_timeout(Some(left("waiting for the response")?))
             .map_err(|e| HttpError::Io(e.to_string()))?;
         let eof = match stream.read(&mut chunk) {
@@ -314,8 +405,7 @@ pub fn request(
             }
             Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
                 return Err(HttpError::Timeout(format!(
-                    "{method} {url}: no complete response within {} ms",
-                    timeout.as_millis()
+                    "{method} {url}: no complete response within the timeout"
                 )));
             }
             Err(e) if e.kind() == ErrorKind::Interrupted => false,
@@ -339,11 +429,12 @@ mod tests {
             host: "127.0.0.1".into(),
             port: 8123,
             path: path.into(),
+            tls: false,
         }
     }
 
     #[test]
-    fn urls_parse_and_https_is_refused() {
+    fn urls_parse_and_https_targets_tls() {
         assert_eq!(
             parse_url("http://127.0.0.1:8123/api/states?x=1#frag").unwrap(),
             target("/api/states?x=1")
@@ -351,11 +442,13 @@ mod tests {
         assert_eq!(parse_url("http://h").unwrap().path, "/");
         assert_eq!(parse_url("http://h?q").unwrap().path, "/?q");
         assert_eq!(parse_url("http://h").unwrap().port, 80);
-        let https = parse_url("https://h/").unwrap_err().to_string();
-        assert!(https.contains("https is not supported"), "{https}");
+        let https = parse_url("https://h/").unwrap();
+        assert!(https.tls && https.port == 443, "{https:?}");
+        assert_eq!(parse_url("https://h:8443/x").unwrap().port, 8443);
         assert!(parse_url("h/x").is_err());
         assert!(parse_url("http://u:p@h/").is_err());
         assert!(parse_url("http://h/a b").is_err());
+        assert!(parse_url("ftp://h/").is_err());
     }
 
     #[test]

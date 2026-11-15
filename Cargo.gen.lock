@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "72c6dc6f092ec15fc436ab80397e8b0cffb62d0393272a1650c0ad57c0f0e439",
+  "cargo_lock_sha256": "683dbf5a8777cd71fe7c0d959666ce7af86722be48b8805a0dfd4effcb9e2fe0",
   "manifest_sha256": {
-    "Cargo.toml": "7acb9860546653343477a384bc3ccae46c68b4a1c200babf5b2fc3c8b31f8196",
+    "Cargo.toml": "95b1e18d1509de4f8b3a8fe24b4555a71663a7ee5a353439d955b22072d4c98e",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -20,7 +20,7 @@
     "crates/blue-lang-mondou/Cargo.toml": "7fa130dd926e7a2b77bd815089e3a115a2ce6ff9edb041afb4da5a323c6c96aa",
     "crates/blue-lang-pkg/Cargo.toml": "4748e901a3daea02d320297a956284dcb4aeee913c1c3df074d0722fda893d3c",
     "crates/blue-lang-proc/Cargo.toml": "84d0fc0f2223461e180e38eb73bfd8a1e3e474b12d0eb8d9814198520ae9c48b",
-    "crates/blue-lang-runtime/Cargo.toml": "c0e89593b32c2ac7253438c56007993e3207606444f552d39a02f500e0521892",
+    "crates/blue-lang-runtime/Cargo.toml": "49f19eb1a1ece7049502e8000a56f87c779e05a026fc7e246f6f5017cef9b4ab",
     "crates/blue-lang-senses/Cargo.toml": "b8a88a1d21769a74b0210bd6ad3aa3e91cbdb59f7f7f531c569bb20a040eb7f0",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
@@ -2150,6 +2150,21 @@
             "tree": "target"
           },
           {
+            "name": "rustls",
+            "package_key": "rustls-0.23.46",
+            "kind": "normal",
+            "features": [
+              "logging",
+              "ring",
+              "std",
+              "tls12"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "serde_json",
             "package_key": "serde_json-1.0.151",
             "kind": "normal",
@@ -2218,6 +2233,16 @@
           {
             "name": "thiserror",
             "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "webpki_roots",
+            "package_key": "webpki-roots-0.26.11",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8676,6 +8701,16 @@
       "rustls-0.23.46": {
         "runtime_dependencies": [
           {
+            "name": "log",
+            "package_key": "log-0.4.34",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "once_cell",
             "package_key": "once_cell-1.21.4",
             "kind": "normal",
@@ -8745,6 +8780,8 @@
         ],
         "build_dependencies": [],
         "features": [
+          "log",
+          "logging",
           "ring",
           "std",
           "tls12"
@@ -12088,6 +12125,22 @@
           {
             "name": "try_lock",
             "package_key": "try-lock-0.2.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "webpki-roots-0.26.11": {
+        "runtime_dependencies": [
+          {
+            "name": "parent",
+            "package_key": "webpki-roots-1.0.11",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -20123,6 +20176,9 @@
     },
     "want-0.3.2": {
       "edition": "2018"
+    },
+    "webpki-roots-0.26.11": {
+      "edition": "2021"
     },
     "webpki-roots-1.0.11": {
       "edition": "2021"

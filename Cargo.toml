@@ -46,6 +46,19 @@ tatara-lisp-eval = "0.4.16"
 rnix = "0.14"
 quick-xml = { version = "0.42", default-features = false }
 rowan = "0.16"
+# TLS for the net intrinsics (`http_request` over https, and the clients that
+# need a transport behind it). `rustls` is pure Rust; its default crypto
+# provider, `ring`, carries its own audited assembly/C core — an irreducible
+# world-fact typed here rather than dissolved (CONTAIN THE C: one audited seam
+# behind a Rust API, never a `-sys` binding). Features are pinned, not
+# defaulted, so a default that changes the provider cannot arrive on a bump.
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "logging",
+  "std",
+  "tls12",
+] }
+webpki-roots = "0.26"
 
 # The evaluator is optimized even in a debug or test build. Every in-process
 # door — the conformance suite's walker, vm and wasm columns, `cargo test` of a

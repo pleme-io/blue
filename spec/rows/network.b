@@ -1,9 +1,10 @@
 # The network: NATS, HTTP, PostgreSQL and RESP over TCP. Each row is host(). A row runs with no
 # peer, so it states what blue promises without one: a refused connection
-# raises naming the primitive, a handle of the wrong kind is refused, and https
-# is refused rather than sent in the clear. The exchanges themselves run
-# against a real nats-server and a TCP listener in
-# crates/blue-lang-runtime/tests/net.rs.
+# raises naming the primitive, a handle of the wrong kind is refused, and an
+# https URL with no server to answer names the primitive too. The exchanges
+# themselves run against a real nats-server and a TCP listener in
+# crates/blue-lang-runtime/tests/net.rs; live https (rustls, Mozilla roots)
+# is proven by the tls-smoke program and the televisao freshness vigy.
 
 row(
   "network.nats_connect.refused",
@@ -63,9 +64,17 @@ row(
 )
 
 row(
-  "network.http_request.https_refused",
-  "http_request(\"GET\", \"https://127.0.0.1/\", nil, nil, 500)",
-  fails(:eval, "https is not supported"),
+  "network.http_request.https_unreachable_refused",
+  "http_request(\"GET\", \"https://127.0.0.1:1/\", nil, nil, 500)",
+  fails(:eval, "http_request"),
+  covers("builtin:http_request"),
+  host()
+)
+
+row(
+  "network.http_request.https_bad_name_refused",
+  "http_request(\"GET\", \"https://not a name/\", nil, nil, 500)",
+  fails(:eval, "http_request"),
   covers("builtin:http_request"),
   host()
 )

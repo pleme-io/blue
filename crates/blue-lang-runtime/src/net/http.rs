@@ -12,8 +12,6 @@
 
 use std::fmt;
 use std::io::{ErrorKind, Read, Write};
-use std::net::TcpStream;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::{dial, split_host_port};
@@ -279,70 +277,6 @@ fn dechunk(mut rest: &[u8]) -> Result<Option<Vec<u8>>, HttpError> {
     }
 }
 
-fn tls_config() -> Arc<rustls::ClientConfig> {
-    static CONFIG: std::sync::OnceLock<Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();
-    CONFIG
-        .get_or_init(|| {
-            let roots = rustls::RootCertStore {
-                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-            };
-            Arc::new(
-                rustls::ClientConfig::builder()
-                    .with_root_certificates(roots)
-                    .with_no_client_auth(),
-            )
-        })
-        .clone()
-}
-
-fn server_name(host: &str) -> Result<rustls::pki_types::ServerName<'static>, HttpError> {
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        Ok(rustls::pki_types::ServerName::IpAddress(ip.into()))
-    } else {
-        rustls::pki_types::DnsName::try_from(host.to_string())
-            .map(rustls::pki_types::ServerName::DnsName)
-            .map_err(|e| HttpError::Tls(format!("{host} is not a name TLS can verify: {e}")))
-    }
-}
-
-enum Wire {
-    Plain(TcpStream),
-    Tls(rustls::StreamOwned<rustls::ClientConnection, TcpStream>),
-}
-
-impl Wire {
-    fn sock(&self) -> &TcpStream {
-        match self {
-            Wire::Plain(s) => s,
-            Wire::Tls(s) => &s.sock,
-        }
-    }
-}
-
-impl Write for Wire {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        match self {
-            Wire::Plain(s) => s.write(buf),
-            Wire::Tls(s) => s.write(buf),
-        }
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        match self {
-            Wire::Plain(s) => s.flush(),
-            Wire::Tls(s) => s.flush(),
-        }
-    }
-}
-
-impl Read for Wire {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        match self {
-            Wire::Plain(s) => s.read(buf),
-            Wire::Tls(s) => s.read(buf),
-        }
-    }
-}
-
 pub fn request(
     method: &str,
     url: &str,
@@ -355,17 +289,16 @@ pub fn request(
     let deadline = Instant::now() + timeout;
     let stream = dial(&target.host, target.port, timeout).map_err(HttpError::Io)?;
     let mut wire_socket = if target.tls {
-        let conn = rustls::ClientConnection::new(tls_config(), server_name(&target.host)?)
-            .map_err(|e| HttpError::Tls(format!("{url}: {e}")))?;
-        Wire::Tls(rustls::StreamOwned::new(conn, stream))
+        super::tls::Conn::tls(stream, &target.host)
+            .map_err(|why| HttpError::Tls(format!("{url}: {why}")))?
     } else {
-        Wire::Plain(stream)
+        super::tls::Conn::plain(stream)
     };
     exchange(&mut wire_socket, method, url, &wire, deadline)
 }
 
 fn exchange(
-    stream: &mut Wire,
+    stream: &mut super::tls::Conn,
     method: &str,
     url: &str,
     wire: &[u8],

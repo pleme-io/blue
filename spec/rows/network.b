@@ -226,9 +226,9 @@ row(
 )
 
 row(
-  "network.resp_connect.tls_refused",
-  "resp_connect(\"127.0.0.1\", 6379, nil, true)",
-  fails(:eval, "no TLS transport"),
+  "network.resp_connect.tls_unreachable",
+  "resp_connect(\"127.0.0.1\", 1, nil, true)",
+  fails(:eval, "resp_connect"),
   covers("builtin:resp_connect"),
   host()
 )

@@ -1,6 +1,5 @@
 use std::fmt;
 use std::io::{ErrorKind, Read, Write};
-use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
 use super::dial;
@@ -52,13 +51,7 @@ pub struct Target {
 }
 
 pub fn admit(target: &Target) -> Result<(), RespError> {
-    if target.tls {
-        return Err(RespError::Refused(format!(
-            "{}:{} asks for TLS, and blue's runtime has no TLS transport yet (docs/HTTP2.md P4)",
-            target.host, target.port
-        )));
-    }
-    if target.host != "127.0.0.1" {
+    if !target.tls && target.host != "127.0.0.1" {
         return Err(RespError::Refused(format!(
             "TLS off is allowed only for 127.0.0.1, not {}",
             target.host
@@ -194,7 +187,7 @@ impl Decoder {
 }
 
 pub struct Client {
-    stream: TcpStream,
+    stream: super::tls::Conn,
     decoder: Decoder,
     closed: bool,
 }
@@ -202,7 +195,12 @@ pub struct Client {
 impl Client {
     pub fn connect(target: &Target, timeout: Duration) -> Result<Self, RespError> {
         admit(target)?;
-        let stream = dial(&target.host, target.port, timeout).map_err(RespError::Io)?;
+        let sock = dial(&target.host, target.port, timeout).map_err(RespError::Io)?;
+        let stream = if target.tls {
+            super::tls::Conn::tls(sock, &target.host).map_err(RespError::Io)?
+        } else {
+            super::tls::Conn::plain(sock)
+        };
         let mut client = Client {
             stream,
             decoder: Decoder::new(),
@@ -240,6 +238,7 @@ impl Client {
                 return Ok(None);
             }
             self.stream
+                .sock()
                 .set_read_timeout(Some(left.max(Duration::from_millis(1))))
                 .map_err(|e| RespError::Io(e.to_string()))?;
             let mut chunk = [0u8; 16 * 1024];
@@ -303,7 +302,10 @@ impl Client {
 
     pub fn close(&mut self) {
         if !self.closed {
-            let _ = self.stream.shutdown(std::net::Shutdown::Both);
+            let _ = self
+                .stream
+                .sock()
+                .shutdown(std::net::Shutdown::Both);
             self.closed = true;
         }
     }
@@ -398,15 +400,14 @@ mod tests {
     }
 
     #[test]
-    fn tls_is_on_by_default_and_off_only_on_loopback() {
+    fn tls_is_admitted_and_off_only_on_loopback() {
         let t = |host: &str, tls| Target {
             host: host.into(),
             port: 6379,
             password: None,
             tls,
         };
-        let on = admit(&t("cache", true)).unwrap_err().to_string();
-        assert!(on.contains("no TLS transport"), "{on}");
+        assert!(admit(&t("cache", true)).is_ok());
         let off = admit(&t("10.0.0.5", false)).unwrap_err().to_string();
         assert!(off.contains("only for 127.0.0.1"), "{off}");
         assert!(admit(&t("localhost", false)).is_err());

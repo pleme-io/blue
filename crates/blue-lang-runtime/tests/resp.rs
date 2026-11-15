@@ -59,10 +59,10 @@ fn get_set_ttl_and_del_round_trip_with_a_password_file() {
 }
 
 #[test]
-fn tls_on_is_refused_by_name_and_off_only_on_loopback() {
+fn tls_on_is_admitted_and_off_only_on_loopback() {
     let e =
         err("use(\"chozou/kiibariu\")\nchozou::kiibariu::connect({host: \"127.0.0.1\", port: 1})");
-    assert!(e.contains("no TLS transport"), "{e}");
+    assert!(e.contains("resp_connect") || e.contains("refused"), "{e}");
     let e = err("resp_connect(\"10.0.0.1\", 6379, nil, false)");
     assert!(e.contains("only for 127.0.0.1"), "{e}");
 }

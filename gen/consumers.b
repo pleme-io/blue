@@ -443,6 +443,25 @@ def recorded_name(line)
 end
 
 @doc """
+unorphaned: The recorded rows left once every row nothing measures any more is
+dropped, as `sweep --record` writes the private registry. A row is an orphan
+only when every consumer was reached, and dropping one hides no debt, so it is
+dropped whether or not another consumer is red.
+
+    unorphaned(["refused: a:a.b:B0001 1", "refused: z:z.b:B0085 1"], ["z:z.b:B0085"]) #=> ["refused: a:a.b:B0001 1"]
+    unorphaned(["refused: a:a.b:B0001 1"], []) #=> ["refused: a:a.b:B0001 1"]
+"""
+def unorphaned(rows, gone)
+  reject(
+    fn(l)
+      r = hadome::parse_line(l)
+      not r.nil? and member?(r[:key], gone)
+    end,
+    rows
+  )
+end
+
+@doc """
 leaked_rows: Every recorded row in this public file whose consumer is not a public
 row of the registry.
 
@@ -601,7 +620,9 @@ def report_lines(judged, cs, refused)
       judged[:shrunk]
     ),
     map(
-      (k) -> "⚠️ #{k} is recorded and no longer measured: drop its row",
+      fn(k)
+        "⚠️ #{k} is recorded and no longer measured: drop its row; sweep --record drops a private one"
+      end,
       judged[:orphans]
     )
   )
@@ -830,6 +851,20 @@ def sweep(blue, root, clone, record)
     pol[:refused] != [],
     record
   )
+  if record and not priv.nil?
+    kept = unorphaned(priv[:recorded], judged[:orphans])
+    if kept != priv[:recorded]
+      write_file(private_path, render_private(priv[:consumers], kept))
+      write_stderr(
+        unlines(
+          map(
+            (l) -> "➖ dropped #{l}: nothing measures it",
+            reject((l) -> member?(l, kept), priv[:recorded])
+          )
+        )
+      )
+    end
+  end
   if told[:record]
     codes = known_codes(blue)
     write_file(

@@ -194,11 +194,7 @@ def pair_edges(source, c, s)
           else
             []
           end
-          lift = if na * nb == 0
-            0
-          else
-            floor(hits * n * 100 / (na * nb))
-          end
+          lift = floor(hits * n * 100 / (na * nb))
           paired = if sorts_before(a, b) and
               hits >= s[:min_support] and
               lift >= s[:min_lift]
@@ -814,6 +810,13 @@ test "the registry hands a case to another rule, and a mention of itself or a no
   assert first(es)[:source] == "registry"
 end
 
+test "a line that is not a refused row is no site"
+  assert consumer_owed(
+    unlines(["def recorded()", "refused: c:a.b:B0083 1"]),
+    ["B0083"]
+  ) == [["B0083"]]
+end
+
 test "consumer rows become per-file code lists with no consumer name kept"
   text = join_lines(
     [
@@ -999,4 +1002,65 @@ test "a markdown cell escapes a pipe, and the report names every section"
   assert contains?(r, "| B1 | B3 | candidate | observed | census: 6 of 6 |")
   assert contains?(r, "exclusive B1 B2: live in the registry")
   assert contains?(r, "No edge of this kind met the settings.")
+end
+
+test "an empty report says each section is empty, and a full one names every state and why"
+  empty = render(
+    {sources: [], rows: [], candidates: [], contradicted: [], settings: {}}
+  )
+  assert contains?(empty, "No candidate obligation met the settings.")
+  assert contains?(
+    empty,
+    "Every live row of the registry is still shown by the corpus."
+  )
+  rows = decide(
+    [
+      edge("implies", "B1", "B3", "census", "a"),
+      edge("trades", "B1", "B2", "history", "b")
+    ],
+    kinds_on,
+    [
+      {
+        "kind" => "trades",
+        "a" => "B1",
+        "b" => "B2",
+        "state" => "rejected",
+        "why" => "noise"
+      }
+    ],
+    seen_all,
+    loose
+  )
+  full = render(
+    {
+      sources: [],
+      rows:,
+      candidates: [
+        {
+          kind: "recurring-waiver",
+          code: "B1",
+          shown: "s",
+          state: "candidate",
+          why: nil
+        },
+        {
+          kind: "unregistered-debt",
+          code: "B2",
+          shown: "t",
+          state: "rejected",
+          why: "bulk"
+        }
+      ],
+      contradicted: ["exclusive B1 B2"],
+      settings: {}
+    }
+  )
+  assert contains?(full, "| B1 | B2 | rejected: noise |")
+  assert contains?(full, "| B1 | B3 | candidate |")
+  assert contains?(full, "| recurring-waiver | B1 | candidate | s |")
+  assert contains?(full, "| unregistered-debt | B2 | rejected: bulk | t |")
+  assert contains?(
+    full,
+    "- exclusive B1 B2: live in the registry, no longer shown"
+  )
 end

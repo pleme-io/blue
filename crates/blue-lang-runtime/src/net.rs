@@ -47,6 +47,7 @@ pub mod pg;
 pub mod resp;
 pub mod serve;
 pub mod stream;
+pub mod tls;
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Mutex};

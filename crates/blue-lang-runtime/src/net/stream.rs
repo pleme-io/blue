@@ -15,8 +15,90 @@ pub struct Listener {
     closed: AtomicBool,
 }
 
+/// The wire a [`Conn`] reads: a TCP stream, or a serial port opened by
+/// `serial_open` (a USB CDC-ACM modem in raw mode). One Conn type, so
+/// every word — `tcp_read`, `tcp_write`, `tcp_close`, `net_wait` — drives
+/// a serial port unchanged.
+pub enum Stream {
+    Tcp(TcpStream),
+    #[cfg(unix)]
+    Serial(std::fs::File),
+}
+
+impl std::io::Read for &Stream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match **self {
+            Stream::Tcp(ref s) => {
+                let mut shared = s;
+                std::io::Read::read(&mut shared, buf)
+            }
+            #[cfg(unix)]
+            Stream::Serial(ref f) => {
+                let mut shared = f;
+                std::io::Read::read(&mut shared, buf)
+            }
+        }
+    }
+}
+
+impl std::io::Write for &Stream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match **self {
+            Stream::Tcp(ref s) => {
+                let mut shared = s;
+                std::io::Write::write(&mut shared, buf)
+            }
+            #[cfg(unix)]
+            Stream::Serial(ref f) => {
+                let mut shared = f;
+                std::io::Write::write(&mut shared, buf)
+            }
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match **self {
+            Stream::Tcp(ref s) => {
+                let mut shared = s;
+                std::io::Write::flush(&mut shared)
+            }
+            #[cfg(unix)]
+            Stream::Serial(ref f) => {
+                let mut shared = f;
+                std::io::Write::flush(&mut shared)
+            }
+        }
+    }
+}
+
+impl std::io::Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Stream::Tcp(s) => s.read(buf),
+            #[cfg(unix)]
+            Stream::Serial(f) => f.read(buf),
+        }
+    }
+}
+
+impl std::io::Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Stream::Tcp(s) => s.write(buf),
+            #[cfg(unix)]
+            Stream::Serial(f) => f.write(buf),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Stream::Tcp(s) => s.flush(),
+            #[cfg(unix)]
+            Stream::Serial(f) => f.flush(),
+        }
+    }
+}
+
 pub struct Conn {
-    socket: TcpStream,
+    socket: Stream,
     closed: AtomicBool,
 }
 
@@ -30,7 +112,11 @@ impl std::os::fd::AsFd for Listener {
 #[cfg(unix)]
 impl std::os::fd::AsFd for Conn {
     fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
-        self.socket.as_fd()
+        match &self.socket {
+            Stream::Tcp(s) => s.as_fd(),
+            #[cfg(unix)]
+            Stream::Serial(f) => f.as_fd(),
+        }
     }
 }
 
@@ -96,7 +182,48 @@ fn open(socket: TcpStream, name: &'static str, span: Span) -> Result<Value, Eval
         .map_err(|e| fail(name, e, span))?;
     let _ = socket.set_nodelay(true);
     Ok(Value::Foreign(Arc::new(Conn {
-        socket,
+        socket: Stream::Tcp(socket),
+        closed: AtomicBool::new(false),
+    })))
+}
+
+/// Open a serial port in raw mode — `serial_open(path)`. On a USB
+/// CDC-ACM device (/dev/cu.usbmodem*, the shape an MTK preloader and
+/// BootROM enumerate as) the baud rate is carried by the USB side, so
+/// the port is opened raw with no line discipline and no baud change.
+/// The handle is a Conn: the tcp_* words and net_wait drive it.
+#[cfg(unix)]
+fn serial_open(path: &str, name: &'static str, span: Span) -> Result<Value, EvalError> {
+    use std::fs::OpenOptions;
+    use std::os::fd::AsRawFd;
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| fail(name, format!("{path}: {e}"), span))?;
+    let fd = file.as_raw_fd();
+    // Raw mode: no echo, no line buffering, no signals, no CR/LF cooking,
+    // no flow control — the protocol on the wire is bytes and waits for
+    // no one. CLOCAL keeps a missing carrier from blocking the open read.
+    unsafe {
+        let mut tio: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(fd, &mut tio) != 0 {
+            return Err(fail(name, format!("{path}: not a serial device"), span));
+        }
+        libc::cfmakeraw(&mut tio);
+        // macOS termios has no B921600 constant; cfsetspeed takes the raw
+        // rate and the CDC driver carries it to SET_LINE_CODING.
+        libc::cfsetspeed(&mut tio, 921_600);
+        tio.c_cflag |= libc::CLOCAL | libc::CREAD;
+        tio.c_cc[libc::VMIN] = 0;
+        tio.c_cc[libc::VTIME] = 0;
+        if libc::tcsetattr(fd, libc::TCSANOW, &tio) != 0 {
+            return Err(fail(name, format!("{path}: tcsetattr failed"), span));
+        }
+    }
+    let _ = fd;
+    Ok(Value::Foreign(Arc::new(Conn {
+        socket: Stream::Serial(file),
         closed: AtomicBool::new(false),
     })))
 }
@@ -154,6 +281,26 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
                 socket,
                 closed: AtomicBool::new(false),
             })))
+        },
+    );
+    interp.register_fn(
+        "serial_open",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            #[cfg(unix)]
+            {
+                let path = arg_str(&args[0], "serial_open", span)?;
+                serial_open(path.as_ref(), "serial_open", span)
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = &args;
+                Err(fail(
+                    "serial_open",
+                    "this platform has no serial port surface",
+                    span,
+                ))
+            }
         },
     );
     interp.register_fn(
@@ -250,7 +397,9 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
         |args: &[Value], _h: &mut H, span| {
             if let Ok(c) = conn_of(&args[0], "tcp_close", span) {
                 if !c.closed.swap(true, Ordering::Relaxed) {
-                    let _ = c.socket.shutdown(Shutdown::Both);
+                    if let Stream::Tcp(s) = &c.socket {
+                        let _ = s.shutdown(Shutdown::Both);
+                    }
                 }
                 return Ok(Value::Nil);
             }

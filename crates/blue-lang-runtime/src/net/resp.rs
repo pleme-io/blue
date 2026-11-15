@@ -302,10 +302,7 @@ impl Client {
 
     pub fn close(&mut self) {
         if !self.closed {
-            let _ = self
-                .stream
-                .sock()
-                .shutdown(std::net::Shutdown::Both);
+            let _ = self.stream.sock().shutdown(std::net::Shutdown::Both);
             self.closed = true;
         }
     }

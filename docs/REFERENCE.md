@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-402 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+403 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -480,6 +480,7 @@ Higher binding power binds tighter.
 | `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
 | `resp_next` | `resp_next(conn, timeout_ms)` | 2 | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
 | `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | Send every command in one write and return their replies in order. Raises naming the first server error. |
+| `serial_open` | `serial_open(path)` | 1 | A serial port (a USB CDC-ACM device, /dev/cu.*) opened raw: cfmakeraw, CLOCAL and CREAD, no line discipline, 921600 carried to the device. The handle is a connection: the tcp words and net_wait drive it unchanged. |
 | `tcp_accept` | `tcp_accept(listener)` | 1 | The next waiting connection, non-blocking, or nil when none is waiting. Never blocks. |
 | `tcp_close` | `tcp_close(x)` | 1 | Close a connection or a listener. Closing twice is done. nil. |
 | `tcp_connect` | `tcp_connect(addr, timeout_ms)` | 2 | A non-blocking TCP connection to addr (host:port), connected within timeout_ms. Raises when it cannot connect. |

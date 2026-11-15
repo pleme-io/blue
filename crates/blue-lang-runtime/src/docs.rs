@@ -549,6 +549,7 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "tcp_port" "tcp_port(listener)" "The port a listener from tcp_listen is bound to.";
     Network: "tcp_accept" "tcp_accept(listener)" "The next waiting connection, non-blocking, or nil when none is waiting. Never blocks.";
     Network: "tcp_connect" "tcp_connect(addr, timeout_ms)" "A non-blocking TCP connection to addr (host:port), connected within timeout_ms. Raises when it cannot connect.";
+    Network: "serial_open" "serial_open(path)" "A serial port (a USB CDC-ACM device, /dev/cu.*) opened raw: cfmakeraw, CLOCAL and CREAD, no line discipline, 921600 carried to the device. The handle is a connection: the tcp words and net_wait drive it unchanged.";
     Network: "tcp_read" "tcp_read(conn, max)" "At most max bytes as a list of Ints: [] when none are ready, nil when the peer has closed (or after tcp_close). Never blocks; wait with net_wait([[conn, :read]]).";
     Network: "tcp_write" "tcp_write(conn, bytes)" "Write bytes (a list of Ints 0 to 255, or a string) without blocking: how many went out, 0 when the socket is full. The caller keeps the rest and waits with net_wait([[conn, :write]]).";
     Network: "tcp_close" "tcp_close(x)" "Close a connection or a listener. Closing twice is done. nil.";

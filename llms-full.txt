@@ -232,7 +232,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 402: 375 functions, 14 special forms, 13 macros |
+| Built-in names | 403: 376 functions, 14 special forms, 13 macros |
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 97: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 32 |

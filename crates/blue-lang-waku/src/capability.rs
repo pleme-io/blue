@@ -285,6 +285,8 @@ const NETWORK_NAMES: &[&str] = &[
     "tcp_read",
     "tcp_write",
     "tcp_close",
+    "serial_open",
+    "usb_control_in",
     "net_wait",
     "http_listen",
     "http_listener_port",

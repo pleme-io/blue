@@ -4,7 +4,6 @@ use blue_lang_syntax::record::record_parts;
 use blue_lang_syntax::union::declared;
 use tatara_lisp::{Spanned, SpannedForm};
 
-use crate::names::{resolve_program, NameTable, Namespace, Rule};
 use crate::{Code, Diagnostic};
 
 const CASE_SUBJECT: &str = "case-subject";
@@ -164,16 +163,14 @@ fn walk(
     }
 }
 
+/// The closed-union rules over `tree`, the namespaced resolved tree of the
+/// program the check stage resolved once (`names::Resolved::resolved_tree`
+/// with `Rule::Namespaced`); a tree with no `union` declares nothing to judge.
 #[must_use]
-pub fn check(
-    forms: &[Spanned],
-    table: &NameTable,
-    namespace_of: &dyn Fn(usize) -> Namespace,
-) -> Vec<Diagnostic> {
-    if !forms.iter().any(|f| declared(f).is_some()) {
+pub fn check(tree: &[Spanned]) -> Vec<Diagnostic> {
+    if !tree.iter().any(|f| declared(f).is_some()) {
         return Vec::new();
     }
-    let tree = resolve_program(forms, table, namespace_of).resolved_tree(forms, Rule::Namespaced);
     let unions: Vec<Closed<'_>> = tree
         .iter()
         .filter_map(declared)

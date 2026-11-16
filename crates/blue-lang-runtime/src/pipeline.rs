@@ -1153,21 +1153,30 @@ fn check_stage_in(
             crate::docs::signatures(),
         ));
 
-    outcome
-        .diagnostics
-        .extend(blue_lang_check::records::check(forms, &table, &|i| {
-            namespace_of(program, i)
-        }));
-    outcome
-        .diagnostics
-        .extend(blue_lang_check::unions::check(forms, &table, &|i| {
-            namespace_of(program, i)
-        }));
+    let fresh = std::cell::OnceCell::new();
+    let resolution = || match &cached {
+        Some(c) => &c.resolved,
+        None => fresh.get_or_init(|| {
+            blue_lang_check::names::resolve_program(forms, &table, &|i| namespace_of(program, i))
+        }),
+    };
+    if forms.iter().any(|f| {
+        blue_lang_syntax::record::record_parts(f).is_some()
+            || blue_lang_syntax::union::declared(f).is_some()
+    }) {
+        let tree = resolution().resolved_tree(forms, blue_lang_check::names::Rule::Namespaced);
+        outcome
+            .diagnostics
+            .extend(blue_lang_check::records::check(&tree));
+        outcome
+            .diagnostics
+            .extend(blue_lang_check::unions::check(&tree));
+    }
     outcome.diagnostics.extend(doc_diagnostics(program));
     if with_tests {
         outcome
             .diagnostics
-            .extend(point_diagnostics(program, &table));
+            .extend(point_diagnostics(program, &resolution));
         outcome
             .diagnostics
             .extend(declared_capabilities(forms, &is_entry));
@@ -1557,9 +1566,9 @@ pub fn point_capability(name: &str) -> Option<&'static str> {
 
 /// B0083 and B0084 over the entry file, when it is a bidama's: an
 /// integration point with no test of its kind in its own file.
-fn point_diagnostics(
+fn point_diagnostics<'r>(
     program: &crate::uses::ResolvedProgram,
-    table: &NameTable,
+    resolution: &dyn Fn() -> &'r blue_lang_check::names::Resolved,
 ) -> Vec<blue_lang_check::Diagnostic> {
     use crate::uses::ResolvedProgram;
     let Some(package) = program
@@ -1569,8 +1578,7 @@ fn point_diagnostics(
         return Vec::new();
     };
     let forms = program.forms();
-    let resolved =
-        blue_lang_check::names::resolve_program(forms, table, &|i| namespace_of(program, i));
+    let resolved = resolution();
     let p = blue_lang_check::points::Program {
         forms,
         references: &resolved.references,
@@ -3510,5 +3518,42 @@ mod executor_tests {
             text: "def main()\n  41 + 1\nend\n\n7",
         };
         assert!(matches!(on(main, Executor::Vm), Value::Int(42)));
+    }
+
+    #[test]
+    fn the_check_stage_resolves_a_program_at_most_once() {
+        let src = "record point(x: Int, y: Int)\nunion shape = circle(r: Float) | rect(w: Float, h: Float)\npoint(1)\n";
+        let before = blue_lang_check::names::program_resolutions();
+        let checked = check_entry_cached(
+            Entry::anonymous(src),
+            &crate::uses::NoLoader,
+            None,
+            Checking::WithTests,
+            None,
+        )
+        .expect("parses");
+        let resolutions = blue_lang_check::names::program_resolutions() - before;
+        assert_eq!(
+            resolutions, 1,
+            "the check stage walked the program {resolutions} times"
+        );
+        assert!(
+            checked
+                .outcome
+                .errors()
+                .any(|d| d.code == blue_lang_check::Code::B0079),
+            "{:?}",
+            checked.outcome.diagnostics
+        );
+        let before = blue_lang_check::names::program_resolutions();
+        check_entry_cached(
+            Entry::anonymous("def twice(x)\n  y * 2\nend\n"),
+            &crate::uses::NoLoader,
+            None,
+            Checking::WithTests,
+            None,
+        )
+        .expect("parses");
+        assert_eq!(blue_lang_check::names::program_resolutions(), before);
     }
 }

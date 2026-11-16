@@ -53,6 +53,41 @@ fn read_live(root: &Path) -> Vec<Package> {
         .collect()
 }
 
+static TREE_NEEDS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, BTreeSet<String>>>,
+> = std::sync::LazyLock::new(Default::default);
+
+thread_local! {
+    static TREE_PARSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn tree_needs(root: &str) -> BTreeSet<String> {
+    if let Some(known) = TREE_NEEDS.lock().ok().and_then(|m| m.get(root).cloned()) {
+        return known;
+    }
+    TREE_PARSES.with(|n| n.set(n.get() + 1));
+    let below = format!("{root}/");
+    let mut used = crate::needs::uses_in(
+        PACKAGES
+            .iter()
+            .filter(|(n, _, _)| *n == root || n.starts_with(&below))
+            .flat_map(|(_, _, fs)| fs.iter().map(|(_, t)| *t)),
+    );
+    used.remove(root);
+    if let Ok(mut m) = TREE_NEEDS.lock() {
+        m.insert(root.to_string(), used.clone());
+    }
+    used
+}
+
+/// How many bidama trees this thread has read for their `use` forms: a
+/// tree is read once per process, however many of its levels a program
+/// loads.
+#[must_use]
+pub fn tree_parses() -> usize {
+    TREE_PARSES.with(std::cell::Cell::get)
+}
+
 /// The compiled-in standard distribution.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Standard;
@@ -105,18 +140,10 @@ impl Loader for Standard {
     }
 
     fn needs(&self, package: &str, _entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
-        let (_, _, files) = PACKAGES.iter().find(|(n, _, _)| *n == package)?;
-        let root = blue_lang_syntax::root_of(package);
-        let below = format!("{root}/");
-        let mut used = crate::needs::uses_in(
-            PACKAGES
-                .iter()
-                .filter(|(n, _, _)| *n == root || n.starts_with(&below))
-                .flat_map(|(_, _, fs)| fs.iter().map(|(_, t)| *t))
-                .chain(files.iter().map(|(_, t)| *t)),
-        );
-        used.remove(root);
-        Some(used)
+        if !self.has(package) {
+            return None;
+        }
+        Some(tree_needs(blue_lang_syntax::root_of(package)))
     }
 
     fn children(&self, name: &str) -> Vec<String> {
@@ -166,6 +193,29 @@ mod tests {
             .iter()
             .all(|(l, t)| l.starts_with("retsu/") && !t.is_empty())));
         assert!(Standard.bluefile("retsu").is_some());
+    }
+
+    #[test]
+    fn a_tree_is_read_for_its_needs_once_however_many_levels_load() {
+        let (root, levels) = Standard
+            .names()
+            .into_iter()
+            .map(|r| (r, Standard.children(r)))
+            .find(|(_, levels)| levels.len() >= 2)
+            .expect("a bidama with two levels");
+        let before = tree_parses();
+        let at_root = Standard.needs(root, None);
+        assert!(at_root.is_some(), "{root}");
+        for level in &levels {
+            assert_eq!(Standard.needs(level, None), at_root, "{level}");
+        }
+        let read = tree_parses() - before;
+        assert!(
+            read <= 1,
+            "{root} and its {} levels read the tree {read} times",
+            levels.len()
+        );
+        assert!(Standard.needs("no-such-bidama", None).is_none());
     }
 
     #[test]

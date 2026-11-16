@@ -69,7 +69,7 @@ row(
   fails(:eval, "http_request"),
   covers("builtin:http_request"),
   host(),
-  pending("G24", "component")
+  flaky("G24", "component")
 )
 
 row(
@@ -232,7 +232,7 @@ row(
   fails(:eval, "resp_connect"),
   covers("builtin:resp_connect"),
   host(),
-  pending("G24", "component")
+  flaky("G24", "component")
 )
 
 row(

@@ -49,10 +49,11 @@ rowan = { workspace = true }
 # The net intrinsics' transports — TLS for `http_request` over `https`
 # (rustls over `ring`'s audited assembly/C core, the one CONTAIN THE C seam;
 # `webpki-roots` is the Mozilla root set), and `usb_control_in`'s pure-Rust
-# USB. Every one of them lives under the host-gated `net` module, so a
-# `wasm32-unknown-unknown` consumer compiles none of the code — and must
-# carry none of the crates: `ring`'s C and `getrandom` refuse the target.
-# Gated on not-wasm rather than unix so a future non-unix host keeps the net.
+# USB. The wasm targets are a typed absence for BOTH: `ring`'s C carries no
+# wasm build (clang rejects its sources for wasm32 — a world-fact), and
+# there is no USB host under wasm. The TLS and USB code paths refuse by
+# name there (`net/tls.rs`, `usb_control_in`), so the net module compiles
+# whole on wasip1/wasip2 while linking none of these.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustls = { workspace = true }
 webpki-roots = { workspace = true }

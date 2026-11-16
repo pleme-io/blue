@@ -247,6 +247,54 @@ fn usb_control_in(
     name: &'static str,
     span: Span,
 ) -> Result<Value, EvalError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (
+            vid,
+            pid,
+            request_type,
+            request,
+            value,
+            index,
+            length,
+            timeout_ms,
+        );
+        Err(fail(
+            name,
+            "usb_control_in is absent on this target (no USB host under wasm)",
+            span,
+        ))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        usb_control_in_native(
+            vid,
+            pid,
+            request_type,
+            request,
+            value,
+            index,
+            length,
+            timeout_ms,
+            name,
+            span,
+        )
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn usb_control_in_native(
+    vid: u16,
+    pid: u16,
+    request_type: u8,
+    request: u8,
+    value: u16,
+    index: u16,
+    length: u16,
+    timeout_ms: u64,
+    name: &'static str,
+    span: Span,
+) -> Result<Value, EvalError> {
     use nusb::transfer::{Control, ControlType, Recipient};
     let control_type = match (request_type >> 5) & 0b11 {
         0 => ControlType::Standard,

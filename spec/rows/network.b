@@ -287,3 +287,11 @@ row(
   covers("builtin:usb_control_in"),
   host()
 )
+
+row(
+  "network.serial_open.not_a_serial_device_refused",
+  "serial_open(\"/dev/null\")",
+  fails(:eval, "not a serial device"),
+  covers("builtin:serial_open"),
+  host()
+)

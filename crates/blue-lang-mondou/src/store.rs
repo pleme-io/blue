@@ -216,6 +216,33 @@ pub fn shared_roots_in(value: Option<&std::ffi::OsStr>, tier: &str) -> Vec<PathB
         .unwrap_or_default()
 }
 
+/// The tier holding tier T3's native artifacts (docs/PERFORMANCE.md, 1.7.1):
+/// `<root>/native/<NATIVE_LAYOUT>/<def_hash hex>/def`, one directory per
+/// definition, built once in the fleet by `nix/native-defs.nix` and named by
+/// content, so a definition that changed is never answered by its old code.
+pub const NATIVE_TIER: &str = "native";
+
+/// The layout and calling protocol of a native artifact: `def` is an
+/// executable taking each Int argument as one decimal argument and printing
+/// the Int result on its last line, exiting non-zero on a fault.
+pub const NATIVE_LAYOUT: &str = "v1";
+
+/// The native artifact for the definition `hash` names under one of `roots`
+/// (each a `native` tier root), the first that holds one.
+#[must_use]
+pub fn native_artifact_in(roots: &[PathBuf], hash: &DefHash) -> Option<PathBuf> {
+    roots
+        .iter()
+        .map(|r| r.join(NATIVE_LAYOUT).join(hash.hex()).join("def"))
+        .find(|p| p.is_file())
+}
+
+/// [`native_artifact_in`] over every root `BLUE_CACHE_SHARED` names.
+#[must_use]
+pub fn native_artifact(hash: &DefHash) -> Option<PathBuf> {
+    native_artifact_in(&shared_roots(NATIVE_TIER), hash)
+}
+
 /// blue's cache directory: `$XDG_CACHE_HOME/blue`, else `$HOME/.cache/blue`.
 /// Every persistent tier lives under it, one directory each.
 #[must_use]
@@ -872,6 +899,21 @@ mod tests {
                 .len()
                 <= 1 << 10
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_native_artifact_is_found_by_its_def_hash_and_only_by_it() {
+        let root = temp("native");
+        let hash = DefHash([7; 32]);
+        let other = DefHash([8; 32]);
+        let dir = root.join(NATIVE_TIER).join(NATIVE_LAYOUT).join(hash.hex());
+        std::fs::create_dir_all(&dir).expect("creates");
+        std::fs::write(dir.join("def"), b"").expect("writes");
+        let roots = shared_roots_in(Some(root.as_os_str()), NATIVE_TIER);
+        assert_eq!(native_artifact_in(&roots, &hash), Some(dir.join("def")));
+        assert_eq!(native_artifact_in(&roots, &other), None);
+        assert_eq!(native_artifact_in(&[], &hash), None);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

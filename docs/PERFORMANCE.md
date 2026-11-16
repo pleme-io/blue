@@ -297,6 +297,91 @@ interpreter prints. Red run: a seam that writes `b` for `a` fails it.
 hyperfine, 10 runs: the interpreter 118.7 ms (user 99.9), the component under
 wasmtime 10.8 ms (user 5.4), 11 times faster.
 
+#### 1.7.1 One derivation per `def_hash` (tier T3, first slice)
+
+Tier T3 of blue's speed plan: a definition chuuzou can lower becomes a
+nix derivation whose input is its resolved tree, keyed by `def_hash`, built
+once in the fleet. What is built (2026-11-16):
+
+| step | where | what it does |
+|---|---|---|
+| hash and slice | `blue ast --resolved --defs FILE` (`crates/blue-lang-cli/src/native.rs`, `defs`) | each definition of the file with the `def_hash` `def_hash(f)` answers (`@doc` included) and its slice: the resolved forms of every entry definition it reaches, each function and value renamed `%root/d_<hex>` after its own hash, so a rename changes no byte of it |
+| manifest | `native/build/defs.b`, `generate("native-defs", …)` in `native/Bluefile` | one JSON line per definition of each program under `native/defs/`, with `native` true when chuuzou compiles it for the tier (`cz_def_native`) and `refused` saying why when not; committed and gated fresh (`checks.native-generated-native-defs-fresh`) |
+| one derivation per hash | `nix/native-defs.nix` (`artifact`, `defs`, `root`) | `blue-native-<hex>`: its only program input is the slice (`passAsFile`); chuuzou lowers it with the definition as `pub fn entry(io, args: &Args) -> i64` (`cz_lower_def`) and links it with `native/seam/def64/seam.rs`; the seam set is narrowed to the four files it links, so a board's own seam changing rebuilds no definition |
+| the store layout | `blue_lang_mondou::store::native_artifact` (`NATIVE_TIER`, `NATIVE_LAYOUT`) | `<root>/native/v1/<hex>/def`, found through `BLUE_CACHE_SHARED` as the check, memo and test tiers are; `root` joins a manifest's artifacts into one such root (`packages.native-defs-base`) |
+| the run-time seam | `native::Tier` (a `CallObserver`), `BLUE_NATIVE=on` | a call of a function whose hash has an artifact, every argument an Int, is answered by running the artifact; any other call, and an artifact that faults or prints anything but one Int, runs in the interpreter |
+
+**The key is the content.** `checks.native-def-keys` reads `.drvPath` at
+evaluation for the three programs in `native/defs/` (`base.b`; `edited.b`,
+where only `square`'s body changed; `renamed.b`, where `fib` is
+`fibonacci`) and fails the evaluation unless: `square` and `sum_squares`
+(which calls it) move, `fib` (which does not) keeps its `.drvPath`, and
+`fibonacci` has `fib`'s `.drvPath` exactly. It writes the five rows with both
+paths, for example `fib` in base and in edited:
+`yna5w03s…-blue-native-9390dea3….drv` both times. Red run: expecting `fib` in
+base to equal `sum_squares` in edited fails the evaluation with `native def
+keys: a definition the edit does not reach broke the content key`.
+
+**The artifact answers what the interpreter answers.** `checks.native-defs`
+(`native/checks/defs.b`) runs `square(12)`, `sum_squares(100, 0)` and
+`fib(20)` through `blue run` and through each artifact and requires the same
+output; then it shelves `square`'s artifact under `fib`'s hash and requires
+`BLUE_NATIVE=on blue run` of `fib(5)` to print 25 (off: 5), so the answer
+comes from the store, by `def_hash`.
+
+Measured on an Apple M4 Pro, release build, 2026-11-16, `hyperfine -N -r 5
+-w 1`, a program that is `native/defs/base.b` and then
+`write_stdout(unlines([to_s(fib(30))]))`; ROOT is a root holding the base
+fixture's artifacts:
+
+| run | wall ms | CPU ms (user + system) |
+|---|---|---|
+| `BLUE_NATIVE=off blue run --quiet fib30.b` | 1041 | 1030 |
+| `BLUE_NATIVE=on BLUE_CACHE_SHARED=<empty> blue run --quiet fib30.b` (no artifact: the observed walker) | 1513 | 1218 |
+| `BLUE_NATIVE=on BLUE_CACHE_SHARED=ROOT blue run --quiet fib30.b` | 22.0 | 19.3 |
+| `ROOT/native/v1/9390dea3…/def 30` (the artifact alone) | 5.6 | 3.7 |
+| `ROOT/native/v1/1428e7a9…/def 1` (`square(1)`: a process start) | 3.2 | 1.8 |
+
+The run with the tier answers `fib(30)` 47 times faster than the interpreter;
+what is left is blue's own start (about 16 ms) and one process start. With
+the tier on and nothing to answer from, the run is 1.45 times slower, since
+an observed run takes the walker and pays the observer on every call.
+
+**What the run-time seam still needs.** The artifact is a process, so a call
+costs a process start (about 3 ms here): the tier wins on a call that does
+more interpreter work than that, and loses on a small one called often.
+The destination, in order:
+
+1. **In process.** The same program rlib linked as a `cdylib` exporting
+   `extern "C" fn blue_def(args: *const i64, n: usize, out: *mut i64) -> u32`,
+   a fault caught with `catch_unwind` at that boundary (a panic must not cross
+   it). The loader is one crate under `#![deny(unsafe_code)]` with one
+   `#[allow]`: `dlopen` and `dlsym` declared in pure Rust (CONTAIN THE C: no
+   `-sys` crate), the library kept open per run. `native::Tier::enter`
+   (`crates/blue-lang-cli/src/native.rs:210`) then calls a function pointer
+   instead of `native::call` (`native.rs:194`); nothing else moves.
+2. **The VM door.** An observed run takes the tree-walker
+   (`run_observed_accounted`, `crates/blue-lang-runtime/src/pipeline.rs:663`,
+   evaluates with `Executor::Walker`), so `BLUE_NATIVE=on` gives up the VM for
+   every other definition. The VM's call of a global needs the same `enter`
+   hook, read through one view of the globals, the registry and the
+   expander.
+3. **Which definitions.** Today every definition of a manifest chuuzou accepts
+   is built. The hot set is T2's call counter keyed by `def_hash`; a fleet
+   counter names what nix builds, and the sui cache serves it to every node.
+4. **Any program, not a fixture.** The manifest is generated per program the
+   Bluefile names. A project word (`native(name, program)`) that lowers to the
+   generate entry and the root makes any program's hot definitions a
+   declaration.
+5. **Values beyond Int.** The guard is an Int per argument and an Int result.
+   Records and lists need a value ABI across the seam; a definition that
+   reaches a board word (it prints) is refused, so the interpreter's output
+   order is never interleaved with an artifact's.
+6. **The layout's identity.** `v1/<hex>` names the protocol, not the chuuzou
+   and toolchain that built it; a root joined from two builds of one hash keeps
+   the first. The directory should carry the builder's identity as the check
+   tier's does.
+
 ### 1.5 Compile times
 
 `bench/bench.b compile`, sccache off, `cargo build -p blue-lang-cli`, wall
@@ -599,6 +684,7 @@ One row for each item of section 3.
 | 3.2 Lexical addressing in the tree-walker | ❌ not built | The work is in tatara-lisp-eval. This repository holds no measurement of it. |
 | 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). The VM itself (no lift to the walker, slots for globals, typed opcodes) is unchanged; that work is in tatara-lisp-eval. |
 | 3.4 Tiered execution | ❌ not built | No call counter and no VM promotion exist. The VM is slower than the walker on the common script shape (1.4), so 3.2 and 3.3 come first. |
+| 3.4 T3: ahead of time per `def_hash` | ⏳ in progress | One derivation per `def_hash` from a slice that is a function of the hash (`nix/native-defs.nix`, `checks.native-def-keys`), the `native` tier of the store (`store::native_artifact`), and `BLUE_NATIVE=on` answering an Int call from an artifact (`checks.native-defs`), all built (1.7.1). Not built: an in-process call (each call is a process), the VM door, the hot set from a fleet counter, a project word for any program, values beyond Int. |
 | 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). No measurement shows one resolution per run. |
 | 3.6 Shared bidama analysis | ❌ not built | `bidamas/mk-bidama.nix` writes no parse, resolution or check output. |
 | 3.7 Processes share the macro table | ❌ not built | The work is in tatara-lisp-eval. No measurement of `spawn` before and after exists. |

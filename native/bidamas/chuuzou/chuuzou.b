@@ -2409,7 +2409,6 @@ def cz_capture(args)
   }
 end
 
-# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 cz_emit: The emitted Rust for the blue program at `path`, built for the board named
 `board_name`. The program is checked by blue's own pipeline first; a program
@@ -2433,7 +2432,14 @@ def cz_emit(path, board_name)
   if tree[:status] != 0
     cz_refuse("blue ast failed: #{tree[:stderr]}")
   end
-  file = cz_lower(cz_read(tree[:stdout]), board)
+  cz_render(cz_lower(cz_read(tree[:stdout]), board))
+end
+
+# waive B0083: integration debt recorded 2026-11-16: the def image check (nix/native-defs.nix) runs it, no test of this file does
+@doc """
+cz_render: The Rust text of a lowered `File`, rendered by tatara-rust-emit.
+"""
+def cz_render(file)
   r = exec_with_stdin(json_stringify(file), "tatara-rust-emit")
   if second(first(r)) != 0
     cz_refuse("tatara-rust-emit refused the tree: #{second(third(r))}")
@@ -2517,11 +2523,27 @@ end
 @doc """
 cz_link: Build the image `name` from the emitted Rust at `rs`, for the board named
 `board_name`, with the seam sources under `seam` (kiban_io.rs and
-<board>/seam.rs), into the directory `out`. Three crates: kiban_io (safe),
-the program (emitted, #![forbid(unsafe_code)]), and the seam, the one crate
-where unsafe compiles, linked with LTO. Answers the ELF's path.
+<board>/seam.rs), into the directory `out`. Answers the ELF's path.
 """
 def cz_link(rs, board_name, seam, out, name)
+  cz_link_through(
+    rs,
+    board_name,
+    seam,
+    path_join(seam, board_name, "seam.rs"),
+    out,
+    name
+  )
+end
+
+@doc """
+cz_link_through: cz_link with the seam crate's root at `seam_rs`: the board's own, or
+def64/seam.rs, which runs one definition instead of the program's top
+level. Three crates: kiban_io (safe), the program (emitted,
+#![forbid(unsafe_code)]), and the seam, the one crate where unsafe compiles,
+linked with LTO.
+"""
+def cz_link_through(rs, board_name, seam, seam_rs, out, name)
   board = kb_board(board_name)
   flags = cz_rustc_flags(board)
   mkdir_p(out)
@@ -2615,7 +2637,7 @@ def cz_link(rs, board_name, seam, out, name)
       ],
       heap_extern,
       link,
-      ["-o", elf, path_join(seam, board[:name], "seam.rs")]
+      ["-o", elf, seam_rs]
     ),
     "rustc seam"
   )
@@ -2652,6 +2674,121 @@ def cz_wasm_image(program, seam, out)
   rs = path_join(out, "#{name}.rs")
   write_file(rs, text)
   cz_link(rs, "wasm32", seam, out, name)
+end
+
+@doc """
+cz_board_word?: Whether `n` names a word of the board (`kiban/…`): a definition that does
+reaches the outside world, so the native tier never answers its calls.
+
+    cz_board_word?(cz_read("(+ 1 (kiban/put_int 2))")) #=> true
+    cz_board_word?(cz_read("(+ 1 2)")) #=> false
+"""
+def cz_board_word?(n)
+  if cz_sym?(n)
+    starts_with?(cz_sym(n), "kiban/")
+  elsif list?(n)
+    any?(cz_board_word?, n)
+  else
+    false
+  end
+end
+
+@doc """
+cz_lower_def: The slice `forms` lowered for the host board with the definition `key`
+as its entry (tier T3): `pub fn entry(io, args: &Args) -> i64` checks the
+arity and calls it from depth zero. Refused unless `key` takes and answers
+Ints and nothing in the slice reaches the board, the calls the native tier
+can answer.
+"""
+def cz_lower_def(forms, key)
+  if cz_board_word?(forms)
+    cz_refuse(
+      "`#{cz_local(key)}` reaches a board word; the native tier answers calls of definitions that reach nothing outside"
+    )
+  end
+  fn_forms = filter((f) -> cz_head(f) == "define-typed", forms)
+  form = find(fn_forms, (f) -> cz_sym(first(second(f))) == key)
+  if form.nil?
+    cz_refuse(
+      "`#{cz_local(key)}` is not a typed function of the slice; the native tier compiles functions"
+    )
+  end
+  types = append(
+    map((p) -> cz_sig_ty(second(p), []), rest(second(form))),
+    [cz_sig_ty(third(form), [])]
+  )
+  if not every?((t) -> t == :word, types)
+    cz_refuse(
+      "`#{cz_local(key)}` takes or answers something other than an Int; the native tier's guard is an Int per argument"
+    )
+  end
+  fns = map((f) -> cz_sym(first(second(f))), fn_forms)
+  board = kb_board("host64")
+  file = cz_lower(forms, board)
+  n = count(rest(second(form)))
+  lead = if member?(key, cz_recursive(fn_forms, fns))
+    [rs_path("io"), rs_u32(0)]
+  else
+    [rs_path("io")]
+  end
+  call = rs_call(
+    [cz_fn_name(key)],
+    append(
+      lead,
+      map((i) -> rs_method(rs_path("args"), "get", [rs_u32(i)]), range(n))
+    )
+  )
+  entry = rs_fn(
+    "pub",
+    "entry",
+    [{name: "args", ty: {ident: "Args", reference: {kind: "shared"}}}],
+    rs_ty("i64"),
+    rs_block(
+      [rs_semi(rs_method(rs_path("args"), "need", [rs_u32(n)])), rs_tail(call)]
+    )
+  )
+  {
+    **file,
+    items: append(
+      [{kind: "use", item: {path: %w[kiban_io Args]}}],
+      file[:items],
+      [entry]
+    )
+  }
+end
+
+@doc """
+cz_def_native: Why the definition `key` of the slice `text` has no native artifact, or
+nil when chuuzou compiles it for the native tier.
+
+    cz_def_native("(define-typed (%root/f (x Int)) Int (* x x))", "%root/f") #=> nil
+    cz_def_native("(define-typed (%root/f (x Int)) Int (kiban/put_int x))", "%root/f") != nil #=> true
+"""
+def cz_def_native(text, key)
+  cz_lower_def(cz_read(text), key)
+  nil
+rescue :chuuzou as e
+  e.message
+end
+
+@doc """
+cz_def_image: The definition `key` of the slice in the file `slice`, compiled for the
+host board as one executable (tier T3, seam def64): its Rust emitted beside
+it in `out`. Answers the executable's path.
+"""
+def cz_def_image(slice, key, seam, out)
+  text = cz_render(cz_lower_def(cz_read(read_file(slice)), key))
+  mkdir_p(out)
+  rs = path_join(out, "def.rs")
+  write_file(rs, text)
+  cz_link_through(
+    rs,
+    "host64",
+    seam,
+    path_join(seam, "def64", "seam.rs"),
+    out,
+    "def"
+  )
 end
 
 @doc """

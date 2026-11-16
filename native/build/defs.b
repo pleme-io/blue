@@ -1,0 +1,49 @@
+@moduledoc """
+The tier T3 manifest, written to $GEN_OUT: the generator behind
+generate("native-defs", …) in ../Bluefile. One JSON line per definition of
+each program under $GEN_ROOT/defs: its program, key, def_hash, the name it
+has in its slice, the slice (`blue ast --resolved --defs`), and whether
+chuuzou compiles it for the native tier (`native`, else `refused` says why).
+nix/native-defs.nix reads it and builds one derivation per def_hash.
+"""
+
+use("chuuzou", [:cz_def_native])
+
+@doc """
+row: One definition of `program` as its manifest line.
+
+    row("p", {"key" => "%root/f", "hash" => "b3:0", "entry" => "%root/f", "slice" => "(define-typed (%root/f (x Int)) Int x)"}) |> json_read |> get("native") #=> true
+"""
+def row(program, d)
+  why = cz_def_native(d["slice"], d["entry"])
+  json_write(
+    {
+      program:,
+      key: d["key"],
+      hash: d["hash"],
+      entry: d["entry"],
+      native: why.nil?,
+      refused: why,
+      slice: d["slice"]
+    }
+  )
+end
+
+# waive B0083: integration debt recorded 2026-11-16: checks.native-native-defs-fresh runs it under nix, no test of this file does
+def rows(path)
+  r = exec_capture(self_exe, "ast", "--resolved", "--defs", path)
+  if second(first(r)) != 0
+    raise(:defs, "blue ast --resolved --defs #{path}: #{second(third(r))}")
+  end
+  program = replace(path_basename(path), ".b", "")
+  map((d) -> row(program, d), json_read(second(second(r))))
+end
+
+def main()
+  dir = path_join(env_required("GEN_ROOT"), "defs")
+  programs = filter((p) -> ends_with?(p, ".b"), ls(dir))
+  write_file(
+    env_required("GEN_OUT"),
+    unlines(reduce((acc, p) -> append(acc, rows(p)), [], programs))
+  )
+end

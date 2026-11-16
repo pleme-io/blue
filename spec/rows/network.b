@@ -12,7 +12,7 @@ row(
   fails(:eval, "nats_connect"),
   covers("builtin:nats_connect"),
   host(),
-  pending("G23", "component")
+  flaky("G23", "component")
 )
 
 row(

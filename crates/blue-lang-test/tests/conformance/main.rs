@@ -236,6 +236,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         vec![rows::Pending {
             gap: "G0".into(),
             on: None,
+            flaky: false,
         }],
     );
     let out = run_row(env, &flipped, usize::MAX - 1);
@@ -255,6 +256,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         vec![rows::Pending {
             gap: "G0".into(),
             on: None,
+            flaky: false,
         }],
     );
     let out = run_row(env, &held, usize::MAX - 2);
@@ -262,6 +264,26 @@ fn controls(env: &mut Env) -> Vec<String> {
         if !matches!(out.verdicts[&ev], Verdict::Pending(_)) {
             failures.push(format!(
                 "control: a pending row that still misses was not reported pending by {}",
+                ev.name()
+            ));
+        }
+    }
+
+    let flaky = control(
+        "control.flaky-passes",
+        "1 + 1",
+        Expect::Value("2".into()),
+        vec![rows::Pending {
+            gap: "G0".into(),
+            on: None,
+            flaky: true,
+        }],
+    );
+    let out = run_row(env, &flaky, usize::MAX - 3);
+    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
+        if !matches!(out.verdicts[&ev], Verdict::Pending(_)) {
+            failures.push(format!(
+                "control: a flaky row that passes was not reported pending by {}",
                 ev.name()
             ));
         }
@@ -620,7 +642,7 @@ fn main() {
         out,
         "\ncontrols: {}",
         if control_failures.is_empty() {
-            "6 of 6 judged as expected"
+            "7 of 7 judged as expected"
         } else {
             "RED"
         }

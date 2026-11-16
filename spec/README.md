@@ -97,6 +97,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 |---|---|
 | `covers("builtin:append", "form:x = 5", …)` | the registry entries this row specifies (the missing-row gate) |
 | `pending("G5")` / `pending("G16", "wasm")` | the row states a destination the gap has not reached, everywhere or on one evaluator |
+| `flaky("G23", "component")` | a pending mark for a gap that misses only sometimes: a pass is reported pending instead of failing the run, every other outcome is judged as `pending` judges it, and the gap stays named until its cause is fixed |
 | `position("checked")` | the blueshift rung the behaviour applies at; the runner refuses the row if the program measures elsewhere |
 | `host()` | the program reaches a host effect (files, processes, the clock) |
 | `isolate()` | run in a child process with a time limit |

@@ -150,6 +150,7 @@ impl Expect {
 pub struct Pending {
     pub gap: String,
     pub on: Option<Ev>,
+    pub flaky: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -373,11 +374,12 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
     for option in options {
         let (name, args) = head_of(option).ok_or_else(|| label("an option is a call".into()))?;
         match name {
-            "pending" => {
+            "pending" | "flaky" => {
+                let flaky = name == "flaky";
                 let (gap, on) = match args {
                     [gap] => (gap, None),
                     [gap, on] => (gap, Some(on)),
-                    _ => return Err(label("pending(GAP) or pending(GAP, EVALUATOR)".into())),
+                    _ => return Err(label(format!("{name}(GAP) or {name}(GAP, EVALUATOR)"))),
                 };
                 let gap = str_of(gap)
                     .ok_or_else(|| label("pending(\"G5\"): the gap is a string".into()))?
@@ -394,7 +396,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                         })?)
                     }
                 };
-                row.pending.push(Pending { gap, on });
+                row.pending.push(Pending { gap, on, flaky });
             }
             "position" => {
                 let p = one_str("position", args).map_err(label)?;

@@ -79,6 +79,7 @@ pub fn verdict(row: &Row, ev: Ev, obs: &Obs) -> Verdict {
         (Some(p), Ok(())) if matches!(obs, Obs::Abi(a) if !matches!(a, crate::eval::Abi::Int(_))) => {
             Verdict::Pending(p.gap.clone())
         }
+        (Some(p), Ok(())) if p.flaky => Verdict::Pending(p.gap.clone()),
         (Some(p), Ok(())) => Verdict::Fail(format!(
             "pending({:?}) but the row now PASSES: the gap may be closed — remove the mark",
             p.gap

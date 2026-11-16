@@ -148,7 +148,14 @@ pub fn dial_timed(
                 let _ = stream.set_nodelay(true);
                 return Ok(Dialed { stream, elapsed });
             }
-            Err(e) => last = (DialFailure::of(&e), format!("{host}:{port}: {e}")),
+            Err(e) => {
+                // The kind's own word, never the OS's errno text: a refused
+                // connection is "refused" on every runtime, where the raw
+                // io::Error Display carries "(os error 111)" here and a
+                // different number under wasi — one message, all hosts.
+                let kind = DialFailure::of(&e);
+                last = (kind, format!("{host}:{port}: {}", kind.keyword()))
+            }
         }
     }
     Err(last)

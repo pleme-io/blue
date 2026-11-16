@@ -215,6 +215,46 @@ fn defined_function(form: &Spanned) -> Option<String> {
     }
 }
 
+/// The top-level definitions whose body calls the definition itself at two
+/// or more places: the shape of overlapping subproblems, where one call's
+/// result answers another call's, so the call memo turns repeated work into
+/// lookups. Each entry is the form's index and the defined name.
+///
+/// ```
+/// use blue_lang_runtime::door::overlapping;
+/// let forms = tatara_lisp::read_spanned(
+///     "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) \
+///      (define (count n) (if (= n 0) 0 (count (- n 1))))",
+/// )
+/// .unwrap();
+/// assert_eq!(overlapping(&forms), vec![(0, "fib".to_string())]);
+/// ```
+#[must_use]
+pub fn overlapping(forms: &[Spanned]) -> Vec<(usize, String)> {
+    forms
+        .iter()
+        .enumerate()
+        .filter_map(|(i, form)| {
+            let name = defined_function(form)?;
+            let items = list(form)?;
+            let body = match items.get(1).map(|s| &s.form) {
+                Some(SpannedForm::List(_)) => items.get(2..)?,
+                _ => list(items.get(2)?)?.get(2..)?,
+            };
+            let calls: usize = body.iter().map(|f| self_calls(f, &name)).sum();
+            (calls >= 2).then_some((i, name))
+        })
+        .collect()
+}
+
+fn self_calls(form: &Spanned, name: &str) -> usize {
+    let Some(items) = list(form) else {
+        return 0;
+    };
+    let here = usize::from(items.first().and_then(symbol) == Some(name));
+    here + items.iter().map(|f| self_calls(f, name)).sum::<usize>()
+}
+
 fn defined_name(form: &Spanned) -> Option<String> {
     let items = list(form)?;
     if items.first().and_then(symbol)? != "define" {

@@ -171,6 +171,12 @@ root Bluefile twice and searched for a suggestion for each of its words.
 | `blue run gen/regen.b` (`nix run .#regen`), user s | 75.4 | 6.8 |
 | a script that imports kueri, user ms | 145 | 88 |
 
+Re-measured 2026-11-16 at `e6e5b200`, on a host loaded with other builds:
+`blue run gen/regen.b` took 154.0 s user (3 min 33 s wall) with a release-local
+binary, against 6.8 s above, and a script that imports kueri spends 110 to
+140 ms in the check stage, against 31.6 ms in 1.2. Load does not explain a 22x
+rise in user time. The cause is not found yet; finding it is the first item of the plan.
+
 The reports were 57 s for `fmt --check` and 70 to 90 s for regen. The
 release build measured 9.3 s CPU before this branch. The dev build (`cargo
 build`, the binary `cargo test` and `cargo run` use) takes 26.8 s CPU and 36 s
@@ -208,6 +214,26 @@ only blue processes. A probe build sent the whole program to
 
 The VM is 15% faster on a plain recursive function and up to 2× slower when a
 lambda goes to `map`, `filter` or `reduce`. Section 2.2 gives the cause.
+
+2026-11-16, tatara-lisp-eval 0.4.19: the VM caches each global under the
+environment's write stamps, runs `+ - * < > <= >= =` on two Ints or two Floats
+in place, finds a native function through an index instead of a linear scan,
+and calls a compiled function without allocating. hyperfine, 10 runs, user CPU:
+`fib(27)` on the VM door 248.4 to 81.2 ms (3.06x), 4,449,574 to 233
+allocations; `strbuild` on the walker 535.3 to 446.4 ms (the index alone).
+Each cache is sound without an invalidation step: a frame's version is drawn
+from a counter that never repeats, so an equal version means no write.
+
+Since 2026-11-16 `blue run` also plans the call memo by itself. When nothing
+names a memo mode (`BLUE_MEMO` unset, no `--no-memo`, the shipped bounds) and a
+pure definition calls itself at two or more places in its body (overlapping
+subproblems, `door::overlapping`), the run takes the walker with an
+in-process memo and the door receipt says so ("the memo answers `fib` …");
+otherwise the door is chosen as above. `fib(27)`: eval 70.9 ms on the VM,
+0.13 ms planned. The memo forced on `strbuild` costs 13 %, so the planner
+leaves programs without that shape alone, and a tree recursion with an effect
+is refused by the memo's own purity proof and stays on the VM.
+`BLUE_MEMO=off` turns the planner off. Locks: `crates/blue-lang-cli/tests/door.rs`.
 
 ### 1.4.1 Every execution path against Rust
 
@@ -340,7 +366,8 @@ time.
   lifted back to a tree-walker closure on each call
   (`CompiledClosure::lift_to_closure`, `vm/run.rs`). So `map`, `filter` and
   `reduce` callbacks pay the walker's cost plus the lift.
-- `LoadGlobal` looks a global up by name on each access.
+- `LoadGlobal` looked a global up by name on each access. Since 2026-11-16 it
+  reads an inline cache that a write to any frame of the globals invalidates.
 - Captured variables are `Arc<Mutex<Value>>` cells.
 
 The VM tier alone does not close the gap to Python and Ruby. fib on the VM is
@@ -597,10 +624,10 @@ One row for each item of section 3.
 |---|---|---|
 | 3.1 Linear library words | ⏳ in progress | `distinct`, `frequencies`, `shuugou::unique` and `mokuroku::name_collisions` are linear (section 4, spec row `lists.distinct.keys`). `hex_encode` and `hex_decode` are native, and shinsuu's `bytes_hex` and `hex_bytes` wrap them (1.6, spec rows `strings.hex_*`). The census of the builtins that still run as Lisp, and a size row per word, do not exist. |
 | 3.2 Lexical addressing in the tree-walker | ❌ not built | The work is in tatara-lisp-eval. This repository holds no measurement of it. |
-| 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). The VM itself (no lift to the walker, slots for globals, typed opcodes) is unchanged; that work is in tatara-lisp-eval. |
+| 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). Built in tatara-lisp-eval 0.4.19: globals cached under write stamps, operators in place, allocation-free calls (`tests/vm_operators.rs`, `tests/vm_allocations.rs`). Not built: a closure handed to a native higher-order word still lifts to the walker. |
 | 3.4 Tiered execution | ❌ not built | No call counter and no VM promotion exist. The VM is slower than the walker on the common script shape (1.4), so 3.2 and 3.3 come first. |
 | 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). No measurement shows one resolution per run. |
-| 3.6 Shared bidama analysis | ❌ not built | `bidamas/mk-bidama.nix` writes no parse, resolution or check output. |
+| 3.6 Shared bidama analysis | ⏳ in progress | `mkAnalysis` (`bidamas/mk-bidama.nix`) writes each bidama's check entries, and `mkBlueWithBidamas` points `BLUE_CACHE_SHARED` at them. Measured 2026-11-16 on a loaded host: a script that imports kueri spends the same check time with the shared store as without it (137 and 142 ms cold), so no gain is shown yet. Re-measure on a quiet host. |
 | 3.7 Processes share the macro table | ❌ not built | The work is in tatara-lisp-eval. No measurement of `spawn` before and after exists. |
 | 3.8 A startup image | ❌ not built | No snapshot of the stdlib or the name table exists. |
-| 3.9 Optimize the tooling crates in the dev profile | ❌ not built | `Cargo.toml` sets `opt-level = 3` for the evaluator crates only. `blue-lang-check`, `blue-lang-syntax`, `blue-lang-fmt` and `blue-lang-pkg` have no row. |
+| 3.9 Optimize the tooling crates in the dev profile | ✅ built | `Cargo.toml` sets `opt-level = 3` in the dev profile for `blue-lang-check`, `blue-lang-syntax`, `blue-lang-fmt` and `blue-lang-pkg` (section 3.9 has the measurement). |

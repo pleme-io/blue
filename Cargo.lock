@@ -85,7 +85,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -96,7 +96,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1140,7 +1140,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1926,7 +1926,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2122,9 +2122,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66981687778284e733631cf499aa1a7fa2fed458d6530813b2ef0ace9da20b63"
+checksum = "d053cf4017e2fc920800a5123976ebc703b49eebe6c413c3f7869a4b523d49ca"
 
 [[package]]
 name = "notify"
@@ -2619,7 +2619,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2914,7 +2914,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3329,7 +3329,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3367,7 +3367,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3460,18 +3460,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96af87b43550385cf98bb78c03ba5747a84bd0d19c18035f9da2109f0733fae0"
+checksum = "490c079b01b9948d0e227a0d348537db07a8393e9dd4447b734fbe4fb871e736"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "562c13f0b2e4afb2050c2a3fef46da9f4a5cbaac59be2b3a765d9885fba63b5a"
+checksum = "d40a6db6a9e002f24e9bb787594e3d17b352c2d45a2b0d332f4144b6c4126c2c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3480,9 +3480,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e31678b9f20dfb70d3cdd7f7c8f62f0713498b9e7e667c1b59a4078c2cdede01"
+checksum = "8da70c99daf3a94c392b1b690237e0f8a0b3331dd847efe76d19071446b0d1f2"
 dependencies = [
  "blake3",
  "serde",
@@ -3494,9 +3494,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c84a9b0fe37ec04adbe210a910fb8a29594bf298272d8f7969c284c2da7244e"
+checksum = "46d52fdde16aa40bb3e578cd7885dd27f09b0b60737d8ce1864eca716f1d1776"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3505,9 +3505,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ad328014b3734706ba5aaca1eecb2461d439803c12c04df93c2d6a0211a4633"
+checksum = "27ab6e1249f49047049ad61ac85b67cebff4e92234fea2f289addf4499ac67b0"
 dependencies = [
  "arc-swap",
  "blake3",
@@ -3530,7 +3530,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4089,7 +4089,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

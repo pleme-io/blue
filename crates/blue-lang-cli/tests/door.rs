@@ -50,7 +50,7 @@ const DISAGREEING: &str = "def main()\n  procedure?(1)\nend\n";
 fn a_program_of_agreed_constructs_runs_on_the_vm_with_the_walkers_output() {
     let d = dir("agreed");
     let file = write(&d, "agreed.b", AGREED);
-    let auto = run_with(&file, &d.join("auto"), None);
+    let auto = run_with(&file, &d.join("auto"), Some(("BLUE_MEMO", "off")));
     assert!(
         auto.status.success(),
         "{}",
@@ -116,6 +116,7 @@ fn the_door_is_named_under_timings_and_the_memo_holds_it_to_the_walker() {
     let d = dir("timings");
     let file = write(&d, "agreed.b", AGREED);
     let out = blue()
+        .env("BLUE_MEMO", "off")
         .arg("run")
         .arg("--timings")
         .arg(&file)
@@ -173,4 +174,52 @@ fn a_program_that_reaches_the_host_stays_on_the_walker() {
         door["why"].as_str().unwrap().contains("host effect"),
         "{door}"
     );
+}
+
+const IMPURE_TREE: &str = "def noisy(n)\n  if n < 2\n    write_stdout(\"x\")\n    n\n  else\n    noisy(n - 1) + noisy(n - 2)\n  end\nend\n\nwrite_stdout(to_s(noisy(6)))\n";
+
+const TAIL: &str = "def down(n, acc)\n  if n == 0\n    acc\n  else\n    down(n - 1, acc + n)\n  end\nend\n\nwrite_stdout(to_s(down(100, 0)))\n";
+
+#[test]
+fn a_pure_definition_that_repeats_its_own_calls_is_planned_onto_the_memo() {
+    let d = dir("planned");
+    let file = write(&d, "planned.b", AGREED);
+    let planned = run_with(&file, &d.join("planned"), None);
+    assert!(
+        planned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&planned.stderr)
+    );
+    let door = door_of(&d.join("planned"));
+    assert_eq!(door["door"], "walker", "{door}");
+    assert!(
+        door["why"]
+            .as_str()
+            .unwrap()
+            .contains("the memo answers `fib`"),
+        "{door}"
+    );
+    let off = run_with(&file, &d.join("off"), Some(("BLUE_MEMO", "off")));
+    assert_eq!(door_of(&d.join("off"))["door"], "vm");
+    assert_eq!(planned.stdout, off.stdout);
+}
+
+#[test]
+fn an_effect_or_a_single_self_call_keeps_the_vm() {
+    let d = dir("unplanned");
+    for (name, src, out) in [
+        ("impure", IMPURE_TREE, "xxxxxxxxxxxxx8nil\n"),
+        ("tail", TAIL, "5050nil\n"),
+    ] {
+        let file = write(&d, &format!("{name}.b"), src);
+        let ran = run_with(&file, &d.join(name), None);
+        assert!(
+            ran.status.success(),
+            "{}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+        let door = door_of(&d.join(name));
+        assert_eq!(door["door"], "vm", "{name}: {door}");
+        assert_eq!(String::from_utf8_lossy(&ran.stdout), out, "{name}");
+    }
 }

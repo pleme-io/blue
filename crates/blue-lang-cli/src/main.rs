@@ -2543,15 +2543,23 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             watch,
         )
         .and_then(|o| o.outcome),
-        (memo::Mode::Off, None) => blue_lang_runtime::pipeline::run_framed_on(
-            entry,
-            inputs,
-            &loader,
-            surface.as_ref(),
-            hold.as_ref(),
-            &account,
-            executor,
-        ),
+        (memo::Mode::Off, None) => {
+            let plans = executor == blue_lang_runtime::pipeline::Executor::Auto
+                && !inv.receipt_steps
+                && !taped
+                && hold.as_ref().and_then(|h| h.bounds).is_none()
+                && memo::planning(inv.no_memo, cfg);
+            blue_lang_runtime::pipeline::run_framed_planned(
+                entry,
+                inputs,
+                &loader,
+                surface.as_ref(),
+                hold.as_ref(),
+                &account,
+                executor,
+                plans.then_some(&memo::planned as blue_lang_runtime::pipeline::MemoPlanner<'_>),
+            )
+        }
         (mode, _) => {
             let mut held = None;
             let observed = blue_lang_runtime::pipeline::run_observed_accounted(

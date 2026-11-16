@@ -96,6 +96,41 @@ pub(crate) fn over(
     ))
 }
 
+/// Whether `blue run` plans the memo itself: nothing named a mode
+/// (`BLUE_MEMO` unset, no `--no-memo`) and the shipped bounds hold. Set
+/// `BLUE_MEMO=off` to run every program without it.
+pub(crate) fn planning(no_memo: bool, cfg: &crate::config::BlueConfig) -> bool {
+    !no_memo
+        && std::env::var_os(ENV).is_none()
+        && cfg.execution_bounds() == blue_lang_runtime::ExecutionBounds::DEFAULT
+}
+
+/// The planner `blue run` offers the pipeline: an in-process memo over the
+/// program when it can cache one of the definitions that repeat their own
+/// calls, named by what the author wrote.
+pub(crate) fn planned(
+    watched: &blue_lang_runtime::pipeline::Watched<'_>,
+    repeating: &[(usize, String)],
+) -> Option<blue_lang_runtime::pipeline::Planned> {
+    let recall = over(
+        false,
+        watched.definitions,
+        watched.lowered,
+        watched.erased,
+        None,
+    );
+    let name = watched
+        .definitions
+        .iter()
+        .enumerate()
+        .find(|(i, d)| {
+            repeating.iter().any(|(top, _)| *top == d.top_level)
+                && matches!(recall.plan().target(*i), Some(Ok(_)))
+        })
+        .map(|(_, d)| d.name.clone())?;
+    Some((recall, name))
+}
+
 /// Write the run's results to the store. A failure costs the next run its
 /// hits, never this run its result, so it is not an error.
 pub(crate) fn finish(recall: &Recall) {

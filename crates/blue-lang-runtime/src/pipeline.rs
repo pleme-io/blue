@@ -273,6 +273,39 @@ pub fn run_framed_on(
     account: &crate::Account,
     executor: Executor,
 ) -> Result<Run, RunError> {
+    run_framed_planned(
+        entry, inputs, loader, surface, hold, account, executor, None,
+    )
+}
+
+/// What a planner hands back for a program whose definitions repeat their
+/// own calls: the observer that answers them, and the name it answers.
+pub type Planned = (std::sync::Arc<dyn crate::observe::CallObserver>, String);
+
+/// The call memo a planner offers [`run_framed_planned`]: given the program
+/// and the definitions [`crate::door::overlapping`] found, the observer that
+/// answers their calls, or `None` when it can cache none of them.
+pub type MemoPlanner<'p> = &'p dyn Fn(&Watched<'_>, &[(usize, String)]) -> Option<Planned>;
+
+/// [`run_framed_on`] with a planner for the call memo. On [`Executor::Auto`],
+/// a program with a definition that calls itself at two or more places runs
+/// on the walker with the planner's memo when the planner can cache that
+/// definition, and takes the door [`crate::door::choose`] picks otherwise.
+///
+/// # Errors
+///
+/// As [`run_framed_on`].
+#[allow(clippy::too_many_arguments)]
+pub fn run_framed_planned(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    hold: Option<&crate::Hold>,
+    account: &crate::Account,
+    executor: Executor,
+    memo: Option<MemoPlanner<'_>>,
+) -> Result<Run, RunError> {
     // The interpreter is built BEFORE the check stage, because it is the check
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
@@ -280,6 +313,43 @@ pub fn run_framed_on(
     let inputs_again = inputs.clone();
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
+    if let (Executor::Auto, Some(planner)) = (executor, memo) {
+        let repeating = crate::door::overlapping(&prepared.erased);
+        if !repeating.is_empty() {
+            let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
+                &prepared.program,
+                &prepared.erased,
+            ));
+            let offered = planner(
+                &Watched {
+                    definitions: &definitions,
+                    program: &prepared.program,
+                    lowered: &prepared.lowered,
+                    erased: &prepared.erased,
+                },
+                &repeating,
+            );
+            if let Some((observer, name)) = offered {
+                if let Ok(mut slot) = account.door.lock() {
+                    *slot = Some(crate::door::Door::chosen(
+                        crate::door::Ran::Walker,
+                        format!(
+                            "the memo answers `{name}`, a pure definition that calls itself at two or more places, so its repeated calls are lookups"
+                        ),
+                    ));
+                }
+                interp.set_call_observer(Some(observer));
+                let value = evaluate_held(&mut interp, &prepared, hold, account, Executor::Walker);
+                interp.set_call_observer(None);
+                return value.map(|value| Run {
+                    value,
+                    visited: prepared.visited,
+                    typed_decls: prepared.typed_decls,
+                    seams: prepared.seams,
+                });
+            }
+        }
+    }
     let door = match executor {
         Executor::Auto => {
             crate::door::choose(&prepared.erased, &|n| interp.lookup_global(n).is_some())

@@ -11,8 +11,7 @@ row(
   "nats_connect(\"nats://127.0.0.1:1\", 500)",
   fails(:eval, "nats_connect"),
   covers("builtin:nats_connect"),
-  host(),
-  pending("G23", "component")
+  host()
 )
 
 row(

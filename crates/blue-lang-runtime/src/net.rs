@@ -128,7 +128,12 @@ pub fn dial_timed(
 ) -> Result<Dialed, (DialFailure, String)> {
     let addrs: Vec<_> = (host, port)
         .to_socket_addrs()
-        .map_err(|e| (DialFailure::Unresolved, format!("{host}:{port}: {e}")))?
+        .map_err(|_| {
+            (
+                DialFailure::Unresolved,
+                format!("{host}:{port}: unresolved"),
+            )
+        })?
         .collect();
     let mut last = (
         DialFailure::Unresolved,

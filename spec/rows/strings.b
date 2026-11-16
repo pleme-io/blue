@@ -4,7 +4,7 @@ row("strings.literal", "\"text\"", value("\"text\""), covers("form:\"text\""))
 row("strings.escapes", "\"a\\tb\\n\"", value("\"a\\tb\\n\""))
 row("strings.unicode_escape", "\"\\u{41}\"", value("\"A\""))
 row("strings.escape_cr", "\"a\\r\\n\"", value("\"a\\r\\n\""))
-row("strings.escape_nul", "\"a\\0b\"", value("\"a\\\\u{0}b\""))
+row("strings.escape_nul", "\"a\\0b\"", value("\"a\\u{0}b\""))
 
 row(
   "strings.escape_control_borrowed",

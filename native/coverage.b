@@ -14,7 +14,7 @@ recorded: The untested definitions and untaken arms per package, measured by `bl
 """
 def recorded()
   unlines(
-    ["untested: chuuzou 15", "unbranched: chuuzou 138", "unbranched: kiban 2"]
+    ["untested: chuuzou 9", "unbranched: chuuzou 141", "unbranched: kiban 2"]
   )
 end
 

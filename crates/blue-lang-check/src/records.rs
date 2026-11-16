@@ -4,7 +4,6 @@ use blue_lang_syntax::record::{record_parts, Record, LIST_TYPE, VALUE_TYPES};
 use blue_lang_syntax::{LOWERED_KWARGS, LOWERED_MAP, LOWERED_MERGE, LOWERED_SPLICE};
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
 
-use crate::names::{resolve_program, NameTable, Namespace, Rule};
 use crate::{Code, Diagnostic};
 
 type Known<'a> = BTreeMap<&'a str, Record<'a>>;
@@ -223,16 +222,14 @@ fn walk(form: &Spanned, known: &Known<'_>, top: usize, out: &mut Vec<Diagnostic>
     }
 }
 
+/// B0079 over `tree`, the namespaced resolved tree of the program the check
+/// stage resolved once (`names::Resolved::resolved_tree` with
+/// `Rule::Namespaced`); a tree with no `record` declares nothing to judge.
 #[must_use]
-pub fn check(
-    forms: &[Spanned],
-    table: &NameTable,
-    namespace_of: &dyn Fn(usize) -> Namespace,
-) -> Vec<Diagnostic> {
-    if !forms.iter().any(|f| record_parts(f).is_some()) {
+pub fn check(tree: &[Spanned]) -> Vec<Diagnostic> {
+    if !tree.iter().any(|f| record_parts(f).is_some()) {
         return Vec::new();
     }
-    let tree = resolve_program(forms, table, namespace_of).resolved_tree(forms, Rule::Namespaced);
     let known: Known<'_> = tree
         .iter()
         .filter_map(record_parts)

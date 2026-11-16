@@ -1524,6 +1524,18 @@ pub fn resolve_program(
     resolve_program_with(forms, table, namespace_of, None)
 }
 
+thread_local! {
+    static PROGRAM_RESOLUTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many whole-program resolutions ([`resolve_program_with`]) this thread
+/// has run: the check stage runs one per program, and a rule reads its
+/// result rather than walking the program again.
+#[must_use]
+pub fn program_resolutions() -> usize {
+    PROGRAM_RESOLUTIONS.with(std::cell::Cell::get)
+}
+
 #[must_use]
 pub fn resolve_program_with(
     forms: &[Spanned],
@@ -1531,6 +1543,7 @@ pub fn resolve_program_with(
     namespace_of: &dyn Fn(usize) -> Namespace,
     mut memo: Option<&mut dyn crate::walk_cache::WalkMemo>,
 ) -> Resolved {
+    PROGRAM_RESOLUTIONS.with(|n| n.set(n.get() + 1));
     let mut w = Walker::new(table, &|_| false);
     let mut defs = Vec::new();
     for (i, form) in forms.iter().enumerate() {

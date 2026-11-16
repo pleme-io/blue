@@ -417,6 +417,36 @@ walked the same tree. `blue run` also runs `check_entry` and
 `canonical_entry` before the pipeline, to spell bare nullary calls. So one run
 parses and resolves each imported file twice and walks the names four times.
 
+### 2.7 Two regressions in the front end (measured 2026-11-16)
+
+Two changes made the check and resolve stages grow faster than the programs
+they read. Both are fixed. Release build, load average 50 to 80, user CPU.
+
+| cause | where | cost before the fix |
+|---|---|---|
+| B0079 (`records::check`, a48bdb8b) and the union rules (`unions::check`, 89ab6c59) each resolved the whole program again when any file in it declared a `record` or a `union`. kyohi declares a union since aa2f88ce, so every program that imports kyohi paid two extra resolutions in each check stage. | `crates/blue-lang-check/src/records.rs`, `unions.rs` | 85% of the check stage of a script that imports zenbu |
+| `Standard::needs` parsed every file of a bidama tree on each call (0414c002), and the resolver calls it once for each level it loads. A tree with N levels was parsed N + 1 times. | `crates/blue-lang-pkg/src/embedded.rs` | 80% of the resolve stage of the same script |
+
+Now the check stage resolves a program once: records, unions and the B0083
+points read the stage's resolution (the check cache's when it is warm), and
+`names::program_resolutions` counts each walk. `Standard::needs` reads each
+tree once per process (`embedded::tree_parses`).
+
+| command | before | after |
+|---|---|---|
+| `blue run` of a script that imports zenbu, check cache cold, user s | 6.3 | 2.7 |
+| `blue run` of a script that imports kueri, check cache warm, hyperfine, user ms | 289 | 165 |
+| `blue run gen/regen.b`, all caches cold (`BLUE_CHECK_CACHE=off`, `BLUE_GEN_CACHE=off`), user s | 152.7 | 134.8 |
+
+The kueri script is still above the 88 ms of 1.3 because kueri imports more
+code than it did: shisutemu now imports settei (92 KB) and its imports. A
+script that imports retsu alone costs what it did (11.1 ms at bded2f8c, 13.3
+ms now). The regen time is no longer in the front end. The generators that
+did not exist on 2026-10-24 cost most of it: `obligation-discovery` 22 s,
+`arika-snapshot` 22 s, `word-shapes` 21 s, and the three verb tables 9.5 s
+each, mostly in evaluation. A second regen with the generator cache on reruns
+no unchanged generator and costs 6.3 s.
+
 ## 3. The destination
 
 ### 3.0 The doctrine: blue wins by doing less work
@@ -626,7 +656,7 @@ One row for each item of section 3.
 | 3.2 Lexical addressing in the tree-walker | ❌ not built | The work is in tatara-lisp-eval. This repository holds no measurement of it. |
 | 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). Built in tatara-lisp-eval 0.4.19: globals cached under write stamps, operators in place, allocation-free calls (`tests/vm_operators.rs`, `tests/vm_allocations.rs`). Not built: a closure handed to a native higher-order word still lifts to the walker. |
 | 3.4 Tiered execution | ❌ not built | No call counter and no VM promotion exist. The VM is slower than the walker on the common script shape (1.4), so 3.2 and 3.3 come first. |
-| 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). No measurement shows one resolution per run. |
+| 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). Each check stage resolves its program at most once, and its rules read that resolution (2.7, `the_check_stage_resolves_a_program_at_most_once`). `blue run` still runs two check stages, `check_entry` for the formatter and the pipeline's own. |
 | 3.6 Shared bidama analysis | ⏳ in progress | `mkAnalysis` (`bidamas/mk-bidama.nix`) writes each bidama's check entries, and `mkBlueWithBidamas` points `BLUE_CACHE_SHARED` at them. Measured 2026-11-16 on a loaded host: a script that imports kueri spends the same check time with the shared store as without it (137 and 142 ms cold), so no gain is shown yet. Re-measure on a quiet host. |
 | 3.7 Processes share the macro table | ❌ not built | The work is in tatara-lisp-eval. No measurement of `spawn` before and after exists. |
 | 3.8 A startup image | ❌ not built | No snapshot of the stdlib or the name table exists. |

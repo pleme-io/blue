@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-403 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+404 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -496,6 +496,7 @@ Higher binding power binds tighter.
 | `tide_release` | `tide_release(wire, max_bytes, stamp_ms)` | 3 | Send queued Tide frames from the oldest while their datagrams total at most max_bytes, each stamped stamp_ms (framing byte 0x01, the stamp as 8 bytes, then the payload): the bytes sent. kodou passes the window its LEDBAT controller allows. |
 | `tide_send` | `tide_send(wire, peer, payload, stamp_ms)` | 4 | Send one Tide frame at once, past the ring: the datagram's bytes. For an acknowledgement, which no window holds. |
 | `tide_stats` | `tide_stats(wire)` | 1 | {address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel. |
+| `usb_control_in` | `usb_control_in(vid, pid, request_type, request, value, index, length, timeout_ms)` | 8 | One raw USB control transfer, device-to-host, to the default endpoint of the first attached device with that vendor and product id: the bytes it returned. request_type is the whole bmRequestType byte (direction is always in). The reach a BootRom protocol needs when its SETUP packet is one no serial channel carries. Raises when no such device is attached or the transfer fails. |
 
 ### Sound and display
 

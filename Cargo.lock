@@ -2122,9 +2122,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b58dd99ccf49f953f6f4bc20c34fe03ab050c39493c484f468eb3cec2d39852"
+checksum = "1e47240340cc09e3682508654755280fafe984032b4a81fd72f31597a2c3a183"
 
 [[package]]
 name = "notify"
@@ -3460,18 +3460,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdfecd80146fc26442e24136a6638f385ab1ce14ea3cd7300da350001c3fb1e"
+checksum = "1be6d2410572990c1409121dc5995142ac6f2fea1e21e70ea33ff0417c0fb9ed"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6ef1b9641b52769b92b38b92f76b1165544eed4733ff8725eca39ea4c23fae6"
+checksum = "8ea5d9779be48bbb57ff965bd09cb555ffefa64352ccdbbe79c9fb1707556125"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3480,9 +3480,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f810fef624f333773b06c0bc28624a77c1ab04412cb102703ca1c2469d7fd548"
+checksum = "9d6649a0b7fb9f54cdd6887e93261aca5ebd7f0ef4b52b33cb978b2c9a44868e"
 dependencies = [
  "blake3",
  "serde",
@@ -3494,9 +3494,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b898a82b853491b618ad2cf1845f92c5a44f35ab37a5f8dc2cdf951e2e36810"
+checksum = "7b4bccee9696bc70357fa87e356b781eeed85806f8f7c3a40a1bfb84c9ad5baf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3505,9 +3505,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c0494c6027fe3e164cfac3b4cbe4800d755f0f5896ffecf7dba78298525c29e"
+checksum = "4456e1258a4b9b7200e08bbb8c5748a337b7515ee10826d66bfe5182b90adaaa"
 dependencies = [
  "arc-swap",
  "blake3",

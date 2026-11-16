@@ -56,6 +56,7 @@ pub mod door;
 pub mod entropy;
 pub mod erase;
 pub mod errors;
+pub mod fold;
 pub mod fuse;
 pub mod host_surface;
 pub mod hosted;

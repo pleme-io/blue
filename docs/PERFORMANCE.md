@@ -235,6 +235,31 @@ leaves programs without that shape alone, and a tree recursion with an effect
 is refused by the memo's own purity proof and stays on the VM.
 `BLUE_MEMO=off` turns the planner off. Locks: `crates/blue-lang-cli/tests/door.rs`.
 
+### 1.4.0 The default cascade
+
+Each lever below is a rule over a definition's own facts (its purity, its
+shape in the tree, the arguments at a call). It fires with no flag, names
+itself in `blue run --timings`, runs the old path when its guard fails, and
+has one switch that turns it off. The conformance rows of each run on every
+evaluator, with the lever on.
+
+| rule | facts → lever | receipt | switch | measured | locks |
+|---|---|---|---|---|---|
+| R1 | constructs every column agrees on → the VM | door receipt | `BLUE_DOOR=walker` | §1.4 | `tests/door.rs` |
+| R2 | pure, calls itself at two or more places → call memo | door receipt | `BLUE_MEMO=off` | `fib(27)` eval 70.9 to 0.13 ms | `tests/door.rs` |
+| R3 | a `map`/`filter`/`reduce` chain of callbacks that only compute → one pass, the unfused chain on the first error | `fused` row | `BLUE_FUSE=off` | pipeline, 1M Ints, VM 395 to 300 ms | `spec/rows/fusion.b`, `tests/fusion.rs` |
+| R4 | a pure definition of the program called with literal arguments where the call can run more than once → its value, computed before the run | `folded` row | `BLUE_FOLD=off` | `tests/fold.rs` program, walker 87.4 to 7.5 ms, VM 44.1 to 5.6 ms | `spec/rows/fold.b`, `tests/fold.rs`, `fold` unit tests |
+
+R4 evaluates each call once in a fresh interpreter under 100,000 steps and
+64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a
+bound or answers a value no literal spells (a map, a function, a record)
+stays as written and runs at its own time, so its error is the program's
+own. A folded value is kept only when its literal evaluates back to a value
+of the same kind and content (`4.0` stays a Float). A call in `main` or at
+the top level runs once, so R4 leaves it alone: folding it would only move
+its cost. `blue bundle` prepares at build time, so a bundle carries the
+value, not the call.
+
 ### 1.4.1 Every execution path against Rust
 
 `blue bench/bench.b native BLUE WORKDIR` runs each program in

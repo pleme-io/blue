@@ -49,7 +49,7 @@ pub fn load_hosted<H: 'static>(
     // interpreter. Installing is not evaluation; the stage order holds.
     let mut interp = crate::interpreter(host);
     install(&mut interp);
-    let prepared = prepare(entry, loader, None, &builtin_names(&interp))?;
+    let prepared = prepare(entry, loader, None, &builtin_names(&interp), false)?;
     eval_prepared(&mut interp, &prepared, host)?;
     let entry = prepared.entry_namespace();
     Ok(Hosted {
@@ -183,6 +183,7 @@ pub fn prepare_program<H: 'static>(
         loader,
         None,
         &builtin_names(&interp),
+        false,
     )?)))
 }
 
@@ -322,7 +323,7 @@ pub fn load_hosted_in_frame<H: 'static>(
 ) -> Result<Hosted<H>, FramedError> {
     let mut interp = crate::interpreter(host);
     install(&mut interp);
-    let prepared = prepare(entry, loader, None, &builtin_names(&interp))?;
+    let prepared = prepare(entry, loader, None, &builtin_names(&interp), false)?;
     let escapes = blue_lang_waku::free_names(prepared.erased(), permits);
     if !escapes.is_empty() {
         return Err(FramedError::Escapes {

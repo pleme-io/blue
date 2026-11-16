@@ -311,7 +311,7 @@ pub fn run_framed_planned(
     // name is read off the interpreter that will run it, never off a list.
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let inputs_again = inputs.clone();
-    let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
+    let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface, hold)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
     if let (Executor::Auto, Some(planner)) = (executor, memo) {
         let repeating = crate::door::overlapping(&prepared.erased);
@@ -369,7 +369,8 @@ pub fn run_framed_planned(
     }
     let value = match evaluate_held(&mut interp, &prepared, hold, account, executor) {
         Err(RunError::Eval(_)) if chosen == Executor::Auto && executor == Executor::Vm => {
-            let (mut again, mut replayed) = prepared_on(entry, inputs_again, loader, surface)?;
+            let (mut again, mut replayed) =
+                prepared_on(entry, inputs_again, loader, surface, hold)?;
             hold_to_frame(&mut again, &mut replayed, hold, account)?;
             for word in crate::door::OUTPUT {
                 again.register_fn(
@@ -558,10 +559,12 @@ fn prepared_on(
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    hold: Option<&crate::Hold>,
 ) -> Result<(tatara_lisp_eval::Interpreter<()>, Prepared), RunError> {
     let interp = runtime(inputs);
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
-    let prepared = prepare(entry, loader, surface, &builtins)?;
+    let folding = crate::fold::unbounded(crate::execution_bounds_under(hold));
+    let prepared = prepare(entry, loader, surface, &builtins, folding)?;
     Ok((interp, prepared))
 }
 
@@ -590,7 +593,7 @@ pub fn compile(
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
     hold: Option<&crate::Hold>,
 ) -> Result<Compiled, RunError> {
-    let (_, prepared) = prepared_on(entry, Inputs::new(), loader, surface)?;
+    let (_, prepared) = prepared_on(entry, Inputs::new(), loader, surface, hold)?;
     if let Some(hold) = hold {
         let escapes = entry_escapes(&prepared.program, &hold.withheld_host_names(), &|cap| {
             format!("this bundle's policy does not allow; declare allow(%i[{cap}]) in the project's Bluefile and run `blue lock`")
@@ -739,7 +742,7 @@ pub fn run_observed_accounted(
     account: &crate::Account,
     watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
 ) -> Result<Observed, RunError> {
-    let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
+    let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface, hold)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
     let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
         &prepared.program,
@@ -817,6 +820,7 @@ pub(crate) fn prepare(
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
     builtins: &NameTable,
+    folding: bool,
 ) -> Result<Prepared, RunError> {
     let mut program = parse_and_resolve(entry, loader, surface)?;
 
@@ -879,7 +883,14 @@ pub(crate) fn prepare(
         let lowered = cached.map_or_else(|| lower(&program, &names), |c| c.lowered);
         let fused = crate::erase::erase_fused(&lowered);
         crate::timings::fused(&fused.chains);
-        (lowered, fused.forms)
+        let forms = if folding && crate::fold::enabled() {
+            let folded = crate::fold::fold(fused.forms, &lowered);
+            crate::timings::folded(&folded.calls);
+            folded.forms
+        } else {
+            fused.forms
+        };
+        (lowered, forms)
     });
 
     Ok(Prepared {

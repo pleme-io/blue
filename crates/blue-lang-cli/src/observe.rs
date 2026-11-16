@@ -818,6 +818,7 @@ pub(crate) fn profile(
     args: Vec<String>,
     cfg: &BlueConfig,
 ) -> Result<ExitCode, CliError> {
+    blue_lang_runtime::fuse::hold_off();
     let mut recorder = None;
     let mut memoized = None;
     let started = Instant::now();

@@ -73,6 +73,7 @@ thread_local! {
     static EVALUATING: Cell<bool> = const { Cell::new(false) };
     static STEPS: Cell<Option<u64>> = const { Cell::new(None) };
     static FUSED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static FOLDED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Record the chains erasure fused ([`crate::fuse`]) for this thread's
@@ -81,6 +82,20 @@ pub fn fused(chains: &[String]) {
     if enabled() {
         FUSED.with(|f| f.borrow_mut().extend(chains.iter().cloned()));
     }
+}
+
+/// Record the definitions whose calls erasure folded ([`crate::fold`]) for
+/// this thread's report, when it records.
+pub fn folded(calls: &[String]) {
+    if enabled() {
+        FOLDED.with(|f| f.borrow_mut().extend(calls.iter().cloned()));
+    }
+}
+
+/// The definitions whose calls were folded since [`enable`].
+#[must_use]
+pub fn folded_calls() -> Vec<String> {
+    FOLDED.with(|f| f.borrow().clone())
 }
 
 /// The chains fused since [`enable`].
@@ -97,6 +112,7 @@ pub fn enable() {
     EVALUATING.with(|e| e.set(false));
     STEPS.with(|s| s.set(None));
     FUSED.with(|f| f.borrow_mut().clear());
+    FOLDED.with(|f| f.borrow_mut().clear());
 }
 
 /// Charge `spent` evaluation steps to this thread's report, when it records.
@@ -225,6 +241,10 @@ pub fn report() -> String {
     let chains = fused_chains();
     if !chains.is_empty() {
         out.push_str(&format!("fused    {} {}\n", chains.len(), chains.join(" ")));
+    }
+    let calls = folded_calls();
+    if !calls.is_empty() {
+        out.push_str(&format!("folded   {} {}\n", calls.len(), calls.join(" ")));
     }
     out
 }

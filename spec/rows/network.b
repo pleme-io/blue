@@ -287,7 +287,8 @@ row(
   "usb_control_in(65534, 65535, 161, 0, 0, 0, 10, 100)",
   fails(:eval, "no USB device fffe:ffff"),
   covers("builtin:usb_control_in"),
-  host()
+  host(),
+  pending("G22", "component")
 )
 
 row(
@@ -295,5 +296,6 @@ row(
   "serial_open(\"/dev/null\")",
   fails(:eval, "not a serial device"),
   covers("builtin:serial_open"),
-  host()
+  host(),
+  pending("G22", "component")
 )

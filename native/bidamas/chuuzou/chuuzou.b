@@ -2699,6 +2699,8 @@ as its entry (tier T3): `pub fn entry(io, args: &Args) -> i64` checks the
 arity and calls it from depth zero. Refused unless `key` takes and answers
 Ints and nothing in the slice reaches the board, the calls the native tier
 can answer.
+
+    cz_lower_def(cz_read("(define-typed (%root/sq (x Int)) Int (* x x))"), "%root/sq") != nil #=> true
 """
 def cz_lower_def(forms, key)
   if cz_board_word?(forms)
@@ -3201,4 +3203,29 @@ test "a section's size is read by name"
   )
   assert cz_section(out, ".text") == 64
   assert cz_section(out, ".data") == 0
+end
+
+test "a definition that reaches only itself lowers for the native tier"
+  slice = "(define-typed (%root/sq (x Int)) Int (* x x))"
+  assert cz_def_native(slice, "%root/sq").nil?
+  assert cz_lower_def(cz_read(slice), "%root/sq") != nil
+end
+
+test "the native tier refuses a key the slice does not define as a typed function"
+  slice = "(define-typed (%root/sq (x Int)) Int (* x x))"
+  assert contains?(cz_def_native(slice, "%root/absent"), "not a typed function")
+end
+
+test "a slice that names a board word is refused, and a plain one is not"
+  board = cz_read("(define-typed (%root/f (x Int)) Int (kiban/put_int x))")
+  plain = cz_read("(define-typed (%root/f (x Int)) Int (* x 2))")
+  assert cz_board_word?(board)
+  assert not cz_board_word?(plain)
+  assert contains?(
+    cz_def_native(
+      "(define-typed (%root/f (x Int)) Int (kiban/put_int x))",
+      "%root/f"
+    ),
+    "board word"
+  )
 end

@@ -1209,7 +1209,7 @@ the example. It writes nothing it cannot source; what stays is counted by
         fix: Machine,
         law: "a `@doc` holds at least one example, an indented `expr #=> value` line",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 746,
+        ratchet: 749,
         package: "kagi",
         explanation: "\
 An example shows how a definition is called and what it answers, and blue
@@ -1909,7 +1909,7 @@ not refused: each side runs the code.",
         fix: None,
         law: "each definition of a bidama is named by a test of its file: called, referenced, or its `target:`",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 3408,
+        ratchet: 3411,
         package: "kagi",
         explanation: "\
 A definition reached only through a caller is tested only as far as the

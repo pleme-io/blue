@@ -2298,28 +2298,7 @@ fn atom(a: &Atom) -> Doc {
 }
 
 fn render_string(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    let mut after_hash = false;
-    for c in s.chars() {
-        match c {
-            // A string whose VALUE holds `#{` (written `"#\u{7b}"`) printed
-            // as `"#{"`, which the lexer reads as an interpolation opener
-            // (2026-09-29, the tree generator). blue has no `\{` escape, so
-            // the brace after a `#` is written by codepoint.
-            '{' if after_hash => out.push_str("\\u{7b}"),
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\t' => out.push_str("\\t"),
-            '\r' => out.push_str("\\r"),
-            c if invisible(c) => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
-            c => out.push(c),
-        }
-        after_hash = c == '#';
-    }
-    out.push('"');
-    out
+    blue_lang_syntax::render::render_string(s)
 }
 
 pub fn render_int(i: i64) -> String {
@@ -2338,11 +2317,6 @@ pub fn render_int(i: i64) -> String {
         grouped.push(c);
     }
     grouped
-}
-
-fn invisible(c: char) -> bool {
-    (c.is_control() && c != '\n' && c != '\t' && c != '\r')
-        || matches!(c, '\u{200b}'..='\u{200f}' | '\u{2028}' | '\u{2029}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}' | '\u{00a0}')
 }
 
 pub fn render_literal(a: &Atom) -> String {

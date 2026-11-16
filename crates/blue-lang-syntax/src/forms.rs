@@ -38,7 +38,7 @@ pub const FORMS: &[Form] = &[
     Form {
         example: "\"text\"",
         lowers_to: "\"text\"",
-        doc: "A string. Escapes: \\n, \\t, \\\", \\\\, \\u{1b}; a character a reader cannot see is always escaped (B0033).",
+        doc: "A string. Escapes: \\n, \\t, \\r, \\f, \\b, \\v, \\a, \\e, \\0, \\\", \\\\, \\u{1b}; a character a reader cannot see is always escaped (B0033).",
     },
     Form {
         example: "\"n = #{n}!\"",

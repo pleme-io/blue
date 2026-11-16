@@ -24,6 +24,7 @@ pub mod lex;
 pub mod parse;
 pub mod pattern;
 pub mod record;
+pub mod render;
 pub mod scope;
 pub mod spelling;
 pub mod test_form;

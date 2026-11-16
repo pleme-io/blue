@@ -325,19 +325,7 @@ fn float_text(x: f64) -> String {
 }
 
 fn quoted(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\t' => out.push_str("\\t"),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
+    blue_lang_syntax::render::render_string(s)
 }
 
 fn list(items: Vec<Value>) -> Value {

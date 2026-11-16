@@ -395,6 +395,16 @@ impl<'a> Lexer<'a> {
                         b'\\' => '\\',
                         b'"' => '"',
                         b'0' => '\0',
+                        // The C-family control escapes: READ, never written.
+                        // The printer's one canonical spelling for each of
+                        // these stays `\u{…}` (B0033), so a source file meets
+                        // the short form only where a human carried it over
+                        // from C, Ruby or Elixir — the borrowed-spelling rule.
+                        b'f' => '\u{c}',
+                        b'b' => '\u{8}',
+                        b'v' => '\u{b}',
+                        b'a' => '\u{7}',
+                        b'e' => '\u{1b}',
                         // `\u{...}` — a Unicode scalar by codepoint. Ruby and
                         // Elixir both have it, and without it a blue source
                         // file can only carry a non-ASCII character literally,
@@ -942,6 +952,15 @@ mod tests {
     #[test]
     fn lexes_strings_with_escapes() {
         assert_eq!(kinds(r#""a\nb""#), vec![TokenKind::Str("a\nb".into())]);
+    }
+
+    #[test]
+    fn lexes_the_control_escapes() {
+        assert_eq!(
+            kinds(r#""\f\b\v\a\e""#),
+            vec![TokenKind::Str("\u{c}\u{8}\u{b}\u{7}\u{1b}".into())]
+        );
+        assert_eq!(kinds(r#""\r\0""#), vec![TokenKind::Str("\r\0".into())]);
     }
 
     #[test]

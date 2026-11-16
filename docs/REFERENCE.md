@@ -15,7 +15,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 |---|---|---|
 | `42` | `42` | An Int. Six or more digits are grouped by threes, 1_000_000; fewer are not (B0033). |
 | `3.5` | `3.5` | A Float. |
-| `"text"` | `"text"` | A string. Escapes: \n, \t, \", \\, \u{1b}; a character a reader cannot see is always escaped (B0033). |
+| `"text"` | `"text"` | A string. Escapes: \n, \t, \r, \f, \b, \v, \a, \e, \0, \", \\, \u{1b}; a character a reader cannot see is always escaped (B0033). |
 | `"n = #{n}!"` | `(concat (concat "n = " n) "!")` | Interpolation: any expression inside #{…}, rendered with to_s. A literal that must contain #{ is built with concat("#", "{"). |
 | `:done` | `:done` | A keyword: a name as a value. It may not end in ? or !. |
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |

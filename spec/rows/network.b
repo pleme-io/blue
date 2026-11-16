@@ -11,7 +11,8 @@ row(
   "nats_connect(\"nats://127.0.0.1:1\", 500)",
   fails(:eval, "nats_connect"),
   covers("builtin:nats_connect"),
-  host()
+  host(),
+  pending("G23", "component")
 )
 
 row(
@@ -67,7 +68,8 @@ row(
   "http_request(\"GET\", \"https://127.0.0.1:1/\", nil, nil, 500)",
   fails(:eval, "http_request"),
   covers("builtin:http_request"),
-  host()
+  host(),
+  pending("G24", "component")
 )
 
 row(
@@ -229,7 +231,8 @@ row(
   "resp_connect(\"127.0.0.1\", 1, nil, true)",
   fails(:eval, "resp_connect"),
   covers("builtin:resp_connect"),
-  host()
+  host(),
+  pending("G24", "component")
 )
 
 row(

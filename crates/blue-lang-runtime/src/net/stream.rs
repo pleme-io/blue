@@ -307,9 +307,15 @@ fn usb_control_in_native(
         2 => Recipient::Endpoint,
         _ => Recipient::Other,
     };
-    let device = nusb::list_devices()
-        .map_err(|e| fail(name, e, span))?
-        .find(|d| d.vendor_id() == vid && d.product_id() == pid)
+    // A bus that cannot be listed is a bus with nothing on it: the same
+    // answer as an empty one, never the enumerator's errno (a sandboxed
+    // runner has no usbfs and its "No such file or directory" is not a
+    // fact about the device we asked for).
+    let found = match nusb::list_devices() {
+        Ok(mut list) => list.find(|d| d.vendor_id() == vid && d.product_id() == pid),
+        Err(_) => None,
+    };
+    let device = found
         .ok_or_else(|| {
             fail(
                 name,

@@ -656,6 +656,40 @@ pub fn doc_of(name: &str) -> Option<&'static NameDoc> {
     NAMES.iter().find(|d| d.name == name)
 }
 
+/// Whether the builtin `name` calls its argument at position `i`: a
+/// parameter its signature names as a function (`f`, `g`, `pred`, …), or a
+/// position past the named ones in a signature that takes a function. A name
+/// with no row, or a signature that does not parse, answers yes.
+///
+/// ```
+/// use blue_lang_runtime::docs::calls_argument;
+/// assert!(calls_argument("map", 0));
+/// assert!(!calls_argument("map", 1));
+/// assert!(!calls_argument("length", 0));
+/// ```
+#[must_use]
+pub fn calls_argument(name: &str, i: usize) -> bool {
+    use blue_lang_check::contracts::{kinds_of_parameter, parameters, Kind};
+    let Some(ps) = doc_of(name).and_then(|d| parameters(d.signature)) else {
+        return true;
+    };
+    let function = |p: &str| kinds_of_parameter(p) == Some(&[Kind::Fn][..]);
+    match ps.get(i) {
+        Some(p) if !p.is_empty() => function(p),
+        _ => ps.iter().any(|p| function(p)),
+    }
+}
+
+/// Whether the builtin `name` calls any of its arguments
+/// ([`calls_argument`] at some position).
+#[must_use]
+pub fn calls_arguments(name: &str) -> bool {
+    use blue_lang_check::contracts::parameters;
+    doc_of(name)
+        .and_then(|d| parameters(d.signature))
+        .map_or(true, |ps| (0..=ps.len()).any(|i| calls_argument(name, i)))
+}
+
 #[must_use]
 pub fn signatures() -> &'static blue_lang_check::contracts::Signatures {
     static SIGNATURES: std::sync::OnceLock<blue_lang_check::contracts::Signatures> =

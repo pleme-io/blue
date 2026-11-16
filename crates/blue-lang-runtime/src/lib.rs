@@ -56,6 +56,7 @@ pub mod door;
 pub mod entropy;
 pub mod erase;
 pub mod errors;
+pub mod fuse;
 pub mod host_surface;
 pub mod hosted;
 pub mod inputs;
@@ -74,6 +75,7 @@ pub mod pipeline;
 pub mod project_rules;
 #[cfg(feature = "host")]
 pub mod provide;
+pub mod reach;
 pub mod receipt;
 pub mod record;
 #[cfg(feature = "host")]

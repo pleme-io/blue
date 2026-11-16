@@ -877,8 +877,9 @@ pub(crate) fn prepare(
     // parser built, minus annotations, with the author's byte offsets intact.
     let (lowered, erased) = crate::timings::stage(crate::timings::Stage::Erase, || {
         let lowered = cached.map_or_else(|| lower(&program, &names), |c| c.lowered);
-        let erased = erase_types(&lowered);
-        (lowered, erased)
+        let fused = crate::erase::erase_fused(&lowered);
+        crate::timings::fused(&fused.chains);
+        (lowered, fused.forms)
     });
 
     Ok(Prepared {

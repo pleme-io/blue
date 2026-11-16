@@ -472,6 +472,9 @@ pub trait Scopes {
     /// The head of a special form or a macro call — not a reference to a
     /// binding, but still a name the program writes.
     fn head(&mut self, _node: &Spanned, _name: &str, _kind: HeadKind) {}
+    /// A call whose head is not a name: the function it calls is the value
+    /// of an expression.
+    fn value_head(&mut self, _whole: &Spanned) {}
     /// A symbol inside a quasiquoted template, outside any `unquote`: data at
     /// expansion, code once the expansion runs.
     fn template_symbol(&mut self, _node: &Spanned, _name: &str) {}
@@ -721,6 +724,7 @@ impl Walker<'_> {
 
     fn walk_list(&mut self, form: &Spanned, items: &[Spanned], opaque: bool) {
         let Some(head) = items[0].as_symbol() else {
+            self.pass.value_head(form);
             self.walk_all(items, opaque);
             return;
         };

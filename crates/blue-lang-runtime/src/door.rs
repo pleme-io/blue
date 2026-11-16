@@ -423,7 +423,35 @@ impl Walk<'_> {
                     self.expr(a, locals);
                 }
             }
-            "if" | "cond" | "when" | "unless" | "begin" | "and" | "or" | "not" | "try" => {
+            "try" => {
+                for a in args {
+                    let clause = list(a).filter(|c| {
+                        matches!(c.first().and_then(symbol), Some("catch" | "finally"))
+                    });
+                    match clause {
+                        Some(c) if c.first().and_then(symbol) == Some("catch") => {
+                            let mut inner = locals.clone();
+                            if let Some(binding) = c.get(1) {
+                                inner.extend(
+                                    list(binding).map_or_else(
+                                        || params(std::slice::from_ref(binding)),
+                                        params,
+                                    ),
+                                );
+                            }
+                            self.body(c.get(2..).unwrap_or(&[]), inner);
+                        }
+                        Some(c) => self.body(&c[1..], locals.clone()),
+                        None => {
+                            if is_lambda(a) {
+                                self.found.insert(Construct::FunctionAsValue);
+                            }
+                            self.expr(a, locals);
+                        }
+                    }
+                }
+            }
+            "if" | "cond" | "when" | "unless" | "begin" | "and" | "or" | "not" => {
                 for a in args {
                     if is_lambda(a) {
                         self.found.insert(Construct::FunctionAsValue);

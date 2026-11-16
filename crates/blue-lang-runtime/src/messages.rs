@@ -76,6 +76,10 @@ fn spelled(key: &str) -> String {
     }
 }
 
+fn written(items: &[Spanned]) -> bool {
+    items.first().map_or(true, |h| !h.span.is_synthetic())
+}
+
 fn call_at(forms: &[Spanned], at: Span) -> Option<&[Spanned]> {
     if at.is_synthetic() {
         return None;
@@ -89,7 +93,7 @@ fn list_at(node: &Spanned, at: Span) -> Option<&[Spanned]> {
     }
     match &node.form {
         SpannedForm::List(items) => {
-            if node.span == at && items.len() > 1 {
+            if node.span == at && items.len() > 1 && written(items) {
                 return Some(items);
             }
             items.iter().find_map(|i| list_at(i, at))
@@ -158,7 +162,7 @@ fn find(node: &Spanned, at: Span) -> Option<String> {
     }
     match &node.form {
         SpannedForm::List(items) => {
-            if node.span == at {
+            if node.span == at && written(items) {
                 if let Some(h) = items.first().and_then(Spanned::as_symbol) {
                     return Some(h.to_string());
                 }

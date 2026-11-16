@@ -72,6 +72,21 @@ thread_local! {
     static EVALUATED: Cell<Option<Allocations>> = const { Cell::new(None) };
     static EVALUATING: Cell<bool> = const { Cell::new(false) };
     static STEPS: Cell<Option<u64>> = const { Cell::new(None) };
+    static FUSED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Record the chains erasure fused ([`crate::fuse`]) for this thread's
+/// report, when it records.
+pub fn fused(chains: &[String]) {
+    if enabled() {
+        FUSED.with(|f| f.borrow_mut().extend(chains.iter().cloned()));
+    }
+}
+
+/// The chains fused since [`enable`].
+#[must_use]
+pub fn fused_chains() -> Vec<String> {
+    FUSED.with(|f| f.borrow().clone())
 }
 
 /// Start recording on this thread, dropping anything recorded before.
@@ -81,6 +96,7 @@ pub fn enable() {
     EVALUATED.with(|e| e.set(None));
     EVALUATING.with(|e| e.set(false));
     STEPS.with(|s| s.set(None));
+    FUSED.with(|f| f.borrow_mut().clear());
 }
 
 /// Charge `spent` evaluation steps to this thread's report, when it records.
@@ -205,6 +221,10 @@ pub fn report() -> String {
     }
     if let Some(a) = allocated() {
         out.push_str(&format!("allocs   {}\nbytes    {}\n", a.count, a.bytes));
+    }
+    let chains = fused_chains();
+    if !chains.is_empty() {
+        out.push_str(&format!("fused    {} {}\n", chains.len(), chains.join(" ")));
     }
     out
 }

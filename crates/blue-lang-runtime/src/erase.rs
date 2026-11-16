@@ -61,8 +61,32 @@ const REST_NAME: &str = "%rest";
 /// Takes and returns [`Spanned`]. A caller holding spanless [`Sexp`] projects
 /// the result with [`Spanned::to_sexp`]; a caller that needs a position out
 /// the far end must not, because that projection is where the position dies.
+///
+/// The erased tree is the one every evaluator runs, so its higher-order
+/// chains arrive fused ([`crate::fuse`]) unless `BLUE_FUSE=off`.
 #[must_use]
 pub fn erase_types(forms: &[Spanned]) -> Vec<Spanned> {
+    erase_fused(forms).forms
+}
+
+/// [`erase_types`], with each chain the rewrite fused named.
+#[must_use]
+pub fn erase_fused(forms: &[Spanned]) -> crate::fuse::Fused {
+    let erased = unfused(forms);
+    if crate::fuse::enabled() {
+        crate::fuse::fuse(erased, forms)
+    } else {
+        crate::fuse::Fused {
+            forms: erased,
+            chains: Vec::new(),
+        }
+    }
+}
+
+/// [`erase_types`] with no chain fused: the program exactly as written,
+/// annotations erased.
+#[must_use]
+pub fn unfused(forms: &[Spanned]) -> Vec<Spanned> {
     crate::record::lower_records(forms.iter().map(erase_form).collect())
 }
 

@@ -64,3 +64,42 @@ fn a_pure_chain_runs_fused_with_fewer_allocations_and_the_same_output_on_both_do
         }
     }
 }
+
+const ARMS: &str = "@doc \"\"\"\nparity: the sum of 0 for each even and 1 for each odd number.\n\n    parity([1, 2, 3]) #=> 2\n\"\"\"\ndef parity(xs)\n  reduce(\n    (a, x) -> a + x,\n    0,\n    map(\n      (x) ->\n        if x % 2 == 0\n          0\n        else\n          1\n        end,\n      xs\n    )\n  )\nend\n\ntest \"parity counts the odd numbers\"\n  assert parity([1, 2, 3, 4]) == 2\nend\n";
+
+#[test]
+fn coverage_sees_each_arm_where_it_is_written_not_inside_a_fused_pass() {
+    let d = std::env::temp_dir().join(format!("blue-fusion-cov-{}", std::process::id()));
+    std::fs::create_dir_all(&d).expect("scratch dir");
+    let p = d.join("arms.b");
+    std::fs::write(&p, ARMS).expect("write fixture");
+    let formatted = Command::new(env!("CARGO_BIN_EXE_blue"))
+        .args(["fmt", "--write"])
+        .arg(&p)
+        .output()
+        .expect("spawn blue fmt");
+    assert!(
+        formatted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_blue"))
+        .env_remove("BLUE_PATH")
+        .env_remove("BLUE_FUSE")
+        .args(["test", "--coverage", "--json"])
+        .arg(&p)
+        .output()
+        .expect("spawn blue");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let row = stdout
+        .lines()
+        .find(|l| l.trim_start().starts_with('{'))
+        .expect("a coverage row");
+    let doc: serde_json::Value = serde_json::from_str(row).expect("coverage JSON");
+    assert_eq!(doc["untaken"], serde_json::json!([]), "{row}");
+}

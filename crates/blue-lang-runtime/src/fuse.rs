@@ -104,10 +104,21 @@ pub const REWRITES: &[Rewrite] = &[
 /// The variable that turns the rewrite off: `BLUE_FUSE=off`.
 pub const SWITCH: &str = "BLUE_FUSE";
 
-/// Whether the rewrite runs: on unless [`SWITCH`] is `off`.
+static HELD_OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Hold the rewrite off for the rest of the process: a command that observes
+/// the code as written (`blue test --coverage`, `blue trace`) must see each
+/// arm run where the author wrote it, not inside a fused pass.
+pub fn hold_off() {
+    HELD_OFF.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether the rewrite runs: on unless [`SWITCH`] is `off` or [`hold_off`]
+/// was called.
 #[must_use]
 pub fn enabled() -> bool {
-    std::env::var(SWITCH).map_or(true, |v| v != "off")
+    !HELD_OFF.load(std::sync::atomic::Ordering::Relaxed)
+        && std::env::var(SWITCH).map_or(true, |v| v != "off")
 }
 
 /// An erased program with its chains fused, and each chain it fused, spelled

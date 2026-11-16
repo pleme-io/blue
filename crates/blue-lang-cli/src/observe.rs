@@ -525,6 +525,9 @@ fn test_file(
         None => guard,
     };
     let (filter, coverage) = (watch.filter, watch.coverage);
+    if coverage {
+        blue_lang_runtime::fuse::hold_off();
+    }
     let memo = crate::memo::unless_bounded(watch.memo, guard.bounds);
     let src = read_compiled(path)?;
     // The check stage first, test blocks included: no test runs over a
@@ -951,6 +954,7 @@ pub(crate) fn trace(
     args: Vec<String>,
     cfg: &BlueConfig,
 ) -> Result<ExitCode, CliError> {
+    blue_lang_runtime::fuse::hold_off();
     // Refused before anything runs: a trace of a name the program does not
     // define would run the program for nothing.
     let src = crate::read_run(file)?;

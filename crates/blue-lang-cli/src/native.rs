@@ -240,9 +240,12 @@ mod tests {
     use super::*;
 
     fn checked(src: &str) -> blue_lang_runtime::pipeline::Checked {
+        let loader = blue_lang_pkg::load_path::LoadPath::for_entry(
+            &std::env::temp_dir().join("native-test.b"),
+        );
         let c = blue_lang_runtime::pipeline::check_entry(
             blue_lang_runtime::uses::Entry::anonymous(src),
-            &blue_lang_runtime::uses::NoLoader,
+            &loader,
             None,
             blue_lang_runtime::pipeline::Checking::Program,
         )

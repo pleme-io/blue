@@ -157,7 +157,7 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | doc/example | a `@doc` | unit | static | B0057 | default | 0 |
 | point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 97 |
 | point/seam | a definition that calls an imported word which names such a builtin | integration | static | B0084 | default | 22 |
-| point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 32 |
+| point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 33 |
 | point/service | the program of a Bluefile `service(...)` row | e2e | project | B0086 | service | 2 |
 | point/binding | a `cache` or `schema` binding of a `service(...)` row | contract | project | B0087 | service | 1 |
 | point/fake | a test that declares `fakes:` | integration | static | B0097 | default | 0 |

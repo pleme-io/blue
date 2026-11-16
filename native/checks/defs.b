@@ -79,7 +79,7 @@ test "every compiled definition answers what the interpreter answers", {
   assert differ == []
 end
 
-test "a run with the native tier on answers a call from the artifact its def_hash names", {
+test "the native tier answers a call from its def_hash's artifact", {
   kind: :integration
 }
   work = temp_dir("native-tier")

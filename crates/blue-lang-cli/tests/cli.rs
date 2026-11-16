@@ -157,8 +157,10 @@ fn run_vm_evaluates_on_the_bytecode_vm() {
     let o = run(&["run", "--vm", f.to_str().unwrap()]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));
     assert_eq!(stdout(&o), "Foreign(…)\n");
-    let o = run(&["run", f.to_str().unwrap()]);
+    let o = run(&["run", "--door", "walker", f.to_str().unwrap()]);
     assert_eq!(stdout(&o), "Closure(…)\n");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert_eq!(stdout(&o), "Foreign(…)\n");
     let o = run_env(
         &["run", "--vm", f.to_str().unwrap()],
         &[("BLUE_MEMO", "process")],

@@ -7,6 +7,7 @@ chuuzou compiles it for the native tier (`native`, else `refused` says why).
 nix/native-defs.nix reads it and builds one derivation per def_hash.
 """
 
+# waive B0085: the manifest's consumer is nix/native-defs.nix, which checks.native-defs and checks.native-generated-native-defs-fresh build from it; no blue test can feed a nix evaluation
 use("chuuzou", [:cz_def_native])
 
 @doc """
@@ -29,7 +30,6 @@ def row(program, d)
   )
 end
 
-# waive B0083: integration debt recorded 2026-11-16: checks.native-native-defs-fresh runs it under nix, no test of this file does
 def rows(path)
   r = exec_capture(self_exe, "ast", "--resolved", "--defs", path)
   if second(first(r)) != 0

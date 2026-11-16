@@ -86,7 +86,7 @@ fn a_program_using_a_disagreeing_construct_falls_back_and_names_its_row() {
 }
 
 #[test]
-fn a_call_through_a_value_and_a_lambda_argument_stay_on_the_walker() {
+fn a_call_through_a_value_stays_on_the_walker_and_a_lambda_argument_takes_the_vm() {
     let d = dir("values");
     let through = write(&d, "through.b", "def f(a, b)\n  a\nend\n\ng = f\ng(1, 2)\n");
     let out = run_with(&through, &d.join("t"), None);
@@ -107,8 +107,7 @@ fn a_call_through_a_value_and_a_lambda_argument_stay_on_the_walker() {
         String::from_utf8_lossy(&out.stderr)
     );
     let door = door_of(&d.join("l"));
-    assert_eq!(door["door"], "walker");
-    assert!(door["why"].as_str().unwrap().contains("slower"), "{door}");
+    assert_eq!(door["door"], "vm", "{door}");
 }
 
 #[test]

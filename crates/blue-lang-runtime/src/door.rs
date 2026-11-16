@@ -75,12 +75,6 @@ pub const TABLE: &[Rule] = &[
             why: "an error on the vm carries no place or stack, and a run that reached the host cannot run again on the walker to place it",
         },
     },
-    Rule {
-        construct: Construct::FunctionAsValue,
-        reason: Reason::Slower {
-            measured: "docs/PERFORMANCE.md 1.4 and 2.2: a function handed to a native word is lifted back to the walker on each call",
-        },
-    },
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

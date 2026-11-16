@@ -353,6 +353,31 @@ dependency order. **Blue bends to the pattern:** boilerplate in a blue program m
 missing a word, so add the form, macro or primitive. The
 loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
 
+### Speed: blue decides, Rust carries
+
+Blue wins speed by doing less work, from what it knows ([PERFORMANCE.md](docs/PERFORMANCE.md) §3.0).
+Five rules follow:
+
+- **Measure the term before the lever.** A run costs build, start, front end, dispatch,
+  name lookup and the program's own work; profile which one leads (`blue run --timings`,
+  `sample`) before changing anything, and keep the change only on a measured gain.
+- **Levers are chosen by default.** Blue picks the lever from a fact it holds (a
+  definition's content hash, its purity, a frame's version, the nix store), names the
+  choice in a receipt (the door receipt), and gives it an off switch (`BLUE_MEMO=off`,
+  `BLUE_DOOR=walker`). The author never needs a flag to be fast. The memo planner is
+  the first: a pure definition that calls itself at two or more places runs memoized.
+- **Defaults cascade per atom.** A definition (then a region in it) takes its
+  defaults from its own facts: its blueshift position on each axis, its effects over
+  the call graph, its shape in the AST, its placement. Each default is a Horn rule
+  (facts imply a lever), so annotating or purifying one definition turns on defaults
+  for it and for every caller it completes. A new capability names the rule it adds.
+- **A cache is keyed by a fact that only grows**, so it has a miss path and no
+  invalidation: content hashes, frame versions, store paths.
+- **Rust is for what blue cannot reach**: the evaluator and its seams. Every decision,
+  plan, rule and library word is blue. A word moved to Rust for a measured speed-up
+  goes back to blue once chuuzou compiles it to native code, and the road ends with
+  blue hosting itself.
+
 ### One short way, built on the last
 
 The FORM axis is the core of blue: each thing has one spelling, the

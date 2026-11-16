@@ -1,0 +1,19 @@
+def square(x: Int) -> Int
+  x * x
+end
+
+def sum_squares(n: Int, acc: Int) -> Int
+  if n == 0
+    acc
+  else
+    sum_squares(n - 1, acc + square(n))
+  end
+end
+
+def fibonacci(n: Int) -> Int
+  if n < 2
+    n
+  else
+    fibonacci(n - 1) + fibonacci(n - 2)
+  end
+end

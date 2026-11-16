@@ -95,6 +95,30 @@ pub fn put_int<I: Io, W: Copy + Into<i64>>(io: &mut I, uart: u32, n: W) -> W {
     n
 }
 
+/// The Int arguments a seam hands one compiled definition (tier T3: the
+/// definition is the entry, not the program's top level).
+pub struct Args<'a>(pub &'a [i64]);
+
+impl Args<'_> {
+    /// Exactly `n` arguments, or a fault: a call of the wrong arity is
+    /// refused, as the interpreter refuses it.
+    #[inline(always)]
+    pub fn need(&self, n: u32) {
+        if self.0.len() != n as usize {
+            fault()
+        }
+    }
+
+    /// The `i`th argument.
+    #[inline(always)]
+    pub fn get(&self, i: u32) -> i64 {
+        match self.0.get(i as usize) {
+            Some(v) => *v,
+            None => fault(),
+        }
+    }
+}
+
 /// Stop at the board's fault handler.
 #[inline(never)]
 #[cold]

@@ -71,14 +71,76 @@ let
     ${blue}/bin/blue test ${src + "/checks/wasm.b"} > $out
   '';
 
+  # Tier T3: one derivation per def_hash (nix/native-defs.nix). The seam is
+  # the files a definition image links, so a board's own seam changing
+  # rebuilds no definition.
+  t3 = import ./native-defs.nix {
+    inherit pkgs lib blue hostRust emitter;
+    inherit (project) bluePath;
+    defImage = src + "/build/def.b";
+    seam = lib.fileset.toSource {
+      root = src + "/seam";
+      fileset = lib.fileset.unions [
+        (src + "/seam/kiban_io.rs")
+        (src + "/seam/kiban_heap.rs")
+        (src + "/seam/host_io.rs")
+        (src + "/seam/def64")
+      ];
+    };
+  };
+
+  manifest = src + "/defs/manifest.jsonl";
+
+  defsRoot = t3.root { inherit manifest; program = "base"; name = "native-defs-base"; };
+
+  # The key is the content, read off .drvPath at evaluation: an edited
+  # definition and every definition reaching it move; an unrelated one and a
+  # renamed one do not.
+  keyCheck =
+    let
+      rows = t3.rowsOf manifest;
+      row = program: key: lib.findFirst (r: r.program == program && r.key == key)
+        (throw "native/defs/manifest.jsonl has no ${program} ${key}")
+        rows;
+      drv = at: builtins.unsafeDiscardStringContext (t3.artifact (row (lib.head at) (lib.last at))).drvPath;
+      fact = what: same: a: b: { inherit what same; a = drv a; b = drv b; };
+      facts = [
+        (fact "the edited definition" false [ "base" "%root/square" ] [ "edited" "%root/square" ])
+        (fact "a definition reaching the edit" false [ "base" "%root/sum_squares" ] [ "edited" "%root/sum_squares" ])
+        (fact "a definition the edit does not reach" true [ "base" "%root/fib" ] [ "edited" "%root/fib" ])
+        (fact "a renamed definition" true [ "base" "%root/fib" ] [ "renamed" "%root/fibonacci" ])
+        (fact "a definition beside a rename" true [ "base" "%root/square" ] [ "renamed" "%root/square" ])
+      ];
+      wrong = lib.filter (f: (f.a == f.b) != f.same) facts;
+      tab = lib.concatStringsSep "\t";
+      line = f: tab [ f.what (if f.same then "same" else "moved") f.a f.b ];
+    in
+    assert lib.assertMsg (wrong == [ ])
+      "native def keys: ${lib.concatMapStringsSep "; " (f: f.what) wrong} broke the content key";
+    pkgs.writeText "native-def-keys.tsv"
+      (lib.concatMapStrings (l: l + "\n") ([ (tab [ "what" "drv" "base" "other" ]) ] ++ map line facts));
+
+  defsCheck = pkgs.runCommand "native-defs" {
+    nativeBuildInputs = [ pkgs.coreutils ];
+    DEFS_ROOT = defsRoot;
+    DEFS_PROGRAM = src + "/defs/base.b";
+    BLUE_PATH = project.bluePath;
+  } "${blue}/bin/blue test ${src + "/checks/defs.b"} > $out";
+
   # The project's own checks under a `native-` prefix, so none meets a name
   # in blue's root project.
   projectChecks = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) project.checks;
 in
 {
-  packages = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) built;
+  packages = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) built
+    // { native-defs-base = defsRoot; };
   inherit (project) toolchain;
   checks = projectChecks
     // lib.mapAttrs' (n: s: lib.nameValuePair "${n}-qemu" (qemuCheck n s)) images
-    // { native-corpus = corpusCheck; native-wasm = wasmCheck; };
+    // {
+      native-corpus = corpusCheck;
+      native-wasm = wasmCheck;
+      native-def-keys = keyCheck;
+      native-defs = defsCheck;
+    };
 }

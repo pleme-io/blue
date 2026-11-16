@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:479f40a019af624052c4dfb082d9bceffcb57ded82956a140e1218740264755b",
+  "bluefile_b3": "b3:26bfc99003777c43ad987e9694f6f280f037bf3cada72d322a8b20738eb90c0f",
   "manifest": {
     "schema": 1,
     "name": "blue-native",
@@ -25,6 +25,15 @@
         "program": "build/hello_virt32.b",
         "inputs": [
           "programs/hello.b"
+        ]
+      },
+      "native-defs": {
+        "output": "defs/manifest.jsonl",
+        "program": "build/defs.b",
+        "inputs": [
+          "defs/base.b",
+          "defs/edited.b",
+          "defs/renamed.b"
         ]
       }
     }

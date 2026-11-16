@@ -28,3 +28,12 @@ generate(
   "build/hello_virt32.b",
   ["programs/hello.b"]
 )
+
+# Tier T3: one line per definition of each program under defs/, with its
+# def_hash and slice; nix/native-defs.nix builds one derivation per hash.
+generate(
+  "native-defs",
+  "defs/manifest.jsonl",
+  "build/defs.b",
+  ["defs/base.b", "defs/edited.b", "defs/renamed.b"]
+)

@@ -84,6 +84,7 @@ mod facts;
 mod inputs;
 mod junit;
 mod memo;
+mod native;
 mod obligations;
 mod observe;
 mod prefetch;
@@ -236,7 +237,11 @@ enum Cmd {
     /// bare). `--json` adds, per reference, what today's flat rule and the
     /// namespace rule each bind it to — the data a migration is proven on.
     /// `--lines` wraps each statement of the resolved tree as `(%line LINE COLUMN
-    /// form)`, what a compiler that names source lines reads.
+    /// form)`, what a compiler that names source lines reads. `--defs`
+    /// prints, as JSON, each definition of the file with its `def_hash` and
+    /// its slice: the resolved forms it reaches, each named after its own
+    /// hash, what tier T3 compiles one derivation per hash from
+    /// (`nix/native-defs.nix`).
     Ast {
         file: PathBuf,
         #[arg(long)]
@@ -245,6 +250,8 @@ enum Cmd {
         json: bool,
         #[arg(long, requires = "resolved")]
         lines: bool,
+        #[arg(long, requires = "resolved")]
+        defs: bool,
     },
     /// Print the tatara-lisp form after type erasure — what actually runs.
     Erase { file: PathBuf },
@@ -1177,7 +1184,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Ast {
-            file, json, lines, ..
+            file,
+            json,
+            lines,
+            defs,
+            ..
         } => {
             use blue_lang_runtime::pipeline::{check_entry, Checking};
             let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
@@ -1192,7 +1203,15 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 Checking::WithTests,
             )?;
             let resolved = checked.resolve();
-            if json {
+            if defs {
+                let tree = resolved.resolved_tree(
+                    checked.program.forms(),
+                    blue_lang_check::names::Rule::Namespaced,
+                );
+                let out = native::defs(&checked.program, &checked.lowered(), &tree)
+                    .map_err(CliError::Usage)?;
+                println!("{}", serde_json::to_string_pretty(&out)?);
+            } else if json {
                 println!("{}", diagnostics::resolved_json(&checked, &resolved)?);
             } else {
                 let tree = resolved.resolved_tree(
@@ -2532,6 +2551,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
         },
         &account,
     );
+    let native = inv.watch.is_none() && native::enabled();
     let ran = match (memo, inv.watch) {
         (memo::Mode::Off, Some(watch)) => blue_lang_runtime::pipeline::run_observed_accounted(
             entry,
@@ -2543,7 +2563,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             watch,
         )
         .and_then(|o| o.outcome),
-        (memo::Mode::Off, None) => {
+        (memo::Mode::Off, None) if !native => {
             let plans = executor == blue_lang_runtime::pipeline::Executor::Auto
                 && !inv.receipt_steps
                 && !taped
@@ -2570,9 +2590,25 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
                 hold.as_ref(),
                 &account,
                 |w| {
-                    let m = memo::over(mode.persist(), w.definitions, w.lowered, w.erased, None);
-                    held = Some(std::sync::Arc::clone(&m));
-                    m
+                    let tier: Option<std::sync::Arc<dyn blue_lang_runtime::observe::CallObserver>> =
+                        native.then(|| {
+                            native::Tier::over(w, &blue_lang_mondou::store::native_artifact, None)
+                                as std::sync::Arc<dyn blue_lang_runtime::observe::CallObserver>
+                        });
+                    match (mode, tier) {
+                        (memo::Mode::Off, Some(tier)) => tier,
+                        (_, tier) => {
+                            let m = memo::over(
+                                mode.persist(),
+                                w.definitions,
+                                w.lowered,
+                                w.erased,
+                                tier,
+                            );
+                            held = Some(std::sync::Arc::clone(&m));
+                            m
+                        }
+                    }
                 },
             );
             if let Some(m) = &held {

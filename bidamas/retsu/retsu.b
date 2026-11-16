@@ -279,6 +279,24 @@ def drop_n(xs, n)
 end
 
 @doc """
+take_last_n: the last n items of a list, in order: what a bounded history or
+log keeps. Partial edges answer with a list, like take_n.
+
+    take_last_n([1, 2, 3, 4], 2) #=> [3, 4]
+    take_last_n([1, 2], 5) #=> [1, 2]
+    take_last_n([1, 2], 0) #=> []
+"""
+def take_last_n(xs, n)
+  if is_empty(xs) or n < 1
+    []
+  elsif size(xs) > n
+    drop_n(xs, size(xs) - n)
+  else
+    xs
+  end
+end
+
+@doc """
 slice: A window by position and length. Out-of-range in either argument yields the
 overlap, which is empty when there is none — never an error.
 
@@ -406,6 +424,16 @@ test "slice clips instead of erroring"
   assert slice([1, 2, 3], 2, 9) == [3]
   assert slice([1, 2, 3], 9, 1) == []
   assert slice([], 0, 3) == []
+end
+
+test "take_last_n keeps the newest n in order, and is total at its edges"
+  assert take_last_n([1, 2, 3, 4], 2) == [3, 4]
+  assert take_last_n([1, 2], 5) == [1, 2]
+  assert take_last_n([1, 2], 0) == []
+  assert take_last_n([], 3) == []
+  # With take_n it splits a list at any point.
+  assert concat_lists(take_n([1, 2, 3], 1), take_last_n([1, 2, 3], 2)) ==
+    [1, 2, 3]
 end
 
 test "all_but_last, including the sizes that have no last"

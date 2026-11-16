@@ -200,7 +200,7 @@ fn every_bidama_passes_its_own_tests() {
 fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = tree_nodes();
     assert!(
-        pkgs.len() >= 112,
+        pkgs.len() >= 113,
         "found {} bidamas and levels; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()

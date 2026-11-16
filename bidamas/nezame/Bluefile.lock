@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:14294b3ee1d450ba8caf6ca13a3c45d3807af43d095be4a808d5d9018e87fe8d",
+  "manifest": {
+    "schema": 1,
+    "name": "nezame",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "junjo": "^0.1.0",
+      "mitoshi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

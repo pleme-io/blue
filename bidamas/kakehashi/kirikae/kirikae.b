@@ -35,6 +35,7 @@ use(
     last
     rest
     size
+    take_last_n
     take_n
   ]
 )
@@ -56,6 +57,8 @@ use(
     terminal?
   ]
 )
+
+legacy_names("0.1.2", [%w[keep_last retsu::take_last_n]])
 
 @doc """
 attr_for: the flake attribute that builds a host's system on its platform.
@@ -259,26 +262,12 @@ def entry_line(e)
 end
 
 @doc """
-keep_last: the newest n items of a list.
-
-    keep_last([1, 2, 3, 4], 2) #=> [3, 4]
-    keep_last([1, 2], 5) #=> [1, 2]
-"""
-def keep_last(xs, n)
-  if size(xs) > n
-    drop_n(xs, size(xs) - n)
-  else
-    xs
-  end
-end
-
-@doc """
 record: append one outcome to the switch history file, keeping its newest 200 entries, and answer the entry.
 
     parse_entry(entry_line(entry(b, "activated", 5, "ok")))[:out] #=> b
 """
 def record(path, e)
-  kept = keep_last(concat_lists(history(path), [e]), 200)
+  kept = take_last_n(concat_lists(history(path), [e]), 200)
   mkdir_p(path_dirname(path))
   tmp = "#{path}.kirikae-tmp"
   write_file(tmp, concat(join(map(entry_line, kept), line_break), line_break))
@@ -1668,7 +1657,7 @@ log_event: append one event to the log as a JSON line, keeping only the newest l
 """
 def log_event(path, keep, ev)
   begin
-    kept = keep_last(
+    kept = take_last_n(
       concat_lists(
         filter((l) -> trim(l) != "", lines(read_or(path, ""))),
         [json_stringify(ev)]
@@ -1819,7 +1808,7 @@ expected_plan: the median time of the last five timed plans in a history and how
     expected_plan([{plan_ms: 3000}, {plan_ms: 0}, {plan_ms: 1000}, {plan_ms: 2000}]) #=> {ms: 2000, n: 3}
 """
 def expected_plan(hist)
-  timed = keep_last(
+  timed = take_last_n(
     map((e) -> e[:plan_ms], filter((e) -> (e[:plan_ms] or 0) > 0, hist)),
     5
   )
@@ -2382,8 +2371,8 @@ test "the history file round-trips and keeps only its tail"
   assert streak(h, b)[:n] == 2
   write_file(p, unlines(["not json", entry_line(entry(a, "activated", 5, ""))]))
   assert size(history(p)) == 1
-  assert size(keep_last([1, 2, 3, 4], 2)) == 2
-  assert keep_last([1, 2], 5) == [1, 2]
+  assert size(take_last_n([1, 2, 3, 4], 2)) == 2
+  assert take_last_n([1, 2], 5) == [1, 2]
   rm_rf(dir)
 end
 

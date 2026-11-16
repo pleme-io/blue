@@ -243,7 +243,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-71 packages, 6150 definitions, 2116 tests.
+72 packages, 6161 definitions, 2125 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -288,6 +288,7 @@ rendered:
 - [mitoshi](bidamas/CATALOG.md#mitoshi) (見通し, a clear view ahead) — what a running program shows of itself.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
+- [nezame](bidamas/CATALOG.md#nezame) (寝覚め) — waking up: how a machine came back, read after the fact.
 - [okite](bidamas/CATALOG.md#okite) (掟) — blue's decisions, each enforced by laws written in blue.
 - [ongaku](bidamas/CATALOG.md#ongaku) (音楽) — twelve-tone music theory, as arithmetic on semitones.
 - [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.

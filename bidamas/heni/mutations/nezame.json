@@ -1,0 +1,10 @@
+[
+  {"name": "the card-reset bit is read", "file": "nezame.b", "find": "bit_and(n, 32) != 0", "replace": "bit_and(n, 16) != 0"},
+  {"name": "a quick return is a reboot, not a person", "file": "nezame.b", "find": "elsif dark <= grace", "replace": "elsif dark < 0"},
+  {"name": "the watchdog wins over the button", "file": "nezame.b", "find": "  if watchdog_reset?(to_s(r[:watchdog]))\n    :watchdog", "replace": "  if false\n    :watchdog"},
+  {"name": "dark time is this boot's first line minus the last boot's last", "file": "nezame.b", "find": "this[:first_s] - previous[:last_s]", "replace": "this[:last_s] - previous[:last_s]"},
+  {"name": "the ledger keeps its newest rows", "file": "nezame.b", "find": "take_last_n(", "replace": "take_n("},
+  {"name": "the archive expires only past its bound", "file": "nezame.b", "find": "take_n(entries, size(entries) - keep)", "replace": "take_n(entries, size(entries) - keep + 1)"},
+  {"name": "the wake table holds AC Power Restored", "file": "nezame.b", "find": "    \"PCI PME#\",\n    \"AC Power Restored\"\n", "replace": "    \"PCI PME#\"\n"},
+  {"name": "the wake line is found", "file": "nezame.b", "find": "\"Wake-up Type:\")", "replace": "\"Wake Type:\")"}
+]

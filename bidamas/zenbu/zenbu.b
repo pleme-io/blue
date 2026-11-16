@@ -99,6 +99,7 @@ use("maakuappu")
 use("mitoshi")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
+use("nezame", [:expired])
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
 use("ongaku", [:major_triad])
@@ -179,6 +180,7 @@ test "every bidama in the distribution answers through this one import"
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert koubou::rittai::z([1, 2, 3]) == 3
   assert mitoshi::rogu::levels == %i[debug info warn error]
+  assert expired(%w[a b], 1) == ["a"]
   assert size([1, 2, 3]) == 3
   assert every((v) -> v > 0, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]

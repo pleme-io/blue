@@ -465,6 +465,8 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn("not=", Arity::Exact(2), |a: &[Value], _h: &mut H, _s| {
         Ok(Value::Bool(!blue_equal(&a[0], &a[1])))
     });
+    interp.adopt_operator("equal?");
+    interp.adopt_operator("not=");
     interp.register_fn(
         "distinct",
         Arity::Exact(1),

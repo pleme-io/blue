@@ -1131,6 +1131,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     eprintln!("door     {}", taken.ran.name());
                 }
             }
+            native::ask_for_build(&file, blue_lang_runtime::timings::evaluated());
             Ok(ExitCode::SUCCESS)
         }
 

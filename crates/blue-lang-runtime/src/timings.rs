@@ -179,16 +179,38 @@ pub fn enabled() -> bool {
     RECORD.with(|r| r.borrow().is_some())
 }
 
+static EVALUATED_NS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The wall time this process has spent evaluating programs (the `eval` and
+/// `main` stages), counted whether or not recording is on: the fact a run
+/// reads to decide whether its program is worth native code.
+#[must_use]
+pub fn evaluated() -> Duration {
+    Duration::from_nanos(EVALUATED_NS.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+fn counted<T>(stage: Stage, f: impl FnOnce() -> T) -> T {
+    if !matches!(stage, Stage::Eval | Stage::Main) {
+        return f();
+    }
+    let start = Instant::now();
+    let out = f();
+    let ns = u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    EVALUATED_NS.fetch_add(ns, std::sync::atomic::Ordering::Relaxed);
+    out
+}
+
 /// Run `f`, charging its wall time to `stage` when recording is on. A stage
 /// reached inside another is charged to itself and not to the outer one.
+/// Evaluation is counted always ([`evaluated`]).
 pub fn stage<T>(stage: Stage, f: impl FnOnce() -> T) -> T {
     if !enabled() {
-        return f();
+        return counted(stage, f);
     }
     NESTED.with(|n| n.borrow_mut().push(Duration::ZERO));
     let start = Instant::now();
     let out = if matches!(stage, Stage::Eval | Stage::Main) {
-        evaluating(f)
+        counted(stage, || evaluating(f))
     } else {
         f()
     };

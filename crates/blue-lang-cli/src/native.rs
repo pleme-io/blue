@@ -373,6 +373,40 @@ pub(crate) fn planned(
     Some((tier, reason.join("; ")))
 }
 
+/// The variable naming the command a run starts, detached, when it asks for
+/// its program to be built (`nix run .#native-build`, which reads the
+/// requests); unset, the requests wait for a builder the node runs itself.
+pub(crate) const BUILDER_ENV: &str = "BLUE_NATIVE_BUILDER";
+
+/// After a run of `file` whose evaluation took `took`: ask for the program to
+/// be built into this node's native tier when the tier decides by profile
+/// ([`Mode::Auto`]), a native tier is present, and the evaluation took
+/// [`HOT_NS`] or more, the cost from which a definition earns native code even
+/// as a process; start the builder [`BUILDER_ENV`] names when this run asked.
+/// Answers whether it asked.
+pub(crate) fn ask_for_build(file: &std::path::Path, took: std::time::Duration) -> bool {
+    if mode() != Mode::Auto
+        || took.as_nanos() < u128::from(HOT_NS)
+        || !blue_lang_mondou::store::native_present()
+    {
+        return false;
+    }
+    let (Ok(text), Ok(path)) = (std::fs::read(file), file.canonicalize()) else {
+        return false;
+    };
+    let asked = blue_lang_mondou::store::want_native(&text, &path);
+    if asked {
+        if let Some(builder) = std::env::var_os(BUILDER_ENV).filter(|b| !b.is_empty()) {
+            let _ = std::process::Command::new(builder)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+        }
+    }
+    asked
+}
+
 /// Run one artifact on Int arguments: its result, or `None` when it did not
 /// answer (a fault, an arity it refuses, an output that is not one Int).
 pub(crate) fn call(artifact: &std::path::Path, args: &[i64]) -> Option<i64> {

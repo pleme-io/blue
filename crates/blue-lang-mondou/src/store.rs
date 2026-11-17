@@ -249,17 +249,64 @@ pub fn native_library(artifact: &Path) -> Option<PathBuf> {
     Some(artifact.with_file_name(NATIVE_LIBRARY)).filter(|p| p.is_file())
 }
 
-/// [`native_artifact_in`] over every root `BLUE_CACHE_SHARED` names.
+/// Every `native` tier root a run reads, in order: this node's own (under
+/// [`cache_root`], where a local build writes), then each root
+/// `BLUE_CACHE_SHARED` names.
 #[must_use]
-pub fn native_artifact(hash: &DefHash) -> Option<PathBuf> {
-    native_artifact_in(&shared_roots(NATIVE_TIER), hash)
+pub fn native_roots() -> Vec<PathBuf> {
+    cache_root()
+        .map(|c| c.join(NATIVE_TIER))
+        .into_iter()
+        .chain(shared_roots(NATIVE_TIER))
+        .collect()
 }
 
-/// Whether any shared root holds a native tier, so a run can skip looking for
-/// artifacts without hashing a definition.
+/// [`native_artifact_in`] over [`native_roots`].
+#[must_use]
+pub fn native_artifact(hash: &DefHash) -> Option<PathBuf> {
+    native_artifact_in(&native_roots(), hash)
+}
+
+/// Where a run asks for a program's definitions to be built:
+/// `<native root>/wanted/<key>`, holding the program's path, where `key` is the
+/// hex of the program text's content hash. The builder
+/// (`native/build/wanted.b`) builds each definition chuuzou compiles that has
+/// no artifact yet, then writes `<key>.done`, so the same text is never asked
+/// for twice and an edited one is asked for again.
+pub const NATIVE_WANTED: &str = "wanted";
+
+/// Ask for the program at `program`, whose text hashes to `key`, to be built
+/// into the native root `root`; a text asked for or done already is not asked
+/// for again. Answers whether this call asked.
+///
+/// # Errors
+///
+/// When the directory or the file cannot be written.
+pub fn want_native_in(root: &Path, key: &str, program: &Path) -> std::io::Result<bool> {
+    let dir = root.join(NATIVE_WANTED);
+    if dir.join(key).exists() || dir.join(format!("{key}.done")).exists() {
+        return Ok(false);
+    }
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join(key), program.to_string_lossy().as_bytes())?;
+    Ok(true)
+}
+
+/// [`want_native_in`] under this node's native root, keyed by the content hash
+/// of `text`, the program's source: whether it asked. A failure costs the
+/// build, never the run.
+pub fn want_native(text: &[u8], program: &Path) -> bool {
+    let key = blake3::hash(text).to_hex();
+    cache_root().is_some_and(|root| {
+        want_native_in(&root.join(NATIVE_TIER), key.as_str(), program).unwrap_or(false)
+    })
+}
+
+/// Whether any native root holds a native tier (this node's, or a shared
+/// one), so a run can skip looking for artifacts without hashing a definition.
 #[must_use]
 pub fn native_present() -> bool {
-    shared_roots(NATIVE_TIER)
+    native_roots()
         .iter()
         .any(|r| r.join(NATIVE_LAYOUT).is_dir())
 }
@@ -756,6 +803,28 @@ mod tests {
         let p = std::env::temp_dir().join(format!("blue-store-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         p
+    }
+
+    #[test]
+    fn a_program_text_is_asked_for_once_and_never_once_done() {
+        let root = temp("wanted");
+        let wanted = root.join(NATIVE_WANTED).join("ab12");
+        assert!(want_native_in(&root, "ab12", Path::new("/p/a.b")).expect("asked"));
+        assert_eq!(
+            std::fs::read_to_string(&wanted).expect("the request"),
+            "/p/a.b"
+        );
+        assert!(!want_native_in(&root, "ab12", Path::new("/p/b.b")).expect("asked again"));
+        assert_eq!(
+            std::fs::read_to_string(&wanted).expect("the request"),
+            "/p/a.b"
+        );
+        std::fs::remove_file(&wanted).expect("taken");
+        std::fs::write(root.join(NATIVE_WANTED).join("ab12.done"), "").expect("done");
+        assert!(!want_native_in(&root, "ab12", Path::new("/p/a.b")).expect("not asked"));
+        assert!(!wanted.exists());
+        assert!(want_native_in(&root, "cd34", Path::new("/p/a.b")).expect("an edited text"));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

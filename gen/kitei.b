@@ -47,9 +47,7 @@ test "no rule is an empty table"
   assert ends_with?(rendered([]), unlines(["&[", "];"]))
 end
 
-test "rustc reads the rendered table and answers each shipped rule as the registry holds it", {
-  kind: :rendering
-}
+test "rustc reads the rendered table back as the registry", {kind: :rendering}
   found = exec_capture("rustc", "--version") rescue nil
   skip_for(
     if found.nil?

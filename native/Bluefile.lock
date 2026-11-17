@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:26bfc99003777c43ad987e9694f6f280f037bf3cada72d322a8b20738eb90c0f",
+  "bluefile_b3": "b3:25838f5315326a2191350ce139152013e77211d16a5c6ba1b949b619cbc06f96",
   "manifest": {
     "schema": 1,
     "name": "blue-native",
@@ -15,7 +15,11 @@
     "tools": [
       "tatara-rust-emit"
     ],
-    "checks": {},
+    "checks": {
+      "native-builder": {
+        "file": "build/wanted.b"
+      }
+    },
     "apps": {},
     "catalog": null,
     "coverage": "coverage.b",

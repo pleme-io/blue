@@ -8,7 +8,7 @@ nix/native-defs.nix reads it and builds one derivation per def_hash.
 """
 
 # waive B0085: the manifest's consumer is nix/native-defs.nix, which checks.native-defs and checks.native-generated-native-defs-fresh build from it; no blue test can feed a nix evaluation
-use("chuuzou", [:cz_def_native])
+use("chuuzou", %i[cz_def_native cz_defs])
 
 @doc """
 row: One definition of `program` as its manifest line.
@@ -31,12 +31,8 @@ def row(program, d)
 end
 
 def rows(path)
-  r = exec_capture(self_exe, "ast", "--resolved", "--defs", path)
-  if second(first(r)) != 0
-    raise(:defs, "blue ast --resolved --defs #{path}: #{second(third(r))}")
-  end
   program = replace(path_basename(path), ".b", "")
-  map((d) -> row(program, d), json_read(second(second(r))))
+  map((d) -> row(program, d), cz_defs(path))
 end
 
 def main()

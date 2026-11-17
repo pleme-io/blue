@@ -74,20 +74,35 @@ let
   # Tier T3: one derivation per def_hash (nix/native-defs.nix). The seam is
   # the files a definition image links, so a board's own seam changing
   # rebuilds no definition.
+  defSeam = lib.fileset.toSource {
+    root = src + "/seam";
+    fileset = lib.fileset.unions [
+      (src + "/seam/kiban_io.rs")
+      (src + "/seam/kiban_heap.rs")
+      (src + "/seam/host_io.rs")
+      (src + "/seam/def64")
+    ];
+  };
+
   t3 = import ./native-defs.nix {
     inherit pkgs lib blue hostRust emitter;
     inherit (project) bluePath;
     defImage = src + "/build/def.b";
-    seam = lib.fileset.toSource {
-      root = src + "/seam";
-      fileset = lib.fileset.unions [
-        (src + "/seam/kiban_io.rs")
-        (src + "/seam/kiban_heap.rs")
-        (src + "/seam/host_io.rs")
-        (src + "/seam/def64")
-      ];
-    };
+    seam = defSeam;
   };
+
+  # The node's builder (W1 of docs/FACTS.md): it builds the definitions runs
+  # asked for (native/build/wanted.b) into this node's native tier. A run
+  # starts it when BLUE_NATIVE_BUILDER names it.
+  builder = pkgs.runCommand "blue-native-build" {
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    meta.mainProgram = "blue-native-build";
+  } ''
+    makeWrapper ${blue}/bin/blue $out/bin/blue-native-build \
+      --set BLUE_PATH ${project.bluePath} --set DEF_SEAM ${defSeam} \
+      --prefix PATH : ${lib.makeBinPath [ hostRust emitter pkgs.stdenv.cc ]} \
+      --add-flags "run --quiet ${src + "/build/wanted.b"}"
+  '';
 
   manifest = src + "/defs/manifest.jsonl";
 
@@ -133,7 +148,7 @@ let
 in
 {
   packages = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) built
-    // { native-defs-base = defsRoot; };
+    // { native-defs-base = defsRoot; native-build = builder; };
   inherit (project) toolchain;
   checks = projectChecks
     // lib.mapAttrs' (n: s: lib.nameValuePair "${n}-qemu" (qemuCheck n s)) images

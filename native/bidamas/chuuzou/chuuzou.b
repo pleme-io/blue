@@ -2771,6 +2771,20 @@ def cz_lower_def(forms, key)
 end
 
 @doc """
+cz_defs: Each definition of the program at `path` as `blue ast --resolved --defs` reads it:
+its key, def_hash, kind, the name it has in its slice, and the slice.
+
+    (cz_defs("no-such-program.b") rescue :refused) #=> :refused
+"""
+def cz_defs(path)
+  r = exec_capture(self_exe, "ast", "--resolved", "--defs", path)
+  if r.status != 0
+    raise(:defs, "blue ast --resolved --defs #{path}: #{r.stderr}")
+  end
+  json_read(r.stdout)
+end
+
+@doc """
 cz_def_native: Why the definition `key` of the slice `text` has no native artifact, or
 nil when chuuzou compiles it for the native tier.
 
@@ -3258,7 +3272,7 @@ test "a slice that names a board word is refused, and a plain one is not"
   )
 end
 
-test "the final link names its crate type and output, and links the program's rlibs from out"
+test "the final link names crate type, output and the rlibs in out"
   args = cz_final_link(
     %w[--edition 2021],
     "cdylib",
@@ -3275,4 +3289,28 @@ test "the final link names its crate type and output, and links the program's rl
   assert member?("program=o/libprogram.rlib", args)
   assert last(args) == "lib.rs"
   assert member?("o/def.so", args)
+end
+
+test "blue ast gives each definition its hash and slice", {
+  kind: :integration,
+  allow: %i[environment filesystem process]
+}
+  dir = temp_dir("cz-defs")
+  program = path_join(dir, "p.b")
+  write_program(
+    program,
+    unlines(["def twice(x: Int) -> Int", "  x * 2", "end"])
+  )
+  defs = cz_defs(program)
+  assert length(defs) == 1
+  assert defs[0]["kind"] == "function"
+  assert starts_with?(defs[0]["hash"], "b3:")
+  assert contains?(defs[0]["slice"], "* x 2")
+  refused = begin
+    cz_defs(path_join(dir, "missing.b"))
+    nil
+  rescue e
+    e.kind
+  end
+  assert refused == :defs
 end

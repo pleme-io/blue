@@ -139,8 +139,20 @@ Each wave lists defaults in the order their gain is known. Each default meets
   the first run (it profiles) and 0.02 s from the second, the same answer.
   Lock: `tests/native_tier.rs`, a 5 ms definition is native with a library
   and not without, a 0.1 ms one never; red with the library threshold ignored.
-- Artifacts built in the background when the profile marks a definition hot;
-  the next run uses them.
+- ✅ Artifacts built in the background. A run whose evaluation took 20 ms or
+  more, on a node with a native tier, asks once per program text
+  (`<cache>/blue/native/wanted/<content hash>`, `store::want_native`) and
+  starts the builder `BLUE_NATIVE_BUILDER` names (`nix run .#native-build`,
+  `native/build/wanted.b`). The builder builds each function chuuzou compiles
+  into this node's tier, which every run now reads before the shared roots;
+  the profile then decides which go native. Timing every definition instead
+  would put an observer on every run, so the fact read is the run's own
+  evaluation time (`timings::evaluated`, counted always). End to end with no
+  flag: 0.52 s (asks; 3 definitions built), 2.36 s (profiles them), 0.39 s,
+  then 0.02 s, the same answer. Lock: `tests/native_build.rs` (asks once per
+  text, again after an edit, never when done, never with no tier, a run under
+  20 ms or `BLUE_NATIVE=off`; starts the builder), red with the 20 ms ignored;
+  `checks.native-native-builder`.
 - chuuzou's subset widened one type at a time (strings, maps, records in lists,
   closures), each step moving code from the interpreter to native code.
 - Doctests as profiles: each `@doc` example is a typed sample input, run at

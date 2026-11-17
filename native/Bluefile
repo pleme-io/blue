@@ -37,3 +37,7 @@ generate(
   "build/defs.b",
   ["defs/base.b", "defs/edited.b", "defs/renamed.b"]
 )
+
+# The node's builder: the definitions runs asked for, built into this node's
+# native tier (nix/native.nix packages it as native-build).
+check("native-builder", "build/wanted.b")

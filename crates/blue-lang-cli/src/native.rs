@@ -138,6 +138,7 @@ pub(crate) fn defs(
 struct Target {
     name: Option<String>,
     artifact: PathBuf,
+    library: Option<crate::dl::Entry>,
     hash: DefHash,
     hot: bool,
     profiled: bool,
@@ -229,12 +230,18 @@ impl Tier {
                     blue_lang_runtime::kitei::fires("R7", held)
                 }
             };
+            let library = if hot {
+                blue_lang_mondou::store::native_library(&artifact).and_then(|l| crate::dl::open(&l))
+            } else {
+                None
+            };
             if let Some((span, name)) = source {
                 by_source.insert(
                     span,
                     Target {
                         name,
                         artifact,
+                        library,
                         hash: hashed.hash,
                         hot,
                         profiled: mean.is_some(),
@@ -379,7 +386,11 @@ impl CallObserver for Tier {
                     _ => None,
                 })
                 .collect();
-            if let Some(v) = ints.and_then(|ints| call(&target.artifact, &ints)) {
+            let answered = ints.and_then(|ints| match target.library {
+                Some(entry) => crate::dl::call(entry, &ints),
+                None => call(&target.artifact, &ints),
+            });
+            if let Some(v) = answered {
                 return Some(Value::Int(v));
             }
         }

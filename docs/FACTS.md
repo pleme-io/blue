@@ -124,8 +124,15 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 ### W1: compiled code by default
 
-- Artifacts in process: a shared library per `def_hash`, loaded once, one
-  audited unsafe seam. Every hot call becomes a function call, not a process.
+- ✅ Artifacts in process: each `def_hash` is linked a second time as a
+  library (`def.so`, `native/seam/def64/lib.rs`), loaded once through libc's
+  `dlopen` in one audited unsafe seam (`crates/blue-lang-cli/src/dl.rs`). A
+  hot call is a function call, not a process: 2,000 calls of a native `fib`,
+  4.01 s as processes, 0.06 s in process, 0.19 s in the interpreter (debug
+  build, the same answer). A library that faults, prints or refuses leaves the
+  call to the interpreter. Lock: `tests/native_tier.rs`, red when the tier
+  ignores the library; `checks.native-defs` answers through it. Next: lower
+  `HOT_NS` (20 ms), which was sized for a process start.
 - Artifacts built in the background when the profile marks a definition hot;
   the next run uses them.
 - chuuzou's subset widened one type at a time (strings, maps, records in lists,

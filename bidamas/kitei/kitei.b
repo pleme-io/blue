@@ -84,7 +84,7 @@ def rules()
       "R7",
       %i[artifact hot],
       "a definition with a native artifact whose calls averaged 20 ms or more",
-      "its calls are answered by the artifact",
+      "its calls are answered by the artifact, in process through its library when it has one",
       "door receipt",
       "BLUE_NATIVE=off",
       :shipped,

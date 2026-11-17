@@ -237,6 +237,18 @@ pub fn native_artifact_in(roots: &[PathBuf], hash: &DefHash) -> Option<PathBuf> 
         .find(|p| p.is_file())
 }
 
+/// The file beside a native artifact that holds the same definition as a
+/// library: it exports `blue_def_entry(args, len, out)`, which answers 0 with
+/// the result in `out` and anything else when the interpreter must run the
+/// call (`native/seam/def64/lib.rs`).
+pub const NATIVE_LIBRARY: &str = "def.so";
+
+/// The library beside the native artifact `artifact`, when its build made one.
+#[must_use]
+pub fn native_library(artifact: &Path) -> Option<PathBuf> {
+    Some(artifact.with_file_name(NATIVE_LIBRARY)).filter(|p| p.is_file())
+}
+
 /// [`native_artifact_in`] over every root `BLUE_CACHE_SHARED` names.
 #[must_use]
 pub fn native_artifact(hash: &DefHash) -> Option<PathBuf> {

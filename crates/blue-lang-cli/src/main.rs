@@ -79,6 +79,7 @@ mod debug;
 mod defaults;
 mod deploy;
 mod diagnostics;
+mod dl;
 mod doc;
 mod door;
 mod facts;

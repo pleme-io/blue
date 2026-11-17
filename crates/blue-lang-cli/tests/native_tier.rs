@@ -128,3 +128,48 @@ fn a_run_with_no_artifact_takes_no_profile_and_answers_as_before() {
     );
     let _ = std::fs::remove_dir_all(&f.dir);
 }
+
+fn library(root: &Path, hex: &str, body: &str) {
+    let dir = root.join("native").join("v1").join(hex);
+    let src = dir.join("lib.rs");
+    std::fs::write(
+        &src,
+        format!("#[no_mangle]\npub extern \"C\" fn blue_def_entry(args: *const i64, len: usize, out: *mut i64) -> i32 {{\n    let _ = (args, len);\n    {body}\n}}\n"),
+    )
+    .expect("library source");
+    let built = Command::new("rustc")
+        .args(["--edition", "2021", "--crate-type", "cdylib", "-o"])
+        .arg(dir.join("def.so"))
+        .arg(&src)
+        .output()
+        .expect("spawn rustc");
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+}
+
+#[test]
+fn a_definition_with_a_library_is_answered_in_process_and_a_refusal_runs_in_the_interpreter() {
+    let f = fixture("library");
+    let keys = hashes(&f.program);
+    let hex_of = |want: &str| {
+        keys.iter()
+            .find(|(k, _)| k == want)
+            .expect("the definition")
+            .1
+            .clone()
+    };
+    let slow = hex_of("%root/slow");
+    let quick = hex_of("%root/quick");
+    let shared = f.dir.join("shared");
+    library(&shared, &slow, "unsafe { out.write(11) };\n    0");
+    library(&shared, &quick, "let _ = out;\n    1");
+    assert_eq!(
+        run(&f, Some("on")),
+        "[11, 2]",
+        "the library answers over the executable (7), and a library that refuses leaves the call to the interpreter, not to the executable (99)"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}

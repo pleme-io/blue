@@ -13,7 +13,8 @@
 #
 # The layout is the `native` tier of blue's cache (crates/blue-lang-mondou
 # store.rs, NATIVE_TIER / NATIVE_LAYOUT): <root>/native/v1/<hex>/def, an
-# executable on the host board (seam def64). `root` joins a manifest's
+# executable on the host board (seam def64), and def.so beside it, the same
+# definition as a library the native tier loads once and calls in process. `root` joins a manifest's
 # artifacts into one such root; on BLUE_CACHE_SHARED it is what
 # `BLUE_NATIVE=on blue run` answers calls from.
 { pkgs, lib, blue, hostRust, emitter, bluePath, seam, defImage }:
@@ -41,7 +42,7 @@ let
       } ''
       DEF_SLICE=$slicePath DEF_OUT=$TMPDIR/def ${blue}/bin/blue run --quiet ${defImage}
       mkdir -p ${dir}
-      mv $TMPDIR/def/def.elf ${dir}/def && mv $TMPDIR/def/def.rs ${dir}/def.rs
+      mv $TMPDIR/def/def.elf ${dir}/def && mv $TMPDIR/def/def.so ${dir}/def.so && mv $TMPDIR/def/def.rs ${dir}/def.rs
     '';
 
   native = rows: lib.filter (r: r.native) rows;

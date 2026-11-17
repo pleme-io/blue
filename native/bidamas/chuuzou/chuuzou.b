@@ -2618,30 +2618,41 @@ def cz_link_through(rs, board_name, seam, seam_rs, out, name)
     "rustc program"
   )
   cz_run(
-    append(
-      ["rustc"],
-      flags,
-      [
-        "-C",
-        "lto=fat",
-        "--crate-type",
-        "bin",
-        "--crate-name",
-        cz_crate_name(name),
-        "--extern",
-        "kiban_io=#{io}",
-        "--extern",
-        "program=#{prog}",
-        "-L",
-        out
-      ],
-      heap_extern,
-      link,
-      ["-o", elf, seam_rs]
-    ),
+    cz_final_link(flags, "bin", name, out, heap_extern, link, elf, seam_rs),
     "rustc seam"
   )
   elf
+end
+
+@doc """
+cz_final_link: The rustc call that links a seam with the rlibs `cz_link_through` built
+in `out` (kiban_io, the program, kiban_heap on a hosted board), as a crate of
+`crate_type` (`bin` for an image, `cdylib` for a library), written to `to`.
+
+    cz_final_link([], "cdylib", "def", "o", [], [], "o/def.so", "lib.rs")[4] #=> "cdylib"
+"""
+def cz_final_link(flags, crate_type, name, out, heap_extern, link, to, seam_rs)
+  append(
+    ["rustc"],
+    flags,
+    [
+      "-C",
+      "lto=fat",
+      "--crate-type",
+      crate_type,
+      "--crate-name",
+      cz_crate_name(name),
+      "--extern",
+      "kiban_io=#{path_join(out, "libkiban_io.rlib")}",
+      "--extern",
+      "program=#{path_join(out, "libprogram.rlib")}",
+      "-L",
+      out
+    ],
+    heap_extern,
+    link,
+    ["-o", to, seam_rs]
+  )
 end
 
 @doc """
@@ -2775,15 +2786,17 @@ end
 
 @doc """
 cz_def_image: The definition `key` of the slice in the file `slice`, compiled for the
-host board as one executable (tier T3, seam def64): its Rust emitted beside
-it in `out`. Answers the executable's path.
+host board twice from one build (tier T3, seam def64): as an executable,
+whose path it answers, and as `def.so`, the library the native tier loads
+once and calls in process (`def64/lib.rs`). Its Rust is emitted beside both
+in `out`.
 """
 def cz_def_image(slice, key, seam, out)
   text = cz_render(cz_lower_def(cz_read(read_file(slice)), key))
   mkdir_p(out)
   rs = path_join(out, "def.rs")
   write_file(rs, text)
-  cz_link_through(
+  elf = cz_link_through(
     rs,
     "host64",
     seam,
@@ -2791,6 +2804,21 @@ def cz_def_image(slice, key, seam, out)
     out,
     "def"
   )
+  heap = ["--extern", "kiban_heap=#{path_join(out, "libkiban_heap.rlib")}"]
+  cz_run(
+    cz_final_link(
+      cz_rustc_flags(kb_board("host64")),
+      "cdylib",
+      "def",
+      out,
+      heap,
+      [],
+      path_join(out, "def.so"),
+      path_join(seam, "def64", "lib.rs")
+    ),
+    "rustc def library"
+  )
+  elf
 end
 
 @doc """
@@ -3228,4 +3256,23 @@ test "a slice that names a board word is refused, and a plain one is not"
     ),
     "board word"
   )
+end
+
+test "the final link names its crate type and output, and links the program's rlibs from out"
+  args = cz_final_link(
+    %w[--edition 2021],
+    "cdylib",
+    "def-x",
+    "o",
+    [],
+    [],
+    "o/def.so",
+    "lib.rs"
+  )
+  assert args[0] == "rustc"
+  assert member?("cdylib", args)
+  assert member?("def_x", args)
+  assert member?("program=o/libprogram.rlib", args)
+  assert last(args) == "lib.rs"
+  assert member?("o/def.so", args)
 end

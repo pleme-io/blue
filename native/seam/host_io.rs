@@ -38,20 +38,27 @@ impl Io for Host {
     }
 }
 
-/// Run `body` against the host on a thread whose stack holds the board's
-/// declared recursion depth, then flush: whether it returned true and every
-/// byte it printed reached standard output. A fault unwinds, so what was
-/// printed before it is flushed, and the answer is false.
-pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
-    let ran = std::thread::Builder::new()
+/// Run `body` on a thread whose stack holds the board's declared recursion
+/// depth: its value, or `None` when it faulted (a fault unwinds) or no thread
+/// could start.
+pub fn on_stack<T: Send + 'static, F: FnOnce() -> T + Send + 'static>(body: F) -> Option<T> {
+    std::thread::Builder::new()
         .stack_size(STACK)
-        .spawn(|| {
-            let mut host = Host {
-                out: std::io::BufWriter::with_capacity(1 << 16, std::io::stdout()),
-            };
-            let answered = body(&mut host);
-            host.out.flush().is_ok() && answered
-        })
-        .map(|t| t.join());
-    matches!(ran, Ok(Ok(true)))
+        .spawn(body)
+        .ok()?
+        .join()
+        .ok()
+}
+
+/// Run `body` against the host [`on_stack`], then flush: whether it returned
+/// true and every byte it printed reached standard output. What was printed
+/// before a fault is flushed, and the answer is false.
+pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
+    on_stack(|| {
+        let mut host = Host {
+            out: std::io::BufWriter::with_capacity(1 << 16, std::io::stdout()),
+        };
+        let answered = body(&mut host);
+        host.out.flush().is_ok() && answered
+    }) == Some(true)
 }

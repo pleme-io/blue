@@ -252,6 +252,7 @@ evaluator, with the lever on.
 | R5 | a call of an operator on two Ints or two Floats → computed in place, the tag check its guard; blue adopts its own `equal?` and `not=` (what `==` and `!=` lower to) as operators | none: the in-place path answers what the function answers | registering the name again withdraws it | a loop on `i == 0`, VM 675 to 408 ms | `spec/rows/equality.b`, tatara `tests/vm_operators.rs` |
 | R7 | a definition with a native artifact whose outermost calls averaged 20 ms or more in earlier runs → its calls answered by the artifact (R6 folded in) | door receipt | `BLUE_NATIVE=off` | `fib(30)` 1041 to 22 ms (§1.7.1) | `tests/native_tier.rs` |
 | R8 | a pure definition of the program with a stored result (this node's store or a shared root) that cost 20 ms or more → its calls answered from the store, new results added | door receipt ("the store answers") | `BLUE_MEMO=off` | the `tests/fleet_memo.rs` program, debug build, 277 to 3.6 ms total | `tests/fleet_memo.rs` |
+| R9 | a record type → its shape (tag, field keys, field types) fixed at its declaration, built once per type, so constructing a record only places its values | none: a record is the same map | none | 300,000 constructions, VM: 254 to 213 ms (release) | `record.rs` unit tests (red with the shape table bypassed), conformance's record rows |
 
 R4 evaluates each call once in a fresh interpreter under 100,000 steps and
 64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a

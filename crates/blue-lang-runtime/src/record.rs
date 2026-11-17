@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{Arc, LazyLock, RwLock};
 
 use blue_lang_syntax::record::{record_parts, LIST_TYPE, LOWERED_RECORD, RECORD_TAG};
 use blue_lang_syntax::{LOWERED_KWARGS, LOWERED_MAP, LOWERED_MERGE};
@@ -18,6 +18,54 @@ const SUBJECT: &str = "%value";
 const ROOT_PREFIX: &str = "%root/";
 const CASE_SUBJECT: &str = "case-subject";
 
+static TAG_KEY: LazyLock<MapKey> = LazyLock::new(|| MapKey::Keyword(Arc::from(RECORD_TAG)));
+
+/// A record type's layout, fixed at its declaration: the tag every value of
+/// it carries, its field keys in order and their types. Built once per type
+/// ([`shape`]), so constructing a record only places its values.
+struct Shape {
+    desc: Value,
+    slots: Vec<Slot>,
+    tag: Value,
+    keys: Vec<MapKey>,
+}
+
+/// The most record types the shape table holds; a type past it gets a shape
+/// built for that construction alone.
+const SHAPES_HELD: usize = 4096;
+
+static SHAPES: LazyLock<RwLock<HashMap<String, Vec<Arc<Shape>>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+fn shape(whole: &str, desc: &Value) -> Arc<Shape> {
+    let same = |s: &Arc<Shape>| crate::stdlib::blue_equal(&s.desc, desc);
+    if let Ok(table) = SHAPES.read() {
+        if let Some(found) = table.get(whole).and_then(|v| v.iter().find(|s| same(s))) {
+            return Arc::clone(found);
+        }
+    }
+    let slots = slots(desc);
+    let keys = slots
+        .iter()
+        .map(|s| MapKey::Keyword(Arc::clone(&s.name)))
+        .collect();
+    let made = Arc::new(Shape {
+        desc: desc.clone(),
+        slots,
+        tag: Value::Str(Arc::from(whole)),
+        keys,
+    });
+    if let Ok(mut table) = SHAPES.write() {
+        if table.len() < SHAPES_HELD || table.contains_key(whole) {
+            table
+                .entry(whole.to_string())
+                .or_default()
+                .push(Arc::clone(&made));
+        }
+    }
+    made
+}
+
 #[must_use]
 pub fn split_tag(tag: &str) -> Option<(&str, Vec<&str>)> {
     let (name, rest) = tag.split_once('(')?;
@@ -28,7 +76,7 @@ pub fn split_tag(tag: &str) -> Option<(&str, Vec<&str>)> {
 #[must_use]
 pub fn name_of(v: &Value) -> Option<&str> {
     let Value::Map(m) = v else { return None };
-    let Some(Value::Str(tag)) = m.get(&MapKey::Keyword(Arc::from(RECORD_TAG))) else {
+    let Some(Value::Str(tag)) = m.get(&TAG_KEY) else {
         return None;
     };
     let (name, fields) = split_tag(tag)?;
@@ -140,25 +188,23 @@ fn refused(tag: &str, message: String, missing: &[&str], unknown: &[&str], sp: S
     raise_kind_with("record", message, data, sp)
 }
 
-fn build(
-    tag: &str,
-    slots: &[Slot],
-    values: &[(&str, Value)],
-    sp: Span,
-) -> Result<Value, EvalError> {
+fn build(shape: &Shape, values: Vec<Value>, sp: Span) -> Result<Value, EvalError> {
+    let tag = match &shape.tag {
+        Value::Str(t) => &**t,
+        _ => "",
+    };
     let name_shown = name_part(tag);
-    for slot in slots {
-        let name = &*slot.name;
+    for (slot, v) in shape.slots.iter().zip(&values) {
         let Some(ty) = &slot.ty else {
             continue;
         };
-        let given = values.iter().find(|(n, _)| *n == name).map(|(_, v)| v);
-        if let Some(v) = given.filter(|v| !conforms(ty, v)) {
+        if !conforms(ty, v) {
             let got = name_of(v).unwrap_or(v.type_name()).to_string();
             return Err(raise_kind_with(
                 "record",
                 format!(
-                    "`{name_shown}`'s field `{name}` is {}, and it was given {got}",
+                    "`{name_shown}`'s field `{}` is {}, and it was given {got}",
+                    slot.name,
                     type_text(ty)
                 ),
                 Value::Nil,
@@ -166,15 +212,9 @@ fn build(
             ));
         }
     }
-    let mut out = vec![(
-        MapKey::Keyword(Arc::from(RECORD_TAG)),
-        Value::Str(Arc::from(tag)),
-    )];
-    out.extend(
-        values
-            .iter()
-            .map(|(n, v)| (MapKey::Keyword(Arc::from(*n)), v.clone())),
-    );
+    let mut out = Vec::with_capacity(values.len() + 1);
+    out.push((TAG_KEY.clone(), shape.tag.clone()));
+    out.extend(shape.keys.iter().cloned().zip(values));
     Ok(Value::map(out))
 }
 
@@ -255,8 +295,8 @@ fn by_name(whole: &str, desc: &Value, given: &Value, sp: Span) -> Result<Value, 
             sp,
         ));
     }
-    let values: Vec<(&str, Value)> = fields.iter().map(|f| (*f, named[f].clone())).collect();
-    build(whole, &slots, &values, sp)
+    let values: Vec<Value> = fields.iter().map(|f| named[f].clone()).collect();
+    build(&shape(whole, desc), values, sp)
 }
 
 fn quoted<'a>(names: impl Iterator<Item = &'a str>) -> String {
@@ -267,39 +307,39 @@ fn quoted<'a>(names: impl Iterator<Item = &'a str>) -> String {
 }
 
 fn positional(whole: &str, desc: &Value, args: &Value, sp: Span) -> Result<Value, EvalError> {
-    let tag = name_part(whole);
-    let slots = slots(desc);
-    let fields = names(&slots);
-    let args = match args {
+    let shape = shape(whole, desc);
+    let given: Vec<Value> = match args {
         Value::List(xs) => xs.to_vec(),
         _ => Vec::new(),
     };
-    if args.len() == 1 && fields.len() > 1 && matches!(args[0], Value::Map(_)) {
-        return by_name(whole, desc, &args[0], sp);
+    let width = shape.slots.len();
+    if given.len() == 1 && width > 1 && matches!(given[0], Value::Map(_)) {
+        return by_name(whole, desc, &given[0], sp);
     }
-    if args.len() != fields.len() {
-        let missing: Vec<&str> = fields.iter().skip(args.len()).copied().collect();
+    if given.len() != width {
+        let tag = name_part(whole);
+        let fields = names(&shape.slots);
+        let missing: Vec<&str> = fields.iter().skip(given.len()).copied().collect();
         return Err(refused(
             tag,
             format!(
                 "`{tag}` takes {} fields ({}) and was given {}",
-                fields.len(),
+                width,
                 fields.join(", "),
-                args.len()
+                given.len()
             ),
             &missing,
             &[],
             sp,
         ));
     }
-    let values: Vec<(&str, Value)> = fields.iter().copied().zip(args.iter().cloned()).collect();
-    build(whole, &slots, &values, sp)
+    build(&shape, given, sp)
 }
 
 fn holds(tag: &str, desc: &Value, v: &Value) -> bool {
     let Value::Map(m) = v else { return false };
     let slots = slots(desc);
-    let carried = m.get(&MapKey::Keyword(Arc::from(RECORD_TAG)));
+    let carried = m.get(&TAG_KEY);
     if !matches!(carried, Some(Value::Str(s)) if &**s == tag) || m.iter().count() != slots.len() + 1
     {
         return false;
@@ -567,4 +607,63 @@ pub fn lower_records(forms: Vec<Spanned>) -> Vec<Spanned> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn desc(fields: &[(&str, Option<&str>)]) -> Value {
+        Value::list(fields.iter().map(|(n, ty)| match ty {
+            None => Value::Keyword(Arc::from(*n)),
+            Some(t) => Value::list([Value::Keyword(Arc::from(*n)), Value::Symbol(Arc::from(*t))]),
+        }))
+    }
+
+    #[test]
+    fn a_record_type_builds_its_shape_once_and_each_value_reuses_it() {
+        let d = desc(&[("x", None), ("y", None)]);
+        let a = shape("shape_once(x,y)", &d);
+        let b = shape("shape_once(x,y)", &d);
+        assert!(Arc::ptr_eq(&a, &b));
+        let typed = desc(&[("x", Some("Int")), ("y", None)]);
+        let c = shape("shape_once(x,y)", &typed);
+        assert!(
+            !Arc::ptr_eq(&a, &c),
+            "a type with other field types shares a shape"
+        );
+    }
+
+    #[test]
+    fn a_record_built_from_its_shape_is_the_map_it_always_was() {
+        let d = desc(&[("x", Some("Int")), ("y", None)]);
+        let got = positional(
+            "pt_built(x,y)",
+            &d,
+            &Value::list([Value::Int(1), Value::Str(Arc::from("a"))]),
+            Span::synthetic(),
+        )
+        .expect("builds");
+        let want = Value::map([
+            (TAG_KEY.clone(), Value::Str(Arc::from("pt_built(x,y)"))),
+            (MapKey::Keyword(Arc::from("x")), Value::Int(1)),
+            (MapKey::Keyword(Arc::from("y")), Value::Str(Arc::from("a"))),
+        ]);
+        assert!(crate::stdlib::blue_equal(&got, &want), "{got:?}");
+        assert_eq!(name_of(&got), Some("pt_built"));
+        let wrong = positional(
+            "pt_built(x,y)",
+            &d,
+            &Value::list([Value::Str(Arc::from("no")), Value::Nil]),
+            Span::synthetic(),
+        );
+        assert!(wrong.is_err_and(|e| e.to_string().contains("field `x` is Int")));
+        let short = positional(
+            "pt_built(x,y)",
+            &d,
+            &Value::list([Value::Int(1)]),
+            Span::synthetic(),
+        );
+        assert!(short.is_err_and(|e| e.to_string().contains("takes 2 fields")));
+    }
 }

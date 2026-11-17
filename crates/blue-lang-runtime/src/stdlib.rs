@@ -136,6 +136,21 @@ pub fn blue_equal(a: &Value, b: &Value) -> bool {
     }
 }
 
+/// `member?(x, xs)`: whether some element of `xs` is [`blue_equal`] to `x`,
+/// scanned natively; `nil` holds nothing, and any other value is refused as
+/// the Lisp definition refuses it.
+///
+/// # Errors
+///
+/// When `xs` is neither a list nor `nil`.
+pub fn member(x: &Value, xs: &Value, sp: tatara_lisp::Span) -> Result<bool, EvalError> {
+    match xs {
+        Value::List(items) => Ok(items.iter().any(|e| blue_equal(e, x))),
+        Value::Nil => Ok(false),
+        other => Err(EvalError::type_mismatch("list", other.type_name(), sp)),
+    }
+}
+
 #[derive(PartialEq, Eq, Hash)]
 enum EqualKey<'a> {
     Nil,
@@ -338,6 +353,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::paths::install(interp);
     crate::spread::install(interp);
     crate::record::install(interp);
+    crate::member_index::install(interp);
     crate::shape::install(interp);
     crate::collection::install(interp);
     crate::bits::install(interp);
@@ -467,6 +483,9 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     });
     interp.adopt_operator("equal?");
     interp.adopt_operator("not=");
+    interp.register_fn("member?", Arity::Exact(2), |a: &[Value], _h: &mut H, sp| {
+        member(&a[0], &a[1], sp).map(Value::Bool)
+    });
     interp.register_fn(
         "distinct",
         Arity::Exact(1),

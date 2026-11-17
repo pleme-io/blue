@@ -885,6 +885,13 @@ pub(crate) fn prepare(
         } else {
             fused.forms
         };
+        let forms = if folding && crate::member_index::enabled() {
+            let indexed = crate::member_index::index(forms, &lowered);
+            crate::timings::indexed(indexed.lists);
+            indexed.forms
+        } else {
+            forms
+        };
         (lowered, forms)
     });
 

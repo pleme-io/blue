@@ -65,6 +65,7 @@ pub mod json;
 #[cfg(feature = "kernel")]
 pub mod kernel;
 pub mod literal;
+pub mod member_index;
 pub mod memory;
 pub mod messages;
 #[cfg(feature = "host")]

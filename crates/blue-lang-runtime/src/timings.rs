@@ -74,6 +74,7 @@ thread_local! {
     static STEPS: Cell<Option<u64>> = const { Cell::new(None) };
     static FUSED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static FOLDED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static INDEXED: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Record the chains erasure fused ([`crate::fuse`]) for this thread's
@@ -89,6 +90,14 @@ pub fn fused(chains: &[String]) {
 pub fn folded(calls: &[String]) {
     if enabled() {
         FOLDED.with(|f| f.borrow_mut().extend(calls.iter().cloned()));
+    }
+}
+
+/// Record the lists erasure indexed for loop membership tests
+/// ([`crate::member_index`]) for this thread's report, when it records.
+pub fn indexed(lists: usize) {
+    if enabled() {
+        INDEXED.with(|n| n.set(n.get() + lists));
     }
 }
 
@@ -113,6 +122,7 @@ pub fn enable() {
     STEPS.with(|s| s.set(None));
     FUSED.with(|f| f.borrow_mut().clear());
     FOLDED.with(|f| f.borrow_mut().clear());
+    INDEXED.with(|n| n.set(0));
 }
 
 /// Charge `spent` evaluation steps to this thread's report, when it records.
@@ -245,6 +255,10 @@ pub fn report() -> String {
     let calls = folded_calls();
     if !calls.is_empty() {
         out.push_str(&format!("folded   {} {}\n", calls.len(), calls.join(" ")));
+    }
+    let lists = INDEXED.with(Cell::get);
+    if lists > 0 {
+        out.push_str(&format!("indexed  {lists}\n"));
     }
     out
 }

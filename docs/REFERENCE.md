@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-404 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+404 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 199 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 

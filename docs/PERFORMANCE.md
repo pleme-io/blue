@@ -253,6 +253,12 @@ evaluator, with the lever on.
 | R7 | a definition with a native artifact whose outermost calls averaged 20 ms or more in earlier runs → its calls answered by the artifact (R6 folded in) | door receipt | `BLUE_NATIVE=off` | `fib(30)` 1041 to 22 ms (§1.7.1) | `tests/native_tier.rs` |
 | R8 | a pure definition of the program with a stored result (this node's store or a shared root) that cost 20 ms or more → its calls answered from the store, new results added | door receipt ("the store answers") | `BLUE_MEMO=off` | the `tests/fleet_memo.rs` program, debug build, 277 to 3.6 ms total | `tests/fleet_memo.rs` |
 | R9 | a record type → its shape (tag, field keys, field types) fixed at its declaration, built once per type, so constructing a record only places its values | none: a record is the same map | none | 300,000 constructions, VM: 254 to 213 ms (release) | `record.rs` unit tests (red with the shape table bypassed), conformance's record rows |
+| R10 | a callback of `map`, `filter`, `reduce`, `any?`, `all?`, `find` or `count` that tests `member?(x, s)` on a local the definition never assigns and the callback names nowhere else → an index of `s` for that one call, built after 8 lookups; `member?` itself scans natively with blue's equality | `indexed` row | `BLUE_INDEX=off` | 5,000 tests against a 5,000-element list: 2,801 ms (release, the Lisp `member?`) to 52 ms (debug, native scan) to 2.0 ms (debug, indexed) | `tests/member_index.rs` (every case on both doors, index on against off; red with an Int key that misses its Float), `member_index` unit tests, `spec/rows/member_index.b` |
+
+The conformance suite runs every column under a step bound
+(`ROW_STEPS`), and R4 and R10 stand down under one, so their rows hold the
+path without the rewrite; `tests/fold.rs` and `tests/member_index.rs` run
+`blue run` unbounded and compare the rewritten path with the plain one.
 
 R4 evaluates each call once in a fresh interpreter under 100,000 steps and
 64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a

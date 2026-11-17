@@ -17,3 +17,19 @@ def fib(n: Int) -> Int
     fib(n - 1) + fib(n - 2)
   end
 end
+
+def small(n: Int) -> Bool
+  n < 3
+end
+
+def big(n: Int) -> Bool
+  n > 3
+end
+
+def pick(b: Bool, x: Int) -> Int
+  if b
+    x
+  else
+    0
+  end
+end

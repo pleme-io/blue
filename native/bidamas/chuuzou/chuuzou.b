@@ -2705,11 +2705,53 @@ def cz_board_word?(n)
 end
 
 @doc """
+cz_seam_arg: One argument of the native tier's seam, a word, as the parameter of type `ty`
+takes it: a Bool is the word's being nonzero.
+
+    cz_seam_arg(rs_path("a"), :bool)[:op] #=> "ne"
+    cz_seam_arg(rs_path("a"), :word) #=> {kind: "path", segments: ["a"]}
+"""
+def cz_seam_arg(e, ty)
+  if ty == :bool
+    rs_binary("ne", e, rs_word(0, 64))
+  else
+    e
+  end
+end
+
+@doc """
+cz_seam_result: The entry's result as the seam's word: a Bool answers 1 or 0.
+
+    cz_seam_result(rs_path("r"), :bool)[:kind] #=> "block"
+    cz_seam_result(rs_path("r"), :word) #=> {kind: "path", segments: ["r"]}
+"""
+def cz_seam_result(e, ty)
+  if ty == :bool
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          rs_tail(
+            rs_if(
+              e,
+              rs_block([rs_tail(rs_word(1, 64))]),
+              rs_block([rs_tail(rs_word(0, 64))])
+            )
+          )
+        ]
+      )
+    }
+  else
+    e
+  end
+end
+
+@doc """
 cz_lower_def: The slice `forms` lowered for the host board with the definition `key`
 as its entry (tier T3): `pub fn entry(io, args: &Args) -> i64` checks the
-arity and calls it from depth zero. Refused unless `key` takes and answers
-Ints and nothing in the slice reaches the board, the calls the native tier
-can answer.
+arity and calls it from depth zero, a Bool crossing the seam as 1 or 0.
+Refused unless `key` takes and answers Ints and Bools and nothing in the
+slice reaches the board, the calls the native tier can answer.
 
     cz_lower_def(cz_read("(define-typed (%root/sq (x Int)) Int (* x x))"), "%root/sq") != nil #=> true
 """
@@ -2730,9 +2772,9 @@ def cz_lower_def(forms, key)
     map((p) -> cz_sig_ty(second(p), []), rest(second(form))),
     [cz_sig_ty(third(form), [])]
   )
-  if not every?((t) -> t == :word, types)
+  if not every?((t) -> member?(t, %i[word bool]), types)
     cz_refuse(
-      "`#{cz_local(key)}` takes or answers something other than an Int; the native tier's guard is an Int per argument"
+      "`#{cz_local(key)}` takes or answers something other than an Int or a Bool; the native tier's guard is an Int or a Bool per argument"
     )
   end
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
@@ -2748,7 +2790,12 @@ def cz_lower_def(forms, key)
     [cz_fn_name(key)],
     append(
       lead,
-      map((i) -> rs_method(rs_path("args"), "get", [rs_u32(i)]), range(n))
+      map(
+        fn(i)
+          cz_seam_arg(rs_method(rs_path("args"), "get", [rs_u32(i)]), types[i])
+        end,
+        range(n)
+      )
     )
   )
   entry = rs_fn(
@@ -2757,7 +2804,10 @@ def cz_lower_def(forms, key)
     [{name: "args", ty: {ident: "Args", reference: {kind: "shared"}}}],
     rs_ty("i64"),
     rs_block(
-      [rs_semi(rs_method(rs_path("args"), "need", [rs_u32(n)])), rs_tail(call)]
+      [
+        rs_semi(rs_method(rs_path("args"), "need", [rs_u32(n)])),
+        rs_tail(cz_seam_result(call, last(types)))
+      ]
     )
   )
   {
@@ -3313,4 +3363,24 @@ test "blue ast gives each definition its hash and slice", {
     e.kind
   end
   assert refused == :defs
+end
+
+test "a Bool crosses the seam as a word, and a Bool definition compiles"
+  a = rs_path("a")
+  assert cz_seam_arg(a, :word) == a
+  assert cz_seam_arg(a, :bool) == rs_binary("ne", a, rs_word(0, 64))
+  assert cz_seam_result(a, :word) == a
+  assert cz_seam_result(a, :bool)[:kind] == "block"
+  assert cz_def_native(
+    "(define-typed (%root/s (n Int)) Bool (< n 3))",
+    "%root/s"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/p (b Bool) (x Int)) Int (if b x 0))",
+    "%root/p"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/t (s String)) Int 0)",
+    "%root/t"
+  ) != nil
 end

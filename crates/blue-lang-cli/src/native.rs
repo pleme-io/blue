@@ -135,10 +135,84 @@ pub(crate) fn defs(
     Ok(serde_json::Value::Array(out))
 }
 
+/// A word the seam carries, as a definition's signature names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Word {
+    Int,
+    Bool,
+}
+
+/// What a definition takes and answers, as the tier converts it across the
+/// seam: an untyped definition is held to Ints, as before types crossed it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Shape {
+    Untyped,
+    Typed(Vec<Word>, Word),
+}
+
+impl Shape {
+    /// The shape `form` declares, or `None` when it names a type the seam
+    /// does not carry.
+    fn of(form: &Spanned) -> Option<Self> {
+        let items = form.as_list()?;
+        if items.first().and_then(Spanned::as_symbol) != Some("define-typed") {
+            return Some(Self::Untyped);
+        }
+        let word = |t: &Spanned| match t.as_symbol()? {
+            "Int" => Some(Word::Int),
+            "Bool" => Some(Word::Bool),
+            _ => None,
+        };
+        let params = items
+            .get(1)?
+            .as_list()?
+            .iter()
+            .skip(1)
+            .map(|p| p.as_list().and_then(|p| p.get(1)).and_then(word))
+            .collect::<Option<Vec<Word>>>()?;
+        Some(Self::Typed(params, word(items.get(2)?)?))
+    }
+
+    /// The arguments as the seam's words, or `None` when one is not what the
+    /// signature names.
+    fn words(&self, args: &[Value]) -> Option<Vec<i64>> {
+        let take = |a: &Value, w: Word| match (a, w) {
+            (Value::Int(n), Word::Int) => Some(*n),
+            (Value::Bool(b), Word::Bool) => Some(i64::from(*b)),
+            _ => None,
+        };
+        match self {
+            Self::Untyped => args.iter().map(|a| take(a, Word::Int)).collect(),
+            Self::Typed(ws, _) if ws.len() == args.len() => {
+                args.iter().zip(ws).map(|(a, w)| take(a, *w)).collect()
+            }
+            Self::Typed(..) => None,
+        }
+    }
+
+    /// The seam's answer as the value the signature names.
+    fn value(&self, v: i64) -> Value {
+        match self {
+            Self::Typed(_, Word::Bool) => Value::Bool(v != 0),
+            _ => Value::Int(v),
+        }
+    }
+
+    /// Whether only Ints cross, so the executable, which prints an Int, may
+    /// answer.
+    fn ints_only(&self) -> bool {
+        match self {
+            Self::Untyped => true,
+            Self::Typed(ws, r) => *r == Word::Int && ws.iter().all(|w| *w == Word::Int),
+        }
+    }
+}
+
 struct Target {
     name: Option<String>,
     artifact: PathBuf,
     library: Option<crate::dl::Entry>,
+    shape: Shape,
     hash: DefHash,
     hot: bool,
     profiled: bool,
@@ -226,6 +300,9 @@ impl Tier {
             let Some(artifact) = find(&hashed.hash) else {
                 continue;
             };
+            let Some(shape) = w.lowered.get(d.top_level).and_then(Shape::of) else {
+                continue;
+            };
             let Some(items) = w.erased.get(d.top_level).and_then(Spanned::as_list) else {
                 continue;
             };
@@ -260,6 +337,7 @@ impl Tier {
                         name,
                         artifact,
                         library,
+                        shape,
                         hash: hashed.hash,
                         hot,
                         profiled: mean.is_some(),
@@ -432,19 +510,16 @@ impl CallObserver for Tier {
         }
         let target = self.target(call_)?;
         if target.hot {
-            let ints: Option<Vec<i64>> = args
-                .iter()
-                .map(|a| match a {
-                    Value::Int(n) => Some(*n),
-                    _ => None,
-                })
-                .collect();
-            let answered = ints.and_then(|ints| match target.library {
-                Some(entry) => crate::dl::call(entry, &ints),
-                None => call(&target.artifact, &ints),
-            });
+            let answered = target
+                .shape
+                .words(args)
+                .and_then(|words| match target.library {
+                    Some(entry) => crate::dl::call(entry, &words),
+                    None if target.shape.ints_only() => call(&target.artifact, &words),
+                    None => None,
+                });
             if let Some(v) = answered {
-                return Some(Value::Int(v));
+                return Some(target.shape.value(v));
             }
         }
         if let Ok(mut t) = self.timing.lock() {
@@ -494,6 +569,30 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+
+    fn shape(src: &str) -> Option<Shape> {
+        Shape::of(&tatara_lisp::read_spanned(src).expect("a form").remove(0))
+    }
+
+    #[test]
+    fn a_signature_names_what_crosses_the_seam() {
+        assert_eq!(shape("(define (%root/f x) x)"), Some(Shape::Untyped));
+        let pick =
+            shape("(define-typed (%root/pick (b Bool) (x Int)) Int (if b x 0))").expect("a shape");
+        assert_eq!(pick, Shape::Typed(vec![Word::Bool, Word::Int], Word::Int));
+        assert_eq!(
+            pick.words(&[Value::Bool(true), Value::Int(7)]),
+            Some(vec![1, 7])
+        );
+        assert_eq!(pick.words(&[Value::Int(1), Value::Int(7)]), None);
+        assert_eq!(pick.words(&[Value::Bool(true)]), None);
+        assert!(!pick.ints_only());
+        let small = shape("(define-typed (%root/small (n Int)) Bool (< n 3))").expect("a shape");
+        assert!(matches!(small.value(0), Value::Bool(false)));
+        assert!(matches!(small.value(1), Value::Bool(true)));
+        assert_eq!(shape("(define-typed (%root/s (t String)) Int 0)"), None);
+        assert!(Shape::Untyped.ints_only());
+    }
 
     fn checked(src: &str) -> blue_lang_runtime::pipeline::Checked {
         let loader = blue_lang_pkg::load_path::LoadPath::for_entry(

@@ -155,6 +155,16 @@ Each wave lists defaults in the order their gain is known. Each default meets
   `checks.native-native-builder`.
 - chuuzou's subset widened one type at a time (strings, maps, records in lists,
   closures), each step moving code from the interpreter to native code.
+  - ✅ Bool: a definition that takes or answers Bools compiles for the tier;
+    a Bool crosses the seam as 1 or 0 (`cz_seam_arg`, `cz_seam_result`), and
+    the tier reads each definition's signature from its own `define-typed`
+    form to convert (`native::Shape`); only an all-Int signature may be
+    answered by the executable. Lock: `tests/native_tier.rs`
+    `a_bool_crosses_the_seam_as_one_or_zero_both_ways` (red with the result
+    left an Int) and `checks.native-defs` "a Bool crosses the seam both ways"
+    (`small`, `big`, `pick` in `native/defs/base.b`; `big` answered by
+    `small`'s library proves the library answered).
+  - Next: Float, then strings.
 - Doctests as profiles: each `@doc` example is a typed sample input, run at
   build to seed the profile before the first real run.
 - Proven types drop the guard in compiled code (R6, at T3).

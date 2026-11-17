@@ -97,3 +97,40 @@ test "the native tier answers a call from its def_hash's artifact", {
   assert interpreted(work, "fib", [5], on) == unlines(["25"])
   assert interpreted(work, "square", [5], on) == unlines(["25"])
 end
+
+test "a Bool crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-bool")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [
+    ["small", [2]],
+    ["small", [5]],
+    ["pick", [true, 7]],
+    ["pick", [false, 7]]
+  ]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("big"))
+  mkdir_p(shelf)
+  small = path_join(root, "native", "v1", hex_of("small"))
+  exec_capture("ln", "-s", path_join(small, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(small, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  assert interpreted(work, "big", [5], off) == unlines(["true"])
+  assert interpreted(work, "big", [5], swapped) == unlines(["false"])
+end

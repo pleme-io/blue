@@ -216,3 +216,42 @@ fn a_library_makes_a_definition_hot_from_a_far_lower_mean_than_a_process() {
     );
     let _ = std::fs::remove_dir_all(&f.dir);
 }
+
+#[test]
+fn a_bool_crosses_the_seam_as_one_or_zero_both_ways() {
+    let dir = std::env::temp_dir().join(format!("blue-native-tier-bool-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch");
+    let program = dir.join("p.b");
+    std::fs::write(
+        &program,
+        "def small(n: Int) -> Bool\n  n < 3\nend\n\ndef pick(b: Bool, x: Int) -> Int\n  if b\n    x\n  else\n    0\n  end\nend\n\ndef main()\n  write_stdout(to_s([small(1), pick(true, 7)]))\nend\n",
+    )
+    .expect("program");
+    let shared = dir.join("shared");
+    for (key, hex) in hashes(&program) {
+        match key.as_str() {
+            "%root/small" => {
+                artifact(&shared, &hex, 1);
+                library(&shared, &hex, "unsafe { out.write(0) };\n    0");
+            }
+            "%root/pick" => {
+                artifact(&shared, &hex, 99);
+                library(
+                    &shared,
+                    &hex,
+                    "let flag = unsafe { *args };\n    unsafe { out.write(if flag == 1 { 40 } else { -1 }) };\n    0",
+                );
+            }
+            _ => {}
+        }
+    }
+    let f = Fixture { dir, program };
+    assert_eq!(run(&f, Some("off")), "[true, 7]");
+    assert_eq!(
+        run(&f, Some("on")),
+        "[false, 40]",
+        "the library's 0 is false, and true reaches it as 1"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}

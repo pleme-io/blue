@@ -342,6 +342,9 @@ Five rules follow:
   the call graph, its shape in the AST, its placement. Each default is a Horn rule
   (facts imply a lever), so annotating or purifying one definition turns on defaults
   for it and for every caller it completes. A new capability names the rule it adds.
+  This is not only about speed: every automatic choice blue makes is a fact, a rule,
+  an exact fallback and a receipt with a switch, and meets the contract in
+  [FACTS.md](FACTS.md) §2 before it ships.
 - **A cache is keyed by a fact that only grows**, so it has a miss path and no
   invalidation: content hashes, frame versions, store paths.
 - **Rust is for what blue cannot reach**: the evaluator and its seams. Every decision,

@@ -228,6 +228,21 @@ pub(crate) fn costly(
     ))
 }
 
+/// How many results the store holds for `hash` that cost [`COSTLY`] or more:
+/// what R8 answers from on the next run.
+pub(crate) fn costly_results(hash: &blue_lang_runtime::def_hash::DefHash) -> usize {
+    if !store_holds_anything() {
+        return 0;
+    }
+    store().map_or(0, |s| {
+        s.load(hash)
+            .entries
+            .values()
+            .filter(|e| e.cost >= COSTLY)
+            .count()
+    })
+}
+
 /// Write the run's results to the store. A failure costs the next run its
 /// hits, never this run its result, so it is not an error.
 pub(crate) fn finish(recall: &Recall) {

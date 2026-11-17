@@ -264,6 +264,10 @@ no step bound and every default on, so every row also holds the rewritten path
 (a broken index turns it red); `tests/fold.rs` and `tests/member_index.rs`
 compare the two paths directly.
 
+`blue shift --defaults FILE` names, per definition, the rules in this table
+that fire on it and the fact a rule that does not fire is missing, under the
+switches in force (`docs/FACTS.md` §4).
+
 R4 evaluates each call once in a fresh interpreter under 100,000 steps and
 64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a
 bound or answers a value no literal spells (a map, a function, a record)

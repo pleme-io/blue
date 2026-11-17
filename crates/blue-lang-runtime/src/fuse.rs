@@ -133,6 +133,8 @@ pub fn enabled() -> bool {
 pub struct Fused {
     pub forms: Vec<Spanned>,
     pub chains: Vec<String>,
+    /// Each fused chain with the index of the top-level form it is in.
+    pub sites: Vec<(usize, String)>,
 }
 
 /// Fuse every chain of `erased` whose callbacks only compute. `defined` is
@@ -157,6 +159,7 @@ pub fn fuse(erased: Vec<Spanned>, defined: &[Spanned]) -> Fused {
         return Fused {
             forms: erased,
             chains: Vec::new(),
+            sites: Vec::new(),
         };
     }
     let found = sites.found;
@@ -171,9 +174,23 @@ pub fn fuse(erased: Vec<Spanned>, defined: &[Spanned]) -> Fused {
         chains: Vec::new(),
         next: 0,
     };
-    let forms = erased.iter().map(|f| rewriter.form(f)).collect();
+    let mut sites = Vec::new();
+    let forms = erased
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let before = rewriter.chains.len();
+            let out = rewriter.form(f);
+            sites.extend(rewriter.chains[before..].iter().map(|c| (i, c.clone())));
+            out
+        })
+        .collect();
     let chains = rewriter.chains;
-    Fused { forms, chains }
+    Fused {
+        forms,
+        chains,
+        sites,
+    }
 }
 
 fn stage(name: &str, args: usize) -> Option<&'static Stage> {

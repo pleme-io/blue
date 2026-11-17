@@ -84,6 +84,8 @@ const DISPATCH_OPTION: &str = "dispatch_steps";
 pub struct Folded {
     pub forms: Vec<Spanned>,
     pub calls: Vec<String>,
+    /// Each folded call with the index of the top-level form it is in.
+    pub sites: Vec<(usize, String)>,
 }
 
 /// Fold every call of `erased` that names a pure definition of the program
@@ -94,6 +96,7 @@ pub fn fold(erased: Vec<Spanned>, defined: &[Spanned]) -> Folded {
     let unchanged = |forms| Folded {
         forms,
         calls: Vec::new(),
+        sites: Vec::new(),
     };
     let globals: BTreeSet<&str> = defined
         .iter()
@@ -134,9 +137,23 @@ pub fn fold(erased: Vec<Spanned>, defined: &[Spanned]) -> Folded {
         sandbox: &mut sandbox,
         calls: Vec::new(),
     };
-    let forms: Vec<Spanned> = erased.iter().map(|f| folder.form(f)).collect();
+    let mut sites = Vec::new();
+    let forms: Vec<Spanned> = erased
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let before = folder.calls.len();
+            let out = folder.form(f);
+            sites.extend(folder.calls[before..].iter().map(|c| (i, c.clone())));
+            out
+        })
+        .collect();
     let calls = folder.calls;
-    Folded { forms, calls }
+    Folded {
+        forms,
+        calls,
+        sites,
+    }
 }
 
 fn pure_keys(erased: &[Spanned], defined: &[Spanned]) -> BTreeSet<String> {

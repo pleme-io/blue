@@ -164,6 +164,9 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
 pub struct Indexed {
     pub forms: Vec<Spanned>,
     pub lists: usize,
+    /// Each indexed list by its name, with the index of the top-level form it
+    /// is in.
+    pub sites: Vec<(usize, String)>,
 }
 
 /// Index every loop membership test of `erased` the rewrite can prove the
@@ -179,12 +182,15 @@ pub fn index(erased: Vec<Spanned>, defined: &[Spanned]) -> Indexed {
         return Indexed {
             forms: erased,
             lists: 0,
+            sites: Vec::new(),
         };
     }
     let mut lists = 0;
+    let mut sites_named = Vec::new();
     let forms = erased
         .into_iter()
-        .map(|form| {
+        .enumerate()
+        .map(|(i, form)| {
             let mut assigned = HashSet::new();
             assignments(&form, &mut assigned);
             let mut sites = Sites {
@@ -195,15 +201,23 @@ pub fn index(erased: Vec<Spanned>, defined: &[Spanned]) -> Indexed {
             if sites.found.is_empty() {
                 return form;
             }
+            let mut names = Vec::new();
             let mut r = Rewriter {
                 found: &sites.found,
                 assigned: &assigned,
                 next: &mut lists,
+                names: &mut names,
             };
-            r.form(&form)
+            let out = r.form(&form);
+            sites_named.extend(names.into_iter().map(|n| (i, n)));
+            out
         })
         .collect();
-    Indexed { forms, lists }
+    Indexed {
+        forms,
+        lists,
+        sites: sites_named,
+    }
 }
 
 fn assignments(s: &Spanned, out: &mut HashSet<String>) {
@@ -257,6 +271,7 @@ struct Rewriter<'a> {
     found: &'a HashMap<*const Spanned, BTreeSet<String>>,
     assigned: &'a HashSet<String>,
     next: &'a mut usize,
+    names: &'a mut Vec<String>,
 }
 
 fn lambda_parts(s: &Spanned) -> Option<(&[Spanned], &[Spanned])> {
@@ -385,6 +400,7 @@ impl Rewriter<'_> {
                 }
                 let idx = format!("%member_index{}", *self.next);
                 *self.next += 1;
+                self.names.push(name.clone());
                 *arg = swap(arg, &name, &idx);
                 binds.push(list(
                     call.span,

@@ -76,6 +76,7 @@ const NATURALIZE: &str = include_str!("../blue/naturalize.b");
 mod config;
 mod crash;
 mod debug;
+mod defaults;
 mod deploy;
 mod diagnostics;
 mod doc;
@@ -611,6 +612,11 @@ enum Cmd {
         /// `kind`, `subject`, 1-based `line` and `detail`.
         #[arg(long)]
         json: bool,
+        /// Per definition: its facts, the defaults they fire (memo, fusion,
+        /// folding, the membership index, the native tier, stored results)
+        /// and the fact a default that does not fire is missing.
+        #[arg(long)]
+        defaults: bool,
     },
     /// The morphology: what each posture grants, what it forfeits, which pairs
     /// are genuinely exclusive, and which language each shape corresponds to.
@@ -1820,7 +1826,20 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Shift { file, json } => {
+        Cmd::Shift {
+            file,
+            json,
+            defaults,
+        } => {
+            if defaults {
+                let atoms = defaults::of(&file, &read(&file)?)?;
+                if json {
+                    println!("{}", defaults::json(&atoms));
+                } else {
+                    defaults::print(&atoms);
+                }
+                return Ok(ExitCode::SUCCESS);
+            }
             let reading = blue_lang_lsp::shift_of(&read(&file)?);
             if json {
                 let holding: Vec<serde_json::Value> = reading

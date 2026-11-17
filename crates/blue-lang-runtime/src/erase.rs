@@ -79,6 +79,7 @@ pub fn erase_fused(forms: &[Spanned]) -> crate::fuse::Fused {
         crate::fuse::Fused {
             forms: erased,
             chains: Vec::new(),
+            sites: Vec::new(),
         }
     }
 }

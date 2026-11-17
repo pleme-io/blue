@@ -45,6 +45,7 @@ pub mod check_cache;
 pub mod collection;
 pub mod crypto;
 pub mod def_hash;
+pub mod defaults;
 pub mod dispatch;
 #[cfg(feature = "senses")]
 pub mod display;

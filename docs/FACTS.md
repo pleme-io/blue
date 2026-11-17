@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: facts decide, defaults follow: the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language
+summary: how facts decide and defaults follow; the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language
 ---
 
 # Facts decide
@@ -82,7 +82,7 @@ finds its facts again and decides alone. The destination is one engine:
 3. **One least model per atom.** The rules are Horn clauses, so each atom has one
    least model, computed in time linear in its facts and rules, and cached with
    them.
-4. **One explanation.** `blue shift FILE` prints, per atom, its facts, the defaults
+4. **One explanation.** `blue shift --defaults FILE` prints, per atom, its facts, the defaults
    that fired, and the one fact missing for the next default ("annotate `n: Int`
    and `fib` compiles natively"). This turns the blueshift into a guide: the
    author sees what each declaration buys.
@@ -97,7 +97,14 @@ Each wave lists defaults in the order their gain is known. Each default meets
 ### W0: the engine (§4)
 
 - The fact store in mondou and the rule registry as a bidama.
-- `blue shift` per atom, with the missing fact for the next default.
+- ✅ `blue shift --defaults FILE` (`--json` too): per definition of the file,
+  its facts (pure or why not, calls itself twice, typed), each default that
+  fires (R2 memo, R3 fusion, R4 fold, R10 index, R7 native, R8 stored results)
+  and, for one that does not, the fact it is missing (R2: the effect that makes
+  it volatile; R7: a mean below 20 ms). It runs the passes a run runs, under the
+  same switches, and `tests/shift_defaults.rs` holds it to what `blue run
+  --timings` reports. The missing fact "annotate `n: Int` and native code
+  answers it" waits on a test of chuuzou's subset per definition (W1).
 - ✅ A conformance column that runs rows without the step bound (`default`,
   through `blue run --literal`), so R4, R10 and every later rewrite are held to
   the plain path on every row (C2).

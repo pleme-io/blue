@@ -47,7 +47,7 @@ pub(crate) fn of(path: &Path, src: &str) -> Result<Vec<Atom>, crate::CliError> {
         }
         if a.pure {
             let held = crate::memo::costly_results(&a.hash);
-            if held > 0 {
+            if held > 0 && blue_lang_runtime::kitei::fires("R8", &["pure", "stored_costly"]) {
                 a.rules.push((
                     "R8".to_string(),
                     Verdict::Fires(format!(
@@ -75,10 +75,17 @@ fn native_verdict(mode: Mode, hash: &blue_lang_runtime::def_hash::DefHash) -> Op
         (_, None) => Verdict::Fires(
             "the native tier times it: it has an artifact and no profile yet".to_string(),
         ),
-        (_, Some(ns)) if ns >= HOT_NS => Verdict::Fires(format!(
-            "native code answers its calls: they ran {} ms on average",
-            ns / 1_000_000
-        )),
+        (_, Some(ns))
+            if blue_lang_runtime::kitei::fires(
+                "R7",
+                &["artifact", if ns >= HOT_NS { "hot" } else { "" }],
+            ) =>
+        {
+            Verdict::Fires(format!(
+                "native code answers its calls: they ran {} ms on average",
+                ns / 1_000_000
+            ))
+        }
         (_, Some(ns)) => Verdict::Missing(format!(
             "its calls ran {} ms on average; native code answers from {} ms",
             ns / 1_000_000,

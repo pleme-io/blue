@@ -29,9 +29,6 @@ use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::special::SpecialForm;
 use tatara_lisp_eval::{EvalError, Interpreter, Value};
 
-/// The variable that turns the rewrite off: `BLUE_INDEX=off`.
-pub const SWITCH: &str = "BLUE_INDEX";
-
 /// The builtins whose written-out callback the rewrite indexes for.
 pub const LOOPS: &[&str] = &["map", "filter", "reduce", "any?", "all?", "find", "count"];
 
@@ -45,7 +42,7 @@ const MEMBER: &str = "member?";
 /// Whether the rewrite runs.
 #[must_use]
 pub fn enabled() -> bool {
-    !crate::fuse::held_off() && std::env::var(SWITCH).map_or(true, |v| v != "off")
+    !crate::fuse::held_off() && !crate::kitei::switched_off("R10")
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]

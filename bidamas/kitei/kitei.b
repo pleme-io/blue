@@ -7,11 +7,11 @@ kitei (既定) — defaults: the registry of the rules by which blue picks a def
 use("retsu", %i[first size])
 
 @doc """
-rule: one rule of the default cascade. `state` is :shipped, :folded (its lever lives in another rule, named in `lever`) or :refused (measured, and the ratchet kept it out).
+rule: one rule of the default cascade. `needs` is its body: the facts that must all hold of a definition for the rule to fire (a Horn clause), each a keyword the runtime computes. `state` is :shipped, :folded (its lever lives in another rule, named in `lever`) or :refused (measured, and the ratchet kept it out).
 
-    rule("R0", "a fact", "a lever", "a receipt", "BLUE_X=off", :shipped, "a test").id #=> "R0"
+    rule("R0", [:pure], "a fact", "a lever", "a receipt", "BLUE_X=off", :shipped, "a test").id #=> "R0"
 """
-record rule(id, when, lever, receipt, switch, state, locks)
+record rule(id, needs, when, lever, receipt, switch, state, locks)
 
 @doc """
 rules: every rule of the default cascade, in the order of its id.
@@ -22,6 +22,7 @@ def rules()
   [
     rule(
       "R1",
+      [:agreed_construct],
       "a construct every evaluator column agrees on",
       "the program runs on the VM",
       "door receipt",
@@ -31,6 +32,7 @@ def rules()
     ),
     rule(
       "R2",
+      %i[pure self_overlapping],
       "a pure definition that calls itself at two or more places",
       "its calls are answered from a table",
       "door receipt",
@@ -40,6 +42,7 @@ def rules()
     ),
     rule(
       "R3",
+      [:compute_chain],
       "a map, filter or reduce chain of callbacks that only compute",
       "the chain runs as one pass, and the unfused chain on the first error",
       "fused row",
@@ -49,6 +52,7 @@ def rules()
     ),
     rule(
       "R4",
+      %i[pure literal_call],
       "a pure definition called with literal arguments where the call can run more than once",
       "its value is computed before the run",
       "folded row",
@@ -58,6 +62,7 @@ def rules()
     ),
     rule(
       "R5",
+      [:operator_on_numbers],
       "a call of an operator on two Ints or two Floats",
       "it is computed in place, with the tag check as its guard",
       "none",
@@ -67,6 +72,7 @@ def rules()
     ),
     rule(
       "R6",
+      [:proven_types],
       "a definition whose argument types are proven",
       "the guard drops in compiled code: folded into R7",
       "none",
@@ -76,6 +82,7 @@ def rules()
     ),
     rule(
       "R7",
+      %i[artifact hot],
       "a definition with a native artifact whose calls averaged 20 ms or more",
       "its calls are answered by the artifact",
       "door receipt",
@@ -85,6 +92,7 @@ def rules()
     ),
     rule(
       "R8",
+      %i[pure stored_costly],
       "a pure definition with a stored result that cost 20 ms or more",
       "its calls are answered from the store",
       "door receipt",
@@ -94,6 +102,7 @@ def rules()
     ),
     rule(
       "R9",
+      [:record_type],
       "a record type",
       "its shape is fixed once at its declaration",
       "none",
@@ -103,6 +112,7 @@ def rules()
     ),
     rule(
       "R10",
+      [:member_test],
       "a callback that tests member?(x, s) on a local the definition never assigns",
       "membership is answered from an index of s built for that call",
       "indexed row",
@@ -112,6 +122,7 @@ def rules()
     ),
     rule(
       "R11",
+      [:closed_list_region],
       "a closed region of list-holding definitions under a root that takes and returns no list",
       "an arena",
       "none",
@@ -121,6 +132,7 @@ def rules()
     ),
     rule(
       "R12",
+      [:no_writable_code],
       "a placement that forbids writable code",
       "ahead-of-time code only",
       "none",
@@ -164,6 +176,21 @@ def shipped()
   map((r) -> r.id, filter((r) -> r.state == :shipped, rules))
 end
 
+@doc """
+fires?: whether the rule `id` fires on a definition whose facts are `held`: the rule is shipped and every fact it needs is held.
+
+    fires?("R2", %i[pure self_overlapping]) #=> true
+    fires?("R2", [:self_overlapping]) #=> false
+"""
+def fires?(id, held)
+  r = named(id)
+  if r.nil? or r.state != :shipped
+    false
+  else
+    every?((f) -> member?(f, held), r.needs)
+  end
+end
+
 test "every rule has a distinct id in order, and a state blue knows"
   ids = map((r) -> r.id, rules)
   assert ids == map((n) -> "R#{n}", range(1, 13))
@@ -194,8 +221,28 @@ test "an unknown id names no rule and no switch"
 end
 
 test "a rule is a record that names its id, switch and state"
-  r = rule("R0", "a fact", "a lever", "none", "BLUE_X=off", :shipped, "a test")
+  r = rule(
+    "R0",
+    [:pure],
+    "a fact",
+    "a lever",
+    "none",
+    "BLUE_X=off",
+    :shipped,
+    "a test"
+  )
   assert rule?(r)
   assert r.switch == "BLUE_X=off"
   assert not rule?({id: "R0"})
+end
+
+test "a rule fires only when every fact it needs is held, and only when shipped"
+  assert fires?("R4", %i[literal_call pure self_overlapping])
+  assert not fires?("R4", [:literal_call])
+  assert not fires?("R4", [])
+  assert fires?("R10", [:member_test])
+  assert not fires?("R11", [:closed_list_region])
+  assert not fires?("R6", [:proven_types])
+  assert not fires?("R99", [:pure])
+  assert every?((r) -> size(r.needs) > 0, rules)
 end

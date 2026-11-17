@@ -75,8 +75,8 @@ finds its facts again and decides alone. The destination is one engine:
 
 1. **One fact store.** mondou computes each atom's facts once and caches them by
    `def_hash`, so an unchanged definition costs a lookup.
-2. **One rule registry, in blue.** Each rule is a row: its facts, its lever, its
-   guard, its switch, its receipt text, its bench row. Adding a default is adding
+2. **One rule registry, in blue.** Each rule is a row of the `kitei` bidama: its
+   facts, its lever, its guard, its switch, its receipt text, its bench row. Adding a default is adding
    a row and the lever it names. Rust carries the levers that blue cannot reach;
    the decision is blue.
 3. **One least model per atom.** The rules are Horn clauses, so each atom has one
@@ -112,8 +112,15 @@ Each wave lists defaults in the order their gain is known. Each default meets
 - ✅ A conformance column that runs rows without the step bound (`default`,
   through `blue run --literal`), so R4, R10 and every later rewrite are held to
   the plain path on every row (C2).
-- The memo planner's decision, the fold, the index and the native planner move
-  onto the registry, one at a time, each keeping its lock.
+- ✅ The decisions move onto the registry. Each `kitei` rule names its body
+  (`needs`: the facts that must all hold), and `gen/kitei.b` renders the shipped
+  rows to `crates/blue-lang-runtime/src/kitei/tables.rs`, the table the runtime
+  decides by (`kitei::fires`, `missing`, `switched_off`). The memo planner (R2),
+  the native tier (R7) and the stored results (R8) fire through it; fusion (R3),
+  the fold (R4) and the index (R10) read their switches from it, so their
+  variables are named once, in blue. Red run: R2 needing `typed` as well turns
+  `tests/door.rs` and `tests/shift_defaults.rs` red; R7 and R8 needing it turn
+  `tests/native_tier.rs` and `tests/fleet_memo.rs` red.
 
 ### W1: compiled code by default
 

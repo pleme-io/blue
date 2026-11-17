@@ -34,9 +34,6 @@ use tatara_lisp_eval::Value;
 
 use crate::def_hash::DefKind;
 
-/// The variable that turns the rewrite off: `BLUE_FOLD=off`.
-pub const SWITCH: &str = "BLUE_FOLD";
-
 /// The evaluation steps one folded call may spend before it is left as
 /// written.
 pub const STEPS: usize = 100_000;
@@ -47,11 +44,11 @@ pub const PASS_STEPS: usize = 1_000_000;
 /// The bytes one folded call may allocate before it is left as written.
 pub const BYTES: u64 = 64 * 1024 * 1024;
 
-/// Whether the rewrite runs: on unless [`SWITCH`] is `off` or
+/// Whether the rewrite runs: on unless its switch in the `kitei` registry (R4) is off or
 /// [`crate::fuse::hold_off`] was called.
 #[must_use]
 pub fn enabled() -> bool {
-    !crate::fuse::held_off() && std::env::var(SWITCH).map_or(true, |v| v != "off")
+    !crate::fuse::held_off() && !crate::kitei::switched_off("R4")
 }
 
 /// Whether a run under `bounds` may fold: a step bound counts the work a fold

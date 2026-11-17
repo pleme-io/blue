@@ -65,6 +65,7 @@ pub mod inputs;
 pub mod json;
 #[cfg(feature = "kernel")]
 pub mod kernel;
+pub mod kitei;
 pub mod literal;
 pub mod member_index;
 pub mod memory;

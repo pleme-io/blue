@@ -101,9 +101,6 @@ pub const REWRITES: &[Rewrite] = &[
     },
 ];
 
-/// The variable that turns the rewrite off: `BLUE_FUSE=off`.
-pub const SWITCH: &str = "BLUE_FUSE";
-
 static HELD_OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Hold this rewrite and [`crate::fold`] off for the rest of the process: a
@@ -120,11 +117,11 @@ pub fn held_off() -> bool {
     HELD_OFF.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Whether the rewrite runs: on unless [`SWITCH`] is `off` or [`hold_off`]
+/// Whether the rewrite runs: on unless its switch in the `kitei` registry (R3) is off or [`hold_off`]
 /// was called.
 #[must_use]
 pub fn enabled() -> bool {
-    !held_off() && std::env::var(SWITCH).map_or(true, |v| v != "off")
+    !held_off() && !crate::kitei::switched_off("R3")
 }
 
 /// An erased program with its chains fused, and each chain it fused, spelled

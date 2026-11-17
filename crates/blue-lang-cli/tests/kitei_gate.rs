@@ -120,9 +120,13 @@ fn every_switch_the_registry_names_is_read_by_the_code() {
     sources(&root().join("crates"), &mut code);
     for (id, row) in registry() {
         if let Some((var, _)) = row.switch.split_once('=') {
+            let direct = code.contains(&format!("\"{var}\""));
+            let through = ["switched_off", "fires"]
+                .iter()
+                .any(|w| code.contains(&format!("kitei::{w}(\"{id}\"")));
             assert!(
-                code.contains(&format!("\"{var}\"")),
-                "{id}: no crate reads {var}"
+                direct || through,
+                "{id}: no crate reads {var}, nor asks kitei for {id}"
             );
         }
     }

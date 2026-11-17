@@ -132,8 +132,14 @@ pub(crate) fn planned(
         .iter()
         .enumerate()
         .find(|(i, d)| {
-            repeating.iter().any(|(top, _)| *top == d.top_level)
-                && matches!(recall.plan().target(*i), Some(Ok(_)))
+            let mut held = Vec::new();
+            if repeating.iter().any(|(top, _)| *top == d.top_level) {
+                held.push("self_overlapping");
+            }
+            if matches!(recall.plan().target(*i), Some(Ok(_))) {
+                held.push("pure");
+            }
+            blue_lang_runtime::kitei::fires("R2", &held)
         })
         .map(|(_, d)| d.name.clone())?;
     Some((
@@ -202,8 +208,12 @@ pub(crate) fn costly(
             let Some(Ok(hash)) = plan.target(i) else {
                 return None;
             };
-            let worth = opened.load(hash).entries.values().any(|s| s.cost >= COSTLY);
-            worth.then(|| d.name.clone())
+            let held: &[&str] = if opened.load(hash).entries.values().any(|s| s.cost >= COSTLY) {
+                &["pure", "stored_costly"]
+            } else {
+                &["pure"]
+            };
+            blue_lang_runtime::kitei::fires("R8", held).then(|| d.name.clone())
         })
         .collect();
     if names.is_empty() {

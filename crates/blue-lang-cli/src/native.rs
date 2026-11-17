@@ -220,7 +220,14 @@ impl Tier {
             let hot = match mode {
                 Mode::On => true,
                 Mode::Off => false,
-                Mode::Auto => mean.is_some_and(|ns| ns >= HOT_NS),
+                Mode::Auto => {
+                    let held: &[&str] = if mean.is_some_and(|ns| ns >= HOT_NS) {
+                        &["artifact", "hot"]
+                    } else {
+                        &["artifact"]
+                    };
+                    blue_lang_runtime::kitei::fires("R7", held)
+                }
             };
             if let Some((span, name)) = source {
                 by_source.insert(

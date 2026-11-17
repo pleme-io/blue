@@ -93,15 +93,24 @@ pub fn explain(lowered: &[Spanned]) -> Vec<Atom> {
             Reach::Volatile(v) => (false, Some(v.to_string())),
         };
         let repeats = overlapping.iter().any(|(t, _)| *t == i);
+        let mut held = Vec::new();
+        if pure {
+            held.push("pure");
+        }
+        if repeats {
+            held.push("self_overlapping");
+        }
         let mut rules = Vec::new();
         if repeats {
-            let verdict = match (&volatile, memo_on) {
-                (None, true) => Verdict::Fires(
+            let verdict = if !memo_on {
+                Verdict::Missing("BLUE_MEMO names a mode, so the planner stands aside".to_string())
+            } else if crate::kitei::fires("R2", &held) {
+                Verdict::Fires(
                     "its repeated calls are answered from a table (it calls itself at two or more places)"
                         .to_string(),
-                ),
-                (None, false) => Verdict::Missing("BLUE_MEMO names a mode, so the planner stands aside".to_string()),
-                (Some(why), _) => Verdict::Missing(format!("it is not pure: {why}")),
+                )
+            } else {
+                Verdict::Missing(lacking("R2", &held, volatile.as_deref()))
             };
             rules.push(("R2".to_string(), verdict));
         }
@@ -141,6 +150,17 @@ pub fn explain(lowered: &[Spanned]) -> Vec<Atom> {
         });
     }
     out
+}
+
+fn lacking(id: &str, held: &[&str], volatile: Option<&str>) -> String {
+    crate::kitei::missing(id, held)
+        .iter()
+        .map(|f| match (*f, volatile) {
+            ("pure", Some(why)) => format!("it is not pure: {why}"),
+            (f, _) => format!("the fact `{f}`"),
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 #[cfg(test)]

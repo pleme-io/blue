@@ -15,6 +15,7 @@ Bluefile.lock merge=blue-generated
 /bidamas/okite/RULES.md merge=blue-generated
 /bidamas/toriyose/kyasshu/keys/kensa.json merge=blue-generated
 /crates/blue-lang-kiwari/blue.kiwari.json merge=blue-generated
+/crates/blue-lang-runtime/src/kitei/tables.rs merge=blue-generated
 /crates/blue-lang-runtime/src/word_shapes/tables.rs merge=blue-generated
 /crates/blue-lang-syntax/src/kigou/tables.rs merge=blue-generated
 /docs/BOOK.md merge=blue-generated

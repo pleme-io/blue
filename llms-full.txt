@@ -4355,7 +4355,7 @@ Five rules follow:
 - **Levers are chosen by default.** Blue picks the lever from a fact it holds (a
   definition's content hash, its purity, a frame's version, the nix store), names the
   choice in a receipt (the door receipt), and gives it an off switch (`BLUE_MEMO=off`,
-  `BLUE_DOOR=walker`, `BLUE_FUSE=off`, `BLUE_FOLD=off`). The author never needs a flag
+  `BLUE_DOOR=walker`, `BLUE_FUSE=off`, `BLUE_FOLD=off`, `BLUE_NATIVE=off`). The author never needs a flag
   to be fast. The shipped rules are the table in [PERFORMANCE.md](docs/PERFORMANCE.md)
   §1.4.0: a pure definition that calls itself twice runs memoized, a chain of pure
   callbacks runs as one pass, and a pure call on literals in a loop runs once.

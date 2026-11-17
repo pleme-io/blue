@@ -243,6 +243,93 @@ pub fn native_artifact(hash: &DefHash) -> Option<PathBuf> {
     native_artifact_in(&shared_roots(NATIVE_TIER), hash)
 }
 
+/// Whether any shared root holds a native tier, so a run can skip looking for
+/// artifacts without hashing a definition.
+#[must_use]
+pub fn native_present() -> bool {
+    shared_roots(NATIVE_TIER)
+        .iter()
+        .any(|r| r.join(NATIVE_LAYOUT).is_dir())
+}
+
+/// The tier recording how long a definition's outermost calls ran, keyed by
+/// `def_hash`: `<cache_root>/profile/<PROFILE_LAYOUT>/<hex>`, holding the total
+/// nanoseconds and the call count. A hash names one body, so a record never
+/// goes stale; it only grows.
+pub const PROFILE_TIER: &str = "profile";
+
+/// The layout of a profile record: `"<total_ns> <calls>"` on one line.
+pub const PROFILE_LAYOUT: &str = "v1";
+
+/// What the profile tier holds for one definition.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Profiled {
+    pub total_ns: u64,
+    pub calls: u64,
+}
+
+impl Profiled {
+    /// The mean nanoseconds of one outermost call, or `None` before one.
+    #[must_use]
+    pub fn mean_ns(self) -> Option<u64> {
+        self.total_ns.checked_div(self.calls)
+    }
+
+    /// This record with `more` added.
+    #[must_use]
+    pub fn plus(self, more: Self) -> Self {
+        Self {
+            total_ns: self.total_ns.saturating_add(more.total_ns),
+            calls: self.calls.saturating_add(more.calls),
+        }
+    }
+}
+
+fn profile_path_in(root: &Path, hash: &DefHash) -> PathBuf {
+    root.join(PROFILE_TIER)
+        .join(PROFILE_LAYOUT)
+        .join(hash.hex())
+}
+
+/// The profile of `hash` under the cache root `root`.
+#[must_use]
+pub fn profile_in(root: &Path, hash: &DefHash) -> Option<Profiled> {
+    let text = std::fs::read_to_string(profile_path_in(root, hash)).ok()?;
+    let mut parts = text.split_whitespace();
+    let total_ns = parts.next()?.parse().ok()?;
+    let calls = parts.next()?.parse().ok()?;
+    Some(Profiled { total_ns, calls })
+}
+
+/// Add `more` to the profile of `hash` under `root`, written whole by rename.
+///
+/// # Errors
+///
+/// When the directory or the file cannot be written.
+pub fn record_profile_in(root: &Path, hash: &DefHash, more: Profiled) -> std::io::Result<()> {
+    let path = profile_path_in(root, hash);
+    let dir = path.parent().unwrap_or(Path::new("."));
+    std::fs::create_dir_all(dir)?;
+    let now = profile_in(root, hash).unwrap_or_default().plus(more);
+    let tmp = dir.join(format!(".{}.{}", std::process::id(), hash.hex()));
+    std::fs::write(&tmp, format!("{} {}\n", now.total_ns, now.calls))?;
+    std::fs::rename(&tmp, path)
+}
+
+/// [`profile_in`] under [`cache_root`].
+#[must_use]
+pub fn profile(hash: &DefHash) -> Option<Profiled> {
+    profile_in(&cache_root()?, hash)
+}
+
+/// [`record_profile_in`] under [`cache_root`]; a failure costs the next run its
+/// profile, never this run its result.
+pub fn record_profile(hash: &DefHash, more: Profiled) {
+    if let Some(root) = cache_root() {
+        let _ = record_profile_in(&root, hash, more);
+    }
+}
+
 /// blue's cache directory: `$XDG_CACHE_HOME/blue`, else `$HOME/.cache/blue`.
 /// Every persistent tier lives under it, one directory each.
 #[must_use]
@@ -657,6 +744,44 @@ mod tests {
         let p = std::env::temp_dir().join(format!("blue-store-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         p
+    }
+
+    #[test]
+    fn a_profile_only_grows_and_its_mean_is_per_call() {
+        let root = temp("profile");
+        let h = DefHash([7; 32]);
+        assert_eq!(profile_in(&root, &h), None);
+        record_profile_in(
+            &root,
+            &h,
+            Profiled {
+                total_ns: 300,
+                calls: 1,
+            },
+        )
+        .expect("writes");
+        record_profile_in(
+            &root,
+            &h,
+            Profiled {
+                total_ns: 100,
+                calls: 1,
+            },
+        )
+        .expect("writes");
+        let p = profile_in(&root, &h).expect("reads");
+        assert_eq!(
+            p,
+            Profiled {
+                total_ns: 400,
+                calls: 2
+            }
+        );
+        assert_eq!(p.mean_ns(), Some(200));
+        assert_eq!(Profiled::default().mean_ns(), None);
+        let other = DefHash([8; 32]);
+        assert_eq!(profile_in(&root, &other), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     fn entry(n: u8, value: &[u8]) -> ([u8; 32], Duration, Vec<u8>) {

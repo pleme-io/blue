@@ -10,11 +10,16 @@
 //! changes none either. `native/build/defs.b` reads it, and
 //! `nix/native-defs.nix` builds one derivation per slice.
 //!
-//! [`Tier`] is the call observer `BLUE_NATIVE=on` installs: a call of a
-//! definition whose hash has an artifact under `BLUE_CACHE_SHARED`
+//! [`Tier`] is the call observer that answers a call of a definition whose
+//! hash has an artifact under `BLUE_CACHE_SHARED`
 //! (`blue_lang_mondou::store::native_artifact`), with every argument an Int,
-//! is answered by running the artifact; any other call, and any artifact
-//! that does not answer, runs in the interpreter as before.
+//! by running the artifact; any other call, and any artifact that does not
+//! answer, runs in the interpreter as before. It is on by default (rule R7 of
+//! the default cascade): a run whose program has an artifact answers natively
+//! each definition whose outermost calls averaged [`HOT_NS`] or more in earlier
+//! runs, and records this run's times in the profile tier
+//! (`blue_lang_mondou::store::profile`), so a definition goes native once it is
+//! known to be hot. `BLUE_NATIVE=on` answers every call it can; `off` none.
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
@@ -27,18 +32,6 @@ use blue_lang_syntax::{Atom, Span, Spanned, SpannedForm};
 use tatara_lisp_eval::Value;
 
 pub(crate) const ENV: &str = "BLUE_NATIVE";
-
-/// Whether `BLUE_NATIVE`'s value turns the native tier on. Off unless named.
-pub(crate) fn on(value: Option<&str>) -> bool {
-    matches!(
-        value.map(|v| v.trim().to_ascii_lowercase()).as_deref(),
-        Some("on" | "1" | "true" | "yes")
-    )
-}
-
-pub(crate) fn enabled() -> bool {
-    on(std::env::var(ENV).ok().as_deref())
-}
 
 /// The name a definition takes in every slice: its own hash.
 fn canonical(hash: &DefHash) -> String {
@@ -145,6 +138,44 @@ pub(crate) fn defs(
 struct Target {
     name: Option<String>,
     artifact: PathBuf,
+    hash: DefHash,
+    hot: bool,
+    profiled: bool,
+}
+
+/// How the tier decides, from `BLUE_NATIVE`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Mode {
+    /// Unset: a call goes native only when its definition's outermost calls
+    /// ran at least [`HOT_NS`] on average in earlier runs.
+    Auto,
+    /// `on`: every call with an artifact and Int arguments goes native.
+    On,
+    /// `off`: no call does.
+    Off,
+}
+
+/// The mean an outermost call must have cost before [`Mode::Auto`] answers it
+/// natively: well above what starting an artifact costs, so the default only
+/// fires where the gain is known.
+pub(crate) const HOT_NS: u64 = 20_000_000;
+
+pub(crate) fn mode_of(value: Option<&str>) -> Mode {
+    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+        None | Some("" | "auto") => Mode::Auto,
+        Some("on" | "1" | "true" | "yes") => Mode::On,
+        Some(_) => Mode::Off,
+    }
+}
+
+pub(crate) fn mode() -> Mode {
+    mode_of(std::env::var(ENV).ok().as_deref())
+}
+
+#[derive(Default)]
+struct Timing {
+    open: HashMap<Span, (u32, Option<std::time::Instant>)>,
+    seen: HashMap<DefHash, blue_lang_mondou::store::Profiled>,
 }
 
 /// The native tier over one program: each function definition whose
@@ -152,14 +183,18 @@ struct Target {
 pub(crate) struct Tier {
     by_source: HashMap<Span, Target>,
     inner: Option<Arc<dyn CallObserver>>,
+    timing: std::sync::Mutex<Timing>,
 }
 
 impl Tier {
     /// The tier for a program about to run, looking each definition's
-    /// artifact up with `find`; a definition with none runs as before.
+    /// artifact up with `find` and its profile with `profiled`; a definition
+    /// with no artifact runs as before.
     pub(crate) fn over(
         w: &blue_lang_runtime::pipeline::Watched<'_>,
+        mode: Mode,
         find: &dyn Fn(&DefHash) -> Option<PathBuf>,
+        profiled: &dyn Fn(&DefHash) -> Option<blue_lang_mondou::store::Profiled>,
         inner: Option<Arc<dyn CallObserver>>,
     ) -> Arc<Self> {
         let hashes = blue_lang_mondou::hash_checked(w.program, w.lowered);
@@ -181,12 +216,122 @@ impl Tier {
                 Some(_) => items.get(2).map(|l| (l.span, None)),
                 None => Some((d.span, Some(d.key.to_string()))),
             };
+            let mean = profiled(&hashed.hash).and_then(blue_lang_mondou::store::Profiled::mean_ns);
+            let hot = match mode {
+                Mode::On => true,
+                Mode::Off => false,
+                Mode::Auto => mean.is_some_and(|ns| ns >= HOT_NS),
+            };
             if let Some((span, name)) = source {
-                by_source.insert(span, Target { name, artifact });
+                by_source.insert(
+                    span,
+                    Target {
+                        name,
+                        artifact,
+                        hash: hashed.hash,
+                        hot,
+                        profiled: mean.is_some(),
+                    },
+                );
             }
         }
-        Arc::new(Self { by_source, inner })
+        Arc::new(Self {
+            by_source,
+            inner,
+            timing: std::sync::Mutex::default(),
+        })
     }
+
+    /// The definitions this run answers natively, and the ones it measures
+    /// because no run has profiled them yet, each by the name a call uses.
+    fn plan(&self) -> (Vec<String>, Vec<String>) {
+        let named = |t: &Target| t.name.clone().unwrap_or_else(|| t.hash.hex());
+        let mut hot: Vec<String> = self
+            .by_source
+            .values()
+            .filter(|t| t.hot)
+            .map(named)
+            .collect();
+        let mut fresh: Vec<String> = self
+            .by_source
+            .values()
+            .filter(|t| !t.hot && !t.profiled)
+            .map(named)
+            .collect();
+        hot.sort();
+        fresh.sort();
+        (hot, fresh)
+    }
+
+    fn target(&self, call_: &Call<'_>) -> Option<&Target> {
+        let target = self.by_source.get(&call_.source)?;
+        (target.name.as_deref() == call_.name.map(|n| &**n)).then_some(target)
+    }
+
+    /// The time this run's outermost calls of each definition took, added to
+    /// the profile tier through `record`.
+    pub(crate) fn flush(&self, record: &dyn Fn(&DefHash, blue_lang_mondou::store::Profiled)) {
+        let seen = self
+            .timing
+            .lock()
+            .map(|mut t| std::mem::take(&mut t.seen))
+            .unwrap_or_default();
+        for (hash, p) in seen {
+            record(&hash, p);
+        }
+    }
+}
+
+impl Drop for Tier {
+    fn drop(&mut self) {
+        self.flush(&blue_lang_mondou::store::record_profile);
+    }
+}
+
+/// The planner `blue run` offers the pipeline by default: the native tier when
+/// the program has a definition with an artifact that is hot or not yet
+/// profiled, over the memo [`crate::memo::planned`] offers; else that memo.
+pub(crate) fn planned(
+    w: &blue_lang_runtime::pipeline::Watched<'_>,
+    repeating: &[(usize, String)],
+    native: bool,
+) -> Option<blue_lang_runtime::pipeline::Planned> {
+    let memo = crate::memo::planned(w, repeating);
+    let current = mode();
+    if !native || current == Mode::Off || !blue_lang_mondou::store::native_present() {
+        return memo;
+    }
+    let (inner, memo_reason) = match memo {
+        Some((o, r)) => (Some(o), Some(r)),
+        None => (None, None),
+    };
+    let tier = Tier::over(
+        w,
+        current,
+        &blue_lang_mondou::store::native_artifact,
+        &blue_lang_mondou::store::profile,
+        inner.clone(),
+    );
+    let (hot, fresh) = tier.plan();
+    if hot.is_empty() && fresh.is_empty() {
+        return inner.zip(memo_reason);
+    }
+    let mut reason = Vec::new();
+    if !hot.is_empty() {
+        reason.push(format!(
+            "native code answers `{}`, whose calls ran {} ms or more in earlier runs",
+            hot.join("`, `"),
+            HOT_NS / 1_000_000
+        ));
+    }
+    if !fresh.is_empty() {
+        reason.push(format!(
+            "the native tier times `{}`, which has an artifact and no profile yet",
+            fresh.join("`, `")
+        ));
+    }
+    reason.extend(memo_reason);
+    Some((tier, reason.join("; ")))
 }
 
 /// Run one artifact on Int arguments: its result, or `None` when it did not
@@ -212,23 +357,57 @@ impl CallObserver for Tier {
         if let Some(answered) = self.inner.as_ref().and_then(|i| i.enter(call_, args)) {
             return Some(answered);
         }
-        let target = self.by_source.get(&call_.source)?;
-        if target.name.as_deref() != call_.name.map(|n| &**n) {
-            return None;
+        let target = self.target(call_)?;
+        if target.hot {
+            let ints: Option<Vec<i64>> = args
+                .iter()
+                .map(|a| match a {
+                    Value::Int(n) => Some(*n),
+                    _ => None,
+                })
+                .collect();
+            if let Some(v) = ints.and_then(|ints| call(&target.artifact, &ints)) {
+                return Some(Value::Int(v));
+            }
         }
-        let ints: Option<Vec<i64>> = args
-            .iter()
-            .map(|a| match a {
-                Value::Int(n) => Some(*n),
-                _ => None,
-            })
-            .collect();
-        call(&target.artifact, &ints?).map(Value::Int)
+        if let Ok(mut t) = self.timing.lock() {
+            let open = t.open.entry(call_.source).or_insert((0, None));
+            if open.0 == 0 {
+                open.1 = Some(std::time::Instant::now());
+            }
+            open.0 += 1;
+        }
+        None
     }
 
     fn leave(&self, call_: &Call<'_>, exit: Exit<'_>) {
         if let Some(inner) = &self.inner {
             inner.leave(call_, exit);
+        }
+        if matches!(exit, Exit::Supplied(_)) {
+            return;
+        }
+        let Some(target) = self.target(call_) else {
+            return;
+        };
+        let hash = target.hash;
+        if let Ok(mut t) = self.timing.lock() {
+            let Some(open) = t.open.get_mut(&call_.source) else {
+                return;
+            };
+            open.0 = open.0.saturating_sub(1);
+            if open.0 > 0 {
+                return;
+            }
+            let Some(started) = open.1.take() else {
+                return;
+            };
+            let ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+            let p = t.seen.entry(hash).or_default();
+            *p = p.plus(blue_lang_mondou::store::Profiled {
+                total_ns: ns,
+                calls: 1,
+            });
         }
     }
 }
@@ -319,12 +498,13 @@ mod tests {
     }
 
     #[test]
-    fn the_tier_is_off_unless_named() {
-        assert!(!on(None));
-        assert!(!on(Some("off")));
-        assert!(!on(Some("maybe")));
-        assert!(on(Some(" On ")));
-        assert!(on(Some("1")));
+    fn the_tier_decides_by_profile_unless_named() {
+        assert_eq!(mode_of(None), Mode::Auto);
+        assert_eq!(mode_of(Some("auto")), Mode::Auto);
+        assert_eq!(mode_of(Some("off")), Mode::Off);
+        assert_eq!(mode_of(Some("maybe")), Mode::Off);
+        assert_eq!(mode_of(Some(" On ")), Mode::On);
+        assert_eq!(mode_of(Some("1")), Mode::On);
     }
 
     #[test]

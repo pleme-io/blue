@@ -112,6 +112,9 @@ pub(crate) fn planned(
     watched: &blue_lang_runtime::pipeline::Watched<'_>,
     repeating: &[(usize, String)],
 ) -> Option<blue_lang_runtime::pipeline::Planned> {
+    if repeating.is_empty() {
+        return None;
+    }
     let recall = over(
         false,
         watched.definitions,
@@ -128,7 +131,12 @@ pub(crate) fn planned(
                 && matches!(recall.plan().target(*i), Some(Ok(_)))
         })
         .map(|(_, d)| d.name.clone())?;
-    Some((recall, name))
+    Some((
+        recall,
+        format!(
+            "the memo answers `{name}`, a pure definition that calls itself at two or more places, so its repeated calls are lookups"
+        ),
+    ))
 }
 
 /// Write the run's results to the store. A failure costs the next run its

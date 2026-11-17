@@ -278,19 +278,19 @@ pub fn run_framed_on(
     )
 }
 
-/// What a planner hands back for a program whose definitions repeat their
-/// own calls: the observer that answers them, and the name it answers.
+/// What a planner hands back: the observer that answers the program's calls,
+/// and the reason the door receipt gives for it.
 pub type Planned = (std::sync::Arc<dyn crate::observe::CallObserver>, String);
 
-/// The call memo a planner offers [`run_framed_planned`]: given the program
-/// and the definitions [`crate::door::overlapping`] found, the observer that
-/// answers their calls, or `None` when it can cache none of them.
+/// The observer a planner offers [`run_framed_planned`]: given the program
+/// and the definitions [`crate::door::overlapping`] found (possibly none), the
+/// observer that answers its calls, or `None` to let the door choose.
 pub type MemoPlanner<'p> = &'p dyn Fn(&Watched<'_>, &[(usize, String)]) -> Option<Planned>;
 
-/// [`run_framed_on`] with a planner for the call memo. On [`Executor::Auto`],
-/// a program with a definition that calls itself at two or more places runs
-/// on the walker with the planner's memo when the planner can cache that
-/// definition, and takes the door [`crate::door::choose`] picks otherwise.
+/// [`run_framed_on`] with a planner. On [`Executor::Auto`], the planner sees
+/// every program with the definitions that call themselves at two or more
+/// places; a program it offers an observer for runs on the walker under that
+/// observer, and any other takes the door [`crate::door::choose`] picks.
 ///
 /// # Errors
 ///
@@ -315,7 +315,7 @@ pub fn run_framed_planned(
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
     if let (Executor::Auto, Some(planner)) = (executor, memo) {
         let repeating = crate::door::overlapping(&prepared.erased);
-        if !repeating.is_empty() {
+        {
             let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
                 &prepared.program,
                 &prepared.erased,
@@ -329,14 +329,9 @@ pub fn run_framed_planned(
                 },
                 &repeating,
             );
-            if let Some((observer, name)) = offered {
+            if let Some((observer, reason)) = offered {
                 if let Ok(mut slot) = account.door.lock() {
-                    *slot = Some(crate::door::Door::chosen(
-                        crate::door::Ran::Walker,
-                        format!(
-                            "the memo answers `{name}`, a pure definition that calls itself at two or more places, so its repeated calls are lookups"
-                        ),
-                    ));
+                    *slot = Some(crate::door::Door::chosen(crate::door::Ran::Walker, reason));
                 }
                 interp.set_call_observer(Some(observer));
                 let value = evaluate_held(&mut interp, &prepared, hold, account, Executor::Walker);

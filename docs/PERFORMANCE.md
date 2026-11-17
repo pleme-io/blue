@@ -250,6 +250,7 @@ evaluator, with the lever on.
 | R3 | a `map`/`filter`/`reduce` chain of callbacks that only compute → one pass, the unfused chain on the first error | `fused` row | `BLUE_FUSE=off` | pipeline, 1M Ints, VM 395 to 300 ms | `spec/rows/fusion.b`, `tests/fusion.rs` |
 | R4 | a pure definition of the program called with literal arguments where the call can run more than once → its value, computed before the run | `folded` row | `BLUE_FOLD=off` | `tests/fold.rs` program, walker 87.4 to 7.5 ms, VM 44.1 to 5.6 ms | `spec/rows/fold.b`, `tests/fold.rs`, `fold` unit tests |
 | R5 | a call of an operator on two Ints or two Floats → computed in place, the tag check its guard; blue adopts its own `equal?` and `not=` (what `==` and `!=` lower to) as operators | none: the in-place path answers what the function answers | registering the name again withdraws it | a loop on `i == 0`, VM 675 to 408 ms | `spec/rows/equality.b`, tatara `tests/vm_operators.rs` |
+| R7 | a definition with a native artifact whose outermost calls averaged 20 ms or more in earlier runs → its calls answered by the artifact (R6 folded in) | door receipt | `BLUE_NATIVE=off` | `fib(30)` 1041 to 22 ms (§1.7.1) | `tests/native_tier.rs` |
 
 R4 evaluates each call once in a fresh interpreter under 100,000 steps and
 64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a
@@ -361,7 +362,8 @@ once in the fleet. What is built (2026-11-16):
 | manifest | `native/build/defs.b`, `generate("native-defs", …)` in `native/Bluefile` | one JSON line per definition of each program under `native/defs/`, with `native` true when chuuzou compiles it for the tier (`cz_def_native`) and `refused` saying why when not; committed and gated fresh (`checks.native-generated-native-defs-fresh`) |
 | one derivation per hash | `nix/native-defs.nix` (`artifact`, `defs`, `root`) | `blue-native-<hex>`: its only program input is the slice (`passAsFile`); chuuzou lowers it with the definition as `pub fn entry(io, args: &Args) -> i64` (`cz_lower_def`) and links it with `native/seam/def64/seam.rs`; the seam set is narrowed to the four files it links, so a board's own seam changing rebuilds no definition |
 | the store layout | `blue_lang_mondou::store::native_artifact` (`NATIVE_TIER`, `NATIVE_LAYOUT`) | `<root>/native/v1/<hex>/def`, found through `BLUE_CACHE_SHARED` as the check, memo and test tiers are; `root` joins a manifest's artifacts into one such root (`packages.native-defs-base`) |
-| the run-time seam | `native::Tier` (a `CallObserver`), `BLUE_NATIVE=on` | a call of a function whose hash has an artifact, every argument an Int, is answered by running the artifact; any other call, and an artifact that faults or prints anything but one Int, runs in the interpreter |
+| the run-time seam | `native::Tier` (a `CallObserver`), on by default (R7); `BLUE_NATIVE=on` answers every call it can, `off` none | a call of a function whose hash has an artifact, every argument an Int, is answered by running the artifact; any other call, and an artifact that faults or prints anything but one Int, runs in the interpreter |
+| the profile | `blue_lang_mondou::store::profile` (`PROFILE_TIER`, `PROFILE_LAYOUT`), `native::planned` | `<cache_root>/profile/v1/<hex>`: the total nanoseconds and the count of a definition's outermost calls, added to by every run that times it; keyed by `def_hash`, so it never goes stale |
 
 **The key is the content.** `checks.native-def-keys` reads `.drvPath` at
 evaluation for the three programs in `native/defs/` (`base.b`; `edited.b`,
@@ -398,6 +400,24 @@ The run with the tier answers `fib(30)` 47 times faster than the interpreter;
 what is left is blue's own start (about 16 ms) and one process start. With
 the tier on and nothing to answer from, the run is 1.45 times slower, since
 an observed run takes the walker and pays the observer on every call.
+
+**On by default (rule R7 of the default cascade).** With `BLUE_NATIVE` unset,
+`blue run` asks the native planner about every program. When no root
+`BLUE_CACHE_SHARED` names holds a native tier, it answers nothing and the run
+is as before: the door picks the VM or the walker, and no profile is written.
+When the program has a definition with an artifact, the run takes the tier if
+that definition is hot (its outermost calls averaged 20 ms or more in earlier
+runs, `native::HOT_NS`) or has no profile yet; it then answers the hot ones
+natively, times the rest, and adds the times to the profile tier. A
+definition whose profile is cold never makes the run leave the VM again. The
+door receipt names each definition the tier answers or times. Locks:
+`crates/blue-lang-cli/tests/native_tier.rs` (an artifact that answers a
+different number shows which side answered: interpreted on the first run,
+native on the second, never for the cold definition, interpreted under `off`;
+red with the default mode set to off), the profile store's unit test. Rule
+R6 (a guard dropped where types are proven) is folded in here: blue emits no
+run-time type guard on the interpreter, so the only check left to drop is
+the tier's Int test of the arguments, which a process start dwarfs.
 
 **What the run-time seam still needs.** The artifact is a process, so a call
 costs a process start (about 3 ms here): the tier wins on a call that does

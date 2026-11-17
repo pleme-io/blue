@@ -254,3 +254,14 @@ test "metrics: one sample per fact, the outage named in a label"
   assert contains?(m[0], " 8478")
   assert m[2] == "nezame_pstore_entries 2"
 end
+
+test "AC restored names the power, and a watchdog reset is a 1 on its own sample"
+  assert outage(wake_record("AC Power Restored", 0, 900, 0), 300) ==
+    :power_restored
+  assert outage(wake_record("Other", 0, 900, 0), 300) == :unknown
+  m = metric_lines(
+    ledger_row(7, wake_record("Power Switch", "32", 900, 0), 300)
+  )
+  assert m[1] == "nezame_watchdog_reset 1"
+  assert contains?(m[0], "outage=\"watchdog\"")
+end

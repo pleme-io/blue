@@ -176,6 +176,10 @@ enum Cmd {
         /// executable on PATH never ends its output with a stray `nil`.
         #[arg(long, short = 'q')]
         quiet: bool,
+        /// Print the final value as one line of blue literal (a string keeps
+        /// its quotes, `2.0` its point), after anything the program writes.
+        #[arg(long)]
+        literal: bool,
         /// `json` prints a runtime error as one JSON object on stdout, with
         /// its position and blue call stack.
         #[arg(long, value_enum, default_value_t = Format::Text)]
@@ -1038,6 +1042,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             receipt_steps,
             record,
             quiet,
+            literal,
             format,
             timings,
             no_memo,
@@ -1109,6 +1114,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             };
             if !quiet {
                 println!("{}", render(&out.value));
+            }
+            if literal {
+                println!("{}", blue_lang_runtime::stdlib::literal_line(&out.value));
             }
             if timings {
                 eprint!("{}", blue_lang_runtime::timings::report());

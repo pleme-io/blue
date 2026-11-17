@@ -274,6 +274,18 @@ fn chain_rules_value() -> Value {
     }))
 }
 
+/// A value as one line of blue literal: what `to_s([v])` writes inside the
+/// brackets, so a string keeps its quotes and `2.0` its point. What `blue run
+/// --literal` prints, and what the conformance rows compare.
+#[must_use]
+pub fn literal_line(v: &Value) -> String {
+    let whole = render(&Value::list([v.clone()]));
+    whole
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .map_or(whole.clone(), str::to_owned)
+}
+
 fn render(v: &Value) -> String {
     match v {
         Value::Nil => String::new(),

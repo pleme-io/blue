@@ -40,7 +40,7 @@ that broke it.
 | # | Requirement | Why (receipt, 2026-11-16 to 2026-11-17) |
 |---|---|---|
 | C1 | The fallback is exactly the old path, and a test compares the two outputs on every door | R3 fusion, R4 folding, R10 indexing each compare on and off |
-| C2 | The test reaches the default: it runs where the default fires, and a red run fails it | conformance runs every column under a step bound, where R4 and R10 stand down; their rows held only the plain path, and the CLI tests are the real locks |
+| C2 | The test reaches the default: it runs where the default fires, and a red run fails it | conformance ran every column under a step bound, where R4 and R10 stand down, so their rows held only the plain path; the `default` column (W0) now runs every row as a user does |
 | C3 | A default that moves work stands down where a bound can count that work | R4 under `dispatch_steps`: a server bound to refuse long work stopped refusing it |
 | C4 | A default that assumes blue's own primitives stands down where an embedder may replace them | R4 in a hosted interpreter |
 | C5 | Commands that observe the code as written hold the default off | fusion and folding under `blue test --coverage`, `trace`, `profile` |
@@ -98,8 +98,9 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 - The fact store in mondou and the rule registry as a bidama.
 - `blue shift` per atom, with the missing fact for the next default.
-- A conformance column that runs rows without the step bound, so R4, R10 and
-  every later rewrite are held to the plain path on every evaluator (C2).
+- ✅ A conformance column that runs rows without the step bound (`default`,
+  through `blue run --literal`), so R4, R10 and every later rewrite are held to
+  the plain path on every row (C2).
 - The memo planner's decision, the fold, the index and the native planner move
   onto the registry, one at a time, each keeping its lock.
 

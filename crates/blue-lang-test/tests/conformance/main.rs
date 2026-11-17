@@ -87,6 +87,7 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Static => eval::statics(row, &env.roots),
         Ev::Memo => eval::memo(env, row),
         Ev::Component => eval::component(env, row, n),
+        Ev::Default => eval::default_path(env, row, n),
     }));
     run.unwrap_or_else(|_| {
         Obs::Crashed(format!(

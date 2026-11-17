@@ -48,10 +48,15 @@ pub enum Ev {
     /// and with stage 0.
     Memo,
     Component,
+    /// The shipped `blue` binary as a user runs it: no step bound and every
+    /// default on (the fold, fusion, the membership index, the planners), a
+    /// wall-clock limit as its only guard. The one column where the defaults
+    /// that stand down under a step bound run (docs/FACTS.md C2).
+    Default,
 }
 
 impl Ev {
-    pub const ALL: [Ev; 7] = [
+    pub const ALL: [Ev; 8] = [
         Ev::Walker,
         Ev::Vm,
         Ev::Wasm,
@@ -59,6 +64,7 @@ impl Ev {
         Ev::Static,
         Ev::Memo,
         Ev::Component,
+        Ev::Default,
     ];
 
     pub fn name(self) -> &'static str {
@@ -70,6 +76,7 @@ impl Ev {
             Ev::Static => "static",
             Ev::Memo => "memo",
             Ev::Component => "component",
+            Ev::Default => "default",
         }
     }
 

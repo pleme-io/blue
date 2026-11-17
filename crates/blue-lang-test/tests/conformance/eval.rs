@@ -690,6 +690,100 @@ pub fn rung_of(src: &str) -> String {
         .to_owned()
 }
 
+/// The words whose answer depends on the door rather than on a default: the
+/// node clock and declared inputs.
+const DOOR_WORDS: &[&str] = &[
+    "sleep_for",
+    "sleep_until",
+    "deadline",
+    "timeout",
+    "definput",
+];
+
+/// Whether a row's outcome is the step bound itself, which the `default`
+/// column does not hold a program to.
+fn needs_the_step_bound(row: &Row) -> bool {
+    matches!(&row.expect, Expect::Fails(_, m) if m.contains("budget") || m.contains("steps"))
+}
+
+/// The `default` column: `blue run` as a user runs it, with no bounds file, so
+/// every default that stands down under a step bound is on.
+pub fn default_path(env: &mut Env, row: &Row, n: usize) -> Obs {
+    let Some(bin) = env.cli.clone() else {
+        return Obs::Blind("no `blue` binary: set BLUE_BIN".into());
+    };
+    if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
+        return Obs::Blind("only the static door is handed this row".into());
+    }
+    if !matches!(
+        row.expect,
+        Expect::Value(_) | Expect::Fails(..) | Expect::Prints(_)
+    ) {
+        return Obs::Blind("this column runs programs; the static door checks and formats".into());
+    }
+    if needs_the_step_bound(row) {
+        return Obs::Blind(
+            "the row's outcome is the step bound, which this column does not set".into(),
+        );
+    }
+    if let Some(word) = DOOR_WORDS.iter().find(|w| row.src.contains(*w)) {
+        return Obs::Blind(format!(
+            "`{word}` reads the node clock or a declared input: the in-process columns run a virtual clock and supply no input, `blue run` the real clock and refuses an input with no bytes"
+        ));
+    }
+    let file = env.scratch.join(format!("default-row-{n}.b"));
+    if let Err(e) = std::fs::write(&file, &row.src) {
+        return Obs::Blind(format!("cannot write {}: {e}", file.display()));
+    }
+    let config = env.scratch.join("default-config.yaml");
+    if let Err(e) = std::fs::write(&config, "") {
+        return Obs::Blind(format!("cannot write {}: {e}", config.display()));
+    }
+    let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
+    let mut cmd = Command::new(&bin);
+    cmd.env("BLUE_PATH", &blue_path)
+        .env("RUST_BACKTRACE", "0")
+        .env("BLUE_CONFIG", &config)
+        .env("XDG_CACHE_HOME", env.scratch.join("default-cache"))
+        .env_remove("BLUE_TIER")
+        .env_remove("BLUE_MEMO")
+        .env_remove("BLUE_FOLD")
+        .env_remove("BLUE_FUSE")
+        .env_remove("BLUE_INDEX")
+        .env_remove("BLUE_NATIVE")
+        .env_remove("BLUE_DOOR")
+        .current_dir(&env.scratch)
+        .arg("run")
+        .arg("--quiet");
+    if matches!(row.expect, Expect::Value(_)) {
+        cmd.arg("--literal");
+    }
+    cmd.arg(&file);
+    let out = match output_within(&mut cmd) {
+        Ok(o) => o,
+        Err(crashed) => return crashed,
+    };
+    let raw_err = String::from_utf8_lossy(&out.stderr);
+    if let Some(i) = raw_err.find("panicked at ") {
+        let msg = raw_err[i..].lines().nth(1).unwrap_or("").trim();
+        return Obs::Crashed(format!("panic: {msg}"));
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr: String = String::from_utf8_lossy(&out.stderr)
+        .replace(&file.display().to_string(), ROW_FILE)
+        .lines()
+        .filter(|l| !l.starts_with("blue: formatted "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !out.status.success() {
+        return cli_failure(&stderr);
+    }
+    match &row.expect {
+        Expect::Value(_) => Obs::Value(stdout.lines().last().unwrap_or("").to_string()),
+        _ => Obs::Printed { stdout, ok: true },
+    }
+}
+
 pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
     let Some(bin) = env.cli.clone() else {
         return Obs::Blind("no `blue` binary: set BLUE_BIN".into());
@@ -980,12 +1074,12 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
         return ev == Ev::Static;
     }
     match (&row.expect, ev) {
-        (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo) => true,
+        (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo | Ev::Default) => true,
         (
             Expect::Fails(..),
-            Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Component,
+            Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Component | Ev::Default,
         ) => true,
-        (Expect::Prints(_), Ev::Cli | Ev::Component) => true,
+        (Expect::Prints(_), Ev::Cli | Ev::Component | Ev::Default) => true,
         (
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Static | Ev::Cli,

@@ -49,6 +49,7 @@ and the door sends each such row's program to the walker.
 | `static` | the front end in-process: `check_entry`, `format_source_lossless`, `shift_of` | diagnostics, formatting, rung |
 | `memo` | the walker with the memo on, cold then warm from disk | value, failure |
 | `component` | `blue-lang-component`, the engine as a wasm32-wasip2 component, under wasmtime: the second placement of the program | output, failure |
+| `default` | the shipped `blue` binary as a user runs it: no step bound and every default on (fold, fusion, the membership index, the memo and native planners), a 45 s wall-clock limit as its only guard; blind to rows whose outcome is the step bound and to rows that read the node clock or a declared input | value (through `blue run --literal`), output, failure |
 
 `walker` is stage 0 for evaluated rows and `static` for front-end rows.
 `component` is judged against `cli`: the same program run natively (`blue

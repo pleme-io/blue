@@ -257,10 +257,12 @@ evaluator, with the lever on.
 | R11 | a closed region of list-holding definitions under a root that takes and returns no list → an arena | not shipped | — | chuuzou, 20,000,000 appends then an indexed sum: refcount 44.9 ms, inferred arena 43.7 ms ± 2.7 (1.03 ± 0.07, same output); at 3,000,000 all variants 9.2 to 9.6 ms | measured 2026-11-17 and refused by the ratchet: the arena saves a free per list, and a region keeps a short-lived list alive until its root call returns, so memory grows where refcounting frees promptly; `reclaim(:arena, "f")` stays the author's choice |
 | R12 | a placement that forbids writable code (iPhone, wasm) → ahead-of-time code only | holds by construction | — | — | `tests/placement_tiers.rs`: blue-lang-ios, blue-lang-component and blue-lang-wasm link no blue-lang-cli (whose native tier runs artifacts), and no crate maps executable memory (`PROT_EXEC`, `MAP_JIT`, `mprotect`), so a JIT tier cannot land without a placement gate; the scan's own red test |
 
-The conformance suite runs every column under a step bound
-(`ROW_STEPS`), and R4 and R10 stand down under one, so their rows hold the
-path without the rewrite; `tests/fold.rs` and `tests/member_index.rs` run
-`blue run` unbounded and compare the rewritten path with the plain one.
+The conformance suite runs its in-process columns under a step bound
+(`ROW_STEPS`), where R4 and R10 stand down, so those columns hold the path
+without the rewrite. Its `default` column runs `blue run` as a user does, with
+no step bound and every default on, so every row also holds the rewritten path
+(a broken index turns it red); `tests/fold.rs` and `tests/member_index.rs`
+compare the two paths directly.
 
 R4 evaluates each call once in a fresh interpreter under 100,000 steps and
 64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a

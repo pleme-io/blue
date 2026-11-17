@@ -46,6 +46,28 @@ fn dist() -> PathBuf {
         .join("bidamas")
 }
 
+/// The floor `bidamas/floor.nix` declares, the one number flake.nix and
+/// this test hold the distribution to; a file that is not one count fails here
+/// before it fails the flake's evaluation.
+fn floor() -> usize {
+    let path = dist().join("floor.nix");
+    let text = std::fs::read_to_string(&path).expect("bidamas/floor.nix");
+    text.trim()
+        .parse()
+        .unwrap_or_else(|_| panic!("{} holds {text:?}, not one count", path.display()))
+}
+
+#[test]
+fn the_floor_is_one_count_the_distribution_meets() {
+    let floor = floor();
+    assert!(floor > 0, "a floor of 0 lets an empty distribution pass");
+    assert!(
+        tree_nodes().len() >= floor,
+        "{} bidamas and levels, below the floor {floor}",
+        tree_nodes().len()
+    );
+}
+
 /// Every package directory in the distribution, sorted.
 fn packages() -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(dist())
@@ -199,8 +221,9 @@ fn every_bidama_passes_its_own_tests() {
 
 fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = tree_nodes();
+    let floor = floor();
     assert!(
-        pkgs.len() >= 114,
+        pkgs.len() >= floor,
         "found {} bidamas and levels; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()

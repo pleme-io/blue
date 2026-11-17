@@ -3,9 +3,14 @@
 //! a table keyed by content (`blue_lang_mondou::recall`), in process and in
 //! the store under `$XDG_CACHE_HOME/blue/memo`.
 //!
-//! Off by default: every call runs, as before the memo existed. `BLUE_MEMO`
-//! turns it on: `process` keeps the table for the run only, `on` (or
-//! `store`) also reads and writes the store. `--no-memo` on a command turns
+//! When nothing names a mode, `blue run` plans the memo itself: in process
+//! for a pure definition that calls itself at two or more places (rule R2),
+//! and through the store, shared roots included, for a program whose pure
+//! definitions already have a stored result that cost [`COSTLY`] or more to
+//! compute (rule R8, [`costly`]); every other run is as before the memo
+//! existed. `BLUE_MEMO` names a mode instead: `off` turns the memo off,
+//! `process` keeps the table for the run only, `on` (or `store`) also reads
+//! and writes the store. `--no-memo` on a command turns
 //! it off again for that command. `blue test --coverage` and `blue trace`
 //! always run without it: they report what the code does, and an answered
 //! call does nothing. So does a run under an execution bound other than the
@@ -135,6 +140,90 @@ pub(crate) fn planned(
         recall,
         format!(
             "the memo answers `{name}`, a pure definition that calls itself at two or more places, so its repeated calls are lookups"
+        ),
+    ))
+}
+
+/// The least a stored result must have cost before [`costly`] plans the
+/// store-backed memo by default: the run then takes the walker, so a hit must
+/// save more than leaving the VM costs.
+pub(crate) const COSTLY: std::time::Duration = std::time::Duration::from_millis(20);
+
+struct Flushing(Arc<Recall>);
+
+impl CallObserver for Flushing {
+    fn enter(
+        &self,
+        call: &blue_lang_runtime::observe::Call<'_>,
+        args: &[tatara_lisp_eval::Value],
+    ) -> Option<tatara_lisp_eval::Value> {
+        self.0.enter(call, args)
+    }
+
+    fn leave(
+        &self,
+        call: &blue_lang_runtime::observe::Call<'_>,
+        exit: blue_lang_runtime::observe::Exit<'_>,
+    ) {
+        self.0.leave(call, exit);
+    }
+}
+
+impl Drop for Flushing {
+    fn drop(&mut self) {
+        let _ = self.0.flush();
+    }
+}
+
+fn store_holds_anything() -> bool {
+    let local = store::cache_root()
+        .is_some_and(|r| std::fs::read_dir(r.join("memo")).is_ok_and(|mut d| d.next().is_some()));
+    local || store::shared_roots("memo").iter().any(|r| r.is_dir())
+}
+
+/// The store-backed memo `blue run` plans by default (rule R8 of the default
+/// cascade): when the store, or a shared root, already holds a result that
+/// cost [`COSTLY`] or more for one of the program's pure definitions, the run
+/// answers those calls from the store and adds what it computes; otherwise
+/// `None`, and the run is as before.
+pub(crate) fn costly(
+    watched: &blue_lang_runtime::pipeline::Watched<'_>,
+) -> Option<blue_lang_runtime::pipeline::Planned> {
+    if !store_holds_anything() {
+        return None;
+    }
+    let plan = Plan::of(watched.definitions, watched.lowered, watched.erased);
+    let opened = store()?;
+    let mut names: Vec<String> = watched
+        .definitions
+        .iter()
+        .enumerate()
+        .filter_map(|(i, d)| {
+            let Some(Ok(hash)) = plan.target(i) else {
+                return None;
+            };
+            let worth = opened.load(hash).entries.values().any(|s| s.cost >= COSTLY);
+            worth.then(|| d.name.clone())
+        })
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    names.sort();
+    names.dedup();
+    let recall = over(
+        true,
+        watched.definitions,
+        watched.lowered,
+        watched.erased,
+        None,
+    );
+    Some((
+        Arc::new(Flushing(recall)),
+        format!(
+            "the store answers `{}`, whose stored results cost {} ms or more to compute",
+            names.join("`, `"),
+            COSTLY.as_millis()
         ),
     ))
 }

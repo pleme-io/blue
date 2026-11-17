@@ -2571,7 +2571,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             let memo_plans = plain && memo::planning(inv.no_memo, cfg);
             let native_plans = plain && native::mode() == native::Mode::Auto;
             let planner = |w: &blue_lang_runtime::pipeline::Watched<'_>, r: &[(usize, String)]| {
-                native::planned(w, if memo_plans { r } else { &[] }, native_plans)
+                native::planned(w, r, memo_plans, native_plans)
             };
             blue_lang_runtime::pipeline::run_framed_planned(
                 entry,

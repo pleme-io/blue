@@ -251,6 +251,7 @@ evaluator, with the lever on.
 | R4 | a pure definition of the program called with literal arguments where the call can run more than once → its value, computed before the run | `folded` row | `BLUE_FOLD=off` | `tests/fold.rs` program, walker 87.4 to 7.5 ms, VM 44.1 to 5.6 ms | `spec/rows/fold.b`, `tests/fold.rs`, `fold` unit tests |
 | R5 | a call of an operator on two Ints or two Floats → computed in place, the tag check its guard; blue adopts its own `equal?` and `not=` (what `==` and `!=` lower to) as operators | none: the in-place path answers what the function answers | registering the name again withdraws it | a loop on `i == 0`, VM 675 to 408 ms | `spec/rows/equality.b`, tatara `tests/vm_operators.rs` |
 | R7 | a definition with a native artifact whose outermost calls averaged 20 ms or more in earlier runs → its calls answered by the artifact (R6 folded in) | door receipt | `BLUE_NATIVE=off` | `fib(30)` 1041 to 22 ms (§1.7.1) | `tests/native_tier.rs` |
+| R8 | a pure definition of the program with a stored result (this node's store or a shared root) that cost 20 ms or more → its calls answered from the store, new results added | door receipt ("the store answers") | `BLUE_MEMO=off` | the `tests/fleet_memo.rs` program, debug build, 277 to 3.6 ms total | `tests/fleet_memo.rs` |
 
 R4 evaluates each call once in a fresh interpreter under 100,000 steps and
 64 MiB (1,000,000 steps for the whole pass). A call that raises, runs past a

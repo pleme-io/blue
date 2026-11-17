@@ -290,13 +290,19 @@ impl Drop for Tier {
 
 /// The planner `blue run` offers the pipeline by default: the native tier when
 /// the program has a definition with an artifact that is hot or not yet
-/// profiled, over the memo [`crate::memo::planned`] offers; else that memo.
+/// profiled, over the memo [`crate::memo::planned`] or [`crate::memo::costly`]
+/// offers when `memo`; else that memo.
 pub(crate) fn planned(
     w: &blue_lang_runtime::pipeline::Watched<'_>,
     repeating: &[(usize, String)],
+    memo: bool,
     native: bool,
 ) -> Option<blue_lang_runtime::pipeline::Planned> {
-    let memo = crate::memo::planned(w, repeating);
+    let memo = if memo {
+        crate::memo::planned(w, repeating).or_else(|| crate::memo::costly(w))
+    } else {
+        None
+    };
     let current = mode();
     if !native || current == Mode::Off || !blue_lang_mondou::store::native_present() {
         return memo;

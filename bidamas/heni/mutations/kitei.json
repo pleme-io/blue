@@ -1,0 +1,6 @@
+[
+  {"name": "named matches the id", "file": "kitei.b", "find": "find(rules, (r) -> r.id == id)", "replace": "find(rules, (r) -> r.id != id)"},
+  {"name": "an unknown id has no switch", "file": "kitei.b", "find": "  if r.nil?\n    nil\n", "replace": "  if r.nil?\n    \"none\"\n"},
+  {"name": "shipped keeps only shipped rules", "file": "kitei.b", "find": "r.state == :shipped", "replace": "r.state != :refused"},
+  {"name": "R4 is switched by BLUE_FOLD", "file": "kitei.b", "find": "\"BLUE_FOLD=off\",", "replace": "\"BLUE_FUSE=off\","}
+]

@@ -86,6 +86,7 @@ use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
 use("khipu")
+use("kitei", [:switch_of])
 use("kiwari")
 use("kodou")
 use("koubou")
@@ -181,6 +182,7 @@ test "every bidama in the distribution answers through this one import"
   assert koubou::rittai::z([1, 2, 3]) == 3
   assert mitoshi::rogu::levels == %i[debug info warn error]
   assert expired(%w[a b], 1) == ["a"]
+  assert switch_of("R4") == "BLUE_FOLD=off"
   assert size([1, 2, 3]) == 3
   assert every((v) -> v > 0, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]

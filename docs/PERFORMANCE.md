@@ -243,6 +243,9 @@ itself in `blue run --timings`, runs the old path when its guard fails, and
 has one switch that turns it off. The conformance rows of each run on every
 evaluator, with the lever on.
 
+The rows of this table are the `kitei` bidama's registry; `tests/kitei_gate.rs`
+fails when an id or a switch here differs from it.
+
 | rule | facts → lever | receipt | switch | measured | locks |
 |---|---|---|---|---|---|
 | R1 | constructs every column agrees on → the VM | door receipt | `BLUE_DOOR=walker` | §1.4 | `tests/door.rs` |

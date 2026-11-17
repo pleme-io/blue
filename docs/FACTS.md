@@ -96,7 +96,11 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 ### W0: the engine (§4)
 
-- The fact store in mondou and the rule registry as a bidama.
+- ✅ The rule registry as a bidama: `kitei` (既定), one `rule` record per rule
+  R1 to R12 (facts, lever, receipt, switch, state, locks). `tests/kitei_gate.rs`
+  holds the table in docs/PERFORMANCE.md, the switches the crates read and the
+  rules `blue shift --defaults` names to its rows; each turns red on a wrong row.
+- The fact store in mondou.
 - ✅ `blue shift --defaults FILE` (`--json` too): per definition of the file,
   its facts (pure or why not, calls itself twice, typed), each default that
   fires (R2 memo, R3 fusion, R4 fold, R10 index, R7 native, R8 stored results)

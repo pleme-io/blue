@@ -83,7 +83,7 @@ def rules()
     rule(
       "R7",
       %i[artifact hot],
-      "a definition with a native artifact whose calls averaged 20 ms or more",
+      "a definition with a native artifact whose calls averaged 0.2 ms or more through its library, or 20 ms with an executable only",
       "its calls are answered by the artifact, in process through its library when it has one",
       "door receipt",
       "BLUE_NATIVE=off",

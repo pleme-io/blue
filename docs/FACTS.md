@@ -131,8 +131,14 @@ Each wave lists defaults in the order their gain is known. Each default meets
   4.01 s as processes, 0.06 s in process, 0.19 s in the interpreter (debug
   build, the same answer). A library that faults, prints or refuses leaves the
   call to the interpreter. Lock: `tests/native_tier.rs`, red when the tier
-  ignores the library; `checks.native-defs` answers through it. Next: lower
-  `HOT_NS` (20 ms), which was sized for a process start.
+  ignores the library; `checks.native-defs` answers through it.
+- ✅ The hot mean follows the fact "has a library": a definition is hot from
+  0.2 ms with one (ten times the about 20 µs one call through it costs) and
+  from 20 ms without (sized for a process start). `fib(16 + i % 3)` called 300
+  times, the default with no flag: 2.09 s on every run before; now 2.18 s on
+  the first run (it profiles) and 0.02 s from the second, the same answer.
+  Lock: `tests/native_tier.rs`, a 5 ms definition is native with a library
+  and not without, a 0.1 ms one never; red with the library threshold ignored.
 - Artifacts built in the background when the profile marks a definition hot;
   the next run uses them.
 - chuuzou's subset widened one type at a time (strings, maps, records in lists,

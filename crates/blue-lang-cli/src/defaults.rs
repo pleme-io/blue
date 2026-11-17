@@ -8,7 +8,7 @@ use std::path::Path;
 
 use blue_lang_runtime::defaults::{Atom, Verdict};
 
-use crate::native::{Mode, HOT_NS};
+use crate::native::{hot_from, Mode};
 
 /// The entry file's definitions, explained, with the store's verdicts added.
 pub(crate) fn of(path: &Path, src: &str) -> Result<Vec<Atom>, crate::CliError> {
@@ -65,7 +65,8 @@ fn native_verdict(mode: Mode, hash: &blue_lang_runtime::def_hash::DefHash) -> Op
     if mode == Mode::Off {
         return None;
     }
-    blue_lang_mondou::store::native_artifact(hash)?;
+    let artifact = blue_lang_mondou::store::native_artifact(hash)?;
+    let from = hot_from(blue_lang_mondou::store::native_library(&artifact).is_some());
     let mean =
         blue_lang_mondou::store::profile(hash).and_then(blue_lang_mondou::store::Profiled::mean_ns);
     Some(match (mode, mean) {
@@ -78,18 +79,18 @@ fn native_verdict(mode: Mode, hash: &blue_lang_runtime::def_hash::DefHash) -> Op
         (_, Some(ns))
             if blue_lang_runtime::kitei::fires(
                 "R7",
-                &["artifact", if ns >= HOT_NS { "hot" } else { "" }],
+                &["artifact", if ns >= from { "hot" } else { "" }],
             ) =>
         {
             Verdict::Fires(format!(
                 "native code answers its calls: they ran {} ms on average",
-                ns / 1_000_000
+                ns as f64 / 1_000_000.0
             ))
         }
         (_, Some(ns)) => Verdict::Missing(format!(
             "its calls ran {} ms on average; native code answers from {} ms",
-            ns / 1_000_000,
-            HOT_NS / 1_000_000
+            ns as f64 / 1_000_000.0,
+            from as f64 / 1_000_000.0
         )),
     })
 }

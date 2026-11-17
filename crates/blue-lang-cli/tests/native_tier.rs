@@ -173,3 +173,46 @@ fn a_definition_with_a_library_is_answered_in_process_and_a_refusal_runs_in_the_
     );
     let _ = std::fs::remove_dir_all(&f.dir);
 }
+
+fn profile(f: &Fixture, hex: &str, mean_ns: u64) {
+    let dir = f.dir.join("cache").join("blue").join("profile").join("v1");
+    std::fs::create_dir_all(&dir).expect("profile dir");
+    std::fs::write(dir.join(hex), format!("{mean_ns} 1\n")).expect("profile");
+}
+
+#[test]
+fn a_library_makes_a_definition_hot_from_a_far_lower_mean_than_a_process() {
+    let f = fixture("threshold");
+    let keys = hashes(&f.program);
+    let quick = keys
+        .iter()
+        .find(|(k, _)| k == "%root/quick")
+        .expect("quick")
+        .1
+        .clone();
+    profile(&f, &quick, 5_000_000);
+    let slow_cold = "4499998500000";
+    assert_eq!(
+        run(&f, None),
+        format!("[{slow_cold}, 2]"),
+        "5 ms is under the 20 ms a process start needs"
+    );
+    library(
+        &f.dir.join("shared"),
+        &quick,
+        "unsafe { out.write(13) };\n    0",
+    );
+    profile(&f, &quick, 5_000_000);
+    assert_eq!(
+        run(&f, None),
+        "[7, 13]",
+        "with a library, 5 ms is past the 0.2 ms the in-process call needs (and slow, timed by the first run, is hot)"
+    );
+    profile(&f, &quick, 100_000);
+    assert_eq!(
+        run(&f, None),
+        "[7, 2]",
+        "0.1 ms stays in the interpreter even with a library"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}

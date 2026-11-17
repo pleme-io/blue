@@ -16,8 +16,8 @@
 //! by running the artifact; any other call, and any artifact that does not
 //! answer, runs in the interpreter as before. It is on by default (rule R7 of
 //! the default cascade): a run whose program has an artifact answers natively
-//! each definition whose outermost calls averaged [`HOT_NS`] or more in earlier
-//! runs, and records this run's times in the profile tier
+//! each definition whose outermost calls averaged [`hot_from`] or more in
+//! earlier runs (0.2 ms with a library, 20 ms without), and records this run's times in the profile tier
 //! (`blue_lang_mondou::store::profile`), so a definition goes native once it is
 //! known to be hot. `BLUE_NATIVE=on` answers every call it can; `off` none.
 
@@ -148,7 +148,7 @@ struct Target {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mode {
     /// Unset: a call goes native only when its definition's outermost calls
-    /// ran at least [`HOT_NS`] on average in earlier runs.
+    /// ran at least [`hot_from`] on average in earlier runs.
     Auto,
     /// `on`: every call with an artifact and Int arguments goes native.
     On,
@@ -160,6 +160,22 @@ pub(crate) enum Mode {
 /// natively: well above what starting an artifact costs, so the default only
 /// fires where the gain is known.
 pub(crate) const HOT_NS: u64 = 20_000_000;
+
+/// The mean an outermost call must have cost before [`Mode::Auto`] answers it
+/// through the artifact's library: ten times what one call through the
+/// library costs (about 20 µs, most of it the thread that holds the board's
+/// stack), where [`HOT_NS`] is sized for starting a process.
+pub(crate) const HOT_LIBRARY_NS: u64 = 200_000;
+
+/// The mean from which a definition is hot: [`HOT_LIBRARY_NS`] when its
+/// artifact has a library, else [`HOT_NS`].
+pub(crate) fn hot_from(library: bool) -> u64 {
+    if library {
+        HOT_LIBRARY_NS
+    } else {
+        HOT_NS
+    }
+}
 
 pub(crate) fn mode_of(value: Option<&str>) -> Mode {
     match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
@@ -218,11 +234,13 @@ impl Tier {
                 None => Some((d.span, Some(d.key.to_string()))),
             };
             let mean = profiled(&hashed.hash).and_then(blue_lang_mondou::store::Profiled::mean_ns);
+            let library_path = blue_lang_mondou::store::native_library(&artifact);
+            let threshold = hot_from(library_path.is_some());
             let hot = match mode {
                 Mode::On => true,
                 Mode::Off => false,
                 Mode::Auto => {
-                    let held: &[&str] = if mean.is_some_and(|ns| ns >= HOT_NS) {
+                    let held: &[&str] = if mean.is_some_and(|ns| ns >= threshold) {
                         &["artifact", "hot"]
                     } else {
                         &["artifact"]
@@ -231,7 +249,7 @@ impl Tier {
                 }
             };
             let library = if hot {
-                blue_lang_mondou::store::native_library(&artifact).and_then(|l| crate::dl::open(&l))
+                library_path.and_then(|l| crate::dl::open(&l))
             } else {
                 None
             };
@@ -339,9 +357,10 @@ pub(crate) fn planned(
     let mut reason = Vec::new();
     if !hot.is_empty() {
         reason.push(format!(
-            "native code answers `{}`, whose calls ran {} ms or more in earlier runs",
+            "native code answers `{}`, whose calls ran {} ms or more in earlier runs ({} ms through a library)",
             hot.join("`, `"),
-            HOT_NS / 1_000_000
+            HOT_NS / 1_000_000,
+            HOT_LIBRARY_NS as f64 / 1_000_000.0
         ));
     }
     if !fresh.is_empty() {

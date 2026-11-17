@@ -152,6 +152,7 @@ replacement (`docs/COMPOUNDING.md`).
 | `shuusei` | `contains_claim?` | `retsu::contains` | 0.1.1 |
 | `shuusei` | `contains_pair?` | `retsu::contains` | 0.1.1 |
 | `kakehashi/souji` | `sum` | `kazu::sum` | 0.1.2 |
+| `kakehashi/kirikae` | `keep_last` | `retsu::take_last_n` | 0.1.2 |
 | `suugaku/toukei` | `total` | `kazu::sum` | 0.1.1 |
 | `koubou/zumen` | `opt_lines` | `shuugou::as_set` | 0.1.2 |
 | `okite` | `law_relative_path_is_the_same_definition` | `okite::law_one_use_reaches_every_level_below` | 0.1.1 |

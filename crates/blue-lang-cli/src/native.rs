@@ -197,15 +197,6 @@ impl Shape {
             _ => Value::Int(v),
         }
     }
-
-    /// Whether only Ints cross, so the executable, which prints an Int, may
-    /// answer.
-    fn ints_only(&self) -> bool {
-        match self {
-            Self::Untyped => true,
-            Self::Typed(ws, r) => *r == Word::Int && ws.iter().all(|w| *w == Word::Int),
-        }
-    }
 }
 
 struct Target {
@@ -242,7 +233,9 @@ pub(crate) const HOT_NS: u64 = 20_000_000;
 pub(crate) const HOT_LIBRARY_NS: u64 = 200_000;
 
 /// The mean from which a definition is hot: [`HOT_LIBRARY_NS`] when its
-/// artifact has a library, else [`HOT_NS`].
+/// artifact's library loaded, else [`HOT_NS`]. A static binary (blue on Linux
+/// is static musl) cannot load a library, so there every call starts the
+/// executable and the process threshold holds.
 pub(crate) fn hot_from(library: bool) -> u64 {
     if library {
         HOT_LIBRARY_NS
@@ -311,8 +304,12 @@ impl Tier {
                 None => Some((d.span, Some(d.key.to_string()))),
             };
             let mean = profiled(&hashed.hash).and_then(blue_lang_mondou::store::Profiled::mean_ns);
-            let library_path = blue_lang_mondou::store::native_library(&artifact);
-            let threshold = hot_from(library_path.is_some());
+            let library = if mode == Mode::Off {
+                None
+            } else {
+                blue_lang_mondou::store::native_library(&artifact).and_then(|l| crate::dl::open(&l))
+            };
+            let threshold = hot_from(library.is_some());
             let hot = match mode {
                 Mode::On => true,
                 Mode::Off => false,
@@ -325,11 +322,7 @@ impl Tier {
                     blue_lang_runtime::kitei::fires("R7", held)
                 }
             };
-            let library = if hot {
-                library_path.and_then(|l| crate::dl::open(&l))
-            } else {
-                None
-            };
+            let library = library.filter(|_| hot);
             if let Some((span, name)) = source {
                 by_source.insert(
                     span,
@@ -515,8 +508,7 @@ impl CallObserver for Tier {
                 .words(args)
                 .and_then(|words| match target.library {
                     Some(entry) => crate::dl::call(entry, &words),
-                    None if target.shape.ints_only() => call(&target.artifact, &words),
-                    None => None,
+                    None => call(&target.artifact, &words),
                 });
             if let Some(v) = answered {
                 return Some(target.shape.value(v));
@@ -586,12 +578,10 @@ mod tests {
         );
         assert_eq!(pick.words(&[Value::Int(1), Value::Int(7)]), None);
         assert_eq!(pick.words(&[Value::Bool(true)]), None);
-        assert!(!pick.ints_only());
         let small = shape("(define-typed (%root/small (n Int)) Bool (< n 3))").expect("a shape");
         assert!(matches!(small.value(0), Value::Bool(false)));
         assert!(matches!(small.value(1), Value::Bool(true)));
         assert_eq!(shape("(define-typed (%root/s (t String)) Int 0)"), None);
-        assert!(Shape::Untyped.ints_only());
     }
 
     fn checked(src: &str) -> blue_lang_runtime::pipeline::Checked {

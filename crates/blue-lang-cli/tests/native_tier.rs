@@ -255,3 +255,22 @@ fn a_bool_crosses_the_seam_as_one_or_zero_both_ways() {
     );
     let _ = std::fs::remove_dir_all(&f.dir);
 }
+
+#[test]
+fn a_library_that_does_not_load_keeps_the_process_threshold() {
+    let f = fixture("unloadable");
+    let quick = hashes(&f.program)
+        .into_iter()
+        .find(|(k, _)| k == "%root/quick")
+        .expect("quick")
+        .1;
+    let dir = f.dir.join("shared").join("native").join("v1").join(&quick);
+    std::fs::write(dir.join("def.so"), "not a library").expect("a file that is no library");
+    profile(&f, &quick, 5_000_000);
+    assert_eq!(
+        run(&f, None),
+        "[4499998500000, 2]",
+        "a static blue, or a broken file, loads no library: 5 ms stays under the 20 ms a process needs"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}

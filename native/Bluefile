@@ -40,4 +40,4 @@ generate(
 
 # The node's builder: the definitions runs asked for, built into this node's
 # native tier (nix/native.nix packages it as native-build).
-check("native-builder", "build/wanted.b")
+check("native-builder", "build/wanted.b", {stage: :ci})

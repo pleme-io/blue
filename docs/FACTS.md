@@ -132,9 +132,12 @@ Each wave lists defaults in the order their gain is known. Each default meets
   build, the same answer). A library that faults, prints or refuses leaves the
   call to the interpreter. Lock: `tests/native_tier.rs`, red when the tier
   ignores the library; `checks.native-defs` answers through it.
-- ✅ The hot mean follows the fact "has a library": a definition is hot from
-  0.2 ms with one (ten times the about 20 µs one call through it costs) and
-  from 20 ms without (sized for a process start). `fib(16 + i % 3)` called 300
+- ✅ The hot mean follows the fact "its library loaded": a definition is hot
+  from 0.2 ms when it did (ten times the about 20 µs one call through it
+  costs) and from 20 ms when it did not (sized for a process start). Blue on
+  Linux is a static musl binary, which cannot load a library, so there every
+  call starts the executable; the fact is the load, not the file
+  (`a_library_that_does_not_load_keeps_the_process_threshold`). `fib(16 + i % 3)` called 300
   times, the default with no flag: 2.09 s on every run before; now 2.18 s on
   the first run (it profiles) and 0.02 s from the second, the same answer.
   Lock: `tests/native_tier.rs`, a 5 ms definition is native with a library
@@ -158,8 +161,8 @@ Each wave lists defaults in the order their gain is known. Each default meets
   - ✅ Bool: a definition that takes or answers Bools compiles for the tier;
     a Bool crosses the seam as 1 or 0 (`cz_seam_arg`, `cz_seam_result`), and
     the tier reads each definition's signature from its own `define-typed`
-    form to convert (`native::Shape`); only an all-Int signature may be
-    answered by the executable. Lock: `tests/native_tier.rs`
+    form to convert (`native::Shape`), for the library and the executable
+    alike, so a static blue answers a Bool through the executable. Lock: `tests/native_tier.rs`
     `a_bool_crosses_the_seam_as_one_or_zero_both_ways` (red with the result
     left an Int) and `checks.native-defs` "a Bool crosses the seam both ways"
     (`small`, `big`, `pick` in `native/defs/base.b`; `big` answered by

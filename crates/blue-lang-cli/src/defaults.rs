@@ -66,7 +66,11 @@ fn native_verdict(mode: Mode, hash: &blue_lang_runtime::def_hash::DefHash) -> Op
         return None;
     }
     let artifact = blue_lang_mondou::store::native_artifact(hash)?;
-    let from = hot_from(blue_lang_mondou::store::native_library(&artifact).is_some());
+    let from = hot_from(
+        blue_lang_mondou::store::native_library(&artifact)
+            .and_then(|l| crate::dl::open(&l))
+            .is_some(),
+    );
     let mean =
         blue_lang_mondou::store::profile(hash).and_then(blue_lang_mondou::store::Profiled::mean_ns);
     Some(match (mode, mean) {

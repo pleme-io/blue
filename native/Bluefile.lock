@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:25838f5315326a2191350ce139152013e77211d16a5c6ba1b949b619cbc06f96",
+  "bluefile_b3": "b3:fe815c408d39e015c254c2bed4f5e000024fd0b9fb9336d438a09d357930b297",
   "manifest": {
     "schema": 1,
     "name": "blue-native",
@@ -17,7 +17,8 @@
     ],
     "checks": {
       "native-builder": {
-        "file": "build/wanted.b"
+        "file": "build/wanted.b",
+        "stage": "ci"
       }
     },
     "apps": {},

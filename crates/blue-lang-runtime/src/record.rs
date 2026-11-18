@@ -155,7 +155,13 @@ fn conforms(ty: &Value, v: &Value) -> bool {
             "Sym" => matches!(v, Value::Keyword(_) | Value::Symbol(_)),
             "Nil" => matches!(v, Value::Nil),
             "Map" => matches!(v, Value::Map(_)),
-            _ => false,
+            other => match (blue_lang_syntax::record::width_of(other), v) {
+                (Some((signed, bits)), Value::Int(n)) => {
+                    let (lo, hi) = blue_lang_syntax::record::width_bounds(signed, bits);
+                    (lo..=hi).contains(&i128::from(*n))
+                }
+                _ => false,
+            },
         },
         Value::Str(tag) => name_of(v) == Some(&**tag),
         Value::List(xs) => match (xs.get(1), v) {
@@ -199,7 +205,12 @@ fn build(shape: &Shape, values: Vec<Value>, sp: Span) -> Result<Value, EvalError
             continue;
         };
         if !conforms(ty, v) {
-            let got = name_of(v).unwrap_or(v.type_name()).to_string();
+            let got = match (v, type_text(ty).as_str()) {
+                (Value::Int(n), t) if blue_lang_syntax::record::width_of(t).is_some() => {
+                    format!("{n}, which does not fit {t}")
+                }
+                _ => name_of(v).unwrap_or(v.type_name()).to_string(),
+            };
             return Err(raise_kind_with(
                 "record",
                 format!(
@@ -612,6 +623,22 @@ pub fn lower_records(forms: Vec<Spanned>) -> Vec<Spanned> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_fixed_width_field_holds_an_int_in_its_range_and_nothing_else() {
+        let u8_ty = Value::Symbol(Arc::from("u8"));
+        assert!(conforms(&u8_ty, &Value::Int(255)));
+        assert!(!conforms(&u8_ty, &Value::Int(256)));
+        assert!(!conforms(&u8_ty, &Value::Int(-1)));
+        assert!(!conforms(&u8_ty, &Value::Str(Arc::from("1"))));
+        let i8_ty = Value::Symbol(Arc::from("i8"));
+        assert!(conforms(&i8_ty, &Value::Int(-128)));
+        assert!(!conforms(&i8_ty, &Value::Int(128)));
+        assert!(conforms(
+            &Value::Symbol(Arc::from("i64")),
+            &Value::Int(i64::MIN)
+        ));
+    }
 
     fn desc(fields: &[(&str, Option<&str>)]) -> Value {
         Value::list(fields.iter().map(|(n, ty)| match ty {

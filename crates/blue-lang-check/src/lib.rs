@@ -78,7 +78,7 @@ pub enum Ty {
     /// wanted is held to its range.
     IntOf {
         signed: bool,
-        bits: u8,
+        bits: u32,
     },
     Float,
     Str,
@@ -140,7 +140,10 @@ impl Ty {
                 "Nil" => Ty::Nil,
                 "List" => Ty::List(Box::new(Ty::Dyn)),
                 "Map" => Ty::Map(Box::new(Ty::Dyn), Box::new(Ty::Dyn)),
-                other => Ty::Named(other.to_string()),
+                other => match blue_lang_syntax::record::width_of(other) {
+                    Some((signed, bits)) => Ty::IntOf { signed, bits },
+                    None => Ty::Named(other.to_string()),
+                },
             },
             Sexp::List(items) => match (items.first(), &items[1..]) {
                 (Some(Sexp::Atom(Atom::Symbol(h))), [t]) if h == "List" => {
@@ -2142,13 +2145,7 @@ fn out_of_range(arg: &Spanned, want: &Ty) -> Option<String> {
     let (Some(n), Ty::IntOf { signed, bits }) = (literal_int(arg), want) else {
         return None;
     };
-    let (lo, hi): (i128, i128) = if *signed {
-        (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
-    } else if *bits == 64 {
-        (0, i128::from(i64::MAX))
-    } else {
-        (0, (1i128 << bits) - 1)
-    };
+    let (lo, hi) = blue_lang_syntax::record::width_bounds(*signed, *bits);
     let v = i128::from(n);
     (v < lo || v > hi).then(|| format!("is {n}, which does not fit {} ({lo}..={hi})", want.name()))
 }

@@ -53,7 +53,8 @@ fn mismatch(want: &Spanned, arg: &Spanned, known: &Known<'_>) -> Option<(String,
     }
     let want_name = want.as_symbol()?;
     let got = kind_of(arg, known)?;
-    (got != want_name).then(|| (shown_type(want), shown(&got)))
+    let widened = got == "Int" && blue_lang_syntax::record::width_of(want_name).is_some();
+    (got != want_name && !widened).then(|| (shown_type(want), shown(&got)))
 }
 
 fn shown_type(ty: &Spanned) -> String {

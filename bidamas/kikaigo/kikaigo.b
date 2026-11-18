@@ -159,6 +159,16 @@ def encode(i)
     else
       [65, 80 + r]
     end
+  elsif op == "movabs"
+    d = reg(i[:dst])
+    n = i[:imm]
+    append(
+      [rex(0, d), 184 + d % 8],
+      append(
+        le32(bit_and(n, 4_294_967_295)),
+        le32(bit_and(shift_right(n, 32), 4_294_967_295))
+      )
+    )
   elsif op == "cqo"
     [72, 153]
   elsif op == "idiv"
@@ -301,6 +311,8 @@ def text(i)
     "sarq %#{i[:dst]}"
   elsif op == "shr1"
     "shrq %#{i[:dst]}"
+  elsif op == "movabs"
+    "movabsq $#{to_s(i[:imm])}, %#{i[:dst]}"
   elsif op == "cqo"
     "cqto"
   elsif op == "idiv"
@@ -524,11 +536,33 @@ def corpus()
     {op: "ret"},
     {op: "syscall"}
   ]
-  append(*[rr, ri, mem, at, based, mul, stack, bytes, sets, rest_ops])
+  wide = flat_map(
+    REGS,
+    fn(d)
+      map(
+        (n) -> {op: "movabs", dst: d, imm: n},
+        [
+          4_294_967_296,
+          3_400_000_001,
+          -3_400_000_001,
+          9_223_372_036_854_775_807
+        ]
+      )
+    end
+  )
+  append(*[rr, ri, mem, at, based, mul, stack, bytes, sets, rest_ops, wide])
 end
 
 test "golden encodings from llvm-mc 21.1.7"
   golden = [
+    [
+      {op: "movabs", dst: "rax", imm: 4_886_718_345},
+      [72, 184, 137, 103, 69, 35, 1, 0, 0, 0]
+    ],
+    [
+      {op: "movabs", dst: "r11", imm: -1},
+      [73, 187, 255, 255, 255, 255, 255, 255, 255, 255]
+    ],
     [{op: "mov", dst: "rax", src: "rsi"}, [72, 137, 240]],
     [{op: "add", dst: "r15", src: "r8"}, [77, 1, 199]],
     [{op: "mov", dst: "r12", imm: -1}, [73, 199, 196, 255, 255, 255, 255]],
@@ -684,7 +718,8 @@ test "the helpers are exercised by name"
       16 * 5 +
       12 * 8 +
       6 +
-      7
+      7 +
+      16 * 4
   assert encode({op: "push", src: "r12"}) == [65, 84]
   assert encode({op: "pop", dst: "rdi"}) == [95]
   assert encode({op: "sar1", dst: "rax"}) == [72, 209, 248]

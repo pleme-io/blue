@@ -8,6 +8,15 @@ KIND = "purity-bytes"
 
 BASELINE = "gen/purity.baseline"
 
+@doc """
+root: the tree the ledger reads: $GEN_ROOT, where a nix check places its inputs, or the working directory.
+
+    string?(root) #=> true
+"""
+def root()
+  getenv("GEN_ROOT", ".")
+end
+
 RECORD = "blue gen/purity.b record"
 
 @doc """
@@ -107,8 +116,8 @@ def main()
 end
 
 test "no crate grows past its recorded Rust bytes, and a new crate must be recorded"
-  rows = parse(read_or(BASELINE, ""))
-  ms = measured(".")
+  rows = parse(read_or(path_join(root, BASELINE), ""))
+  ms = measured(root)
   assert size(ms) >= 20
   bad = map((f) -> f[1], failures(rows, KIND, ms))
   if not is_empty(bad)

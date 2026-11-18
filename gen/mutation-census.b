@@ -8,6 +8,15 @@ use("shuugou", [:unique])
 
 BASELINE = "gen/mutation-census.baseline"
 
+@doc """
+root: the tree the census reads: $GEN_ROOT, where a nix check places its inputs, or the working directory.
+
+    string?(root) #=> true
+"""
+def root()
+  getenv("GEN_ROOT", ".")
+end
+
 RECORD = "blue gen/mutation-census.b record"
 
 KINDS = %w[mutation-set mutation-while mutation-redefine]
@@ -73,7 +82,7 @@ def tally(node)
 end
 
 def counts_of(path)
-  r = exec_capture(self_exe, "ast", path)
+  r = exec_capture(self_exe, "ast", path_join(root, path))
   if status_of(r) != 0
     zero
   else
@@ -91,7 +100,7 @@ def blue_files()
           not includes(p, "/.git/") and
           not includes(p, "/result")
       end,
-      map((p) -> replace(p, "./", ""), walk_dir("."))
+      map((p) -> replace(p, "#{root}/", ""), walk_dir(root))
     )
   )
 end
@@ -145,7 +154,7 @@ def main()
 end
 
 test "no file gains a rebind past its recorded count, and a new file with one must be recorded"
-  rows = parse(read_or(BASELINE, ""))
+  rows = parse(read_or(path_join(root, BASELINE), ""))
   assert size(blue_files) >= 500
   ms = measured(blue_files)
   bad = retsu::flat_map(

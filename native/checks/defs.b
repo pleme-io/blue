@@ -284,3 +284,25 @@ test "a record of Ints crosses the seam both ways", {kind: :integration}
   assert interpreted(work, "shifted", [pt(1, 2), 5], swapped) ==
     unlines(["pt({x: 1, y: 7})"])
 end
+
+test "a list only tested is a set, and answers as the list does", {
+  kind: :integration
+}
+  work = temp_dir("native-set")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [["hits", [[1, 3, 5], 50, 0]], ["hits", [[], 10, 0]]]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  assert contains?(
+    read_file(path_join(root, "native", "v1", hex_of("hits"), "def.rs")),
+    "set_of"
+  )
+end

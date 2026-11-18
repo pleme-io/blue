@@ -668,6 +668,8 @@ def cz_ty(n, ctx)
     :list
   elsif h == "concat"
     :str
+  elsif h == "member?"
+    :bool
   elsif h == "length"
     :word
   elsif (cz_lookup(h, cz_arith) != nil or h == "/") and
@@ -1216,6 +1218,8 @@ def cz_call(n, ctx)
       "wrapping_add",
       [cz_expr(second(args), ctx)]
     )
+  elsif h == "member?" and count(args) == 2
+    cz_member(first(args), second(args), ctx)
   elsif member?(h, %w[list append count nth first])
     cz_list_op(h, args, ctx)
   elsif h == "blue-field"
@@ -1363,6 +1367,93 @@ rs_seq: A block of `stmts` ending in `tail`.
 """
 def rs_seq(stmts, tail)
   {kind: "block", block: rs_block(append(stmts, [rs_tail(tail)]))}
+end
+
+@doc """
+cz_member: `member?(v, xs)`: a lookup in the set `xs` became when the definition only
+tests it (`cz_sets`), else a scan of the refcounted list.
+
+    cz_member(1, {sym: "xs"}, {params: ["xs"], sets: ["xs"], word: 64, heap: true})[:func] #=> ["kiban_heap", "set_has"]
+    cz_member(1, {sym: "xs"}, {params: ["xs"], sets: [], word: 64, heap: true, strategy: :refcount})[:func] #=> ["kiban_heap", "rc_member"]
+"""
+def cz_member(v, xs, ctx)
+  if not ctx[:heap]
+    cz_refuse("a list needs a heap, and this board has none; lists compile for the host board")
+  elsif ctx[:strategy] == :arena
+    cz_refuse("member? has a native form on a refcounted list; a region's has none yet")
+  elsif cz_sym?(xs) and member?(cz_sym(xs), ctx[:sets] or [])
+    rs_call(
+      %w[kiban_heap set_has],
+      [
+        {kind: "ref", mutable: false, expr: rs_path(cz_set_name(cz_sym(xs)))},
+        cz_as(v, :word, ctx)
+      ]
+    )
+  else
+    rs_call(
+      %w[kiban_heap rc_member],
+      [cz_borrowed(xs, ctx), cz_as(v, :word, ctx)]
+    )
+  end
+end
+
+@doc """
+cz_set_name: The local a list parameter's set is held in.
+
+    cz_set_name("xs") #=> "sp_xs"
+"""
+def cz_set_name(p)
+  concat("s", cz_param_name(p))
+end
+
+@doc """
+cz_sets: The list parameters of a tail-looping definition `name` that W2.1 holds as
+sets: each read only by `member?` and passed unchanged, in its own place, to
+the definition's tail call. Built once before the loop, a set answers every
+test the loop makes by a lookup where the list would be scanned.
+
+    cz_sets(first(cz_read("(if (member? n xs) n (%root/f (- n 1) xs))")), "%root/f", [["n", :word], ["xs", :list]]) #=> ["xs"]
+    cz_sets(first(cz_read("(if (member? n xs) (count xs) (%root/f (- n 1) xs))")), "%root/f", [["n", :word], ["xs", :list]]) #=> []
+"""
+def cz_sets(body, name, types)
+  params = map(first, types)
+  map(
+    first,
+    filter(
+      fn(t)
+        i = find(range(count(params)), (k) -> params[k] == first(t))
+        second(t) == :list and cz_tested_only?(body, first(t), name, i)
+      end,
+      types
+    )
+  )
+end
+
+@doc """
+cz_tested_only?: Whether every read of `p` in `n` is the list of a `member?` or `p` itself
+at place `i` of a call of `name`.
+
+    cz_tested_only?(first(cz_read("(member? 1 xs)")), "xs", "%root/f", 0) #=> true
+"""
+def cz_tested_only?(n, p, name, i)
+  h = cz_head(n)
+  if cz_sym?(n)
+    cz_sym(n) != p
+  elsif not list?(n)
+    true
+  elsif h == "member?" and count(n) == 3 and cz_sym(third(n)) == p
+    cz_tested_only?(second(n), p, name, i)
+  elsif h == name
+    args = rest(n)
+    every?(
+      fn(k)
+        k == i and cz_sym(args[k]) == p or cz_tested_only?(args[k], p, name, i)
+      end,
+      range(count(args))
+    )
+  else
+    every?((x) -> cz_tested_only?(x, p, name, i), n)
+  end
 end
 
 @doc """
@@ -2016,6 +2107,28 @@ def cz_fn(form, env)
   else
     []
   end
+  sets = if cz_tail_self?(body, name) and
+      strategy == :refcount and
+      not rec and
+      env[:heap]
+    cz_sets(body, name, types)
+  else
+    []
+  end
+  ctx = {**ctx, sets:}
+  held = map(
+    fn(p)
+      {
+        kind: "local",
+        name: cz_set_name(p),
+        value: rs_call(
+          %w[kiban_heap set_of],
+          [{kind: "ref", mutable: false, expr: rs_path(cz_param_name(p))}]
+        )
+      }
+    end,
+    sets
+  )
   stmts = if cz_tail_self?(body, name)
     rebind = map(
       fn(p)
@@ -2030,6 +2143,7 @@ def cz_fn(form, env)
     )
     append(
       enter,
+      held,
       rebind,
       [rs_semi({kind: "loop", body: rs_block(cz_tail(body, ctx))})]
     )
@@ -3963,4 +4077,37 @@ test "a record of Ints crosses the valued seam as its fields"
   assert last(arg[:block][:stmts])[:expr][:path] == ["R_pt"]
   out = cz_value_result(rs_path("r"), "%root/pt", [pt])
   assert last(out[:block][:stmts])[:expr][:func] == %w[Value Record]
+end
+
+test "a list only tested in a tail loop is a set built once before the loop"
+  hits = "(define-typed (%root/hits (xs (List Int)) (n Int) (acc Int)) Int (if (equal? n 0) acc (%root/hits xs (- n 1) (if (member? (mod n 97) xs) (+ acc 1) acc))))"
+  tree = json_stringify(cz_lower_def(cz_read(hits), "%root/hits"))
+  assert contains?(tree, "\"set_of\"")
+  assert contains?(tree, "\"set_has\"")
+  assert contains?(tree, "\"sp_xs\"")
+  assert not contains?(tree, "\"rc_member\"")
+  read = "(define-typed (%root/hits (xs (List Int)) (n Int) (acc Int)) Int (if (equal? n 0) (+ acc (count xs)) (%root/hits xs (- n 1) (if (member? (mod n 97) xs) (+ acc 1) acc))))"
+  scanned = json_stringify(cz_lower_def(cz_read(read), "%root/hits"))
+  assert contains?(scanned, "\"rc_member\"")
+  assert not contains?(scanned, "\"set_of\"")
+  body = third(rest(first(cz_read(hits))))
+  types = [["xs", :list], ["n", :word], ["acc", :word]]
+  assert cz_sets(body, "%root/hits", types) == ["xs"]
+  assert cz_tested_only?(
+    first(cz_read("(member? 1 xs)")),
+    "xs",
+    "%root/hits",
+    0
+  )
+  assert not cz_tested_only?(
+    first(cz_read("(count xs)")),
+    "xs",
+    "%root/hits",
+    0
+  )
+  assert cz_set_name("xs") == "sp_xs"
+  scan = {params: ["xs"], sets: [], word: 64, heap: true, strategy: :refcount}
+  assert cz_member(1, {sym: "xs"}, scan)[:func] == %w[kiban_heap rc_member]
+  assert cz_member(1, {sym: "xs"}, {**scan, sets: ["xs"]})[:func] ==
+    %w[kiban_heap set_has]
 end

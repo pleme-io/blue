@@ -87,3 +87,19 @@ end
 def spread(p: pt) -> Int
   p.x - p.y
 end
+
+def hits(xs: List(Int), n: Int, acc: Int) -> Int
+  if n == 0
+    acc
+  else
+    hits(
+      xs,
+      n - 1,
+      if member?(n % 7, xs)
+        acc + 1
+      else
+        acc
+      end
+    )
+  end
+end

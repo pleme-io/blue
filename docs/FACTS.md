@@ -267,6 +267,21 @@ Each wave lists defaults in the order their gain is known. Each default meets
 - A list only appended then read in order compiles to a growable vector; a list
   only tested for membership to a set; a list only popped at the front to a
   queue; in native code, not only in the interpreter.
+  - ✅ Vector: a native list is a refcounted vector (`kiban_heap::List`),
+    and `append(xs, [a])` pushes in place when nothing else holds `xs`.
+  - ✅ Set: `member?` compiles natively (a scan of the list), and a list
+    parameter of a tail-looping definition that is read only by `member?`
+    and passed unchanged to its own tail call (`cz_sets`, decided from the
+    tree) is held as a set built once before the loop, so each test is a
+    lookup. It is a choice inside the artifact, under R7's switch, as the
+    shallow fact is. 200,000 tests against 4,000 Ints (`hits`), with no
+    flag: 1.97 s interpreted, 0.05 s native scanning the list, 0.01 s native
+    with the set, the same answer. Locks: chuuzou "a list only tested in a
+    tail loop is a set built once before the loop" (red with the fact off; a
+    list read any other way stays a scan); `checks.native-defs` "a list only
+    tested is a set, and answers as the list does" (the artifact holds the
+    set and answers as the interpreter does).
+  - Next: a queue for a list only popped at the front.
 - ✅ A string built by appends in a loop is built once (R13, `builder.rs`):
   `reduce((s, x) -> "#{s}…", init, xs)`, with `s` read nowhere else, becomes
   `init` as the first step converts it, then the `join` of each step's parts,

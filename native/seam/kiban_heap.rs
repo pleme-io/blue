@@ -172,6 +172,28 @@ impl Region {
     }
 }
 
+/// A list only tested for membership, held as a set (W2.1): built once,
+/// before the loop that tests it, so each test is a lookup, not a scan.
+pub type Set = alloc::collections::BTreeSet<i64>;
+
+/// `l` as a set.
+#[must_use]
+pub fn set_of(l: &List) -> Set {
+    l.iter().copied().collect()
+}
+
+/// `member?(v, l)` on the set `l` became.
+#[must_use]
+pub fn set_has(s: &Set, v: i64) -> bool {
+    s.contains(&v)
+}
+
+/// `member?(v, l)`: whether `l` holds `v`, a scan.
+#[must_use]
+pub fn rc_member(l: &List, v: i64) -> bool {
+    l.contains(&v)
+}
+
 /// A refcounted string: immutable, so a copy is a count.
 pub type Str = Rc<str>;
 

@@ -196,7 +196,16 @@ Each wave lists defaults in the order their gain is known. Each default meets
 - A list only appended then read in order compiles to a growable vector; a list
   only tested for membership to a set; a list only popped at the front to a
   queue; in native code, not only in the interpreter.
-- A string built by appends in a loop becomes a builder.
+- ✅ A string built by appends in a loop is built once (R13, `builder.rs`):
+  `reduce((s, x) -> "#{s}…", init, xs)`, with `s` read nowhere else, becomes
+  `init` as the first step converts it, then the `join` of each step's parts,
+  each part evaluated in its order; an empty list or a non-list runs the
+  loop as written. 200,000 appends: 2.87 s to 0.08 s, the same string. Locks:
+  `tests/builder.rs` (six cases on both doors against `BLUE_BUILDER=off`: a
+  start that is no string, an empty list, nil, effects in the parts, a part
+  that raises, a non-list; and linear time), red when the start is dropped;
+  `spec/rows/builder.b` on every column, the `default` column holding the
+  rewritten path.
 - A record in native code is a struct with fixed slots (R9 at T3).
 - A value nothing else holds is updated in place, decided statically where
   uniqueness can be proven, not only at run time.

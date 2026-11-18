@@ -72,6 +72,11 @@ pub fn explain(lowered: &[Spanned]) -> Vec<Atom> {
     } else {
         Vec::new()
     };
+    let built = if crate::builder::enabled() {
+        crate::builder::build(erased.clone(), lowered).sites
+    } else {
+        Vec::new()
+    };
     let memo_on = std::env::var("BLUE_MEMO").map_or(true, |v| v.trim().is_empty());
     let mut out = Vec::new();
     for (d, r) in hashes.defs().iter().zip(reach) {
@@ -126,6 +131,14 @@ pub fn explain(lowered: &[Spanned]) -> Vec<Atom> {
                 Verdict::Fires(format!(
                     "a call of `{}` on literals is answered before the run",
                     crate::observe::display_key(call)
+                )),
+            ));
+        }
+        for (_, acc) in built.iter().filter(|(t, _)| *t == i) {
+            rules.push((
+                "R13".to_string(),
+                Verdict::Fires(format!(
+                    "the string `{acc}` is built once, not copied at every step"
                 )),
             ));
         }

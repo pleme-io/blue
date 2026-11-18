@@ -75,6 +75,7 @@ thread_local! {
     static FUSED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static FOLDED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static INDEXED: Cell<usize> = const { Cell::new(0) };
+    static BUILT: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Record the chains erasure fused ([`crate::fuse`]) for this thread's
@@ -101,6 +102,14 @@ pub fn indexed(lists: usize) {
     }
 }
 
+/// Record the string-append loops erasure built once ([`crate::builder`])
+/// for this thread's report, when it records.
+pub fn built(loops: usize) {
+    if enabled() {
+        BUILT.with(|n| n.set(n.get() + loops));
+    }
+}
+
 /// The definitions whose calls were folded since [`enable`].
 #[must_use]
 pub fn folded_calls() -> Vec<String> {
@@ -123,6 +132,7 @@ pub fn enable() {
     FUSED.with(|f| f.borrow_mut().clear());
     FOLDED.with(|f| f.borrow_mut().clear());
     INDEXED.with(|n| n.set(0));
+    BUILT.with(|n| n.set(0));
 }
 
 /// Charge `spent` evaluation steps to this thread's report, when it records.
@@ -282,6 +292,10 @@ pub fn report() -> String {
     let lists = INDEXED.with(Cell::get);
     if lists > 0 {
         out.push_str(&format!("indexed  {lists}\n"));
+    }
+    let loops = BUILT.with(Cell::get);
+    if loops > 0 {
+        out.push_str(&format!("built    {loops}\n"));
     }
     out
 }

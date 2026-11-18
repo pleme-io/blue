@@ -40,6 +40,7 @@ pub mod arms;
 #[cfg(feature = "senses")]
 pub mod audio;
 pub mod bits;
+pub mod builder;
 pub mod bundle;
 pub mod cell;
 pub mod check_cache;

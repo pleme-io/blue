@@ -892,6 +892,13 @@ pub(crate) fn prepare(
         } else {
             forms
         };
+        let forms = if folding && crate::builder::enabled() {
+            let built = crate::builder::build(forms, &lowered);
+            crate::timings::built(built.sites.len());
+            built.forms
+        } else {
+            forms
+        };
         (lowered, forms)
     });
 

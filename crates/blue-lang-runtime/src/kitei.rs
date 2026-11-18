@@ -65,7 +65,7 @@ mod tests {
         let ids: Vec<&str> = RULES.iter().map(|(id, _, _)| *id).collect();
         assert_eq!(
             ids,
-            ["R1", "R2", "R3", "R4", "R5", "R7", "R8", "R9", "R10", "R12"]
+            ["R1", "R2", "R3", "R4", "R5", "R7", "R8", "R9", "R10", "R12", "R13"]
         );
         assert_eq!(needs("R2"), Some(&["pure", "self_overlapping"][..]));
         assert_eq!(switch("R4"), Some(("BLUE_FOLD", "off")));

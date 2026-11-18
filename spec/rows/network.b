@@ -81,6 +81,23 @@ row(
 )
 
 row(
+  "network.http_pipe.refused_upstream_is_an_error",
+  "http_pipe(\"GET\", \"http://127.0.0.1:1/\", nil, nil, 500)",
+  fails(:eval, "http_pipe"),
+  covers("builtin:http_pipe"),
+  host(),
+  flaky("G24", "component")
+)
+
+row(
+  "network.http_pipe.bad_name_refused",
+  "http_pipe(\"GET\", \"http://not a name/\", nil, nil, 500)",
+  fails(:eval, "http_pipe"),
+  covers("builtin:http_pipe"),
+  host()
+)
+
+row(
   "network.tcp_connect_ms.refused_is_an_answer",
   "take(2, tcp_connect_ms(\"127.0.0.1\", 1, 500))",
   value("[:error, :refused]"),

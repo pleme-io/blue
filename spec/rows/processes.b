@@ -142,6 +142,32 @@ row(
 )
 
 row(
+  "processes.supervisor_adopt.adds_a_child",
+  join_lines(
+    [
+      "def child(parent)",
+      "  send(parent, :up)",
+      "  receive()",
+      "end",
+      "me = self",
+      "sup = supervisor(:one_for_one, [], 3)",
+      "supervisor_adopt(sup, child, [me])",
+      "receive(:up)",
+      "length(children(sup))"
+    ]
+  ),
+  value("1"),
+  covers("builtin:supervisor_adopt")
+)
+
+row(
+  "processes.supervisor_adopt.refuses_a_non_supervisor",
+  "supervisor_adopt(1, () -> 1)",
+  fails(:eval, "not a supervisor"),
+  covers("builtin:supervisor_adopt")
+)
+
+row(
   "processes.spawn_server",
   join_lines(
     [

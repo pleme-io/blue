@@ -1,3 +1,7 @@
+---
+kind: explanation
+summary: pure blue track D, the build surface
+---
 # Pure blue — track D: the build surface
 
 **Tier: DESIGN (2026-11-17).** Plan: [`../PURE-BLUE.md`](../PURE-BLUE.md).

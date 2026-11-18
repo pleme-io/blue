@@ -1,3 +1,7 @@
+---
+kind: explanation
+summary: pure blue, the Lisp layer
+---
 # Pure blue — the Lisp layer
 
 **Tier: DESIGN (2026-11-17).** Plan: [`../PURE-BLUE.md`](../PURE-BLUE.md).

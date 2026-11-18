@@ -1,3 +1,7 @@
+---
+kind: explanation
+summary: pure blue tracks F (front end), S (stages) and C (conformance), mapped to the code
+---
 # Pure blue — tracks F (front end), S (stages) and C (conformance), mapped to the code
 
 **Tier: DESIGN (2026-11-17).** Plan: [`../PURE-BLUE.md`](../PURE-BLUE.md). Paths are relative to

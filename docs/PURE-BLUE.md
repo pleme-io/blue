@@ -1,3 +1,7 @@
+---
+kind: explanation
+summary: the plan for blue implemented in blue; rungs, dependencies, invariants and order for every track
+---
 # Pure blue — the implementation plan
 
 **Tier: DESIGN (2026-11-17).** Nothing here is built unless a row says so. This file is the

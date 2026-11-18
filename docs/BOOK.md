@@ -1948,6 +1948,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [OPERATORS — short notation for what blue says most, keyed to the blueshift](OPERATORS.md): short notation for what blue says most, keyed to the blueshift (design)
 - [P2P: a zero-server peer network in blue, and a game platform on it](P2P.md): a zero-server peer network in blue with capability memory regions, fault-scoped tamper evidence, and a game platform on it (design, destination approved 2026-11-09)
 - [Performance: blue as a scripting language and as a tool](PERFORMANCE.md): what blue costs today, where the time goes, and the order to remove it
+- [Pure blue — the implementation plan](PURE-BLUE.md): the plan for blue implemented in blue; rungs, dependencies, invariants and order for every track
 - [Registry](REGISTRY.md): how a blue project is published and resolved: registries as renderings of the Bluefile
 - [SERVICE-ACCESS — one access declaration, enforced by every layer that builds a service](SERVICE-ACCESS.md): one access declaration, enforced by every layer that builds a service (design)
 - [SERVICE-ARCHITECTURE — the default blue service](SERVICE-ARCHITECTURE.md): the default blue service and the batteries it composes (design)
@@ -1959,6 +1960,11 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [Blue verb roadmap: full software verbalization](VERB-ROADMAP.md): the roadmap to full software verbalization
 - [vocabularify — the surface/structure vocabulary](VOCABULARIFY-SURFACE.md): kigou and yakugo: a program's spelling separated from its meaning
 - [WORKSPACES — one root, many bidamas and many crates](WORKSPACES.md): one root holding many bidamas and many crates (design)
+- [Pure blue — tracks B (backend) and R (runtime), mapped to the code](pure-blue/backend-runtime.md): pure blue tracks B (backend) and R (runtime), mapped to the code they replace
+- [Pure blue — track D: the build surface](pure-blue/build-surface.md): pure blue track D, the build surface
+- [Pure blue — tracks F (front end), S (stages) and C (conformance), mapped to the code](pure-blue/front-tower-conformance.md): pure blue tracks F (front end), S (stages) and C (conformance), mapped to the code
+- [Pure blue — tracks L (language) and M (memory), mapped to the code](pure-blue/language-memory.md): pure blue tracks L (language) and M (memory), mapped to the code
+- [Pure blue — the Lisp layer](pure-blue/lisp-layer.md): pure blue, the Lisp layer
 - [Region A: data and knowledge (578 verbs, 30 spaces, 875 edges)](verbs/A/REGION.md): verb graph region A: data and knowledge
 - [Region B: storage and state (2026-10-22)](verbs/B/REGION.md): verb graph region B: storage and state
 - [Blue verb graph: shared brief (read fully first)](verbs/BRIEF.md): the shared brief behind the verb graph

@@ -2476,7 +2476,7 @@ TO_S_PROGRAMS = [
     unlines(["n=42"])
   ],
   ["(string_length (to_s -1234))", 5, ""],
-  ["(begin (print (to_s 0)) 0)", 0, "0"],
+  ["(begin (write_stdout (to_s 0)) 0)", 0, "0"],
   [
     "(begin (define (fact n) (if (< n 2) 1 (* n (fact (- n 1))))) (write_stdout (concat \"10! = \" (to_s (fact 10)) \"\\n\")) 0)",
     0,
@@ -2569,7 +2569,7 @@ HOST_PROGRAMS = [
   ["(exit_with (+ 40 2))", 42, ""]
 ]
 
-test "host programs leave with exit_with's status and write what write_stdout is given on x86-64", {
+test "host words exit and write natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2611,7 +2611,7 @@ LARGE_PROGRAMS = [
   ]
 ]
 
-test "large blocks are bumped, freed and counted, and a used-up heap exits with ENOMEM on x86-64", {
+test "large blocks bump and free; a full heap exits ENOMEM on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }

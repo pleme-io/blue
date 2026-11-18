@@ -302,7 +302,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `atom?` | `atom?(x)` | 1 | Whether x is a scalar rather than a list; false for nil. |
+| `atom?` | `atom?(x)` | 1 | Whether x is a scalar rather than a list; false for nil. Also defined by `kuzushi` (`kuzushi::atom?`): a file that lists it gets that one. |
 | `bool?` | `bool?(x)` | 1 | Whether x is true or false. |
 | `boolean?` | `boolean?(x)` | 1 | The same as bool?. |
 | `cast` | `cast(type, x)` | 2 | x checked against, or narrowed to, the type a keyword names: cast(:float, 5) is 5.0. Type first. |

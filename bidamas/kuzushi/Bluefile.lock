@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:a8cc89ca269498bc6264593107aabe0f42061f1cbcd1b773b216569072684dff",
+  "manifest": {
+    "schema": 1,
+    "name": "kuzushi",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "toolchain"
+  },
+  "sources": {}
+}

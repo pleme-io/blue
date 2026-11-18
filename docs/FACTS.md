@@ -432,9 +432,17 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 ### W7: the author sees it
 
-- The editor shows each atom's defaults and the one declaration that unlocks the
-  next. `blue doc` answers the same question (W7.2, below); next, the
-  language server shows it as a hint on the definition.
+- ✅ The editor shows each atom's defaults and the one declaration that unlocks
+  the next. Hover on a definition in the language server now lists, under
+  what blue derives about it, each rule the defaults engine decides
+  (`blue_lang_runtime::defaults::explain`, computed once per analysis,
+  `Analysis::defaults`): `default R2: …` where one fires, `R2 waits on: …`
+  with the fact it lacks, which names the declaration that would unlock it.
+  Hover works in every editor, so the defaults are always in view. `blue
+  doc` answers the same question on the command line (W7.2). Lock:
+  `blue-lang-lsp` `hover_names_the_defaults_a_definition_gets_and_what_the_next_waits_on`
+  (a self-recursive pure `fib` shows R2 firing, one that reads the clock
+  shows what R2 waits on; red when hover leaves them out).
 - ✅ Docs list the defaults a word gets, generated from the facts. `blue doc`
   on a bidama definition adds each rule `blue shift --defaults` decides for
   it from its facts: a rule that fires as `default R2: …`, one that waits as

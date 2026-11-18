@@ -478,10 +478,11 @@ pub fn hover_of(engine: &Engine, id: &str, offset: usize) -> Option<Hover> {
         Symbol::Def(ns, name) => {
             let at = a.definition_of(engine, &ns, &name)?;
             let item = engine.item_at(&a, &at)?;
-            let derived = engine
+            let mut derived = engine
                 .doc_view(&a, &at, &ns, &name)
                 .map(|v| v.derived_lines())
                 .unwrap_or_default();
+            derived.extend(a.default_lines(&blue_lang_check::names::key(&ns, &name)));
             Some(Hover {
                 signature: item.signature,
                 namespace: ns.to_string(),

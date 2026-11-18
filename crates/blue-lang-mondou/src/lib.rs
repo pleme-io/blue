@@ -352,6 +352,7 @@ impl Engine {
             host_reach: OnceCell::new(),
             reach: OnceCell::new(),
             erased: OnceCell::new(),
+            defaults: OnceCell::new(),
         }
     }
 
@@ -465,6 +466,7 @@ pub struct Analysis {
     host_reach: OnceCell<Option<Vec<HostReach>>>,
     reach: OnceCell<Option<Vec<Reach>>>,
     erased: OnceCell<Option<Vec<Spanned>>>,
+    defaults: OnceCell<Option<Vec<blue_lang_runtime::defaults::Atom>>>,
 }
 
 impl Analysis {
@@ -511,6 +513,39 @@ impl Analysis {
                     .map(|c| blue_lang_runtime::pipeline::lower(&c.program, &c.names))
             })
             .as_deref()
+    }
+
+    /// Each definition's facts and the defaults they decide
+    /// ([`blue_lang_runtime::defaults::explain`]), computed on the first
+    /// request that needs them.
+    #[must_use]
+    pub fn defaults(&self) -> Option<&[blue_lang_runtime::defaults::Atom]> {
+        self.defaults
+            .get_or_init(|| self.lowered().map(blue_lang_runtime::defaults::explain))
+            .as_deref()
+    }
+
+    /// The default lines of the definition `key`, as hover and `blue doc` write
+    /// them: `default R2: …` for a rule that fires, `R2 waits on: …` with the
+    /// fact a rule lacks.
+    #[must_use]
+    pub fn default_lines(&self, key: &str) -> Vec<String> {
+        self.defaults()
+            .and_then(|atoms| atoms.iter().find(|a| a.key == key))
+            .map(|a| {
+                a.rules
+                    .iter()
+                    .map(|(id, v)| match v {
+                        blue_lang_runtime::defaults::Verdict::Fires(what) => {
+                            format!("default {id}: {what}")
+                        }
+                        blue_lang_runtime::defaults::Verdict::Missing(fact) => {
+                            format!("{id} waits on: {fact}")
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// [`Self::lowered`] with its types erased: the tree the evaluator runs.

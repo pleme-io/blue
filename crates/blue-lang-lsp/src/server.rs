@@ -1832,6 +1832,36 @@ mod tests {
     }
 
     #[test]
+    fn hover_names_the_defaults_a_definition_gets_and_what_the_next_waits_on() {
+        let mut s = Server::new();
+        open(
+            &mut s,
+            "file:///a.b",
+            "def fib(n)\n  if n < 2\n    n\n  else\n    fib(n - 1) + fib(n - 2)\n  end\nend\n\ndef tick(n)\n  if n < 2\n    now_ms\n  else\n    tick(n - 1) + tick(n - 2)\n  end\nend\n",
+        );
+        let hover = |s: &mut Server, line: u32| {
+            let Response::Reply(r) = s.handle_value(&req(
+                23,
+                "textDocument/hover",
+                json!({
+                    "textDocument": { "uri": "file:///a.b" },
+                    "position": { "line": line, "character": 5 },
+                }),
+            )) else {
+                panic!()
+            };
+            r["result"]["contents"]["value"]
+                .as_str()
+                .expect("markdown")
+                .to_string()
+        };
+        let md = hover(&mut s, 0);
+        assert!(md.contains("- default R2: "), "{md}");
+        let md = hover(&mut s, 8);
+        assert!(md.contains("- R2 waits on: "), "{md}");
+    }
+
+    #[test]
     fn hover_carries_the_host_reach_of_the_definition() {
         let mut s = Server::new();
         open(

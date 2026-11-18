@@ -2333,7 +2333,7 @@ executable: a static x86-64 ELF executable whose one loadable segment holds the 
 
     exec_header(executable([195]))[:entry] #=> 4194424
 """
-def executable(code)
+def executable(code, writable?)
   heads = width(header_layout) + width(phdr_layout)
   total = heads + size(code)
   append(
@@ -2361,7 +2361,11 @@ def executable(code)
         phdr_layout,
         {
           type: 1,
-          flags: 5,
+          flags: if writable
+            7
+          else
+            5
+          end,
           offset: 0,
           vaddr: EXEC_BASE,
           paddr: EXEC_BASE,
@@ -2388,6 +2392,7 @@ end
 exec_segment: the first program header of an executable, as named fields.
 
     exec_segment(executable([195]))[:flags] #=> 5
+    exec_segment(executable([195], true))[:flags] #=> 7
 """
 def exec_segment(bytes)
   unpack(phdr_layout, bytes, exec_header(bytes)[:phoff])
@@ -2411,4 +2416,5 @@ test "an executable is one read-execute segment over its headers and code, enter
   assert s[:memsz] == size(bytes)
   assert size(bytes) == 120 + size(code)
   assert slice_bytes(bytes, 120, size(code)) == code
+  assert exec_segment(executable(code, true))[:flags] == 7
 end

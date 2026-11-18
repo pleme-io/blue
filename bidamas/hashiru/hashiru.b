@@ -7,9 +7,9 @@ This first code generator is the simplest correct one: every named value lives i
 """
 
 use("kaaneru/erufu", [:executable])
-use("kikaigo", [:assemble])
+use("kikaigo", %i[assemble le64])
 use("kuzushi", %i[anf closure_convert head_is? perceus_program whole])
-use("retsu", %i[drop_n first flat_map index_of last rest take_n])
+use("retsu", %i[drop_n first flat_map index_of last rest slice take_n])
 use("shisutemu", %i[status_of stdout_of])
 
 @doc """
@@ -671,6 +671,9 @@ RT_DROP = append(
       {op: "cmp", dst: "rcx", imm: 0},
       {op: "j", cond: "ne", label: "rt_drop_out"},
       {op: "load", dst: "rdx", base: "rdi", disp: 16},
+      {op: "load", dst: "rax", base: "rdi", disp: 0},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "e", label: "rt_drop_free"},
       {op: "mov", dst: "rcx", imm: 3},
       {op: "label", name: "rt_drop_loop"},
       {op: "cmp", dst: "rcx", src: "rdx"},
@@ -714,7 +717,9 @@ tagged_atom: the instructions that put an atom's runtime value in a register: an
     tagged_atom([], 20, "rax") #=> [{op: "mov", dst: "rax", imm: 41}]
 """
 def tagged_atom(slots, a, r)
-  if symbol?(a)
+  if string?(a)
+    [{op: "lea_label", dst: r, label: str_label(a)}]
+  elsif symbol?(a)
     [{op: "load", dst: r, disp: slot(slots, to_s(a))}]
   elsif a == true
     [{op: "mov", dst: r, imm: 2}]
@@ -781,6 +786,34 @@ def rc_op(slots, op, args)
     part_code(slots, args[0], 24)
   elsif op == "rest"
     part_code(slots, args[0], 32)
+  elsif op == "string_length"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [
+        {op: "load", dst: "rax", base: "rdi", disp: 24},
+        {op: "add", dst: "rax", src: "rax"},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rax"}
+      ]
+    )
+  elsif op == "print"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [
+        {op: "push", src: "rdi"},
+        {op: "mov", dst: "rsi", src: "rdi"},
+        {op: "add", dst: "rsi", imm: 32},
+        {op: "load", dst: "rdx", base: "rdi", disp: 24},
+        {op: "mov", dst: "rax", imm: 1},
+        {op: "mov", dst: "rdi", imm: 1},
+        {op: "syscall"},
+        {op: "pop", dst: "rdi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "mov", dst: "rax", imm: 0}
+      ]
+    )
   elsif op == "length"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1324,7 +1357,19 @@ def rc_whole(w, mode)
     [[], 100_000],
     w[:globals]
   )
-  append(*[take_n(base, start), globals[0], drop_n(base, start)])
+  append(
+    *[
+      take_n(base, start),
+      globals[0],
+      drop_n(base, start),
+      string_data(
+        append(
+          literals_in(w[:main]),
+          flat_map(append(w[:fns], w[:globals]), (f) -> literals_in(f[:body]))
+        )
+      )
+    ]
+  )
 end
 
 @doc """
@@ -1333,7 +1378,7 @@ compile_whole: a program with global functions compiled through Perceus to a ref
     compile_whole(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_whole(form, mode)
-  executable(assemble(rc_whole(whole(form), mode)))
+  executable(assemble(rc_whole(whole(form), mode)), true)
 end
 
 @doc """
@@ -1398,4 +1443,164 @@ test "a global function is a label called directly, its parameters from ARG_REGS
   assert last(insns) == {op: "ret"}
   assert length(RECURSIVE_PROGRAMS) == 5
   assert compile_whole(read_forms("1")[0], :exit)[1] == 69
+end
+
+@doc """
+str_label: the label of a string literal's static block, from its bytes, so equal literals share one block.
+
+    str_label("hi") #=> "str_6869"
+"""
+def str_label(s)
+  "str_#{hex_encode(s)}"
+end
+
+@doc """
+strings_in: every distinct string literal anywhere in a tree, in first-seen order.
+
+    strings_in(["a", ["b", "a"], 3]) #=> ["a", "b"]
+"""
+def strings_in(x)
+  if string?(x)
+    [x]
+  elsif list?(x)
+    reduce(
+      fn(acc, c)
+        reduce(
+          fn(a2, s)
+            if member?(s, a2)
+              a2
+            else
+              append(a2, [s])
+            end
+          end,
+          acc,
+          strings_in(c)
+        )
+      end,
+      [],
+      x
+    )
+  else
+    []
+  end
+end
+
+@doc """
+IMMORTAL: the count a static block starts with, so high that no program's drops reach zero: a literal is never freed.
+
+    IMMORTAL #=> 1_099_511_627_776
+"""
+IMMORTAL = 1_099_511_627_776
+
+@doc """
+string_block: the bytes of a static string block: kind 1, an immortal count, its size in words, its length in bytes, then its UTF-8 bytes padded to a word.
+
+    length(string_block("hi")) #=> 40
+"""
+def string_block(s)
+  b = text_bytes(s)
+  words = floor((length(b) + 7) / 8)
+  pad = map((k) -> 0, range(0, words * 8 - length(b)))
+  append(*[le64(1), le64(IMMORTAL), le64(4 + words), le64(length(b)), b, pad])
+end
+
+@doc """
+string_data: the data section of a program: each literal's label and its static block.
+
+    string_data([])  #=> []
+"""
+def string_data(strings)
+  flat_map(
+    strings,
+    fn(s)
+      [{op: "label", name: str_label(s)}, {op: "bytes", bytes: string_block(s)}]
+    end
+  )
+end
+
+@doc """
+STRING_PROGRAMS: programs over strings, with the exit status and the output each must give.
+
+    STRING_PROGRAMS[1][1] #=> 4
+"""
+STRING_PROGRAMS = [
+  ["(begin (print \"hello, world\\n\") 0)", 0, unlines(["hello, world"])],
+  ["(string_length \"blue\")", 4, ""],
+  ["(let ((s \"ab\")) (+ (string_length s) (string_length s)))", 4, ""],
+  [
+    "(begin (define (greet s) (print s)) (greet \"hi\\n\") (greet \"there\\n\") 7)",
+    7,
+    unlines(%w[hi there])
+  ],
+  [
+    "(let ((f (lambda (x) (print x)))) (begin (f \"one\\n\") (f \"two\\n\") 2))",
+    2,
+    unlines(%w[one two])
+  ]
+]
+
+test "every string program prints what it should, exits with its value and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "s.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_whole(form, :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_whole(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      STRING_PROGRAMS
+    )
+  end
+end
+
+test "a string literal is one immortal static block, labelled by its bytes"
+  assert str_label("hi") == "str_6869"
+  assert strings_in(read_forms("(print \"a\") (f \"a\" \"b\")")) == %w[a b]
+  b = string_block("hi")
+  assert slice(b, 0, 8) == le64(1)
+  assert slice(b, 24, 8) == le64(2)
+  assert slice(b, 32, 2) == [104, 105]
+  assert length(b) % 8 == 0
+  assert IMMORTAL > 1_000_000_000
+  assert string_data(["x"])[0] == {op: "label", name: "str_78"}
+  assert tagged_atom([], "x", "rcx") ==
+    [{op: "lea_label", dst: "rcx", label: "str_78"}]
+  assert member?({op: "syscall"}, rc_op([], "print", ["x"]))
+  assert length(STRING_PROGRAMS) == 5
+  assert literals_in(
+    read_forms("(let (t (gcall \"f\" \"x\")) (ret \"y\"))")[0]
+  ) == %w[x y]
+end
+
+@doc """
+literals_in: the string literals a term uses as values, in first-seen order: the label of a closure and the name of a global call are names, not values, and are left out.
+
+    literals_in(read_forms("(let (t (gcall \"f\" \"x\")) (ret t))")[0]) #=> ["x"]
+"""
+def literals_in(term)
+  if head_is?(term, "ret")
+    strings_in([term[1]])
+  else
+    rhs = term[1][1]
+    here = if head_is?(rhs, "if")
+      append(
+        strings_in([rhs[1]]),
+        append(literals_in(rhs[2]), literals_in(rhs[3]))
+      )
+    elsif head_is?(rhs, "closure") or head_is?(rhs, "gcall")
+      strings_in(rest(rest(rhs)))
+    else
+      strings_in(rest(rhs))
+    end
+    strings_in([here, literals_in(term[2])])
+  end
 end

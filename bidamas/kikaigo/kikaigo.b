@@ -164,7 +164,10 @@ def encode(i)
   elsif op == "call_label"
     append([232], le32(i[:rel] or 0))
   elsif op == "lea_label"
-    append([72, 141, 5], le32(i[:rel] or 0))
+    d = reg(i[:dst] or "rax")
+    append([rex(d, 0), 141, d % 8 * 8 + 5], le32(i[:rel] or 0))
+  elsif op == "bytes"
+    i[:bytes]
   elsif op == "call_r11"
     [65, 255, 19]
   elsif op == "push_rbp"
@@ -363,6 +366,15 @@ def base_of(i)
 end
 
 @doc """
+le64: a non-negative integer as eight little-endian bytes.
+
+    le64(1) #=> [1, 0, 0, 0, 0, 0, 0, 0]
+"""
+def le64(n)
+  append(le32(n % 4_294_967_296), le32(floor(n / 4_294_967_296)))
+end
+
+@doc """
 assemble: the bytes of a sequence of instructions, in order.
 
     assemble([{op: "syscall"}, {op: "ret"}]) #=> [15, 5, 195]
@@ -524,6 +536,16 @@ test "a memory base is any register but rsp and r12, which need a SIB byte"
     e.kind
   end
   assert refused == :unsupported_base
+end
+
+test "lea of a label reaches any register, and raw bytes are placed as they are"
+  assert encode({op: "lea_label", dst: "rcx", rel: 0}) ==
+    [72, 141, 13, 0, 0, 0, 0]
+  assert encode({op: "lea_label", dst: "r9", rel: 0}) ==
+    [76, 141, 13, 0, 0, 0, 0]
+  assert encode({op: "lea_label", rel: 0}) == [72, 141, 5, 0, 0, 0, 0]
+  assert encode({op: "bytes", bytes: [1, 2, 3]}) == [1, 2, 3]
+  assert le64(4_294_967_297) == [1, 0, 0, 0, 1, 0, 0, 0]
 end
 
 test "the helpers are exercised by name"

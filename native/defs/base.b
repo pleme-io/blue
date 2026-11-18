@@ -33,3 +33,15 @@ def pick(b: Bool, x: Int) -> Int
     0
   end
 end
+
+def area(r: Float) -> Float
+  3.5 * r * r
+end
+
+def half(x: Float) -> Float
+  x / 2
+end
+
+def wide(x: Float, n: Int) -> Bool
+  x > n
+end

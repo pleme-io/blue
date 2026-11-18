@@ -902,12 +902,23 @@ fn read_typed_decl(form: &Spanned) -> Option<(String, Sig)> {
     ))
 }
 
+/// The operators that take numbers, Int or Float, as the runtime does: an
+/// Int that meets a Float is widened. `Some(Bool)` for an order; `None` for
+/// arithmetic, which answers a Float when an operand is one and an Int
+/// otherwise.
+fn numeric_op(op: &str) -> Option<Option<Ty>> {
+    match op {
+        "+" | "-" | "*" | "/" => Some(None),
+        "<" | "<=" | ">" | ">=" => Some(Some(Ty::Bool)),
+        _ => None,
+    }
+}
+
 /// Arithmetic and comparison shapes, so operators can be checked without
 /// a full trait system at this rung.
 fn op_sig(op: &str) -> Option<(Ty, Ty)> {
     Some(match op {
-        "+" | "-" | "*" | "/" | "%" => (Ty::Int, Ty::Int),
-        "<" | "<=" | ">" | ">=" => (Ty::Int, Ty::Bool),
+        "%" => (Ty::Int, Ty::Int),
         "==" | "!=" => (Ty::Dyn, Ty::Bool),
         "&&" | "||" => (Ty::Bool, Ty::Bool),
         _ => return None,
@@ -1235,6 +1246,51 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
             }
 
             // Operators
+            if let Some(ret) = numeric_op(head) {
+                let mut float = false;
+                let mut width: Option<Ty> = None;
+                let mut literals: Vec<&Spanned> = Vec::new();
+                for a in &items[1..] {
+                    let got = infer(a, env, cx, out);
+                    if let Ty::IntOf { .. } = got {
+                        match &width {
+                            Some(w) if *w != got => out.diagnostics.push(Diagnostic::new(
+                                Code::B0004,
+                                format!("`{head}` mixes {} and {}", w.name(), got.name()),
+                                a.span,
+                            )),
+                            Some(_) => {}
+                            None => width = Some(got.clone()),
+                        }
+                    } else if literal_int(a).is_some() {
+                        literals.push(a);
+                    }
+                    if got == Ty::Float {
+                        float = true;
+                    } else if !got.accepts(&Ty::Int) {
+                        out.diagnostics.push(Diagnostic::new(
+                            Code::B0004,
+                            format!("`{head}` expects Int or Float, got {}", got.name()),
+                            a.span,
+                        ));
+                    }
+                }
+                if let Some(w) = &width {
+                    for a in literals {
+                        if let Some(why) = out_of_range(a, w) {
+                            out.diagnostics.push(Diagnostic::new(
+                                Code::B0004,
+                                format!("`{head}` operand {why}"),
+                                a.span,
+                            ));
+                        }
+                    }
+                    if ret.is_none() && !float {
+                        return w.clone();
+                    }
+                }
+                return ret.unwrap_or(if float { Ty::Float } else { Ty::Int });
+            }
             if let Some((arg, ret)) = op_sig(head) {
                 let mut width: Option<Ty> = None;
                 let mut literals: Vec<&Spanned> = Vec::new();
@@ -1494,6 +1550,24 @@ mod tests {
             "{:?}",
             msgs(&o)
         );
+    }
+
+    #[test]
+    fn arithmetic_on_a_float_answers_a_float_and_an_order_takes_one() {
+        for src in [
+            "def f(x: Float) -> Float\n  x * 0.5\nend",
+            "def f(x: Float, n: Int) -> Float\n  n + x - 1\nend",
+            "def f(x: Float) -> Bool\n  x > 2\nend",
+        ] {
+            let o = check(src);
+            assert!(o.ok(), "{src}: {:?}", msgs(&o));
+        }
+        for src in [
+            "def f(x: Float) -> Int\n  x * 2\nend",
+            "def f(n: Int) -> Float\n  n + 1\nend",
+        ] {
+            assert!(!check(src).ok(), "{src}");
+        }
     }
 
     #[test]

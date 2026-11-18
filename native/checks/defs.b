@@ -134,3 +134,40 @@ test "a Bool crosses the seam both ways", {kind: :integration}
   assert interpreted(work, "big", [5], off) == unlines(["true"])
   assert interpreted(work, "big", [5], swapped) == unlines(["false"])
 end
+
+test "a Float crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-float")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [
+    ["area", [1.5]],
+    ["half", [-3.0]],
+    ["wide", [2.5, 2]],
+    ["wide", [1.5, 2]]
+  ]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("area"))
+  mkdir_p(shelf)
+  half = path_join(root, "native", "v1", hex_of("half"))
+  exec_capture("ln", "-s", path_join(half, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(half, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  assert interpreted(work, "area", [4.0], off) == unlines(["56.0"])
+  assert interpreted(work, "area", [4.0], swapped) == unlines(["2.0"])
+end

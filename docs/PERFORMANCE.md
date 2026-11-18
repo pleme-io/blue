@@ -382,7 +382,7 @@ once in the fleet. What is built (2026-11-16):
 | manifest | `native/build/defs.b`, `generate("native-defs", …)` in `native/Bluefile` | one JSON line per definition of each program under `native/defs/`, with `native` true when chuuzou compiles it for the tier (`cz_def_native`) and `refused` saying why when not; committed and gated fresh (`checks.native-generated-native-defs-fresh`) |
 | one derivation per hash | `nix/native-defs.nix` (`artifact`, `defs`, `root`) | `blue-native-<hex>`: its only program input is the slice (`passAsFile`); chuuzou lowers it with the definition as `pub fn entry(io, args: &Args) -> i64` (`cz_lower_def`) and links it with `native/seam/def64/seam.rs`; the seam set is narrowed to the four files it links, so a board's own seam changing rebuilds no definition |
 | the store layout | `blue_lang_mondou::store::native_artifact` (`NATIVE_TIER`, `NATIVE_LAYOUT`) | `<root>/native/v1/<hex>/def`, found through `BLUE_CACHE_SHARED` as the check, memo and test tiers are; `root` joins a manifest's artifacts into one such root (`packages.native-defs-base`) |
-| the run-time seam | `native::Tier` (a `CallObserver`), on by default (R7); `BLUE_NATIVE=on` answers every call it can, `off` none | a call of a function whose hash has an artifact, every argument an Int or a Bool as its signature names it, is answered by the artifact: in process through `def.so` when the build made one (loaded once with `dlopen`, `crates/blue-lang-cli/src/dl.rs`, the one unsafe seam), else by running `def`; any other call, and an artifact that faults, prints or refuses, runs in the interpreter |
+| the run-time seam | `native::Tier` (a `CallObserver`), on by default (R7); `BLUE_NATIVE=on` answers every call it can, `off` none | a call of a function whose hash has an artifact, every argument an Int, a Bool or a Float as its signature names it, is answered by the artifact: in process through `def.so` when the build made one (loaded once with `dlopen`, `crates/blue-lang-cli/src/dl.rs`, the one unsafe seam), else by running `def`; any other call, and an artifact that faults, prints or refuses, runs in the interpreter |
 | the node's builder | `native/build/wanted.b`, packaged as `native-build` (`nix/native.nix`) | a run whose evaluation took 20 ms or more, with a native tier present, writes `<cache>/blue/native/wanted/<content hash of the text>` and starts `BLUE_NATIVE_BUILDER`; the builder builds each function chuuzou compiles into `<cache>/blue/native/v1/<hex>/`, which `store::native_roots` reads before `BLUE_CACHE_SHARED` |
 | the library | `native/seam/def64/lib.rs`, linked by `cz_def_image` from the same rlibs as `def` | `blue_def_entry(args, len, out)`: the definition on a thread with the board's stack, 0 with the result, 1 when it faulted or printed (its own panic hook is silent), 2 on a null pointer |
 | the profile | `blue_lang_mondou::store::profile` (`PROFILE_TIER`, `PROFILE_LAYOUT`), `native::planned` | `<cache_root>/profile/v1/<hex>`: the total nanoseconds and the count of a definition's outermost calls, added to by every run that times it; keyed by `def_hash`, so it never goes stale |
@@ -643,6 +643,35 @@ formats a whole tree in well under a second, through one pipeline (parse →
 check → erase → run). Each item below names its expected gain. A gain marked
 measured comes from section 1 or 4; every other gain is an estimate from the
 sample shares in section 2. The items are in order of gain over risk.
+
+### 3.0.1 Five rules for speed work
+
+Blue wins speed by doing less work, from what it knows (section 3.0). Five rules follow:
+
+- **Measure the term before the lever.** A run costs build, start, front end, dispatch,
+  name lookup and the program's own work; profile which one leads (`blue run --timings`,
+  `sample`) before changing anything, and keep the change only on a measured gain.
+- **Levers are chosen by default.** Blue picks the lever from a fact it holds (a
+  definition's content hash, its purity, a frame's version, the nix store), names the
+  choice in a receipt (the door receipt), and gives it an off switch (`BLUE_MEMO=off`,
+  `BLUE_DOOR=walker`, `BLUE_FUSE=off`, `BLUE_FOLD=off`, `BLUE_NATIVE=off`). The author never needs a flag
+  to be fast. The shipped rules are the table in section 1.4.0: a pure definition that
+  calls itself twice runs memoized, a chain of pure callbacks runs as one pass, and a
+  pure call on literals in a loop runs once.
+- **Defaults cascade per atom.** A definition (then a region in it) takes its
+  defaults from its own facts: its blueshift position on each axis, its effects over
+  the call graph, its shape in the AST, its placement. Each default is a Horn rule
+  (facts imply a lever), so annotating or purifying one definition turns on defaults
+  for it and for every caller it completes. A new capability names the rule it adds.
+  This is not only about speed: every automatic choice blue makes is a fact, a rule,
+  an exact fallback and a receipt with a switch, and meets the contract in
+  [FACTS.md](FACTS.md) §2 before it ships.
+- **A cache is keyed by a fact that only grows**, so it has a miss path and no
+  invalidation: content hashes, frame versions, store paths.
+- **Rust is for what blue cannot reach**: the evaluator and its seams. Every decision,
+  plan, rule and library word is blue. A word moved to Rust for a measured speed-up
+  goes back to blue once chuuzou compiles it to native code, and the road ends with
+  blue hosting itself.
 
 ### 3.1 Linear library words, with a gate (built in part)
 

@@ -140,6 +140,7 @@ pub(crate) fn defs(
 enum Word {
     Int,
     Bool,
+    Float,
 }
 
 /// What a definition takes and answers, as the tier converts it across the
@@ -161,6 +162,7 @@ impl Shape {
         let word = |t: &Spanned| match t.as_symbol()? {
             "Int" => Some(Word::Int),
             "Bool" => Some(Word::Bool),
+            "Float" => Some(Word::Float),
             _ => None,
         };
         let params = items
@@ -179,6 +181,7 @@ impl Shape {
         let take = |a: &Value, w: Word| match (a, w) {
             (Value::Int(n), Word::Int) => Some(*n),
             (Value::Bool(b), Word::Bool) => Some(i64::from(*b)),
+            (Value::Float(x), Word::Float) => Some(x.to_bits().cast_signed()),
             _ => None,
         };
         match self {
@@ -194,6 +197,7 @@ impl Shape {
     fn value(&self, v: i64) -> Value {
         match self {
             Self::Typed(_, Word::Bool) => Value::Bool(v != 0),
+            Self::Typed(_, Word::Float) => Value::Float(f64::from_bits(v.cast_unsigned())),
             _ => Value::Int(v),
         }
     }
@@ -261,6 +265,21 @@ pub(crate) fn mode() -> Mode {
 struct Timing {
     open: HashMap<Span, (u32, Option<std::time::Instant>)>,
     seen: HashMap<DefHash, blue_lang_mondou::store::Profiled>,
+    tail: Option<(Span, DefHash)>,
+}
+
+impl Timing {
+    fn close(&mut self, source: Span, hash: DefHash) {
+        let Some(started) = self.open.get_mut(&source).and_then(|o| o.1.take()) else {
+            return;
+        };
+        let ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        let p = self.seen.entry(hash).or_default();
+        *p = p.plus(blue_lang_mondou::store::Profiled {
+            total_ns: ns,
+            calls: 1,
+        });
+    }
 }
 
 /// The native tier over one program: each function definition whose
@@ -549,6 +568,13 @@ impl CallObserver for Tier {
         if let Some(answered) = self.inner.as_ref().and_then(|i| i.enter(call_, args)) {
             return Some(answered);
         }
+        if let Ok(mut t) = self.timing.lock() {
+            if let Some((source, hash)) = t.tail.take() {
+                if source != call_.source {
+                    t.close(source, hash);
+                }
+            }
+        }
         let target = self.target(call_)?;
         if self.answers && target.hot {
             let answered = target
@@ -564,7 +590,7 @@ impl CallObserver for Tier {
         }
         if let Ok(mut t) = self.timing.lock() {
             let open = t.open.entry(call_.source).or_insert((0, None));
-            if open.0 == 0 {
+            if open.0 == 0 && open.1.is_none() {
                 open.1 = Some(std::time::Instant::now());
             }
             open.0 += 1;
@@ -591,15 +617,11 @@ impl CallObserver for Tier {
             if open.0 > 0 {
                 return;
             }
-            let Some(started) = open.1.take() else {
+            if matches!(exit, Exit::TailCalled) {
+                t.tail = Some((call_.source, hash));
                 return;
-            };
-            let ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
-            let p = t.seen.entry(hash).or_default();
-            *p = p.plus(blue_lang_mondou::store::Profiled {
-                total_ns: ns,
-                calls: 1,
-            });
+            }
+            t.close(call_.source, hash);
         }
     }
 }
@@ -630,6 +652,17 @@ mod tests {
         assert!(matches!(small.value(0), Value::Bool(false)));
         assert!(matches!(small.value(1), Value::Bool(true)));
         assert_eq!(shape("(define-typed (%root/s (t String)) Int 0)"), None);
+    }
+
+    #[test]
+    fn a_float_crosses_the_seam_as_its_bits_both_ways() {
+        let half = shape("(define-typed (%root/half (x Float)) Float (* x 0.5))").expect("a shape");
+        assert_eq!(half, Shape::Typed(vec![Word::Float], Word::Float));
+        let bits = (-2.5f64).to_bits().cast_signed();
+        assert_eq!(half.words(&[Value::Float(-2.5)]), Some(vec![bits]));
+        assert_eq!(half.words(&[Value::Int(3)]), None);
+        assert!(matches!(half.value(bits), Value::Float(x) if x == -2.5));
+        assert!(matches!(half.value(0), Value::Float(x) if x == 0.0));
     }
 
     fn checked(src: &str) -> blue_lang_runtime::pipeline::Checked {

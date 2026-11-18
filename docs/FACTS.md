@@ -167,7 +167,27 @@ Each wave lists defaults in the order their gain is known. Each default meets
     left an Int) and `checks.native-defs` "a Bool crosses the seam both ways"
     (`small`, `big`, `pick` in `native/defs/base.b`; `big` answered by
     `small`'s library proves the library answered).
-  - Next: Float, then strings.
+  - ✅ Float, on the host board: an f64 natively, a literal as its exact
+    IEEE-754 bits (chuuzou computes them by halving and doubling, both exact),
+    an Int that meets a Float widened as the interpreter widens it, `/`
+    faulting on a zero divisor where the interpreter raises; `mod` and
+    `floor` of a Float stay refused. A Float crosses the seam as its bits.
+    The checker had typed `+ - * /` and the orders as Int only, so no typed
+    Float definition with arithmetic passed the check stage; they now take
+    numbers and answer a Float when an operand is one. The profile now counts
+    a loop of tail calls as one outermost call (`Exit::TailCalled`), where it
+    counted each step and so never found a tail loop hot. `drift(3_000_000,
+    1.0)`, a Float tail loop, with no flag: 0.62 s interpreted, 0.01 s native
+    from the second run, the same answer. Locks: `tests/native_tier.rs`
+    `a_float_crosses_the_seam_as_its_bits_both_ways` (red with the answer
+    left an Int) and `a_loop_of_tail_calls_is_one_outermost_call_in_the_profile`
+    (red without the tail rule: 10,007 calls); chuuzou's Float tests (exact
+    bits, what compiles, what is refused); the checker's
+    `arithmetic_on_a_float_answers_a_float_and_an_order_takes_one` (red with
+    Int answered); `checks.native-defs` "a Float crosses the seam both ways"
+    (`area`, `half`, `wide`; a swapped library proves the library answered);
+    `spec/rows/check.b` `check.float_arithmetic`, `check.float_into_int`.
+  - Next: strings.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

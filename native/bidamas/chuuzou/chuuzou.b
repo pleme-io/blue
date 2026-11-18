@@ -29,6 +29,9 @@ i64 on the host board `host64`):
   NAME = <expr>             a local of the top level, read by later top-level forms
   + - * mod                 kiban_io::checked(a.checked_op(b)): overflow is a fault
   floor(a / b)              kiban_io::floor_div (i64) or checked_div (u32)
+  x: Float, 2.5             f64 on the host board only, a literal as its exact
+                            bits (kiban_io::float); an Int meeting a Float is
+                            widened, `/` on Floats faults on a zero divisor
   wrapping_add(a, b)        a.wrapping_add(b), on the 32-bit word only
   == != < <= > >= not and or  comparisons and logic
   if / begin                if / blocks; an `if` with no else where its value is dropped
@@ -132,6 +135,8 @@ def cz_atom(tok)
   n = to_int(tok)
   if n != nil
     n
+  elsif contains?(tok, ".") and to_float(tok) != nil
+    {flt: to_float(tok)}
   elsif starts_with?(tok, "\"")
     {str: cz_unescape(butlast(rest(chars(tok))))}
   elsif starts_with?(tok, ":")
@@ -299,6 +304,70 @@ def rs_word(n, word)
 end
 
 @doc """
+cz_float?: Whether `n` is a Float literal of the tree.
+
+    cz_float?(first(cz_read("1.5"))) #=> true
+    cz_float?(3) #=> false
+"""
+def cz_float?(n)
+  map?(n) and n[:flt] != nil
+end
+
+@doc """
+cz_float_bits: The IEEE-754 bits of the normal or zero Float `x`, as the signed word
+holds them: halving and doubling a Float is exact, so the exponent and the
+mantissa are found with no rounding. A subnormal or infinite literal is
+refused.
+
+    cz_float_bits(1.5) #=> 4_609_434_218_613_702_656
+    cz_float_bits(-2.0) #=> -4_611_686_018_427_387_904
+    cz_float_bits(0.0) #=> 0
+"""
+def cz_float_bits(x)
+  if x == 0.0
+    0
+  else
+    st = reduce(
+      fn(s, _)
+        if s[:a] >= 2.0
+          {a: s[:a] / 2.0, e: s[:e] + 1}
+        elsif s[:a] < 1.0
+          {a: s[:a] * 2.0, e: s[:e] - 1}
+        else
+          s
+        end
+      end,
+      {a: abs(x), e: 0},
+      range(1100)
+    )
+    if st[:a] < 1.0 or st[:a] >= 2.0 or st[:e] < -1022 or st[:e] > 1023
+      cz_refuse(
+        "the Float #{x} is not a normal double; only normal literals have a native form"
+      )
+    end
+    unit = 4_503_599_627_370_496
+    mag = (st[:e] + 1023) * unit + to_int(st[:a] * 4503599627370496.0) - unit
+    if x < 0.0
+      mag - 9_223_372_036_854_775_807 - 1
+    else
+      mag
+    end
+  end
+end
+
+@doc """
+rs_float: A Float as the host word holds it: its bits, made an f64 by `kiban_io::float`.
+
+    rs_float(1.5)[:func] #=> ["kiban_io", "float"]
+"""
+def rs_float(x)
+  rs_call(
+    %w[kiban_io float],
+    [{kind: "signed-int", value: cz_float_bits(x), suffix: "i64"}]
+  )
+end
+
+@doc """
 cz_word_ty: The Rust type of the board's word.
 
     cz_word_ty(64) #=> "i64"
@@ -379,7 +448,7 @@ end
 
 @doc """
 cz_sig_ty: The type a signature names: Int is the board word (:word), Bool is :bool,
-an untyped parameter (dyn) holds any record (:dyn), and a record's own name
+Float is :float (an f64, on the host board only), an untyped parameter (dyn) holds any record (:dyn), and a record's own name
 is that record, by its qualified name.
 
     cz_sig_ty({sym: "Int"}, []) #=> :word
@@ -392,6 +461,8 @@ def cz_sig_ty(n, records)
     :word
   elsif s == "Bool"
     :bool
+  elsif s == "Float"
+    :float
   elsif s == "dyn"
     :dyn
   elsif s == "List"
@@ -400,7 +471,7 @@ def cz_sig_ty(n, records)
     r[:name]
   else
     cz_refuse(
-      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, a record its struct, dyn any record"
+      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, a record its struct, dyn any record"
     )
   end
 end
@@ -417,6 +488,10 @@ def cz_rs_ty(ty, word)
     rs_ty(cz_word_ty(word))
   elsif ty == :bool
     rs_ty("bool")
+  elsif ty == :float and word == 64
+    rs_ty("f64")
+  elsif ty == :float
+    cz_refuse("a Float has a native form on the 64-bit host only; a board has no floating point")
   elsif ty == :dyn
     rs_ty("Rec")
   elsif ty == :list
@@ -496,6 +571,8 @@ def cz_ty_text(t)
     "an Int"
   elsif t == :bool
     "a Bool"
+  elsif t == :float
+    "a Float"
   elsif t == :dyn
     "any record"
   else
@@ -546,6 +623,8 @@ def cz_ty(n, ctx)
   h = cz_head(n)
   if integer?(n)
     :word
+  elsif cz_float?(n)
+    :float
   elsif cz_sym?(n)
     cz_lookup(cz_sym(n), ctx[:types] or []) or :word
   elsif not list?(n)
@@ -558,6 +637,9 @@ def cz_ty(n, ctx)
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
   elsif h == "list" or h == "append"
     :list
+  elsif (cz_lookup(h, cz_arith) != nil or h == "/") and
+      any?((a) -> cz_ty(a, ctx) == :float, rest(n))
+    :float
   elsif cz_record_named(ctx, h) != nil
     h
   elsif cz_record_tested(ctx, h) != nil
@@ -849,11 +931,85 @@ def cz_expr(n, ctx)
     else
       cz_refuse("`#{s}` is not a parameter or a constant here")
     end
+  elsif cz_float?(n) and ctx[:word] == 64
+    rs_float(n[:flt])
+  elsif cz_float?(n)
+    cz_refuse("a Float has a native form on the 64-bit host only; a board has no floating point")
   elsif list?(n) and count(n) > 0
     cz_call(n, ctx)
   else
     cz_refuse(
       "`#{to_s(n)}` has no native form at N0 (strings, keywords and floats are build-time only)"
+    )
+  end
+end
+
+@doc """
+cz_flt: `n` as an f64: a Float as it is, an Int widened, as the interpreter widens an
+Int that meets a Float in arithmetic or a comparison.
+
+    cz_flt(2, {word: 64})[:func] #=> ["kiban_io", "to_float"]
+"""
+def cz_flt(n, ctx)
+  t = cz_ty(n, ctx)
+  if t == :float
+    cz_expr(n, ctx)
+  elsif t == :word
+    rs_call(%w[kiban_io to_float], [cz_expr(n, ctx)])
+  else
+    cz_refuse("#{cz_ty_text(t)} cannot stand where a number is expected")
+  end
+end
+
+@doc """
+cz_float_arith: `+`, `-`, `*` or `/` with a Float operand, folded left as the interpreter
+folds it: Ints stay checked Int arithmetic until a Float joins, and from there
+each step is f64 arithmetic. `/` faults on a zero divisor, as the interpreter
+raises; `mod` and its kin raise on a Float, so they are refused.
+
+    cz_float_arith("+", "checked_add", cz_read("1 2.5"), {word: 64})[:op] #=> "add"
+"""
+def cz_float_arith(h, arith, args, ctx)
+  op = cz_lookup(h, [%w[+ add], %w[- sub], %w[* mul]])
+  if h == "/" and count(args) == 2
+    rs_call(
+      %w[kiban_io fdiv],
+      [cz_flt(first(args), ctx), cz_flt(second(args), ctx)]
+    )
+  elsif h == "/"
+    cz_refuse("`/` divides exactly two operands natively")
+  elsif op.nil?
+    cz_refuse(
+      "`#{h}` takes Ints; the interpreter raises on a Float, so it has no native form"
+    )
+  elsif count(args) < 2
+    cz_refuse("`#{h}` with #{count(args)} operands has no native form at N0")
+  else
+    step = fn(acc, b)
+      if acc[:ty] == :word and cz_ty(b, ctx) == :word
+        {
+          e: rs_call(
+            %w[kiban_io checked],
+            [rs_method(acc[:e], arith, [cz_expr(b, ctx)])]
+          ),
+          ty: :word
+        }
+      else
+        widened = if acc[:ty] == :float
+          acc[:e]
+        else
+          rs_call(%w[kiban_io to_float], [acc[:e]])
+        end
+        {e: rs_binary(op, widened, cz_flt(b, ctx)), ty: :float}
+      end
+    end
+    get(
+      reduce(
+        step,
+        {e: cz_expr(first(args), ctx), ty: cz_ty(first(args), ctx)},
+        rest(args)
+      ),
+      :e
     )
   end
 end
@@ -866,6 +1022,8 @@ def cz_call(n, ctx)
   logic = cz_lookup(h, cz_logic)
   if h.nil?
     cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
+  elsif (arith != nil or h == "/") and cz_ty(n, ctx) == :float
+    cz_float_arith(h, arith, args, ctx)
   elsif cz_plain?(h, args, ctx)
     rs_binary(
       if h == "-"
@@ -907,6 +1065,8 @@ def cz_call(n, ctx)
     tb = cz_ty(second(args), ctx)
     if ta == :word and tb == :word
       rs_binary(cmp, cz_expr(first(args), ctx), cz_expr(second(args), ctx))
+    elsif member?(ta, %i[word float]) and member?(tb, %i[word float])
+      rs_binary(cmp, cz_flt(first(args), ctx), cz_flt(second(args), ctx))
     elsif member?(h, %w[equal? not=])
       t = cz_unify(ta, tb)
       rs_binary(cmp, cz_as(first(args), t, ctx), cz_as(second(args), t, ctx))
@@ -1446,8 +1606,11 @@ word. A divisor of zero is a fault, as the interpreter raises.
 """
 def cz_floor(args, ctx)
   q = first(args)
-  if count(args) != 1 or cz_head(q) != "/" or count(q) != 3
-    cz_refuse("floor has a native form only as integer division, floor(a / b); floats have none")
+  if count(args) != 1 or
+      cz_head(q) != "/" or
+      count(q) != 3 or
+      cz_ty(q, ctx) == :float
+    cz_refuse("floor has a native form only as integer division of Ints, floor(a / b); a no_std crate has no floor of a Float")
   end
   a = cz_expr(second(q), ctx)
   b = cz_expr(third(q), ctx)
@@ -2706,7 +2869,7 @@ end
 
 @doc """
 cz_seam_arg: One argument of the native tier's seam, a word, as the parameter of type `ty`
-takes it: a Bool is the word's being nonzero.
+takes it: a Bool is the word's being nonzero, a Float the f64 its bits are.
 
     cz_seam_arg(rs_path("a"), :bool)[:op] #=> "ne"
     cz_seam_arg(rs_path("a"), :word) #=> {kind: "path", segments: ["a"]}
@@ -2714,19 +2877,24 @@ takes it: a Bool is the word's being nonzero.
 def cz_seam_arg(e, ty)
   if ty == :bool
     rs_binary("ne", e, rs_word(0, 64))
+  elsif ty == :float
+    rs_call(%w[kiban_io float], [e])
   else
     e
   end
 end
 
 @doc """
-cz_seam_result: The entry's result as the seam's word: a Bool answers 1 or 0.
+cz_seam_result: The entry's result as the seam's word: a Bool answers 1 or 0, a Float
+its bits.
 
     cz_seam_result(rs_path("r"), :bool)[:kind] #=> "block"
     cz_seam_result(rs_path("r"), :word) #=> {kind: "path", segments: ["r"]}
 """
 def cz_seam_result(e, ty)
-  if ty == :bool
+  if ty == :float
+    rs_call(%w[kiban_io float_word], [e])
+  elsif ty == :bool
     {
       kind: "block",
       block: rs_block(
@@ -2749,9 +2917,10 @@ end
 @doc """
 cz_lower_def: The slice `forms` lowered for the host board with the definition `key`
 as its entry (tier T3): `pub fn entry(io, args: &Args) -> i64` checks the
-arity and calls it from depth zero, a Bool crossing the seam as 1 or 0.
-Refused unless `key` takes and answers Ints and Bools and nothing in the
-slice reaches the board, the calls the native tier can answer.
+arity and calls it from depth zero, a Bool crossing the seam as 1 or 0 and a
+Float as its bits. Refused unless `key` takes and answers Ints, Bools and
+Floats and nothing in the slice reaches the board, the calls the native tier
+can answer.
 
     cz_lower_def(cz_read("(define-typed (%root/sq (x Int)) Int (* x x))"), "%root/sq") != nil #=> true
 """
@@ -2772,9 +2941,9 @@ def cz_lower_def(forms, key)
     map((p) -> cz_sig_ty(second(p), []), rest(second(form))),
     [cz_sig_ty(third(form), [])]
   )
-  if not every?((t) -> member?(t, %i[word bool]), types)
+  if not every?((t) -> member?(t, %i[word bool float]), types)
     cz_refuse(
-      "`#{cz_local(key)}` takes or answers something other than an Int or a Bool; the native tier's guard is an Int or a Bool per argument"
+      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool or a Float; the native tier's guard is one of those per argument"
     )
   end
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
@@ -3414,4 +3583,66 @@ test "a slice with no recursion is shallow, and one that recurses is not"
     "%root/f"
   )
   assert last(f[:items]) == cz_shallow_fn(false)
+end
+
+test "a Float literal is its exact bits, and a Float definition compiles"
+  assert cz_float_bits(1.5) == 4_609_434_218_613_702_656
+  assert cz_float_bits(0.1) == 4_591_870_180_066_957_722
+  assert cz_float_bits(-2.0) == -4_611_686_018_427_387_904
+  assert cz_float_bits(0.0) == 0
+  assert (cz_float_bits(to_float("1.0e-310")) rescue :refused) == :refused
+  assert cz_read("2.5") == [{flt: 2.5}]
+  assert cz_float?({flt: 2.5}) and not cz_float?(2)
+  assert rs_float(1.5)[:args] ==
+    [{kind: "signed-int", value: 4_609_434_218_613_702_656, suffix: "i64"}]
+  assert cz_flt(2, {word: 64}) ==
+    rs_call(%w[kiban_io to_float], [rs_word(2, 64)])
+  assert get(
+    cz_float_arith("*", "checked_mul", cz_read("2 3 0.5"), {word: 64})[:lhs],
+    :args
+  ) ==
+    [
+      rs_call(
+        %w[kiban_io checked],
+        [rs_method(rs_word(2, 64), "checked_mul", [rs_word(3, 64)])]
+      )
+    ]
+  a = rs_path("a")
+  assert cz_seam_arg(a, :float)[:func] == %w[kiban_io float]
+  assert cz_seam_result(a, :float)[:func] == %w[kiban_io float_word]
+  assert cz_def_native(
+    "(define-typed (%root/h (x Float)) Float (/ x 2))",
+    "%root/h"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/a (r Float)) Float (* 3.5 r r))",
+    "%root/a"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/w (x Float) (n Int)) Bool (> x n))",
+    "%root/w"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/m (n Int)) Float (+ n n 0.5))",
+    "%root/m"
+  ).nil?
+end
+
+test "a Float is refused where the interpreter would not answer one"
+  assert cz_def_native(
+    "(define-typed (%root/r (x Float)) Float (mod x 2))",
+    "%root/r"
+  ) != nil
+  assert cz_def_native(
+    "(define-typed (%root/i (x Float)) Float 1)",
+    "%root/i"
+  ) != nil
+  assert cz_def_native(
+    "(define-typed (%root/b (c Bool) (x Float)) Float (if c x 0))",
+    "%root/b"
+  ) != nil
+  assert cz_def_native(
+    "(define-typed (%root/f (x Float)) Int (floor (/ x 2)))",
+    "%root/f"
+  ) != nil
 end

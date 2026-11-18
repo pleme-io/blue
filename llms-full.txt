@@ -4355,33 +4355,13 @@ loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-develo
 
 ### Speed: blue decides, Rust carries
 
-Blue wins speed by doing less work, from what it knows ([PERFORMANCE.md](docs/PERFORMANCE.md) §3.0).
-Five rules follow:
-
-- **Measure the term before the lever.** A run costs build, start, front end, dispatch,
-  name lookup and the program's own work; profile which one leads (`blue run --timings`,
-  `sample`) before changing anything, and keep the change only on a measured gain.
-- **Levers are chosen by default.** Blue picks the lever from a fact it holds (a
-  definition's content hash, its purity, a frame's version, the nix store), names the
-  choice in a receipt (the door receipt), and gives it an off switch (`BLUE_MEMO=off`,
-  `BLUE_DOOR=walker`, `BLUE_FUSE=off`, `BLUE_FOLD=off`, `BLUE_NATIVE=off`). The author never needs a flag
-  to be fast. The shipped rules are the table in [PERFORMANCE.md](docs/PERFORMANCE.md)
-  §1.4.0: a pure definition that calls itself twice runs memoized, a chain of pure
-  callbacks runs as one pass, and a pure call on literals in a loop runs once.
-- **Defaults cascade per atom.** A definition (then a region in it) takes its
-  defaults from its own facts: its blueshift position on each axis, its effects over
-  the call graph, its shape in the AST, its placement. Each default is a Horn rule
-  (facts imply a lever), so annotating or purifying one definition turns on defaults
-  for it and for every caller it completes. A new capability names the rule it adds.
-  This is not only about speed: every automatic choice blue makes is a fact, a rule,
-  an exact fallback and a receipt with a switch, and meets the contract in
-  [FACTS.md](docs/FACTS.md) §2 before it ships.
-- **A cache is keyed by a fact that only grows**, so it has a miss path and no
-  invalidation: content hashes, frame versions, store paths.
-- **Rust is for what blue cannot reach**: the evaluator and its seams. Every decision,
-  plan, rule and library word is blue. A word moved to Rust for a measured speed-up
-  goes back to blue once chuuzou compiles it to native code, and the road ends with
-  blue hosting itself.
+Blue wins speed by doing less work, from what it knows. The five rules are in
+[PERFORMANCE.md](docs/PERFORMANCE.md) §3.0.1: measure the term before the lever
+(`blue run --timings`); levers are chosen by default, with a receipt and an off switch
+(`BLUE_MEMO`, `BLUE_DOOR=walker`, `BLUE_FUSE`, `BLUE_FOLD`, `BLUE_NATIVE`, each `=off`);
+defaults cascade per atom as Horn rules, and a new capability names the rule it adds
+([FACTS.md](docs/FACTS.md) §2); a cache is keyed by a fact that only grows; Rust is for
+the evaluator and its seams only.
 
 ### One short way, built on the last
 

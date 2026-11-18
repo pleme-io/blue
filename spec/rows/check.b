@@ -50,6 +50,19 @@ row(
 )
 
 row(
+  "check.float_arithmetic",
+  join_lines(["def f(x: Float, n: Int) -> Float", "  n + x * 0.5", "end"]),
+  diagnoses([])
+)
+
+row(
+  "check.float_into_int",
+  join_lines(["def f(x: Float) -> Int", "  x * 2", "end"]),
+  diagnoses(["B0003"]),
+  covers("rule:B0003")
+)
+
+row(
   "check.B0005",
   join_lines(
     [

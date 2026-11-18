@@ -257,6 +257,78 @@ fn a_bool_crosses_the_seam_as_one_or_zero_both_ways() {
 }
 
 #[test]
+fn a_loop_of_tail_calls_is_one_outermost_call_in_the_profile() {
+    let dir = std::env::temp_dir().join(format!("blue-native-tier-tail-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch");
+    let program = dir.join("p.b");
+    std::fs::write(
+        &program,
+        "def down(n)\n  if n == 0\n    0\n  else\n    down(n - 1)\n  end\nend\n\ndef main()\n  write_stdout(to_s([down(10_000), down(5)]))\nend\n",
+    )
+    .expect("program");
+    let hex = hashes(&program)
+        .into_iter()
+        .find(|(k, _)| k == "%root/down")
+        .expect("down")
+        .1;
+    artifact(&dir.join("shared"), &hex, 99);
+    let f = Fixture { dir, program };
+    assert_eq!(run(&f, None), "[0, 0]");
+    let recorded = std::fs::read_to_string(
+        f.dir
+            .join("cache")
+            .join("blue")
+            .join("profile")
+            .join("v1")
+            .join(&hex),
+    )
+    .expect("a profile");
+    assert_eq!(
+        recorded.split_whitespace().nth(1),
+        Some("2"),
+        "two outermost calls, each a loop of tail calls: {recorded}"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}
+
+#[test]
+fn a_float_crosses_the_seam_as_its_bits_both_ways() {
+    let dir = std::env::temp_dir().join(format!("blue-native-tier-float-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch");
+    let program = dir.join("p.b");
+    std::fs::write(
+        &program,
+        "def half(x: Float) -> Float\n  x * 0.5\nend\n\ndef main()\n  write_stdout(to_s(half(5.0)))\nend\n",
+    )
+    .expect("program");
+    let shared = dir.join("shared");
+    let five = 5.0f64.to_bits().cast_signed();
+    let answer = 1.25f64.to_bits().cast_signed();
+    for (key, hex) in hashes(&program) {
+        if key == "%root/half" {
+            artifact(&shared, &hex, 99);
+            library(
+                &shared,
+                &hex,
+                &format!(
+                    "let x = unsafe {{ *args }};\n    unsafe {{ out.write(if x == {five} {{ {answer} }} else {{ -1 }}) }};\n    0"
+                ),
+            );
+        }
+    }
+    let f = Fixture { dir, program };
+    assert_eq!(run(&f, Some("off")), "2.5");
+    assert_eq!(
+        run(&f, Some("on")),
+        "1.25",
+        "5.0 reaches the library as its bits, and the bits it answers are a Float"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}
+
+#[test]
 fn a_library_that_does_not_load_keeps_the_process_threshold() {
     let f = fixture("unloadable");
     let quick = hashes(&f.program)

@@ -58,6 +58,37 @@ pub const fn floor_div(a: i64, b: i64) -> i64 {
     }
 }
 
+/// The f64 whose IEEE-754 bits the host word `bits` holds: how an emitted
+/// program writes a Float literal and takes a Float across the seam, with no
+/// decimal text to round.
+#[inline(always)]
+pub const fn float(bits: i64) -> f64 {
+    f64::from_bits(bits as u64)
+}
+
+/// The bits of `x` in the host word: a Float answered across the seam.
+#[inline(always)]
+pub const fn float_word(x: f64) -> i64 {
+    x.to_bits() as i64
+}
+
+/// An Int widened to a Float, as the interpreter widens one that meets a
+/// Float in arithmetic or a comparison.
+#[inline(always)]
+pub const fn to_float(n: i64) -> f64 {
+    n as f64
+}
+
+/// `a / b` on Floats. A zero divisor is a fault, as the interpreter raises
+/// `division by zero` where IEEE-754 would answer an infinity.
+#[inline(always)]
+pub fn fdiv(a: f64, b: f64) -> f64 {
+    if b == 0.0 {
+        fault()
+    }
+    a / b
+}
+
 /// One more frame of a recursive definition: the depth it runs at, or a
 /// fault past the board's declared bound, as the interpreter refuses a call
 /// past its depth.

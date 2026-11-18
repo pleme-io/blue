@@ -822,6 +822,8 @@ def tagged_atom(slots, a, r)
     [{op: "mov", dst: r, imm: 2}]
   elsif a == false or a.nil?
     [{op: "mov", dst: r, imm: 0}]
+  elsif 2 * a + 1 > 2_147_483_647 or 2 * a + 1 < -2_147_483_648
+    [{op: "movabs", dst: r, imm: 2 * a + 1}]
   else
     [{op: "mov", dst: r, imm: 2 * a + 1}]
   end
@@ -959,6 +961,8 @@ def rc_op(slots, op, args)
         {op: "pop", dst: "rax"}
       ]
     )
+  elsif member?(op, CLOCK_WORDS)
+    clock_code(slots, op, args)
   elsif op == "write_bytes"
     append(
       append(
@@ -3085,6 +3089,186 @@ test "write_bytes is a call to rt_write_bytes, which gathers, opens to create, w
   ]
   assert length(assemble(append(RT_WRITE_BYTES, stand_ins))) > 0
   assert length(path_on_stack("t")) > 0
+  assert tagged_atom([], 1_700_000_000, "rax") ==
+    [{op: "movabs", dst: "rax", imm: 3_400_000_001}]
+  assert tagged_atom([], 7, "rax") == [{op: "mov", dst: "rax", imm: 15}]
   assert errno_block(-24)[4] ==
     {op: "store", src: "rcx", base: "rbp", disp: -24}
+end
+
+@doc """
+CLOCK_WORDS: blue's clock words that compile natively (R4): the time since 1970 in seconds, milliseconds and nanoseconds, the nanoseconds since a now_ns, and a pause.
+
+    member?("now_ms", CLOCK_WORDS) #=> true
+"""
+CLOCK_WORDS = %w[now now_ms now_ns elapsed_since sleep sleep_ms]
+
+@doc """
+clock_read: the instructions that read CLOCK_REALTIME (clock_gettime, 228) into a stack timespec, leaving its seconds in rax and its nanoseconds in rcx.
+
+    clock_read[4] #=> {op: "mov", dst: "rax", imm: 228}
+"""
+def clock_read()
+  [
+    {op: "sub", dst: "rsp", imm: 16},
+    {op: "mov", dst: "rdi", imm: 0},
+    {op: "mov", dst: "rsi", src: "rsp"},
+    {op: "push", src: "rsi"},
+    {op: "mov", dst: "rax", imm: 228},
+    {op: "syscall"},
+    {op: "pop", dst: "rsi"},
+    {op: "load", dst: "rax", base: "rsi", disp: 0},
+    {op: "load", dst: "rcx", base: "rsi", disp: 8},
+    {op: "add", dst: "rsp", imm: 16}
+  ]
+end
+
+@doc """
+nanos_in_rax: the instructions that turn clock_read's seconds and nanoseconds into nanoseconds in rax.
+
+    length(nanos_in_rax) #=> 3
+"""
+def nanos_in_rax()
+  [
+    {op: "mov", dst: "rdx", imm: 1_000_000_000},
+    {op: "imul", dst: "rax", src: "rdx"},
+    {op: "add", dst: "rax", src: "rcx"}
+  ]
+end
+
+@doc """
+tag_rax: the instructions that tag the integer in rax (n is 2n + 1).
+
+    tag_rax #=> [{op: "add", dst: "rax", src: "rax"}, {op: "add", dst: "rax", imm: 1}]
+"""
+def tag_rax()
+  [{op: "add", dst: "rax", src: "rax"}, {op: "add", dst: "rax", imm: 1}]
+end
+
+@doc """
+sleep_code: the instructions that pause for the milliseconds in rax (nanosleep, 35), answering nil.
+
+    last(sleep_code) #=> {op: "mov", dst: "rax", imm: 0}
+"""
+def sleep_code()
+  [
+    {op: "cqo"},
+    {op: "mov", dst: "r9", imm: 1000},
+    {op: "idiv", src: "r9"},
+    {op: "mov", dst: "r8", imm: 1_000_000},
+    {op: "imul", dst: "rdx", src: "r8"},
+    {op: "sub", dst: "rsp", imm: 16},
+    {op: "mov", dst: "r10", src: "rsp"},
+    {op: "store", src: "rax", base: "r10", disp: 0},
+    {op: "store", src: "rdx", base: "r10", disp: 8},
+    {op: "mov", dst: "rdi", src: "r10"},
+    {op: "mov", dst: "rsi", imm: 0},
+    {op: "mov", dst: "rax", imm: 35},
+    {op: "syscall"},
+    {op: "add", dst: "rsp", imm: 16},
+    {op: "mov", dst: "rax", imm: 0}
+  ]
+end
+
+@doc """
+clock_code: one clock word natively: now, now_ms and now_ns read the clock; elapsed_since subtracts its argument from now_ns; sleep and sleep_ms pause and answer nil.
+
+    clock_code([], "now", [])[4] #=> {op: "mov", dst: "rax", imm: 228}
+"""
+def clock_code(slots, op, args)
+  if op == "now"
+    append(clock_read, tag_rax)
+  elsif op == "now_ns"
+    append(*[clock_read, nanos_in_rax, tag_rax])
+  elsif op == "now_ms"
+    append(
+      *[
+        clock_read,
+        [
+          {op: "mov", dst: "rdx", imm: 1000},
+          {op: "imul", dst: "rax", src: "rdx"},
+          {op: "mov", dst: "r8", src: "rax"},
+          {op: "mov", dst: "rax", src: "rcx"},
+          {op: "cqo"},
+          {op: "mov", dst: "r9", imm: 1_000_000},
+          {op: "idiv", src: "r9"},
+          {op: "add", dst: "rax", src: "r8"}
+        ],
+        tag_rax
+      ]
+    )
+  elsif op == "elapsed_since"
+    append(
+      *[
+        tagged_atom(slots, args[0], "r10"),
+        [{op: "sar1", dst: "r10"}, {op: "push", src: "r10"}],
+        clock_read,
+        nanos_in_rax,
+        [{op: "pop", dst: "r10"}, {op: "sub", dst: "rax", src: "r10"}],
+        tag_rax
+      ]
+    )
+  elsif op == "sleep"
+    append(
+      *[
+        tagged_atom(slots, args[0], "rax"),
+        [
+          {op: "sar1", dst: "rax"},
+          {op: "mov", dst: "rdx", imm: 1000},
+          {op: "imul", dst: "rax", src: "rdx"}
+        ],
+        sleep_code
+      ]
+    )
+  else
+    append(
+      tagged_atom(slots, args[0], "rax"),
+      append([{op: "sar1", dst: "rax"}], sleep_code)
+    )
+  end
+end
+
+@doc """
+CLOCK_PROGRAMS: programs over the clock words, with the exit status each must give: each checks a relation that holds whenever it runs, since the time itself does not repeat.
+
+    length(CLOCK_PROGRAMS) #=> 4
+"""
+CLOCK_PROGRAMS = [
+  ["(if (> (now) 1700000000) 1 0)", 1],
+  [
+    "(let ((a (now)) (b (now_ms))) (if (< (- b (* a 1000)) 2000) (if (> (- b (* a 1000)) -1) 1 0) 0))",
+    1
+  ],
+  ["(let ((n (now_ns)) (s (now))) (if (> n (* s 1000000000)) 1 0))", 1],
+  [
+    "(let ((s (now_ns))) (begin (sleep_ms 20) (if (> (elapsed_since s) 15000000) 1 0)))",
+    1
+  ]
+]
+
+test "the clock words read the time and pause natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru"), "clock.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      CLOCK_PROGRAMS
+    )
+  end
+end
+
+test "every clock word has native code that assembles, and sleep pauses by nanosleep"
+  bad = filter((w) -> length(clock_code([], w, [1])) == 0, CLOCK_WORDS)
+  assert bad == []
+  assert member?({op: "mov", dst: "rax", imm: 35}, sleep_code)
+  assert length(assemble(clock_code([], "now_ms", []))) > 0
+  assert length(assemble(clock_code([], "elapsed_since", [1]))) > 0
+  assert length(assemble(clock_code([], "sleep", [1]))) > 0
+  assert last(rc_op([], "now", [])) == {op: "add", dst: "rax", imm: 1}
 end

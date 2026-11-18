@@ -302,6 +302,47 @@ pub fn want_native(text: &[u8], program: &Path) -> bool {
     })
 }
 
+/// The tier marking programs whose last run evaluated for long enough that
+/// their pure results are worth recording (rule R14): one empty file per
+/// program text, named by its content hash.
+pub const SLOW_TIER: &str = "slow";
+
+/// Mark the program whose source is `text` as slow, under `root`'s slow
+/// tier: whether the mark is there now.
+///
+/// # Errors
+///
+/// The directory or the file cannot be written.
+pub fn mark_slow_in(root: &Path, text: &[u8]) -> std::io::Result<bool> {
+    let dir = root.join(SLOW_TIER);
+    std::fs::create_dir_all(&dir)?;
+    let mark = dir.join(blake3::hash(text).to_hex().as_str());
+    if !mark.exists() {
+        std::fs::write(&mark, b"")?;
+    }
+    Ok(true)
+}
+
+/// [`mark_slow_in`] under this node's cache root. A failure costs the next
+/// run its recording, never this run its result.
+pub fn mark_slow(text: &[u8]) -> bool {
+    cache_root().is_some_and(|root| mark_slow_in(&root, text).unwrap_or(false))
+}
+
+/// Whether the program whose source is `text` was marked slow under `root`.
+#[must_use]
+pub fn marked_slow_in(root: &Path, text: &[u8]) -> bool {
+    root.join(SLOW_TIER)
+        .join(blake3::hash(text).to_hex().as_str())
+        .is_file()
+}
+
+/// [`marked_slow_in`] under this node's cache root.
+#[must_use]
+pub fn marked_slow(text: &[u8]) -> bool {
+    cache_root().is_some_and(|root| marked_slow_in(&root, text))
+}
+
 /// Whether any native root holds a native tier (this node's, or a shared
 /// one), so a run can skip looking for artifacts without hashing a definition.
 #[must_use]

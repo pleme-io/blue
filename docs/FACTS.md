@@ -329,13 +329,20 @@ Each wave lists defaults in the order their gain is known. Each default meets
   (the call, not the value, under `BLUE_FOLD=off`).
 - Pure results shared through the fleet store by default for costly calls
   (R8), with the cost from the profile instead of from a first run.
-  R8 fires on a stored result that cost 20 ms or more (`stored_costly`), and
-  nothing stores a result for a definition no memo ran, so a costly pure
-  definition never gets its first one. The profile tier cannot supply the
-  fact: it times only definitions with a native artifact, which R7 answers
-  anyway. Next: a per-program fact from the run's own evaluation time
-  (`timings::evaluated`, counted always since W1.3) that plans a recording
-  memo over the program's pure definitions on the next run.
+  - ✅ R8 fires on a stored result that cost 20 ms or more, and nothing
+    stored a result for a definition no memo ran, so a costly pure definition
+    never got its first one. The profile tier cannot supply the fact (it
+    times only definitions with a native artifact, which R7 answers), so the
+    cost is the run's own: a run whose evaluation took 20 ms or more
+    (`timings::evaluated`, counted always since W1.3) marks its program text
+    slow, and the next run records its pure definitions' results with their
+    cost (rule R14, `kitei`), after which R8 answers the costly ones.
+    `slow(3_000_000)`, with no flag: 0.55 s on every run before; now 0.55 s,
+    0.93 s (it records), then 0.01 s, the same answer. Lock:
+    `tests/fleet_memo.rs`
+    `a_slow_program_records_its_pure_results_on_the_next_run_and_answers_from_them_after`
+    (a quick program never marked, `BLUE_MEMO=off` marks nothing; red when
+    nothing is marked).
 - ✅ Tests selected by `def_hash`: a change reruns only the tests that reach it.
   A test's identity is its own tree and the hashes of what it reaches
   (`mondou::def_hash::test_identities`), and `blue test` answers a passed

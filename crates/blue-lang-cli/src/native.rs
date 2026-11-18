@@ -630,9 +630,10 @@ pub(crate) fn planned(
     repeating: &[(usize, String)],
     memo: bool,
     native: bool,
+    slow: bool,
 ) -> Option<blue_lang_runtime::pipeline::Planned> {
     let memo = if memo {
-        crate::memo::planned(w, repeating).or_else(|| crate::memo::costly(w))
+        crate::memo::planned(w, repeating).or_else(|| crate::memo::costly(w, slow))
     } else {
         None
     };

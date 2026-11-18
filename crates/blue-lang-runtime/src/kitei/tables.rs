@@ -12,4 +12,5 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
     ("R10", &["member_test"], "BLUE_INDEX=off"),
     ("R12", &["no_writable_code"], "none"),
     ("R13", &["string_append_loop"], "BLUE_BUILDER=off"),
+    ("R14", &["pure", "slow_program"], "BLUE_MEMO=off"),
 ];

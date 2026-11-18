@@ -1132,6 +1132,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 }
             }
             native::ask_for_build(&file, blue_lang_runtime::timings::evaluated());
+            memo::note_slow(&file, blue_lang_runtime::timings::evaluated());
             Ok(ExitCode::SUCCESS)
         }
 
@@ -2599,8 +2600,9 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
                 && hold.as_ref().and_then(|h| h.bounds).is_none();
             let memo_plans = plain && memo::planning(inv.no_memo, cfg);
             let native_plans = plain && native::mode() == native::Mode::Auto;
+            let slow = memo_plans && blue_lang_mondou::store::marked_slow(entry.text.as_bytes());
             let planner = |w: &blue_lang_runtime::pipeline::Watched<'_>, r: &[(usize, String)]| {
-                native::planned(w, r, memo_plans, native_plans)
+                native::planned(w, r, memo_plans, native_plans, slow)
             };
             blue_lang_runtime::pipeline::run_framed_planned(
                 entry,

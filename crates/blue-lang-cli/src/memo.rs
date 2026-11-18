@@ -194,12 +194,14 @@ fn store_holds_anything() -> bool {
 /// `None`, and the run is as before.
 pub(crate) fn costly(
     watched: &blue_lang_runtime::pipeline::Watched<'_>,
+    slow: bool,
 ) -> Option<blue_lang_runtime::pipeline::Planned> {
-    if !store_holds_anything() {
+    if !slow && !store_holds_anything() {
         return None;
     }
     let plan = Plan::of(watched.definitions, watched.lowered, watched.erased);
     let opened = store()?;
+    let mut answered = false;
     let mut names: Vec<String> = watched
         .definitions
         .iter()
@@ -208,12 +210,16 @@ pub(crate) fn costly(
             let Some(Ok(hash)) = plan.target(i) else {
                 return None;
             };
-            let held: &[&str] = if opened.load(hash).entries.values().any(|s| s.cost >= COSTLY) {
-                &["pure", "stored_costly"]
-            } else {
-                &["pure"]
+            let stored = opened.load(hash).entries.values().any(|s| s.cost >= COSTLY);
+            answered |= stored;
+            let held: &[&str] = match (stored, slow) {
+                (true, _) => &["pure", "stored_costly"],
+                (false, true) => &["pure", "slow_program"],
+                (false, false) => &["pure"],
             };
-            blue_lang_runtime::kitei::fires("R8", held).then(|| d.name.clone())
+            (blue_lang_runtime::kitei::fires("R8", held)
+                || blue_lang_runtime::kitei::fires("R14", held))
+            .then(|| d.name.clone())
         })
         .collect();
     if names.is_empty() {
@@ -230,12 +236,34 @@ pub(crate) fn costly(
     );
     Some((
         Arc::new(Flushing(recall)),
-        format!(
-            "the store answers `{}`, whose stored results cost {} ms or more to compute",
-            names.join("`, `"),
-            COSTLY.as_millis()
-        ),
+        if answered {
+            format!(
+                "the store answers `{}`, whose stored results cost {} ms or more to compute",
+                names.join("`, `"),
+                COSTLY.as_millis()
+            )
+        } else {
+            format!(
+                "the store records the results of `{}` with their cost: this program's last run took {} ms or more",
+                names.join("`, `"),
+                COSTLY.as_millis()
+            )
+        },
     ))
+}
+
+/// Mark the program at `file` slow when this run's evaluation took
+/// [`COSTLY`] or more (rule R14), so the next run records its pure results
+/// with their cost, and R8 answers the costly ones from then on. Under
+/// `BLUE_MEMO=off` nothing is marked.
+pub(crate) fn note_slow(file: &std::path::Path, took: std::time::Duration) -> bool {
+    if took < COSTLY
+        || std::env::var_os(ENV).is_some()
+        || blue_lang_runtime::kitei::switched_off("R14")
+    {
+        return false;
+    }
+    std::fs::read(file).is_ok_and(|text| store::mark_slow(&text))
 }
 
 /// How many results the store holds for `hash` that cost [`COSTLY`] or more:

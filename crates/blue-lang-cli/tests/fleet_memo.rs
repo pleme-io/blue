@@ -109,3 +109,48 @@ fn a_cheap_stored_result_leaves_the_run_as_it_was() {
     );
     let _ = std::fs::remove_dir_all(&d);
 }
+
+#[test]
+fn a_slow_program_records_its_pure_results_on_the_next_run_and_answers_from_them_after() {
+    let d = scratch("slow");
+    let program = d.join("p.b");
+    std::fs::write(&program, PROGRAM).expect("program");
+    let cache = d.join("cache");
+    let first = run(&program, &cache, None, None);
+    assert_eq!(first.stdout, "1999999000000");
+    assert!(!first.door.contains("the store"), "{}", first.door);
+    let second = run(&program, &cache, None, None);
+    assert_eq!(second.stdout, first.stdout);
+    assert!(
+        second
+            .door
+            .contains("the store records the results of `slow`"),
+        "the run after a slow one records: {}",
+        second.door
+    );
+    let third = run(&program, &cache, None, None);
+    assert_eq!(third.stdout, first.stdout);
+    assert!(
+        third.door.contains("the store answers `slow`"),
+        "{}",
+        third.door
+    );
+    let quick = d.join("quick.b");
+    std::fs::write(&quick, QUICK).expect("program");
+    let _ = run(&quick, &d.join("quick"), None, None);
+    let again = run(&quick, &d.join("quick"), None, None);
+    assert!(
+        !again.door.contains("the store"),
+        "a quick program is never marked: {}",
+        again.door
+    );
+    let off = d.join("off");
+    let _ = run(&program, &off, None, Some("off"));
+    let after_off = run(&program, &off, None, None);
+    assert!(
+        !after_off.door.contains("the store"),
+        "BLUE_MEMO=off marks nothing: {}",
+        after_off.door
+    );
+    let _ = std::fs::remove_dir_all(&d);
+}

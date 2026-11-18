@@ -16,7 +16,7 @@ record rule(id, needs, when, lever, receipt, switch, state, locks)
 @doc """
 rules: every rule of the default cascade, in the order of its id.
 
-    size(rules) #=> 13
+    size(rules) #=> 14
 """
 def rules()
   [
@@ -149,6 +149,16 @@ def rules()
       "BLUE_BUILDER=off",
       :shipped,
       "tests/builder.rs"
+    ),
+    rule(
+      "R14",
+      %i[pure slow_program],
+      "a pure definition of a program whose last run evaluated for 20 ms or more",
+      "its results are recorded to the store with their cost, so R8 answers the costly ones from the next run",
+      "door receipt",
+      "BLUE_MEMO=off",
+      :shipped,
+      "tests/fleet_memo.rs"
     )
   ]
 end
@@ -203,13 +213,13 @@ end
 
 test "every rule has a distinct id in order, and a state blue knows"
   ids = map((r) -> r.id, rules)
-  assert ids == map((n) -> "R#{n}", range(1, 14))
+  assert ids == map((n) -> "R#{n}", range(1, 15))
   assert every?((r) -> member?(r.state, %i[shipped folded refused]), rules)
 end
 
 test "a rule with a switch names a BLUE variable and the value that turns it off"
   switched = filter((r) -> r.switch != "none", rules)
-  assert size(switched) == 8
+  assert size(switched) == 9
   assert every?(
     (r) -> starts_with?(r.switch, "BLUE_") and contains?(r.switch, "="),
     switched
@@ -217,7 +227,7 @@ test "a rule with a switch names a BLUE variable and the value that turns it off
 end
 
 test "the rules that are not shipped are R6, folded into R7, and R11, refused"
-  assert size(shipped) == 11
+  assert size(shipped) == 12
   assert not member?("R6", shipped)
   assert not member?("R11", shipped)
   assert named("R6").state == :folded

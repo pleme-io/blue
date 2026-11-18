@@ -313,3 +313,43 @@ fn a_record_declared_again_with_other_fields_is_another_value() {
         "cannot take the fields of a `point(x,y)`",
     );
 }
+
+#[test]
+fn a_record_built_outside_the_interpreter_equals_the_one_its_constructor_builds() {
+    let made = run("record pt(y: Int, x: Int)\n\npt(2, 1)").expect("a record");
+    let built = blue_lang_runtime::record::value_of(
+        "%root/pt",
+        &["y", "x"],
+        vec![Value::Int(2), Value::Int(1)],
+    )
+    .expect("a value");
+    assert!(
+        blue_lang_runtime::stdlib::blue_equal(&made, &built),
+        "{made:?}\n{built:?}"
+    );
+    let tag = |v: &Value| match v {
+        Value::Map(m) => m
+            .get(&tatara_lisp_eval::MapKey::Keyword(std::sync::Arc::from(
+                blue_lang_syntax::record::RECORD_TAG,
+            )))
+            .cloned(),
+        _ => None,
+    };
+    assert!(
+        matches!(tag(&built), Some(Value::Str(t)) if &*t == "pt(x,y)"),
+        "the tag JSON shows names the fields sorted: {:?}",
+        tag(&built)
+    );
+    assert!(
+        matches!((tag(&made), tag(&built)), (Some(Value::Str(a)), Some(Value::Str(b))) if a == b)
+    );
+    assert_eq!(blue_lang_runtime::record::name_of(&built), Some("pt"));
+    let other = blue_lang_runtime::record::value_of(
+        "%root/pt",
+        &["y", "x"],
+        vec![Value::Int(2), Value::Int(9)],
+    )
+    .expect("a value");
+    assert!(!blue_lang_runtime::stdlib::blue_equal(&made, &other));
+    assert!(blue_lang_runtime::record::value_of("%root/pt", &["y"], vec![]).is_none());
+}

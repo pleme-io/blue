@@ -136,13 +136,46 @@ pub(crate) fn defs(
 }
 
 /// A word the seam carries, as a definition's signature names it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Word {
     Int,
     Bool,
     Float,
     Str,
     List,
+    Record(Arc<Fields>),
+}
+
+/// A record whose every field holds an Int (or is untyped, so it may): its
+/// key and its fields in declared order, the order its token lists them.
+#[derive(Debug, PartialEq, Eq)]
+struct Fields {
+    key: String,
+    names: Vec<String>,
+}
+
+/// The records of `forms` whose fields the seam carries, by the name a
+/// signature writes.
+fn records(forms: &[Spanned]) -> HashMap<String, Arc<Fields>> {
+    forms
+        .iter()
+        .filter_map(blue_lang_syntax::record::record_parts)
+        .filter(|r| {
+            r.fields
+                .iter()
+                .all(|f| f.ty.is_none_or(|t| t.as_symbol() == Some("Int")))
+        })
+        .filter_map(|r| {
+            let key = r.name.as_symbol()?.to_string();
+            Some((
+                blue_lang_runtime::record::name_of_key(&key),
+                Arc::new(Fields {
+                    names: r.field_names().iter().map(ToString::to_string).collect(),
+                    key,
+                }),
+            ))
+        })
+        .collect()
 }
 
 /// What a definition takes and answers, as the tier converts it across the
@@ -156,7 +189,7 @@ enum Shape {
 impl Shape {
     /// The shape `form` declares, or `None` when it names a type the seam
     /// does not carry.
-    fn of(form: &Spanned) -> Option<Self> {
+    fn of(form: &Spanned, records: &HashMap<String, Arc<Fields>>) -> Option<Self> {
         let items = form.as_list()?;
         if items.first().and_then(Spanned::as_symbol) != Some("define-typed") {
             return Some(Self::Untyped);
@@ -170,7 +203,7 @@ impl Shape {
             "Bool" => Some(Word::Bool),
             "Float" => Some(Word::Float),
             "Str" => Some(Word::Str),
-            _ => None,
+            other => records.get(other).cloned().map(Word::Record),
         };
         let params = items
             .get(1)?
@@ -196,9 +229,11 @@ impl Shape {
         }
         match self {
             Self::Untyped => args.iter().map(|a| take(a, Word::Int)).collect(),
-            Self::Typed(ws, _) if ws.len() == args.len() => {
-                args.iter().zip(ws).map(|(a, w)| take(a, *w)).collect()
-            }
+            Self::Typed(ws, _) if ws.len() == args.len() => args
+                .iter()
+                .zip(ws)
+                .map(|(a, w)| take(a, w.clone()))
+                .collect(),
             Self::Typed(..) => None,
         }
     }
@@ -211,7 +246,7 @@ impl Shape {
             Self::Typed(ws, r) => ws
                 .iter()
                 .chain([r])
-                .all(|w| !matches!(w, Word::Str | Word::List)),
+                .all(|w| !matches!(w, Word::Str | Word::List | Word::Record(_))),
         }
     }
 
@@ -246,6 +281,22 @@ impl Shape {
                     })
                     .collect::<Option<Vec<String>>>()
                     .map(|ns| format!("l{}", ns.join(","))),
+                (v, Word::Record(f)) => {
+                    let Value::Map(m) = v else { return None };
+                    (blue_lang_runtime::record::name_of(v)?
+                        == blue_lang_runtime::record::name_of_key(&f.key))
+                    .then_some(())?;
+                    f.names
+                        .iter()
+                        .map(|n| {
+                            match m.get(&tatara_lisp_eval::MapKey::Keyword(Arc::from(n.as_str()))) {
+                                Some(Value::Int(x)) => Some(x.to_string()),
+                                _ => None,
+                            }
+                        })
+                        .collect::<Option<Vec<String>>>()
+                        .map(|xs| format!("r{}", xs.join(",")))
+                }
                 (Value::Str(t), Word::Str) => {
                     Some(t.bytes().fold(String::from("s"), |mut out, b| {
                         out.push_str(&format!("{b:02x}"));
@@ -263,7 +314,7 @@ impl Shape {
     fn from_token(&self, token: &str) -> Option<Value> {
         let want = match self {
             Self::Untyped => Word::Int,
-            Self::Typed(_, r) => *r,
+            Self::Typed(_, r) => r.clone(),
         };
         let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
         match (tag, want) {
@@ -290,6 +341,17 @@ impl Shape {
                 .map(|n| n.parse().ok().map(Value::Int))
                 .collect::<Option<Vec<Value>>>()
                 .map(|xs| Value::List(std::sync::Arc::new(xs.into()))),
+            (b'r', Word::Record(f)) => {
+                let values = if rest.is_empty() {
+                    Vec::new()
+                } else {
+                    rest.split(',')
+                        .map(|n| n.parse().ok().map(Value::Int))
+                        .collect::<Option<Vec<Value>>>()?
+                };
+                let names: Vec<&str> = f.names.iter().map(String::as_str).collect();
+                blue_lang_runtime::record::value_of(&f.key, &names, values)
+            }
             (_, Word::Int) => token.parse().ok().map(Value::Int),
             _ => None,
         }
@@ -406,6 +468,7 @@ impl Tier {
         inner: Option<Arc<dyn CallObserver>>,
     ) -> Arc<Self> {
         let hashes = blue_lang_mondou::hash_checked(w.program, w.lowered);
+        let records = records(w.lowered);
         let mut by_source = HashMap::new();
         for d in w.definitions.iter() {
             let Some(hashed) = hashes.at(d.top_level) else {
@@ -417,7 +480,11 @@ impl Tier {
             let Some(artifact) = find(&hashed.hash) else {
                 continue;
             };
-            let Some(shape) = w.lowered.get(d.top_level).and_then(Shape::of) else {
+            let Some(shape) = w
+                .lowered
+                .get(d.top_level)
+                .and_then(|f| Shape::of(f, &records))
+            else {
                 continue;
             };
             let Some(items) = w.erased.get(d.top_level).and_then(Spanned::as_list) else {
@@ -748,7 +815,9 @@ mod tests {
     use super::*;
 
     fn shape(src: &str) -> Option<Shape> {
-        Shape::of(&tatara_lisp::read_spanned(src).expect("a form").remove(0))
+        let forms = tatara_lisp::read_spanned(src).expect("forms");
+        let records = records(&forms);
+        Shape::of(forms.last().expect("a form"), &records)
     }
 
     #[test]
@@ -893,6 +962,41 @@ mod tests {
         assert!(sum.from_token("l3,x").is_none());
         let bare = shape("(define-typed (%root/b (xs List)) Int 0)").expect("a shape");
         assert_eq!(bare, Shape::Typed(vec![Word::List], Word::Int));
+    }
+
+    #[test]
+    fn a_record_of_ints_crosses_the_seam_as_its_fields_in_declared_order() {
+        let shift = shape(
+            "(blue-record %root/pt %root/pt? (:y Int) (:x Int)) (define-typed (%root/s (p pt) (d Int)) pt p)",
+        )
+        .expect("a shape");
+        assert!(!shift.in_words() && !shift.plain());
+        let p = blue_lang_runtime::record::value_of(
+            "%root/pt",
+            &["y", "x"],
+            vec![Value::Int(2), Value::Int(1)],
+        )
+        .expect("a record");
+        assert_eq!(
+            shift.tokens(&[p.clone(), Value::Int(5)]),
+            Some(vec!["r2,1".to_string(), "i5".to_string()])
+        );
+        let back = shift.from_token("r2,1").expect("a record");
+        assert!(blue_lang_runtime::stdlib::blue_equal(&back, &p));
+        assert!(shift.from_token("r2").is_none());
+        let other = blue_lang_runtime::record::value_of(
+            "%root/qt",
+            &["y", "x"],
+            vec![Value::Int(2), Value::Int(1)],
+        )
+        .expect("a record");
+        assert_eq!(shift.tokens(&[other, Value::Int(5)]), None);
+        assert_eq!(
+            shape(
+                "(blue-record %root/pt %root/pt? (:y Str)) (define-typed (%root/s (p pt)) Int 0)"
+            ),
+            None
+        );
     }
 
     #[test]

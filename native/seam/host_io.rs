@@ -65,8 +65,8 @@ pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
 
 /// One value from its token on the seam: `i42`, `b1`, `f<the Float's bits
 /// as an Int>`, `s<the string's UTF-8 in hex>`, `l1,2,3` (a list of Ints,
-/// `l` alone the empty one), or a bare decimal Int, as artifacts built
-/// before tokens were called.
+/// `l` alone the empty one), `r1,2` (a record's fields in declared order),
+/// or a bare decimal Int, as artifacts built before tokens were called.
 pub fn decode(token: &str) -> Option<kiban_heap::Value> {
     let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
     Some(match tag {
@@ -87,12 +87,8 @@ pub fn decode(token: &str) -> Option<kiban_heap::Value> {
                 .collect::<Option<Vec<u8>>>()?;
             kiban_heap::Value::Str(kiban_heap::text(&String::from_utf8(bytes).ok()?))
         }
-        b'l' if rest.is_empty() => kiban_heap::Value::List(kiban_heap::rc_of(Vec::new())),
-        b'l' => kiban_heap::Value::List(kiban_heap::rc_of(
-            rest.split(',')
-                .map(|n| n.parse().ok())
-                .collect::<Option<Vec<i64>>>()?,
-        )),
+        b'l' => kiban_heap::Value::List(words(rest)?),
+        b'r' => kiban_heap::Value::Record(words(rest)?),
         _ => kiban_heap::Value::Int(token.parse().ok()?),
     })
 }
@@ -111,9 +107,21 @@ pub fn encode(v: &kiban_heap::Value) -> String {
             }
             out
         }
-        kiban_heap::Value::List(l) => {
-            let words: Vec<String> = l.iter().map(i64::to_string).collect();
-            format!("l{}", words.join(","))
-        }
+        kiban_heap::Value::List(l) => format!("l{}", joined(l)),
+        kiban_heap::Value::Record(l) => format!("r{}", joined(l)),
     }
+}
+
+fn words(text: &str) -> Option<kiban_heap::List> {
+    if text.is_empty() {
+        return Some(kiban_heap::rc_of(Vec::new()));
+    }
+    text.split(',')
+        .map(|n| n.parse().ok())
+        .collect::<Option<Vec<i64>>>()
+        .map(kiban_heap::rc_of)
+}
+
+fn joined(l: &kiban_heap::List) -> String {
+    l.iter().map(i64::to_string).collect::<Vec<String>>().join(",")
 }

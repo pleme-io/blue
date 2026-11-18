@@ -229,6 +229,7 @@ pub enum Value {
     Float(f64),
     Str(Str),
     List(List),
+    Record(List),
 }
 
 impl Value {
@@ -264,6 +265,15 @@ impl Value {
     pub fn list(&self) -> List {
         match self {
             Self::List(l) => l.clone(),
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// A record's fields in declared order, or a fault.
+    #[must_use]
+    pub fn fields(&self) -> List {
+        match self {
+            Self::Record(l) => l.clone(),
             _ => kiban_io::fault(),
         }
     }

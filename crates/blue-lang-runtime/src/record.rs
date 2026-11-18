@@ -438,9 +438,33 @@ fn lowered_type(ty: &Spanned) -> Spanned {
 }
 
 fn whole_tag(key: &str, r: &blue_lang_syntax::record::Record<'_>) -> String {
-    let mut fields = r.field_names();
+    tag_of(key, &r.field_names())
+}
+
+fn tag_of(key: &str, fields: &[&str]) -> String {
+    let mut fields = fields.to_vec();
     fields.sort_unstable();
     format!("{}({})", name_of_key(key), fields.join(","))
+}
+
+/// The record `key` declares, with `fields` (in declared order) holding
+/// `values`, as its constructor builds it: how a value made outside the
+/// interpreter (a native definition's answer) becomes the record the
+/// interpreter would have made. `None` when the counts differ.
+#[must_use]
+pub fn value_of(key: &str, fields: &[&str], values: Vec<Value>) -> Option<Value> {
+    if fields.len() != values.len() {
+        return None;
+    }
+    let mut out = Vec::with_capacity(values.len() + 1);
+    out.push((TAG_KEY.clone(), Value::Str(Arc::from(tag_of(key, fields)))));
+    out.extend(
+        fields
+            .iter()
+            .map(|f| MapKey::Keyword(Arc::from(*f)))
+            .zip(values),
+    );
+    Some(Value::map(out))
 }
 
 struct Lowered {

@@ -1,3 +1,5 @@
+record pt(x: Int, y: Int)
+
 def square(x: Int) -> Int
   x * x
 end
@@ -72,4 +74,16 @@ end
 
 def tally(xs: List(Int)) -> Int
   count(xs)
+end
+
+def shifted(p: pt, d: Int) -> pt
+  pt(**p, x: p.x + d)
+end
+
+def lifted(p: pt, d: Int) -> pt
+  pt(**p, y: p.y + d)
+end
+
+def spread(p: pt) -> Int
+  p.x - p.y
 end

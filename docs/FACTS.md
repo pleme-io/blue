@@ -221,7 +221,24 @@ Each wave lists defaults in the order their gain is known. Each default meets
     refused for its region); `checks.native-defs` "a list of Ints crosses
     the seam both ways" on Linux (`grown`, `tally`; `doubled`'s artifact
     swapped in proves the artifact answered).
-  - Next: maps and records across the seam.
+  - ✅ A record of Ints across the seam: a definition that takes or answers
+    a record whose fields are Int or untyped crosses the valued seam, the
+    record a token of its fields in declared order (`r6,2`). Natively it is
+    the record's own struct; the tier sends a record only when its name and
+    every field match, and answers one with `blue_lang_runtime::record::value_of`,
+    which builds the value the record's constructor builds (the same `$record`
+    tag, its field names sorted, as JSON shows it). chuuzou reads typed fields
+    (`(:x Int)`) and refuses a record field of another type. `walk(pt(1, 2),
+    1_000_000)`, a loop of record updates, with no flag: 2.51 s interpreted,
+    0.01 s native from the third run, the same answer. Locks: the runtime's
+    `a_record_built_outside_the_interpreter_equals_the_one_its_constructor_builds`
+    (red with the tag's fields unsorted); native.rs
+    `a_record_of_ints_crosses_the_seam_as_its_fields_in_declared_order` (a
+    record of another name, a short token and a Str field refused); chuuzou "a
+    record of Ints crosses the valued seam as its fields"; `checks.native-defs`
+    "a record of Ints crosses the seam both ways" (`shifted`, `spread`;
+    `lifted`'s artifact swapped in proves the artifact answered).
+  - Next: maps, and records holding other types.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each
@@ -260,7 +277,12 @@ Each wave lists defaults in the order their gain is known. Each default meets
   that raises, a non-list; and linear time), red when the start is dropped;
   `spec/rows/builder.b` on every column, the `default` column holding the
   rewritten path.
-- A record in native code is a struct with fixed slots (R9 at T3).
+- ✅ A record in native code is a struct with fixed slots (R9 at T3).
+  chuuzou lowers each record to its own struct (`R_<name>`, fields read in
+  place, an updated copy built from the fields it keeps), and a record of
+  Ints now crosses the seam as its fields (W1, above), so a definition over
+  records runs native by default: 1,000,000 record updates, 2.51 s
+  interpreted, 0.01 s native. Locks: as W1's record row.
 - A value nothing else holds is updated in place, decided statically where
   uniqueness can be proven, not only at run time.
 

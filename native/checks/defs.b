@@ -8,6 +8,8 @@ with BLUE_NATIVE=on answers a call from the artifact its def_hash names.
 use("retsu", [:first])
 use("tesuto", [:literal])
 
+record pt(x: Int, y: Int)
+
 @doc """
 cases: The calls each definition of native/defs/base.b is held to.
 """
@@ -247,4 +249,38 @@ test "a list of Ints crosses the seam both ways", {kind: :integration}
   ]
   assert interpreted(work, "grown", [[1], 2], off) == unlines(["[1, 2]"])
   assert interpreted(work, "grown", [[1], 2], swapped) == unlines(["[1, 2, 2]"])
+end
+
+test "a record of Ints crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-record")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [["shifted", [pt(1, -2), 5]], ["spread", [pt(7, 3)]]]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("shifted"))
+  mkdir_p(shelf)
+  lifted = path_join(root, "native", "v1", hex_of("lifted"))
+  exec_capture("ln", "-s", path_join(lifted, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(lifted, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  assert interpreted(work, "shifted", [pt(1, 2), 5], off) ==
+    unlines(["pt({x: 6, y: 2})"])
+  assert interpreted(work, "shifted", [pt(1, 2), 5], swapped) ==
+    unlines(["pt({x: 1, y: 7})"])
 end

@@ -549,11 +549,21 @@ cz_record_of: The record a resolved `(blue-record name pred :field …)` form de
     cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"]}
 """
 def cz_record_of(form)
-  {
-    name: cz_sym(second(form)),
-    pred: cz_sym(third(form)),
-    fields: map((k) -> k[:kw], drop(3, form))
-  }
+  fields = map(
+    fn(k)
+      if list?(k) and count(k) == 2 and cz_sym(second(k)) == "Int"
+        first(k)[:kw]
+      elsif list?(k)
+        cz_refuse(
+          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record holds board words, so its fields are Int or untyped"
+        )
+      else
+        k[:kw]
+      end
+    end,
+    drop(3, form)
+  )
+  {name: cz_sym(second(form)), pred: cz_sym(third(form)), fields:}
 end
 
 @doc """
@@ -3012,11 +3022,12 @@ def cz_lower_def(forms, key)
       "`#{cz_local(key)}` is not a typed function of the slice; the native tier compiles functions"
     )
   end
+  records = map(cz_record_of, filter((f) -> cz_head(f) == "blue-record", forms))
   types = append(
-    map((p) -> cz_sig_ty(second(p), []), rest(second(form))),
-    [cz_sig_ty(third(form), [])]
+    map((p) -> cz_sig_ty(second(p), records), rest(second(form))),
+    [cz_sig_ty(third(form), records)]
   )
-  if not every?((t) -> cz_seam_kind(t) != nil, types)
+  if not every?((t) -> cz_seam_kind(t) != nil or string?(t), types)
     cz_refuse(
       "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float, a Str or a list of Ints; the native tier's guard is one of those per argument"
     )
@@ -3072,7 +3083,8 @@ def cz_lower_def(forms, key)
         fn(i)
           cz_value_arg(
             rs_call(%w[kiban_heap arg], [rs_path("args"), rs_u32(i)]),
-            types[i]
+            types[i],
+            records
           )
         end,
         range(n)
@@ -3087,7 +3099,7 @@ def cz_lower_def(forms, key)
     rs_block(
       [
         rs_semi(rs_call(%w[kiban_heap need], [rs_path("args"), rs_u32(n)])),
-        rs_tail(cz_value_result(valued, last(types)))
+        rs_tail(cz_value_result(valued, last(types), records))
       ]
     )
   )
@@ -3107,21 +3119,94 @@ end
 
 @doc """
 cz_value_arg: One argument of the valued seam, a `kiban_heap::Value`, as the parameter of
-type `ty` takes it: the value's Int, Bool, Float or Str, any other a fault.
+type `ty` takes it: the value's Int, Bool, Float, Str or list, or a record's
+struct built from its fields in declared order; any other a fault.
 
-    cz_value_arg(rs_path("a"), :str)[:method] #=> "str"
+    cz_value_arg(rs_path("a"), :str, [])[:method] #=> "str"
 """
-def cz_value_arg(e, ty)
-  rs_method(e, cz_seam_kind(ty)[:read], [])
+def cz_value_arg(e, ty, records)
+  rec = find(records, (r) -> r[:name] == ty)
+  if rec.nil?
+    rs_method(e, cz_seam_kind(ty)[:read], [])
+  else
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          {kind: "local", name: "l", value: rs_method(e, "fields", [])},
+          rs_tail(
+            {
+              kind: "struct-lit",
+              path: [cz_struct_name(rec[:name])],
+              fields: map(
+                fn(i)
+                  {
+                    name: cz_checked_ident(rec[:fields][i], "a field"),
+                    value: rs_call(
+                      %w[kiban_heap rc_nth],
+                      [
+                        {kind: "ref", mutable: false, expr: rs_path("l")},
+                        rs_word(i, 64)
+                      ]
+                    )
+                  }
+                end,
+                range(count(rec[:fields]))
+              )
+            }
+          )
+        ]
+      )
+    }
+  end
 end
 
 @doc """
-cz_value_result: The entry's answer as a `kiban_heap::Value` of its type.
+cz_value_result: The entry's answer as a `kiban_heap::Value` of its type: a record as
+its fields in declared order.
 
-    cz_value_result(rs_path("r"), :word)[:func] #=> ["Value", "Int"]
+    cz_value_result(rs_path("r"), :word, [])[:func] #=> ["Value", "Int"]
 """
-def cz_value_result(e, ty)
-  rs_call(["Value", cz_seam_kind(ty)[:variant]], [e])
+def cz_value_result(e, ty, records)
+  rec = find(records, (r) -> r[:name] == ty)
+  if rec.nil?
+    rs_call(["Value", cz_seam_kind(ty)[:variant]], [e])
+  else
+    words = reduce(
+      fn(acc, f)
+        rs_call(
+          %w[kiban_heap rc_push],
+          [
+            acc,
+            {
+              kind: "field",
+              base: rs_path("r"),
+              field: cz_checked_ident(f, "a field")
+            }
+          ]
+        )
+      end,
+      rs_call(
+        %w[kiban_heap rc_of],
+        [
+          rs_call(
+            %w[kiban_heap vec_with],
+            [{kind: "int", value: count(rec[:fields]), suffix: "usize"}]
+          )
+        ]
+      ),
+      rec[:fields]
+    )
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          {kind: "local", name: "r", value: e},
+          rs_tail(rs_call(%w[Value Record], [words]))
+        ]
+      )
+    }
+  end
 end
 
 @doc """
@@ -3824,8 +3909,9 @@ test "a Str definition compiles, its concat and length through the heap"
     (i) -> i[:kind] == "fn" and i[:item][:sig][:name] == "call"
   )
   assert call != nil
-  assert cz_value_arg(rs_path("a"), :str) == rs_method(rs_path("a"), "str", [])
-  assert cz_value_result(rs_path("r"), :str)[:func] == %w[Value Str]
+  assert cz_value_arg(rs_path("a"), :str, []) ==
+    rs_method(rs_path("a"), "str", [])
+  assert cz_value_result(rs_path("r"), :str, [])[:func] == %w[Value Str]
   assert cz_ref(1, {word: 64})[:expr] == rs_word(1, 64)
   assert cz_concat(cz_read("\"a\" 5"), {word: 64})[:func] == %w[kiban_heap cat]
 end
@@ -3857,4 +3943,24 @@ test "a list of Ints crosses the valued seam, refcounted only"
   assert cz_seam_kind(:dyn).nil?
   arena = "(define-typed (%root/a (xs (List Int))) Int (count xs)) (reclaim :arena \"a\")"
   assert cz_def_native(arena, "%root/a") != nil
+end
+
+test "a record of Ints crosses the valued seam as its fields"
+  rec = "(blue-record %root/pt %root/pt? (:x Int) (:y Int)) "
+  shift = "(define-typed (%root/s (p pt) (d Int)) pt (%root/pt (blue-kwargs (blue-splice p) (hash-map :x (+ (blue-field p :x) d)))))"
+  assert cz_def_native(concat(rec, shift), "%root/s").nil?
+  assert cz_def_native(
+    "(blue-record %root/q %root/q? (:x Str)) (define-typed (%root/f (p q)) Int 0)",
+    "%root/f"
+  ) != nil
+  assert get(
+    cz_record_of(first(cz_read("(blue-record %root/p %root/p? (:x Int) :y)"))),
+    :fields
+  ) == %w[x y]
+  pt = {name: "%root/pt", pred: "%root/pt?", fields: %w[x y]}
+  arg = cz_value_arg(rs_path("a"), "%root/pt", [pt])
+  assert arg[:kind] == "block"
+  assert last(arg[:block][:stmts])[:expr][:path] == ["R_pt"]
+  out = cz_value_result(rs_path("r"), "%root/pt", [pt])
+  assert last(out[:block][:stmts])[:expr][:func] == %w[Value Record]
 end

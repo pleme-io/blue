@@ -51,7 +51,14 @@ the repo root and were read on 2026-11-17.
   (reuse `native/checks/corpus.b`'s `difference`).
 - **Exit.** `checks.ir-conformance`: `ir_eval` equals the walker on every accepted row, the
   accepted count is a ratchet, and the live count is zero at exit.
-- **Before designing:** dump `blue ast --resolved` for lambdas, `rescue`, `case` and maps.
+- **The core the IR must accept (measured 2026-11-18).** `blue ast --resolved` lowers all of
+  blue to a small core. Over the four compiler sources (chuuzou, bpf, erufu, baito) the heads
+  are `equal?` 2819, `list` 2766, `get` 2347, `define` 2079, `hash-map` 1263, `if` 745,
+  `begin` 731, `concat` 686, `lambda` 432, `assoc` 328, `nth` 298, `try`/`catch` 239,
+  `cond` and `let` (a `case` lowers to `let` over `cond` with `equal?` tests), `quote`, and
+  calls to globals and builtins. So: a `rescue` is `(try body (catch (e) handler))`; a map
+  literal is `hash-map`; indexing a map is `get`; `case` is `(let ((case-subject k)) (cond ...))`.
+  B1's source language is exactly these forms, and `henkan` (B0) declares it.
 
 ### B2 — the x86-64 encoder
 

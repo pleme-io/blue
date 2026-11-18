@@ -96,6 +96,12 @@ the default for projects that name none.
 
 Dependencies are in the plan's §7.
 
+**State (2026-11-18).** D0's substrate half is on substrate main (`lib/build/blue`, exported as
+`blueBuilders`, held by `checks.blue-builders`). Blue still builds from its own copy: its
+`substrate` pin dates from 2026-10-29, three weeks behind, and moving it changes every Rust
+build, so it moves through the fleet's bump pipeline (built and gated), not by hand. When it
+does, blue's copy becomes a drift-checked mirror, then goes.
+
 | # | Rung | Exit check |
 |---|---|---|
 | D0 | **Lift the builders into substrate**: `mkBluePath`, `mkBlueWithBidamas`, `mkBlueApp`, the Bluefile renderer and `generate` into `substrate/lib/build/blue/`, taking the toolchain as an argument; the blue repo re-exports them | every blue project's and every fleet node's drvPaths identical before and after |

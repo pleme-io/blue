@@ -88,6 +88,7 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Memo => eval::memo(env, row),
         Ev::Component => eval::component(env, row, n),
         Ev::Default => eval::default_path(env, row, n),
+        Ev::Native => eval::native(env, row, n),
     }));
     run.unwrap_or_else(|_| {
         Obs::Crashed(format!(
@@ -121,7 +122,7 @@ fn observe_isolated(row: &Row, ev: Ev) -> Obs {
 fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
     let mut obs = BTreeMap::new();
     for ev in Ev::ALL {
-        let o = if row.isolate && !matches!(ev, Ev::Cli | Ev::Component) {
+        let o = if row.isolate && !matches!(ev, Ev::Cli | Ev::Component | Ev::Native) {
             observe_isolated(row, ev)
         } else {
             observe_in_process(env, row, ev, n)
@@ -443,6 +444,7 @@ fn main() {
     let roots = vec![repo.join("spec/bidamas"), repo.join("bidamas")];
     let mut env = Env::new(roots, blue_bin(&repo), scratch.clone());
     env.component = eval::Placement::from_env().ok();
+    env.native = eval::native_driver(&repo);
 
     let (all_rows, refusals) = rows::load(&repo.join("spec/rows"));
     // `--coverage-only`: the missing-row gate and the controls, no rows run.
@@ -553,6 +555,33 @@ fn main() {
         env.memo_disk_hits
     )
     .ok();
+    if filter.is_none() && !rows.is_empty() && env.native.is_some() {
+        let passes = outcomes
+            .iter()
+            .filter(|o| matches!(o.verdicts[&Ev::Native], Verdict::Pass))
+            .count();
+        let ledger = repo.join("spec/native.baseline");
+        if std::env::var_os("BLUE_CONFORMANCE_NATIVE_RECORD").is_some() {
+            std::fs::write(&ledger, format!("{passes}\n")).expect("spec/native.baseline");
+        }
+        let held: usize = std::fs::read_to_string(&ledger)
+            .ok()
+            .and_then(|t| t.trim().parse().ok())
+            .unwrap_or(0);
+        writeln!(
+            out,
+            "  native column: {passes} row(s) pass, the ledger holds {held}"
+        )
+        .ok();
+        if passes != held {
+            writeln!(
+                out,
+                "FAIL native: {passes} row(s) pass natively and spec/native.baseline holds {held}; a fall is a regression, a rise is recorded with BLUE_CONFORMANCE_NATIVE_RECORD=1"
+            )
+            .ok();
+            red = true;
+        }
+    }
     if filter.is_none() && !rows.is_empty() && env.memo_disk_hits == 0 {
         writeln!(
             out,

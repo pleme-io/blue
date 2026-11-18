@@ -106,6 +106,7 @@ pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
             Expect::Value(_) | Expect::Fails(..),
             Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Default,
         ) => Some(Ev::Walker),
+        (Expect::Value(_), Ev::Native) => Some(Ev::Walker),
         (
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Cli,

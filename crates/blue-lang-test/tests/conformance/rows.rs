@@ -53,10 +53,11 @@ pub enum Ev {
     /// wall-clock limit as its only guard. The one column where the defaults
     /// that stand down under a step bound run (docs/FACTS.md C2).
     Default,
+    Native,
 }
 
 impl Ev {
-    pub const ALL: [Ev; 8] = [
+    pub const ALL: [Ev; 9] = [
         Ev::Walker,
         Ev::Vm,
         Ev::Wasm,
@@ -65,6 +66,7 @@ impl Ev {
         Ev::Memo,
         Ev::Component,
         Ev::Default,
+        Ev::Native,
     ];
 
     pub fn name(self) -> &'static str {
@@ -77,6 +79,7 @@ impl Ev {
             Ev::Memo => "memo",
             Ev::Component => "component",
             Ev::Default => "default",
+            Ev::Native => "native",
         }
     }
 

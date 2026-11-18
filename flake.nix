@@ -687,6 +687,25 @@
                 };
               };
             };
+        }
+        // lib.optionalAttrs (system == "x86_64-linux") {
+          conformance-three-way =
+            workspaceTests {
+              src = ./.;
+              name = "blue-conformance-three-way";
+              config = {
+                runs = [ { args = [ "-p" "blue-lang-test" "--test" "conformance" ]; } ];
+                env = {
+                  BLUE_BIN = "${blue}/bin/blue";
+                  BLUE_COMPONENT = "${componentFor system}";
+                  BLUE_WASMTIME = "${pkgs.wasmtime}/bin/wasmtime";
+                  BLUE_CONFORMANCE_STRICT = "1";
+                  BLUE_CONFORMANCE_NATIVE = "1";
+                };
+              };
+            };
+        }
+        // {
 
           # The network primitives against real peers: a nats-server child
           # and a std TCP listener (`blue-lang-runtime/tests/net.rs`), a

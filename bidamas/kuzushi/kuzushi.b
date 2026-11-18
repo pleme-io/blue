@@ -1159,6 +1159,7 @@ whole: a program with global functions, each made A-normal, closure-converted, g
 def whole(form)
   s = split_program(form)
   names = map((d) -> d[:name], s[:defs])
+  arity_checked(s)
   prep = fn(body, pre, params)
     c = cc_term(globalize(propagate(anf(body)), names), params)
     p = prefix_labels({main: c[0], fns: c[1]}, pre)
@@ -1475,4 +1476,80 @@ test "the passes take each rarer case beside them: quote, list words, a try that
   two = split_program(read_forms("(begin (define (f) 1) (f) 2)")[0])
   assert length(two[:defs]) == 1
   assert head_is?(two[:main], "begin")
+end
+
+@doc """
+arity_misses: every call in a tree to a function of `arities` ([name, count] pairs) with another number of arguments, as [name, wanted, given]. A name `bound` holds (a parameter, a lambda's or a let's binding) is a local, not the function, and is skipped.
+
+    arity_misses(read_forms("(f 1)")[0], [["f", 2]], []) #=> [["f", 2, 1]]
+    arity_misses(read_forms("(f 1 2)")[0], [["f", 2]], []) #=> []
+    arity_misses(read_forms("(f 1)")[0], [["f", 2]], ["f"]) #=> []
+"""
+def arity_misses(node, arities, bound)
+  if not list?(node) or length(node) == 0
+    []
+  else
+    head = first(node)
+    inner = if head_is?(node, "lambda") and length(node) > 1 and list?(node[1])
+      append(bound, map(to_s, node[1]))
+    elsif head_is?(node, "let") and length(node) > 1 and list?(node[1])
+      append(bound, map((b) -> to_s(first(b)), filter(list?, node[1])))
+    else
+      bound
+    end
+    hit = if symbol?(head) and not member?(to_s(head), inner)
+      retsu::find_first((a) -> a[0] == to_s(head), arities)
+    end
+    own = if hit != nil and length(node) - 1 != hit[1]
+      [[hit[0], hit[1], length(node) - 1]]
+    else
+      []
+    end
+    append(own, flat_map(rest(node), (c) -> arity_misses(c, arities, inner)))
+  end
+end
+
+@doc """
+arity_checked: a split program whose every call to one of its functions passes that function's number of arguments; a call that does not is refused with :arity, naming the function, before any code is made.
+
+    arity_checked(split_program(read_forms("(begin (define (f a) a) (f 1))")[0]))[:defs][0][:name] #=> "f"
+"""
+def arity_checked(s)
+  arities = map((d) -> [d[:name], length(d[:params])], s[:defs])
+  misses = append(
+    flat_map(s[:defs], (d) -> arity_misses(d[:body], arities, d[:params])),
+    arity_misses(s[:main], arities, [])
+  )
+  if misses != []
+    m = misses[0]
+    raise(
+      :arity,
+      "kuzushi: `#{m[0]}` takes #{to_s(m[1])} argument(s), called with #{to_s(m[2])}"
+    )
+  end
+  s
+end
+
+test "a call to a global function with the wrong number of arguments is refused before any code is made"
+  bad = split_program(read_forms("(begin (define (f a b) (+ a b)) (f 1))")[0])
+  assert (arity_checked(bad) rescue :arity) == :arity
+  assert (whole(read_forms("(begin (define (f a b) (+ a b)) (f 1))")[0]) rescue
+    :arity) == :arity
+  good = read_forms("(begin (define (f a b) (+ a b)) (f 1 2))")[0]
+  assert length(whole(good)[:globals]) == 1
+end
+
+test "a parameter, a lambda's or a let's binding that shares a function's name is a local, not a call to it"
+  p = nth(
+    0,
+    read_forms("(begin (define (f x) x) (define (map f l) (f (first l))) (map (lambda (y) y) (list 1)))")
+  )
+  assert length(arity_checked(split_program(p))[:defs]) == 2
+  assert arity_misses(
+    read_forms("((lambda (f) (f 1 2)) 3)")[0],
+    [["f", 1]],
+    []
+  ) == []
+  assert arity_misses(read_forms("(let ((f 1)) (f 2 3))")[0], [["f", 1]], []) ==
+    []
 end

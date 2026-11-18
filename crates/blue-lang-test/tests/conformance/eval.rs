@@ -86,6 +86,7 @@ pub struct Env {
     /// whole suite: zero means the column compared nothing.
     pub memo_disk_hits: u64,
     pub component: Option<Placement>,
+    pub native: Option<PathBuf>,
     renderer: tatara_lisp_eval::Interpreter<()>,
     to_s: Value,
 }
@@ -103,6 +104,7 @@ impl Env {
             scratch,
             memo_disk_hits: 0,
             component: None,
+            native: None,
             renderer,
             to_s,
         }
@@ -1085,5 +1087,82 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
             Ev::Static | Ev::Cli,
         ) => true,
         _ => false,
+    }
+}
+
+pub fn native_driver(repo: &Path) -> Option<PathBuf> {
+    let on = std::env::var_os("BLUE_CONFORMANCE_NATIVE").is_some();
+    (on && cfg!(all(target_os = "linux", target_arch = "x86_64")))
+        .then(|| repo.join("gen/native-row.b"))
+}
+
+pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
+    let Some(driver) = env.native.clone() else {
+        return Obs::Blind("native runs on x86-64 Linux under BLUE_CONFORMANCE_NATIVE".into());
+    };
+    let Some(bin) = env.cli.clone() else {
+        return Obs::Blind("no `blue` binary: set BLUE_BIN".into());
+    };
+    let Expect::Value(want) = &row.expect else {
+        return Obs::Blind("native observes a value as its exit status".into());
+    };
+    if !want.parse::<i64>().is_ok_and(|v| (0..=255).contains(&v)) {
+        return Obs::Blind("native observes an Int from 0 to 255 as its exit status".into());
+    }
+    if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
+        return Obs::Blind("a project row is a view only the static door is handed".into());
+    }
+    let file = env.scratch.join(format!("native-{n}.b"));
+    let lowered = env.scratch.join(format!("native-{n}.lisp"));
+    let exe = env.scratch.join(format!("native-{n}.elf"));
+    if let Err(e) = std::fs::write(&file, &row.src) {
+        return Obs::Blind(format!("cannot write {}: {e}", file.display()));
+    }
+    let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
+    let ast = match output_within(
+        Command::new(&bin)
+            .env("BLUE_PATH", &blue_path)
+            .arg("ast")
+            .arg(&file),
+    ) {
+        Ok(o) if o.status.success() => o.stdout,
+        Ok(_) => return Obs::Blind("native: the row does not lower".into()),
+        Err(crashed) => return crashed,
+    };
+    if let Err(e) = std::fs::write(&lowered, ast) {
+        return Obs::Blind(format!("cannot write {}: {e}", lowered.display()));
+    }
+    let compiled = match output_within(
+        Command::new(&bin)
+            .env("BLUE_PATH", &blue_path)
+            .args(["run", "--quiet"])
+            .arg(&driver)
+            .arg("--")
+            .arg(&lowered)
+            .arg(&exe),
+    ) {
+        Ok(o) => o,
+        Err(crashed) => return crashed,
+    };
+    if !compiled.status.success() {
+        let why = String::from_utf8_lossy(&compiled.stderr);
+        return Obs::Blind(format!(
+            "native has no code for this row yet: {}",
+            why.trim()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)) {
+            return Obs::Blind(format!("cannot mark {} executable: {e}", exe.display()));
+        }
+    }
+    match output_within(&mut Command::new(&exe)) {
+        Ok(o) => match o.status.code() {
+            Some(code) => Obs::Value(code.to_string()),
+            None => Obs::Crashed("native: the executable died by a signal".into()),
+        },
+        Err(crashed) => crashed,
     }
 }

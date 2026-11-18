@@ -2550,9 +2550,9 @@ kaaneru (カーネル) — the Linux kernel, spoken from blue: maps, programs, l
 | `kaaneru::bpf::text(given)` |  |  |  | text: an instruction as `llvm-mc` writes BPF assembly, which is how the encoder is checked against LLVM. |
 | `kaaneru::bpf::sized_word(code)` |  |  |  | sized_word: the cast LLVM writes for a legacy packet read. |
 | `kaaneru::bpf::disassemble(bytes)` |  |  |  | disassemble: a program's bytes as lines of `text`. |
-| `kaaneru::bpf::mask32` |  |  |  | mask32: the low 32 bits set. |
-| `kaaneru::bpf::low32(v)` |  |  |  | low32: a value's low 32 bits, as an unsigned number. |
-| `kaaneru::bpf::sign32(v)` |  |  |  | sign32: a value's low 32 bits, read as signed. |
+| `kaaneru::bpf::mask32 -> u32` |  |  |  | mask32: the low 32 bits set. |
+| `kaaneru::bpf::low32(v: Int) -> u32` |  |  |  | low32: a value's low 32 bits, as an unsigned number. |
+| `kaaneru::bpf::sign32(v: Int) -> i32` |  |  |  | sign32: a value's low 32 bits, read as signed. |
 | `kaaneru::bpf::sign_from(v, bits)` |  |  |  | sign_from: a value's low bits, read as signed. |
 | `kaaneru::bpf::signed_div(a, b)` |  |  |  | signed_div: the quotient RFC 9669 states for `sdiv`, truncating, zero for a zero divisor. |
 | `kaaneru::bpf::magnitude(a)` |  |  |  | magnitude: a value's distance from zero, the most negative value itself. |

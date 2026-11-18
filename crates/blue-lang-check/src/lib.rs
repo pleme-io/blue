@@ -737,6 +737,16 @@ fn walk(
             for d in &mut out.diagnostics[before..] {
                 d.top_level = top_level;
             }
+            if let Some(why) = out_of_range(tail_of(body), &sig.ret) {
+                out.diagnostics.push(
+                    Diagnostic::new(
+                        Code::B0003,
+                        format!("`{name}` returns a literal that {why}"),
+                        tail_of(body).span,
+                    )
+                    .at_top_level(top_level),
+                );
+            }
             if !body_ty.accepts(&sig.ret) {
                 out.diagnostics.push(
                     Diagnostic::new(
@@ -2141,6 +2151,14 @@ fn literal_int(arg: &Spanned) -> Option<i64> {
     }
 }
 
+/// The expression a body answers with: the last form of a `begin`, or the body.
+fn tail_of(body: &Spanned) -> &Spanned {
+    match body.as_list() {
+        Some([head, .., last]) if head.as_symbol() == Some("begin") => tail_of(last),
+        _ => body,
+    }
+}
+
 fn out_of_range(arg: &Spanned, want: &Ty) -> Option<String> {
     let (Some(n), Ty::IntOf { signed, bits }) = (literal_int(arg), want) else {
         return None;
@@ -2153,6 +2171,17 @@ fn out_of_range(arg: &Spanned, want: &Ty) -> Option<String> {
 #[cfg(test)]
 mod fixed_width {
     use super::*;
+
+    #[test]
+    fn a_returned_literal_is_held_to_the_declared_width() {
+        assert_eq!(codes_of("def f() -> u8\n  300\nend\n"), [Code::B0003]);
+        assert_eq!(codes_of("def f() -> u8\n  255\nend\n"), []);
+        assert_eq!(codes_of("def f() -> u32\n  4_294_967_295\nend\n"), []);
+        assert_eq!(
+            codes_of("def f(a: Int) -> i8\n  b = a\n  -129\nend\n"),
+            [Code::B0003]
+        );
+    }
 
     #[test]
     fn arithmetic_keeps_its_width_and_refuses_a_mix_or_a_literal_that_does_not_fit() {

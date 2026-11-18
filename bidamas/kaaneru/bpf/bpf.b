@@ -1382,7 +1382,7 @@ mask32: the low 32 bits set.
 
     mask32 #=> 4294967295
 """
-def mask32()
+def mask32() -> u32
   4_294_967_295
 end
 
@@ -1391,7 +1391,7 @@ low32: a value's low 32 bits, as an unsigned number.
 
     low32(-1) #=> 4294967295
 """
-def low32(v)
+def low32(v: Int) -> u32
   low_bits(v, 32)
 end
 
@@ -1400,7 +1400,7 @@ sign32: a value's low 32 bits, read as signed.
 
     sign32(4294967295) #=> -1
 """
-def sign32(v)
+def sign32(v: Int) -> i32
   as_signed(v, 32)
 end
 

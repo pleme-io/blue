@@ -1178,10 +1178,7 @@ rc_run: compile a form through Perceus to a reference-counted executable, run it
     integer?(1) #=> true
 """
 def rc_run(form, mode)
-  path = path_join(temp_dir("hashiru"), "rc.out")
-  write_bytes(path, compile_rc(form, mode))
-  exec_capture("chmod", "+x", path)
-  status_of(exec_capture(path))
+  run_status(form, (f) -> compile_rc(f, mode))
 end
 
 test "Perceus programs give their value and free every block on x86-64", {

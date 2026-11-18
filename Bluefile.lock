@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2538c635ddfed8847d1ee4e56d5a104bac325de41028762b29d0a0326526a62b",
+  "bluefile_b3": "b3:df1e30f19812ff4a5dab5c6e97f929fe1edbadf0f57c255aab67f3c818257291",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -136,6 +136,16 @@
       },
       "mutation-census": {
         "file": "gen/mutation-census.b",
+        "inputs": [
+          "bidamas",
+          "crates",
+          "examples",
+          "gen",
+          "kernel",
+          "native",
+          "rules",
+          "spec"
+        ],
         "stage": "ci"
       },
       "okite-laws": {
@@ -165,6 +175,10 @@
       },
       "purity-ledger": {
         "file": "gen/purity.b",
+        "inputs": [
+          "crates",
+          "gen/purity.baseline"
+        ],
         "stage": "ci"
       },
       "regen-untracked": {

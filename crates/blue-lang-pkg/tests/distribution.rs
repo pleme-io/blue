@@ -616,7 +616,8 @@ fn shapes() -> std::collections::BTreeMap<String, tatara_lisp::Sexp> {
             else {
                 continue;
             };
-            if head.as_symbol() != Some("define") {
+            let typed = head.as_symbol() == Some("define-typed");
+            if head.as_symbol() != Some("define") && !typed {
                 continue;
             }
             let Some(key) = sig.first().and_then(|s| s.as_symbol()) else {
@@ -627,9 +628,14 @@ fn shapes() -> std::collections::BTreeMap<String, tatara_lisp::Sexp> {
             }
             let params: Vec<String> = sig[1..]
                 .iter()
+                .filter_map(|p| match p {
+                    tatara_lisp::Sexp::List(typed_param) => typed_param.first(),
+                    other => Some(other),
+                })
                 .filter_map(|p| p.as_symbol().map(str::to_owned))
                 .collect();
-            let body = tatara_lisp::Sexp::List(items[2..].to_vec());
+            let body_from = if typed { 3 } else { 2 };
+            let body = tatara_lisp::Sexp::List(items.get(body_from..).unwrap_or_default().to_vec());
             let tree = blue_lang_check::shape::normalize(&name, &params, &body);
             out.insert(
                 key.to_owned(),

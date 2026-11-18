@@ -170,12 +170,22 @@ check("heni-mutations", "gen/heni-gate.b", {stage: :ci})
 # held by gen/purity.baseline. A crate may shrink or hold and never grow; a new
 # crate must be recorded (blue gen/purity.b record). The count only falls as
 # blue replaces its Rust layers with blue.
-check("purity-ledger", "gen/purity.b", {stage: :ci})
+check(
+  "purity-ledger",
+  "gen/purity.b",
+  ["crates", "gen/purity.baseline"],
+  {stage: :ci}
+)
 
 # The rebind census (docs/PURE-BLUE.md L0): every set!, while and repeated
 # define in a block, per file, held by gen/mutation-census.baseline. A file may
 # lose rebinds and never gain one; typed cells (L1) are how they leave.
-check("mutation-census", "gen/mutation-census.b", {stage: :ci})
+check(
+  "mutation-census",
+  "gen/mutation-census.b",
+  ["bidamas", "crates", "examples", "gen", "kernel", "native", "rules", "spec"],
+  {stage: :ci}
+)
 
 # kikaigo's oracle (docs/PURE-BLUE.md B2): every instruction of its corpus,
 # printed as AT&T text, assembled by llvm-mc, and compared byte for byte.

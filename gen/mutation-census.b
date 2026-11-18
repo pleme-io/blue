@@ -146,12 +146,13 @@ end
 
 test "no file gains a rebind past its recorded count, and a new file with one must be recorded"
   rows = parse(read_or(BASELINE, ""))
+  assert size(blue_files) >= 500
   ms = measured(blue_files)
   bad = retsu::flat_map(
     KINDS,
     fn(k)
       map(
-        (f) -> f[:message],
+        (f) -> f[1],
         failures(rows, k, map((x) -> x[:m], filter((x) -> x[:kind] == k, ms)))
       )
     end

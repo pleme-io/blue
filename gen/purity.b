@@ -110,7 +110,7 @@ test "no crate grows past its recorded Rust bytes, and a new crate must be recor
   rows = parse(read_or(BASELINE, ""))
   ms = measured(".")
   assert size(ms) >= 20
-  bad = map((f) -> f[:message], failures(rows, KIND, ms))
+  bad = map((f) -> f[1], failures(rows, KIND, ms))
   if not is_empty(bad)
     write_stderr(unlines(bad))
     write_stderr(unlines(["record a shrink with: #{RECORD}"]))
@@ -136,4 +136,11 @@ test "only a crate's src files count"
   assert crate_of("crates/k/src/m/n.rs") == "k"
   assert crate_of("crates/k/build.rs").nil?
   assert crate_of("crates/k/src/data.json").nil?
+end
+
+test "a growth is reported as its message"
+  rows = parse(unlines(["purity-bytes: crates/a 100"]))
+  bad = map((f) -> f[1], failures(rows, KIND, [measurement("crates/a", 101)]))
+  assert bad ==
+    ["purity-bytes: crates/a measures 101, past its recorded 100 by 1"]
 end

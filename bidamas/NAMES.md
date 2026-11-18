@@ -128,6 +128,14 @@ replacement (`docs/COMPOUNDING.md`).
 | `toriyose/outou` | `render_ast` | `toriyose::danpen::render_value` | 0.1.2 |
 | `suugaku/kinji` | `opt` | `deeta::get_or` | 0.1.2 |
 | `suugaku/kinji` | `refusal` | `kyohi::refusal` | 0.1.2 |
+| `hashiru` | `rc_call` | `hashiru::call_code` | 0.1.0 |
+| `hashiru` | `run_exit` | `hashiru::run_status` | 0.1.0 |
+| `hashiru` | `run_closures_exit` | `hashiru::run_status` | 0.1.0 |
+| `kuzushi` | `meet` | `shuugou::intersection` | 0.1.0 |
+| `kuzushi` | `count_of` | `retsu::count_of` | 0.1.0 |
+| `kuzushi` | `has_lambda?` | `kuzushi::holds_head?` | 0.1.0 |
+| `kuzushi` | `has_gcall?` | `kuzushi::holds_head?` | 0.1.0 |
+| `kuzushi` | `has_failed_check?` | `kuzushi::holds_head?` | 0.1.0 |
 | `suugaku/kinji` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
 | `suugaku/kinji` | `refusal_why` | `kyohi::why` | 0.1.2 |
 | `kueri` | `col_names` | `kueri::names_of` | 0.1.2 |

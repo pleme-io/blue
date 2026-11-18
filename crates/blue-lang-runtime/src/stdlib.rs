@@ -369,6 +369,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::shape::install(interp);
     crate::collection::install(interp);
     crate::bits::install(interp);
+    install_gensym(interp);
     // ── text ──────────────────────────────────────────────────────────
 
     // `length` counts CHARACTERS, per Ruby. Also accepts a list, where it is
@@ -1580,4 +1581,35 @@ fn bytes_of_hex(text: &[u8]) -> Option<Vec<u8>> {
     text.chunks_exact(2)
         .map(|pair| Some(nibble(pair[0])? << 4 | nibble(pair[1])?))
         .collect()
+}
+
+/// `gensym` with a counter of its own per interpreter, replacing the
+/// substrate's process-global one. A program's generated names then depend on
+/// that program alone, never on what else the process expanded first, so two
+/// expansions of the same program name the same symbols (docs/PURE-BLUE.md L3).
+/// Names within one interpreter stay distinct.
+pub(crate) fn install_gensym<H: 'static>(interp: &mut Interpreter<H>) {
+    let counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    interp.register_fn(
+        "gensym",
+        Arity::Range(0, 1),
+        move |args: &[Value], _h: &mut H, span| {
+            let prefix: String = match args.first() {
+                None => "g".to_string(),
+                Some(Value::Str(s)) => s.to_string(),
+                Some(Value::Symbol(s)) => s.to_string(),
+                Some(other) => {
+                    return Err(EvalError::type_mismatch(
+                        "string or symbol",
+                        other.type_name(),
+                        span,
+                    ))
+                }
+            };
+            let n = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Ok(Value::Symbol(std::sync::Arc::from(format!(
+                "{prefix}__{n}__auto"
+            ))))
+        },
+    );
 }

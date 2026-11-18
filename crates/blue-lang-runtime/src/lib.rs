@@ -640,6 +640,7 @@ fn child_interpreter() -> Interpreter<()> {
         Ok(base) => base.fork(),
         Err(_) => interpreter(&mut ()),
     };
+    stdlib::install_gensym(&mut interp);
     apply_execution_bounds(&mut interp);
     interp
 }
@@ -842,6 +843,9 @@ pub fn interpreter_hostless() -> Interpreter<()> {
     apply_execution_bounds(&mut interp);
     // A node per fork: the base's own node would be shared by every program.
     attach_node(&mut interp);
+    // And a gensym counter per fork, for the same reason: the base's would be
+    // shared, so a program's generated names would depend on what ran before.
+    stdlib::install_gensym(&mut interp);
     interp
 }
 

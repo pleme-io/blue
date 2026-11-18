@@ -27,6 +27,9 @@
 //! - a first argument filters rows by id substring (coverage is then skipped);
 //!   `--coverage-only` runs the missing-row gate and the controls alone.
 
+#[global_allocator]
+static ALLOC: blue_lang_runtime::alloc::Counting = blue_lang_runtime::alloc::Counting;
+
 mod coverage;
 mod eval;
 mod judge;

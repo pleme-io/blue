@@ -140,6 +140,7 @@ pub enum Expect {
     /// `facts(["f: last_use x (+ x 1)"])`: the ownership facts kuzushi reads
     /// from the resolved tree, one line each, in order (docs/PURE-BLUE.md M1).
     Facts(Vec<String>),
+    Leaks(i64),
 }
 
 impl Expect {
@@ -153,6 +154,7 @@ impl Expect {
             Expect::Fixes(_) => "fixes",
             Expect::Shifts(..) => "shifts",
             Expect::Facts(_) => "facts",
+            Expect::Leaks(_) => "leaks",
         }
     }
 }
@@ -292,6 +294,10 @@ fn expect_of(s: &Sexp) -> Result<Expect, String> {
     let (head, args) = head_of(s).ok_or("the third argument must be an expectation call")?;
     Ok(match head {
         "value" => Expect::Value(one_str("value", args)?.to_owned()),
+        "leaks" => match args {
+            [Sexp::Atom(Atom::Int(n))] => Expect::Leaks(*n),
+            _ => return Err("leaks(N) takes one integer, the bytes a run may leave live".into()),
+        },
         "prints" => Expect::Prints(one_str("prints", args)?.to_owned()),
         "formats" => Expect::Formats(one_str("formats", args)?.to_owned()),
         "fixes" => Expect::Fixes(one_str("fixes", args)?.to_owned()),

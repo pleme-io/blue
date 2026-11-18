@@ -18,6 +18,7 @@ use(
 )
 
 use("kaaneru/btf")
+use("kansuu", [:iterate_while])
 use("retsu", %i[first flat_map index_of last repeat size take_while])
 
 legacy_names("0.1.0", [%w[map_kinds kaaneru::bpf::map_kinds]])
@@ -777,10 +778,10 @@ map_keys: every key a kernel map holds, as bytes, in the kernel's order.
     (map_keys({}) rescue :refused) #=> :refused
 """
 def map_keys(m)
-  acc = {keys: [], at: next_key(m, nil)}
-  while(
-    not acc[:at].nil?,
-    set!(acc, {keys: append(acc[:keys], [acc[:at]]), at: next_key(m, acc[:at])})
+  acc = iterate_while(
+    (acc) -> not acc[:at].nil?,
+    (acc) -> {keys: append(acc[:keys], [acc[:at]]), at: next_key(m, acc[:at])},
+    {keys: [], at: next_key(m, nil)}
   )
   acc[:keys]
 end
@@ -1603,11 +1604,12 @@ def attached(compiled, spec, body)
   else
     install(compiled)
   end
-  held = live
+  held = if live[:link].nil?
+    assoc(live, :link, linked(live[:prog], row, target))
+  else
+    live
+  end
   begin
-    if live[:link].nil?
-      set!(held, assoc(live, :link, linked(live[:prog], row, target)))
-    end
     body(held)
   ensure
     released(held)
@@ -2241,13 +2243,12 @@ drain: every record a consumer has now, oldest first.
     (drain(nil) rescue :refused) #=> :refused
 """
 def drain(ring)
-  acc = {events: [], at: ringbuf_next(ring, 0)}
-  while(
-    not acc[:at].nil?,
-    set!(
-      acc,
+  acc = iterate_while(
+    (acc) -> not acc[:at].nil?,
+    fn(acc)
       {events: append(acc[:events], [acc[:at]]), at: ringbuf_next(ring, 0)}
-    )
+    end,
+    {events: [], at: ringbuf_next(ring, 0)}
   )
   acc[:events]
 end

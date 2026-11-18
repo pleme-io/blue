@@ -206,10 +206,10 @@ def close?(a, b)
 end
 
 def collect(opts, node)
-  seen = [""]
-  sink = (t) -> set!(seen, [concat(first(seen), t)])
+  seen = cell("")
+  sink = (t) -> cell_put(seen, concat(cell_get(seen), t))
   show(node, jisho::merge(opts, {sink:}))
-  first(seen)
+  cell_get(seen)
 end
 
 def tag_row(tag, void, attrs)

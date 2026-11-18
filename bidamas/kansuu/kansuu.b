@@ -264,6 +264,20 @@ def until_stable(f, x, max_steps)
 end
 
 @doc """
+iterate_while: Apply f to x for as long as pred holds of the current value, and answer the first value it does not hold of: a loop, written as a tail call, so it runs in constant stack. What `acc = x; while(pred(acc), set!(acc, f(acc)))` meant, with no name rebound.
+
+    iterate_while((n) -> n < 10, (n) -> n * 2, 1) #=> 16
+    iterate_while((n) -> false, (n) -> n + 1, 5) #=> 5
+"""
+def iterate_while(pred, f, x)
+  if pred(x)
+    iterate_while(pred, f, f(x))
+  else
+    x
+  end
+end
+
+@doc """
 converges: Did it actually settle within the bound? The question until_stable's return
 value cannot answer.
 
@@ -534,4 +548,16 @@ test "juxt_with lets the collector decide"
   total = (g, fs) -> reduce((acc, f) -> acc + g(f), 0, fs)
   assert juxt_with(total, [inc, (n) -> n * 2])(3) == 10
   assert juxt_with(map, [inc])(1) == juxt([inc])(1)
+end
+
+test "iterate_while steps until the predicate fails, and runs a long loop in constant stack"
+  assert iterate_while((n) -> n < 10, (n) -> n * 2, 1) == 16
+  assert iterate_while((n) -> false, (n) -> n + 1, 5) == 5
+  assert iterate_while((n) -> n < 1_000_000, (n) -> n + 1, 0) == 1_000_000
+  acc = iterate_while(
+    (a) -> a[:at] < 3,
+    (a) -> {at: a[:at] + 1, out: append(a[:out], [a[:at]])},
+    {at: 0, out: []}
+  )
+  assert acc[:out] == [0, 1, 2]
 end

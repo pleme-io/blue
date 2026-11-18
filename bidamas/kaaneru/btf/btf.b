@@ -10,6 +10,7 @@ btf — the BPF Type Format as data: the kernel's own description of its types, 
 """
 
 use("baito", %i[bytes_int layout pack width])
+use("kansuu", [:iterate_while])
 use("retsu", %i[first flat_map index_of rest size])
 
 @doc """
@@ -146,8 +147,11 @@ type_index: where each type starts and each name's ids, from the type words.
 """
 def type_index(words)
   count = length(words)
-  acc = {at: 0, next_id: 1, starts: {}, by_name: {}}
-  while(acc[:at] < count, set!(acc, index_step(acc, words)))
+  acc = iterate_while(
+    (acc) -> acc[:at] < count,
+    (acc) -> index_step(acc, words),
+    {at: 0, next_id: 1, starts: {}, by_name: {}}
+  )
   acc
 end
 
@@ -1023,9 +1027,12 @@ def read_ext(bytes, blob)
   else
     b = read(blob)
     record = word_at(bytes, from)
-    acc = {at: 0, sections: []}
     inner = map((i) -> bytes[from + 4 + i], range(0, count - 4))
-    while(acc[:at] < count - 4, set!(acc, ext_step(acc, inner, b, record)))
+    acc = iterate_while(
+      (acc) -> acc[:at] < count - 4,
+      (acc) -> ext_step(acc, inner, b, record),
+      {at: 0, sections: []}
+    )
     acc[:sections]
   end
 end
@@ -1045,8 +1052,11 @@ def read_lines(bytes, blob)
     b = read(blob)
     record = word_at(bytes, from)
     stop = from + count
-    acc = {at: from + 4, sections: []}
-    while(acc[:at] < stop, set!(acc, line_step(acc, bytes, b, record)))
+    acc = iterate_while(
+      (acc) -> acc[:at] < stop,
+      (acc) -> line_step(acc, bytes, b, record),
+      {at: from + 4, sections: []}
+    )
     acc[:sections]
   end
 end
@@ -1096,8 +1106,11 @@ def read_core(bytes, blob)
     record = word_at(bytes, from)
     b = read(blob)
     stop = from + word_at(bytes, 28)
-    acc = {at: from + 4, sections: []}
-    while(acc[:at] < stop, set!(acc, core_step(acc, bytes, b, record)))
+    acc = iterate_while(
+      (acc) -> acc[:at] < stop,
+      (acc) -> core_step(acc, bytes, b, record),
+      {at: from + 4, sections: []}
+    )
     acc[:sections]
   end
 end

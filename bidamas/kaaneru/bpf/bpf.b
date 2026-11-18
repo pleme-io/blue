@@ -12,6 +12,7 @@ The encoding is RFC 9669. The kernel, `llvm-mc` and this machine are checked aga
 use("baito", %i[align_up bytes_int int_bytes])
 use("jisho", [:update])
 use("kaaneru/btf")
+use("kansuu", [:iterate_while])
 use("retsu", %i[first flat_map index_of last repeat rest size zip])
 
 use("shisutemu", [:blue_exe])
@@ -1012,8 +1013,11 @@ def decode(bytes)
     )
   end
   count = floor(length(bytes) / 8)
-  acc = {at: 0, out: []}
-  while(acc[:at] < count, set!(acc, decode_slot(bytes, count, acc)))
+  acc = iterate_while(
+    (acc) -> acc[:at] < count,
+    (acc) -> decode_slot(bytes, count, acc),
+    {at: 0, out: []}
+  )
   acc[:out]
 end
 
@@ -2293,10 +2297,10 @@ def helper_loop(st)
   state = reg_value(st, 3)
   back = st[:pc]
   depth = size(st[:frames])
-  acc = {st:, runs: 0, stop: limit == 0}
-  while(
-    not acc[:stop],
-    set!(acc, loop_turn(acc, {target:, state:, back:, depth:, limit:}))
+  acc = iterate_while(
+    (acc) -> not acc[:stop],
+    (acc) -> loop_turn(acc, {target:, state:, back:, depth:, limit:}),
+    {st:, runs: 0, stop: limit == 0}
   )
   assoc(assoc(acc[:st], :pc, back), 0, acc[:runs])
 end
@@ -2317,10 +2321,10 @@ def loop_turn(acc, call_at)
     call_at[:state]
   )
   table = entered[:by_slot]
-  running = entered
-  while(
-    size(running[:frames]) > call_at[:depth],
-    set!(running, tick(running, table, 1_000_000))
+  running = iterate_while(
+    (running) -> size(running[:frames]) > call_at[:depth],
+    (running) -> tick(running, table, 1_000_000),
+    entered
   )
   runs = acc[:runs] + 1
   {
@@ -2736,9 +2740,13 @@ run: a program to completion on a fresh machine: the machine at its end, with `r
 def run(program, input?)
   opts = input or {}
   limit = opts[:max_steps] or 1_000_000
-  st = machine(program, opts)
-  table = st[:by_slot]
-  while(not st[:done], set!(st, tick(st, table, limit)))
+  start = machine(program, opts)
+  table = start[:by_slot]
+  st = iterate_while(
+    (st) -> not st[:done],
+    (st) -> tick(st, table, limit),
+    start
+  )
   assoc(st, :ret, reg_value(st, 0))
 end
 

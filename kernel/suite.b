@@ -771,13 +771,13 @@ test "attached takes the program away when its body raises, and hands the raise 
     "kernel/programs/count.b",
     {entry: :on_event, kind: :raw_tracepoint, on_fault: 0}
   )
-  seen = nil
+  seen = cell(nil)
   answer = begin
     attached(
       compiled,
       {raw_tracepoint: "sched_process_exec"},
       fn(live)
-        set!(seen, live)
+        cell_put(seen, live)
         raise(:from_the_body, "stop")
       end
     )
@@ -786,9 +786,9 @@ test "attached takes the program away when its body raises, and hands the raise 
     :raised
   end
   assert answer == :raised
-  assert fd_number(seen[:link][:fd]).nil?
-  assert fd_number(seen[:prog][:fd]).nil?
-  assert fd_number(first(seen[:maps])[:fd]).nil?
+  assert fd_number(cell_get(seen)[:link][:fd]).nil?
+  assert fd_number(cell_get(seen)[:prog][:fd]).nil?
+  assert fd_number(first(cell_get(seen)[:maps])[:fd]).nil?
 end
 
 test "blue new --kernel makes a project whose every test runs here, none skipped"

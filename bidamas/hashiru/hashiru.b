@@ -600,6 +600,67 @@ def times8(r)
 end
 
 @doc """
+LARGE_ALLOC: rt_alloc's path for a block of FREE_CLASSES words or more: its own anonymous mapping (mmap), so a large block never uses up the heap; every register mmap takes is saved, since rt_alloc's callers keep values in rsi, rdx and r8-r10 across it. A refused mapping exits with HEAP_EXHAUSTED.
+
+    LARGE_ALLOC[0] #=> {op: "label", name: "rt_alloc_large"}
+"""
+LARGE_ALLOC = append(
+  *[
+    [
+      {op: "label", name: "rt_alloc_large"},
+      {op: "push", src: "rsi"},
+      {op: "push", src: "rdx"},
+      {op: "push", src: "r8"},
+      {op: "push", src: "r9"},
+      {op: "push", src: "r10"},
+      {op: "push", src: "rdi"},
+      {op: "mov", dst: "rsi", src: "rdi"}
+    ],
+    times8("rsi"),
+    [
+      {op: "mov", dst: "rdi", imm: 0},
+      {op: "mov", dst: "rdx", imm: 3},
+      {op: "mov", dst: "r10", imm: 34},
+      {op: "mov", dst: "r8", imm: -1},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "mov", dst: "rax", imm: 9},
+      {op: "syscall"},
+      {op: "pop", dst: "rdi"},
+      {op: "pop", dst: "r10"},
+      {op: "pop", dst: "r9"},
+      {op: "pop", dst: "r8"},
+      {op: "pop", dst: "rdx"},
+      {op: "pop", dst: "rsi"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_alloc_full"},
+      {op: "jmp", label: "rt_alloc_init"}
+    ]
+  ]
+)
+
+@doc """
+LARGE_DROP: rt_drop's path for a block of FREE_CLASSES words or more: its mapping is returned (munmap), with rsi saved, then it is counted no longer live.
+
+    LARGE_DROP[0] #=> {op: "label", name: "rt_drop_large"}
+"""
+LARGE_DROP = append(
+  *[
+    [
+      {op: "label", name: "rt_drop_large"},
+      {op: "push", src: "rsi"},
+      {op: "mov", dst: "rsi", src: "rdx"}
+    ],
+    times8("rsi"),
+    [
+      {op: "mov", dst: "rax", imm: 11},
+      {op: "syscall"},
+      {op: "pop", dst: "rsi"},
+      {op: "jmp", label: "rt_drop_count"}
+    ]
+  ]
+)
+
+@doc """
 RT_ALLOC: the runtime's allocator, in machine code. It takes a block of rdi words from the free list kept for that size at r14, or bumps r15 when the list is empty; it sets the block's count to 1 and records its size, counts it live at r14, and answers it in rax.
 
     RT_ALLOC[0] #=> {op: "label", name: "rt_alloc"}
@@ -609,7 +670,7 @@ RT_ALLOC = append(
     [
       {op: "label", name: "rt_alloc"},
       {op: "cmp", dst: "rdi", imm: FREE_CLASSES},
-      {op: "j", cond: "ge", label: "rt_alloc_bump"},
+      {op: "j", cond: "ge", label: "rt_alloc_large"},
       {op: "mov", dst: "rax", src: "rdi"}
     ],
     times8("rax"),
@@ -645,7 +706,8 @@ RT_ALLOC = append(
       {op: "mov", dst: "rdi", imm: HEAP_EXHAUSTED},
       {op: "mov", dst: "rax", imm: 60},
       {op: "syscall"}
-    ]
+    ],
+    LARGE_ALLOC
   ]
 )
 
@@ -724,7 +786,7 @@ RT_DROP = append(
       {op: "jmp", label: "rt_drop_loop"},
       {op: "label", name: "rt_drop_free"},
       {op: "cmp", dst: "rdx", imm: FREE_CLASSES},
-      {op: "j", cond: "ge", label: "rt_drop_count"},
+      {op: "j", cond: "ge", label: "rt_drop_large"},
       {op: "mov", dst: "rax", src: "rdx"}
     ],
     times8("rax"),
@@ -739,7 +801,8 @@ RT_DROP = append(
       {op: "store", src: "rcx", base: "r14", disp: 0},
       {op: "label", name: "rt_drop_out"},
       {op: "ret"}
-    ]
+    ],
+    LARGE_DROP
   ]
 )
 
@@ -2596,7 +2659,7 @@ test "exit_with untags its status and calls exit, and print is refused until it 
 end
 
 @doc """
-LARGE_PROGRAMS: programs whose blocks outgrow the free-list table, with the exit status each must give: a string of more than FREE_CLASSES words is bumped and never indexes past the table, and a heap used up exits with HEAP_EXHAUSTED.
+LARGE_PROGRAMS: programs whose blocks outgrow the free-list table, with the exit status each must give: a string of FREE_CLASSES words or more is its own mapping, so a 1 MiB string fits beside a 1 MiB heap, and a heap used up by small live blocks exits with HEAP_EXHAUSTED.
 
     LARGE_PROGRAMS[0][1] #=> 64
 """
@@ -2607,11 +2670,15 @@ LARGE_PROGRAMS = [
   ],
   [
     "(begin (define (rep n s) (if (equal? n 0) s (rep (- n 1) (concat s s)))) (string_length (rep 19 \"ab\")))",
+    0
+  ],
+  [
+    "(begin (define (build n acc) (if (equal? n 0) (length acc) (build (- n 1) (cons n acc)))) (build 40000 (list)))",
     HEAP_EXHAUSTED
   ]
 ]
 
-test "large blocks bump and free; a full heap exits ENOMEM on x86-64", {
+test "large blocks map and unmap; a full heap exits ENOMEM on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2634,11 +2701,16 @@ test "large blocks bump and free; a full heap exits ENOMEM on x86-64", {
   end
 end
 
-test "the allocator sends a block of FREE_CLASSES words or more past the free lists and checks the heap's end"
+test "the allocator maps a block of FREE_CLASSES words or more and checks the heap's end"
   assert member?({op: "cmp", dst: "rdi", imm: FREE_CLASSES}, RT_ALLOC)
   assert member?({op: "j", cond: "g", label: "rt_alloc_full"}, RT_ALLOC)
   assert member?({op: "mov", dst: "rdi", imm: HEAP_EXHAUSTED}, RT_ALLOC)
   assert member?({op: "cmp", dst: "rdx", imm: FREE_CLASSES}, RT_DROP)
+  assert member?({op: "j", cond: "ge", label: "rt_alloc_large"}, RT_ALLOC)
+  assert member?({op: "mov", dst: "rax", imm: 9}, LARGE_ALLOC)
+  assert member?({op: "pop", dst: "r10"}, LARGE_ALLOC)
+  assert member?({op: "mov", dst: "rax", imm: 11}, LARGE_DROP)
+  assert member?({op: "j", cond: "ge", label: "rt_drop_large"}, RT_DROP)
   assert length(assemble(RT_ALLOC)) > 0
   assert length(assemble(RT_DROP)) > 0
 end

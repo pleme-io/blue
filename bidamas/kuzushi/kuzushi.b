@@ -7,7 +7,19 @@ In A-normal form every call's arguments are atoms (a literal or a name) and ever
 """
 
 use("junjo", [:sort_by])
-use("retsu", %i[first flat_map rest])
+use("retsu", %i[count_of first flat_map rest])
+use("shuugou", [:intersection])
+
+legacy_names(
+  "0.1.0",
+  [
+    %w[meet shuugou::intersection],
+    %w[count_of retsu::count_of],
+    ["has_lambda?", "kuzushi::holds_head?", "\"lambda\""],
+    ["has_gcall?", "kuzushi::holds_head?", "\"gcall\""],
+    ["has_failed_check?", "kuzushi::holds_head?", "\"failed?\""]
+  ]
+)
 
 @doc """
 fresh: the symbol the counter value n names, t__N.
@@ -365,15 +377,6 @@ def minus(a, b)
 end
 
 @doc """
-meet: the names of a that b also holds.
-
-    meet(["a", "b"], ["b", "c"]) #=> ["b"]
-"""
-def meet(a, b)
-  filter((x) -> member?(x, b), a)
-end
-
-@doc """
 fv: the names a term reads that it does not bind, in first-use order.
 
     fv(anf(read_forms("(+ x 1)")[0])) #=> ["x"]
@@ -456,15 +459,6 @@ def unique_names(xs)
 end
 
 @doc """
-count_of: how many times a name appears.
-
-    count_of(["a", "b", "a"], "a") #=> 2
-"""
-def count_of(xs, x)
-  length(filter((y) -> y == x, xs))
-end
-
-@doc """
 arg_names: the names an rhs reads as arguments, repeats kept; for an if, its condition.
 
     arg_names(read_forms("(+ x x)")[0]) #=> ["x", "x"]
@@ -512,10 +506,10 @@ def perceus_in(term, owned, keep)
     consumed = filter((x) -> member?(x, owned) and not member?(x, after), used)
     owned_after = union(minus(minus(owned, dead), consumed), [v])
     new_rhs = if head_is?(rhs, "try")
-      body_owned = minus(minus(owned, dead), meet(consumed, args))
+      body_owned = minus(minus(owned, dead), intersection(consumed, args))
       [rhs[0], perceus_in(rhs[1], body_owned, union(after, args)), rhs[2]]
     elsif head_is?(rhs, "if")
-      branch_owned = minus(minus(owned, dead), meet(consumed, args))
+      branch_owned = minus(minus(owned, dead), intersection(consumed, args))
       [
         rhs[0],
         rhs[1],
@@ -760,7 +754,7 @@ test "the counting helpers are exercised by name"
     [["a", 0], ["b", 0]]
   assert union(["a"], %w[a b]) == %w[a b]
   assert minus(%w[a b], ["a"]) == ["b"]
-  assert meet(%w[a b], %w[b c]) == ["b"]
+  assert intersection(%w[a b], %w[b c]) == ["b"]
   assert fv(program("(+ x 1)")) == ["x"]
   assert names_of(read_forms("x")[0]) == ["x"]
   assert unique_names(%w[a a]) == ["a"]
@@ -812,7 +806,7 @@ def cc_rhs(rhs, scope, v)
     [[rhs[0], rhs[1], yes[0], no[0]], append(yes[1], no[1])]
   elsif head_is?(rhs, "lambda")
     params = map((p) -> to_s(p), rhs[1])
-    captured = meet(minus(fv(rhs[2]), params), scope)
+    captured = intersection(minus(fv(rhs[2]), params), scope)
     inner = cc_term(rhs[2], append(params, captured))
     label = "fn_#{v}"
     lifted = {label:, params:, captured:, body: inner[0]}
@@ -920,17 +914,18 @@ def eval_program(p)
 end
 
 @doc """
-has_lambda?: whether a tree holds a lambda anywhere.
+holds_head?: whether a tree holds a form with this head anywhere.
 
-    has_lambda?(7) #=> false
+    holds_head?(read_forms("(a (lambda (x) x))")[0], "lambda") #=> true
+    holds_head?(7, "lambda") #=> false
 """
-def has_lambda?(x)
+def holds_head?(x, head)
   if not list?(x)
     false
-  elsif head_is?(x, "lambda")
+  elsif head_is?(x, head)
     true
   else
-    retsu::find_first(has_lambda?, x) != nil
+    retsu::find_first((c) -> holds_head?(c, head), x) != nil
   end
 end
 
@@ -946,8 +941,11 @@ test "closure conversion lifts every lambda and keeps every answer"
       t = anf(read_forms(src)[0])
       p = closure_convert(t)
       assert eval_program(p) == eval_anf(t, [])
-      assert not has_lambda?(p[:main])
-      assert retsu::find_first((f) -> has_lambda?(f[:body]), p[:fns]).nil?
+      assert not holds_head?(p[:main], "lambda")
+      assert retsu::find_first(
+        (f) -> holds_head?(f[:body], "lambda"),
+        p[:fns]
+      ).nil?
     end,
     progs
   )
@@ -981,8 +979,8 @@ test "the closure helpers are exercised by name"
   assert cc_term(read_forms("(ret 1)")[0], [])[0] == read_forms("(ret 1)")[0]
   assert lifted_rhs([], read_forms("(+ 1 2)")[0], []) == 3
   assert lifted_term([], read_forms("(ret 4)")[0], []) == 4
-  assert has_lambda?(read_forms("(a (lambda (x) x))")[0])
-  assert not has_lambda?(7)
+  assert holds_head?(read_forms("(a (lambda (x) x))")[0], "lambda")
+  assert not holds_head?(7, "lambda")
 end
 
 @doc """
@@ -1193,7 +1191,7 @@ test "a program splits into its global functions and its main, and calls to them
   assert s[:defs][0][:params] == ["x"]
   w = whole(read_forms("(begin (define (f x) (+ x 1)) (f 2))")[0])
   assert length(w[:globals]) == 1
-  assert has_gcall?(w[:main])
+  assert holds_head?(w[:main], "gcall")
   t = globalize(anf(read_forms("(f 1)")[0]), ["f"])
   assert to_s(t[1][1][0]) == "gcall"
   assert t[1][1][1] == "f"
@@ -1205,21 +1203,6 @@ test "lifted labels are prefixed per function, in the function and at every clos
   assert starts_with?(q[:fns][0][:label], "g__")
   assert has_label?(q[:main], q[:fns][0][:label])
   assert relabel(read_forms("(ret 1)")[0], "z") == read_forms("(ret 1)")[0]
-end
-
-@doc """
-has_gcall?: whether a tree makes a direct call to a global anywhere.
-
-    has_gcall?(7) #=> false
-"""
-def has_gcall?(x)
-  if not list?(x)
-    false
-  elsif head_is?(x, "gcall")
-    true
-  else
-    retsu::find_first(has_gcall?, x) != nil
-  end
 end
 
 @doc """
@@ -1474,21 +1457,22 @@ test "the try helpers are exercised by name"
   assert may_fail?(read_forms("(raise 1)")[0])
   assert not may_fail?(read_forms("(first l)")[0])
   t = propagate(anf(read_forms("(+ 1 (f 2))")[0]))
-  assert has_failed_check?(t)
-  assert not has_failed_check?(propagate(anf(read_forms("(+ 1 2)")[0])))
+  assert holds_head?(t, "failed?")
+  assert not holds_head?(propagate(anf(read_forms("(+ 1 2)")[0])), "failed?")
 end
 
-@doc """
-has_failed_check?: whether a tree holds a failed? check anywhere.
-
-    has_failed_check?(7) #=> false
-"""
-def has_failed_check?(x)
-  if not list?(x)
-    false
-  elsif head_is?(x, "failed?")
-    true
-  else
-    retsu::find_first(has_failed_check?, x) != nil
-  end
+test "the passes take each rarer case beside them: quote, list words, a try that does not raise, a kept return, a dead dup, a program of several main forms"
+  q = read_forms("(quote a)")[0]
+  assert norm(q, 0)[1] == q
+  assert prim("first", [[1, 2]]) == 1
+  assert prim("rest", [[1, 2]]) == [2]
+  assert prim("cons", [0, [1]]) == [0, 1]
+  assert eval_anf(anf(read_forms("(try (+ 1 2) (catch (e) 0))")[0]), []) == 3
+  kept = perceus_in(read_forms("(ret x)")[0], ["x"], ["x"])
+  assert holds_head?(kept, "dup")
+  dead = rc_rhs(read_forms("(dup x)")[0], [["x", 0]], [])
+  assert dead[1] == ["`x` duplicated with no reference left"]
+  two = split_program(read_forms("(begin (define (f) 1) (f) 2)")[0])
+  assert length(two[:defs]) == 1
+  assert head_is?(two[:main], "begin")
 end

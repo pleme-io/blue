@@ -1,3 +1,4 @@
 package("kikaigo", "0.1.0")
 tier(:toolchain)
+needs("kazu", "^0.1")
 needs("retsu", "^0.1")

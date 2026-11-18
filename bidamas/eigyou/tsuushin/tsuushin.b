@@ -457,3 +457,7 @@ test "last_or_empty is blank for no parts"
   assert last_or_empty([]) == ""
   assert last_or_empty(%w[a b]) == "b"
 end
+
+test "wire is the transport request uses when none is given: a five-argument procedure"
+  assert procedure?(wire)
+end

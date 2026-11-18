@@ -70,8 +70,10 @@ use("gitto")
 use("gurafu")
 use("hadome")
 use("happa")
+use("hashiru")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
+use("henkan")
 use("hikisuu")
 use("hizuke", [:is_leap])
 use("hon")
@@ -86,6 +88,7 @@ use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
 use("khipu")
+use("kikaigo")
 use("kitei", [:switch_of])
 use("kiwari")
 use("kodou")
@@ -95,6 +98,7 @@ use("kousei")
 use("koutei")
 use("kueri")
 use("kurasuta")
+use("kuzushi")
 use("kyohi")
 use("maakuappu")
 use("mitoshi")
@@ -262,6 +266,10 @@ test "every bidama in the distribution answers through this one import"
   assert chozou::sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
   assert ibuki::classify({state: :merge}) == :strand
   assert kodou::be32(258) == [0, 0, 1, 2]
+  assert henkan::language("ir", [["ret", 1]])[:name] == "ir"
+  assert kuzushi::head_is?(read_forms("(f 1)")[0], "f")
+  assert kikaigo::imm8?(127) and not kikaigo::imm8?(128)
+  assert hashiru::PROGRAMS[1][1] == 42
   assert tesuto::raises?(:bad_option, () -> fuuin::generate(:ed25519, {})) ==
     true
 end

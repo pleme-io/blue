@@ -467,3 +467,7 @@ test "with every posture off the handler is untouched"
   assert size(d[:off]) == 3
   assert d[:handler](get_req("/", [], "")) == ok(nil)
 end
+
+test "quiet is a refusal sink that records nothing"
+  assert quiet("csp", "a reason").nil?
+end

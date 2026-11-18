@@ -6,6 +6,7 @@ The method is kaaneru/bpf's: an opcode table, operand encoders, and an oracle th
     encode({op: "mov", dst: "rax", src: "rsi"}) #=> [72, 137, 240]
 """
 
+use("kazu", [:fits])
 use("retsu", %i[find_first flat_map index_of])
 
 @doc """
@@ -101,7 +102,7 @@ imm8?: whether an immediate fits a sign-extended byte, so an ALU operation takes
     imm8?(128) #=> false
 """
 def imm8?(n)
-  n >= -128 and n <= 127
+  fits(n, true, 8)
 end
 
 @doc """
@@ -688,4 +689,13 @@ test "the helpers are exercised by name"
   assert encode({op: "pop", dst: "rdi"}) == [95]
   assert encode({op: "sar1", dst: "rax"}) == [72, 209, 248]
   assert encode({op: "call_label", rel: 0}) == [232, 0, 0, 0, 0]
+end
+
+test "every corpus instruction prints as text and encodes to bytes beside the encoder"
+  bad = filter((i) -> length(text(i)) == 0 or length(encode(i)) == 0, corpus)
+  assert bad == []
+  assert text({op: "ret"}) == "retq"
+  assert text({op: "syscall"}) == "syscall"
+  assert text({op: "cqo"}) == "cqto"
+  assert text({op: "call_r11"}) == "callq *(%r11)"
 end

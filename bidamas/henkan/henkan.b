@@ -230,3 +230,10 @@ test "every definition is exercised by name"
   assert rewrite([], read_forms("(x)")[0]) == read_forms("(x)")[0]
   assert run(p, read_forms("(ret (x))")[0]) == read_forms("(ret (x))")[0]
 end
+
+test "problems refuses a form that does not start with a symbol"
+  lang = language("l", [["ret", 1]])
+  found = problems(lang, read_forms("(1 2)")[0], [])
+  assert length(found) == 1
+  assert found[0][:message] == "a form of language l starts with a symbol"
+end

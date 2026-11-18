@@ -389,7 +389,7 @@ fn every_declared_dependency_is_actually_imported() {
     for name in packages() {
         let dir = dist().join(&name);
         let manifest = std::fs::read_to_string(dir.join("Bluefile")).expect("manifest");
-        let source = std::fs::read_to_string(dir.join(format!("{name}.b"))).expect("source");
+        let source = sources_under(&dir);
         for chunk in manifest.split("needs(\"").skip(1) {
             let dep = chunk.split('"').next().unwrap_or_default();
             let flat = source.split_whitespace().collect::<String>();
@@ -843,4 +843,21 @@ fn every_moved_name_is_in_the_ledger() {
         !declared.is_empty(),
         "no moves declaration found; the scan read nothing"
     );
+}
+
+fn sources_under(dir: &std::path::Path) -> String {
+    let mut text = String::new();
+    let mut entries: Vec<_> = std::fs::read_dir(dir)
+        .expect("package dir")
+        .map(|e| e.expect("entry").path())
+        .collect();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() && !path.join("Bluefile").exists() {
+            text.push_str(&sources_under(&path));
+        } else if path.extension().is_some_and(|e| e == "b") {
+            text.push_str(&std::fs::read_to_string(&path).expect("source"));
+        }
+    }
+    text
 }

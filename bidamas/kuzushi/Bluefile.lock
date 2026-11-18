@@ -1,13 +1,14 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:3a65cdbaa06cdb75f572ed8e096795658ee7987efbe5500f00ce21e67c182761",
+  "bluefile_b3": "b3:065861850702ff7eb046f49d8957640af2071394b920c3dda021c2faffaa8964",
   "manifest": {
     "schema": 1,
     "name": "kuzushi",
     "version": "0.1.0",
     "needs": {
       "junjo": "^0.1.0",
-      "retsu": "^0.1.0"
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

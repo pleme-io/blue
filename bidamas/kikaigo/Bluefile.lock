@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c588b800b9397aa890d442abc75ce46b1d9d508ad63dcd410b1f133064824202",
+  "bluefile_b3": "b3:013b17ba55ece62039086e457f15f01ac33b62be1f65c2d220ae09b83d29ea5e",
   "manifest": {
     "schema": 1,
     "name": "kikaigo",
     "version": "0.1.0",
     "needs": {
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

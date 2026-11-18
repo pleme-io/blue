@@ -1570,11 +1570,7 @@ truncated: a value's low bits.
     truncated(65537, 16) #=> 1
 """
 def truncated(v, bits)
-  if bits == 64
-    v
-  else
-    bit_and(v, shift_left(1, bits) - 1)
-  end
+  low_bits(v, bits)
 end
 
 @doc """

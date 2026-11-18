@@ -75,7 +75,7 @@ def recorded()
   unlines(
     [
       "untested: deeta 3",
-      "untested: eigyou 3",
+      "untested: eigyou 2",
       "untested: kakehashi 24",
       "untested: keiyu 1",
       "untested: kiwari 5",

@@ -12,6 +12,15 @@ use("kuzushi", %i[anf closure_convert head_is? perceus_program whole])
 use("retsu", %i[drop_n first flat_map index_of last rest slice take_n])
 use("shisutemu", %i[status_of stdout_of])
 
+legacy_names(
+  "0.1.0",
+  [
+    %w[rc_call hashiru::call_code hashiru::tagged_atom],
+    %w[run_exit hashiru::run_status hashiru::compile],
+    %w[run_closures_exit hashiru::run_status hashiru::compile_closures]
+  ]
+)
+
 @doc """
 bound_names: every name a term binds with let, in its branches too, in first-bound order.
 
@@ -223,13 +232,13 @@ def linux_x86?()
 end
 
 @doc """
-run_exit: compile a form, run it, and answer its exit status.
+run_status: compile a form with `compiler`, run it as a static executable, and answer its exit status.
 
     integer?(1) #=> true
 """
-def run_exit(form)
+def run_status(form, compiler)
   path = path_join(temp_dir("hashiru"), "a.out")
-  write_bytes(path, compile(form))
+  write_bytes(path, compiler(form))
   exec_capture("chmod", "+x", path)
   status_of(exec_capture(path))
 end
@@ -264,7 +273,10 @@ test "every program's exit status is its value when run on x86-64 Linux", {
   allow: %i[filesystem process]
 }
   if linux_x86?
-    map((p) -> assert run_exit(read_forms(p[0])[0]) == p[1], PROGRAMS)
+    map(
+      (p) -> assert run_status(read_forms(p[0])[0], compile) == p[1],
+      PROGRAMS
+    )
   end
 end
 
@@ -342,7 +354,7 @@ def rhs_code(slots, rhs)
   if head_is?(rhs, "closure")
     closure_code(slots, rhs[1], rest(rest(rhs)))
   elsif head_is?(rhs, "call")
-    call_code(slots, rhs[1], rest(rest(rhs)))
+    call_code(slots, rhs[1], rest(rest(rhs)), load_atom)
   else
     op_code(slots, to_s(first(rhs)), rest(rhs))
   end
@@ -378,11 +390,11 @@ def closure_code(slots, label, captured)
 end
 
 @doc """
-call_code: a call through a closure: the arguments in ARG_REGS, the closure in r11, then a call through its code address; the answer comes back in rax.
+call_code: a call through a closure, each atom loaded by `load` (load_atom for raw values, tagged_atom for tagged ones): the arguments in ARG_REGS, the closure in r11, then a call through its code address; the answer comes back in rax.
 
-    last(call_code(["f"], read_forms("f")[0], [1]))[:op] #=> "call_r11"
+    last(call_code(["f"], read_forms("f")[0], [1], load_atom))[:op] #=> "call_r11"
 """
-def call_code(slots, f, args)
+def call_code(slots, f, args, load)
   if length(args) > 6
     raise(:unsupported, "hashiru: a call passes at most six arguments")
   end
@@ -390,9 +402,9 @@ def call_code(slots, f, args)
     *[
       flat_map(
         range(0, length(args)),
-        (k) -> load_atom(slots, args[k], ARG_REGS[k])
+        (k) -> load(slots, args[k], ARG_REGS[k])
       ),
-      load_atom(slots, f, "r11"),
+      load(slots, f, "r11"),
       [{op: "call_r11"}]
     ]
   )
@@ -514,25 +526,13 @@ CLOSURE_PROGRAMS = [
   ["(let ((add3 (lambda (a b c) (+ a (+ b c))))) (add3 10 20 12))", 42]
 ]
 
-@doc """
-run_closures_exit: compile a form with lambdas, run it, and answer its exit status.
-
-    integer?(1) #=> true
-"""
-def run_closures_exit(form)
-  path = path_join(temp_dir("hashiru"), "c.out")
-  write_bytes(path, compile_closures(form))
-  exec_capture("chmod", "+x", path)
-  status_of(exec_capture(path))
-end
-
-test "every closure program's exit status is its value when run on x86-64 Linux", {
+test "closure programs exit with their value on x86-64 Linux", {
   kind: :integration,
   allow: %i[filesystem process]
 }
   if linux_x86?
     map(
-      (p) -> assert run_closures_exit(read_forms(p[0])[0]) == p[1],
+      (p) -> assert run_status(read_forms(p[0])[0], compile_closures) == p[1],
       CLOSURE_PROGRAMS
     )
   end
@@ -542,7 +542,7 @@ test "a closure is a record at r15 and a call goes through r11"
   c = closure_code([], "f", [3])
   assert c[0] == {op: "lea_label", label: "f"}
   assert last(c) == {op: "add", dst: "r15", imm: 16}
-  k = call_code(["g"], read_forms("g")[0], [1, 2])
+  k = call_code(["g"], read_forms("g")[0], [1, 2], load_atom)
   assert k[0] == {op: "mov", dst: "rdi", imm: 1}
   assert last(k) == {op: "call_r11"}
   f = nth(
@@ -569,7 +569,7 @@ test "a closure is a record at r15 and a call goes through r11"
   assert compile_closures(read_forms("1")[0])[1] == 69
   assert length(CLOSURE_PROGRAMS) == 5
   refused = begin
-    call_code([], 1, [1, 2, 3, 4, 5, 6, 7])
+    call_code([], 1, [1, 2, 3, 4, 5, 6, 7], load_atom)
   rescue e
     e.kind
   end
@@ -941,27 +941,6 @@ def rc_closure(slots, label, captured)
 end
 
 @doc """
-rc_call: a call through a closure with tagged arguments: the arguments in ARG_REGS, the closure in r11, a call through its code address.
-
-    last(rc_call(["f"], read_forms("f")[0], [1])) #=> {op: "call_r11"}
-"""
-def rc_call(slots, f, args)
-  if length(args) > 6
-    raise(:unsupported, "hashiru: a call passes at most six arguments")
-  end
-  append(
-    *[
-      flat_map(
-        range(0, length(args)),
-        (k) -> tagged_atom(slots, args[k], ARG_REGS[k])
-      ),
-      tagged_atom(slots, f, "r11"),
-      [{op: "call_r11"}]
-    ]
-  )
-end
-
-@doc """
 rc_rhs: a right-hand side that is not an if, over tagged values.
 
     length(rc_rhs([], read_forms("(+ 1 2)")[0])) #=> 4
@@ -970,7 +949,7 @@ def rc_rhs(slots, rhs)
   if head_is?(rhs, "closure")
     rc_closure(slots, rhs[1], rest(rest(rhs)))
   elsif head_is?(rhs, "call")
-    rc_call(slots, rhs[1], rest(rest(rhs)))
+    call_code(slots, rhs[1], rest(rest(rhs)), tagged_atom)
   elsif head_is?(rhs, "gcall")
     rc_gcall(slots, rhs[1], rest(rest(rhs)))
   else
@@ -1196,7 +1175,7 @@ def rc_run(form, mode)
   status_of(exec_capture(path))
 end
 
-test "every program gives its value, and frees every block, when compiled through Perceus and run on x86-64 Linux", {
+test "Perceus programs give their value and free every block on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -1222,7 +1201,8 @@ test "the reference-counted code tags, allocates and calls the runtime"
     {op: "call_label", label: "rt_drop"}
   assert rc_op([], "dup", [1])[1] == {op: "call_label", label: "rt_dup"}
   assert rc_closure([], "f", [1])[1] == {op: "call_label", label: "rt_alloc"}
-  assert last(rc_call(["f"], read_forms("f")[0], [])) == {op: "call_r11"}
+  assert last(call_code(["f"], read_forms("f")[0], [], tagged_atom)) ==
+    {op: "call_r11"}
   assert length(rc_rhs([], read_forms("(* 2 3)")[0])) == 6
   assert rc_names(read_forms("(let (_ (dup x)) (ret 1))")[0]) == []
   assert rc_gen([], read_forms("(ret 3)")[0], :exit, 0)[0][0] ==
@@ -1363,7 +1343,7 @@ LIST_PROGRAMS = [
   ["(let ((l (list 4 5))) (+ (first l) (first (rest l))))", 9]
 ]
 
-test "every list program gives its value and frees every cell on x86-64 Linux", {
+test "list programs give their value and free every cell on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -1521,7 +1501,7 @@ RECURSIVE_PROGRAMS = [
   ]
 ]
 
-test "every recursive program gives its value and frees every block on x86-64 Linux", {
+test "recursive programs give their value and free every block on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -1563,7 +1543,7 @@ str_label: the label of a string literal's static block, from its bytes, so equa
     str_label("hi") #=> "str_6869"
 """
 def str_label(s)
-  "str_#{hex_encode(s)}"
+  concat("str_", hex_encode(s))
 end
 
 @doc """
@@ -1651,7 +1631,7 @@ STRING_PROGRAMS = [
   ]
 ]
 
-test "every string program prints what it should, exits with its value and frees every block on x86-64 Linux", {
+test "string programs print, exit with their value and free all on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -1882,7 +1862,7 @@ MAP_PROGRAMS = [
   ]
 ]
 
-test "every map program gives its value and frees every block on x86-64 Linux", {
+test "map programs give their value and free every block on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -1934,7 +1914,7 @@ COND_PROGRAMS = [
   ]
 ]
 
-test "every cond program gives its value and frees every block on x86-64 Linux", {
+test "cond programs give their value and free every block on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2023,7 +2003,7 @@ TRY_PROGRAMS = [
   ]
 ]
 
-test "every try program gives its value and frees every block on every path on x86-64 Linux", {
+test "try programs give their value and free all on every path on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2118,7 +2098,7 @@ PRELUDE_PROGRAMS = [
   ]
 ]
 
-test "every prelude program gives its value and frees every block on x86-64 Linux", {
+test "prelude programs give their value and free every block on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2331,7 +2311,7 @@ CONCAT_PROGRAMS = [
   ["(if (equal? (list \"a\" \"b\") (list \"a\" \"b\")) 1 2)", 1, ""]
 ]
 
-test "every string-joining program prints what it should, exits with its value and frees every block on x86-64 Linux", {
+test "string-joining programs print, exit and free all on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2461,7 +2441,7 @@ TO_S_PROGRAMS = [
   ]
 ]
 
-test "every number-printing program prints what it should and frees every block on x86-64 Linux", {
+test "number-printing programs print and free every block on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -2489,4 +2469,42 @@ test "to_s calls the runtime, which divides by ten for each digit"
   assert member?({op: "idiv", src: "rcx"}, RT_TO_S)
   assert RT_TO_S[0] == {op: "label", name: "rt_to_s"}
   assert length(TO_S_PROGRAMS) == 5
+end
+
+test "every primitive the code generators know emits code beside them, and an unknown one is refused"
+  raw = %w[+ - * < > equal? syscall6 load_word store_word id dup]
+  assert filter((o) -> length(op_code([], o, [1, 2])) == 0, raw) == []
+  assert op_code([], "drop", [1]) == []
+  assert (op_code([], "nope", [1, 2]) rescue :refused) == :refused
+  tagged = %w[
+    +
+    -
+    *
+    <
+    >
+    equal?
+    concat
+    to_s
+    cons
+    list
+    first
+    rest
+    raise
+    failed?
+    hash-map
+    assoc
+    get
+    string_length
+    print
+    length
+    id
+    dup
+  ]
+  assert filter((o) -> length(rc_op([], o, [1, 2])) == 0, tagged) == []
+  assert length(rhs_code(["f"], read_forms("(closure f)")[0])) > 0
+  assert length(rhs_code(["f"], read_forms("(call f 1)")[0])) > 0
+  assert length(rhs_code([], read_forms("(+ 1 2)")[0])) > 0
+  seven = [1, 2, 3, 4, 5, 6, 7]
+  assert (rc_gcall([], "f", seven) rescue :refused) == :refused
+  assert (call_code([], 1, seven, tagged_atom) rescue :refused) == :refused
 end

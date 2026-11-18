@@ -34,6 +34,9 @@ tool("git")
 tool("openssh")
 # tehai's substituter run reads a dead port's nix-cache-info with a real curl.
 tool("curl")
+# kikaigo's oracle (kernel/x86_llvm.b) hands its corpus to llvm-mc and holds
+# every byte to the assembler's.
+tool("llvmPackages.llvm")
 
 # kigou's character tables: authored in blue, rendered into blue-lang-syntax's
 # Rust by the `sabi` bidama.
@@ -173,6 +176,10 @@ check("purity-ledger", "gen/purity.b", {stage: :ci})
 # define in a block, per file, held by gen/mutation-census.baseline. A file may
 # lose rebinds and never gain one; typed cells (L1) are how they leave.
 check("mutation-census", "gen/mutation-census.b", {stage: :ci})
+
+# kikaigo's oracle (docs/PURE-BLUE.md B2): every instruction of its corpus,
+# printed as AT&T text, assembled by llvm-mc, and compared byte for byte.
+check("x86-isa-llvm", "kernel/x86_llvm.b", {stage: :ci})
 
 # Tests live beside what they test (docs/TESTING.md): every bidama definition
 # is reached by a test in its package, or waived with a why and a date, or

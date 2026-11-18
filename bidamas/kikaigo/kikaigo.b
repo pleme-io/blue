@@ -1,0 +1,277 @@
+@moduledoc """
+kikaigo (機械語) — x86-64 machine code from blue: instructions as values, encoded to the bytes the CPU runs and printed as the AT&T text an assembler reads, held byte-identical to llvm-mc (docs/PURE-BLUE.md B2).
+
+The method is kaaneru/bpf's: an opcode table, operand encoders, and an oracle that hands the printed text to llvm-mc and compares every byte. A register is a name (rax … r15); an instruction is {op:, dst:, src:} for register to register, {op:, dst:, imm:} for an immediate, or {op:} for ret and syscall.
+
+    encode({op: "mov", dst: "rax", src: "rsi"}) #=> [72, 137, 240]
+"""
+
+use("retsu", %i[find_first flat_map index_of])
+
+@doc """
+REGS: the sixteen 64-bit general registers in hardware order, rax as 0 to r15 as 15.
+
+    REGS[7] #=> "rdi"
+"""
+REGS = %w[rax rcx rdx rbx rsp rbp rsi rdi r8 r9 r10 r11 r12 r13 r14 r15]
+
+@doc """
+ALU: the opcode table: per operation its register-form opcode, its immediate-form ModRM digit, and its accumulator-form opcode for rax with a 32-bit immediate.
+
+    ALU[1][0] #=> "add"
+"""
+ALU = [
+  ["mov", 137, 0, nil],
+  ["add", 1, 0, 5],
+  ["sub", 41, 5, 45],
+  ["cmp", 57, 7, 61]
+]
+
+@doc """
+reg: the hardware number of a 64-bit register name, 0 for rax to 15 for r15.
+
+    reg("r12") #=> 12
+"""
+def reg(name)
+  i = index_of(REGS, name)
+  if i.nil? or i < 0
+    raise(:unknown_register, "kikaigo: no register `#{name}`")
+  else
+    i
+  end
+end
+
+@doc """
+row: the opcode table row of an ALU operation: [name, register-form opcode, immediate-form digit, accumulator-form opcode for rax with a 32-bit immediate].
+
+    row("sub")[2] #=> 5
+"""
+def row(op)
+  r = find_first((x) -> x[0] == op, ALU)
+  if r.nil?
+    raise(:unknown_op, "kikaigo: no operation `#{op}`")
+  else
+    r
+  end
+end
+
+@doc """
+rex: the REX prefix byte with W set: 64-bit operands, and the high bit of the reg and rm fields.
+
+    rex(8, 15) #=> 77
+"""
+def rex(reg_field, rm_field)
+  64 + 8 + floor(reg_field / 8) * 4 + floor(rm_field / 8)
+end
+
+@doc """
+modrm: the ModRM byte for a register-direct operand pair.
+
+    modrm(6, 0) #=> 240
+"""
+def modrm(reg_field, rm_field)
+  192 + reg_field % 8 * 8 + rm_field % 8
+end
+
+@doc """
+le32: a signed 32-bit integer as four little-endian bytes, two's complement.
+
+    le32(-1) #=> [255, 255, 255, 255]
+    le32(300) #=> [44, 1, 0, 0]
+"""
+def le32(n)
+  m = if n < 0
+    n + 4_294_967_296
+  else
+    n
+  end
+  [
+    m % 256,
+    floor(m / 256) % 256,
+    floor(m / 65536) % 256,
+    floor(m / 16_777_216) % 256
+  ]
+end
+
+@doc """
+imm8?: whether an immediate fits a sign-extended byte, so an ALU operation takes its short form.
+
+    imm8?(127) #=> true
+    imm8?(128) #=> false
+"""
+def imm8?(n)
+  n >= -128 and n <= 127
+end
+
+@doc """
+byte8: a signed byte as its unsigned value.
+
+    byte8(-128) #=> 128
+"""
+def byte8(n)
+  if n < 0
+    n + 256
+  else
+    n
+  end
+end
+
+@doc """
+check_imm: an immediate that fits 32 bits, or :out_of_range.
+
+    check_imm(7) #=> 7
+"""
+def check_imm(n)
+  if n < -2_147_483_648 or n > 2_147_483_647
+    raise(:out_of_range, "kikaigo: #{to_s(n)} does not fit 32 bits")
+  else
+    n
+  end
+end
+
+@doc """
+encode: the bytes of one instruction.
+
+    encode({op: "syscall"}) #=> [15, 5]
+    encode({op: "add", dst: "rax", imm: 1}) #=> [72, 131, 192, 1]
+"""
+def encode(i)
+  op = i[:op]
+  if op == "ret"
+    [195]
+  elsif op == "syscall"
+    [15, 5]
+  elsif i[:imm] != nil
+    d = reg(i[:dst])
+    n = check_imm(i[:imm])
+    if op == "mov"
+      append([rex(0, d), 199, modrm(0, d)], le32(n))
+    elsif imm8?(n)
+      [rex(0, d), 131, modrm(row(op)[2], d), byte8(n)]
+    elsif d == 0
+      append([72, row(op)[3]], le32(n))
+    else
+      append([rex(0, d), 129, modrm(row(op)[2], d)], le32(n))
+    end
+  else
+    d = reg(i[:dst])
+    s = reg(i[:src])
+    [rex(s, d), row(op)[1], modrm(s, d)]
+  end
+end
+
+@doc """
+text: the AT&T line an assembler reads for one instruction.
+
+    text({op: "mov", dst: "rax", src: "rsi"}) #=> "movq %rsi, %rax"
+"""
+def text(i)
+  op = i[:op]
+  if op == "ret"
+    "retq"
+  elsif op == "syscall"
+    "syscall"
+  elsif i[:imm] != nil
+    "#{op}q $#{to_s(i[:imm])}, %#{i[:dst]}"
+  else
+    "#{op}q %#{i[:src]}, %#{i[:dst]}"
+  end
+end
+
+@doc """
+assemble: the bytes of a sequence of instructions, in order.
+
+    assemble([{op: "syscall"}, {op: "ret"}]) #=> [15, 5, 195]
+"""
+def assemble(insns)
+  flat_map(insns, encode)
+end
+
+@doc """
+corpus: every register-register form of every ALU operation, every immediate form at the edges that pick between the short and long encodings, and ret and syscall: what the oracle compares.
+
+    length(corpus) > 1000 #=> true
+"""
+def corpus()
+  ops = map((r) -> r[0], ALU)
+  rr = flat_map(
+    ops,
+    (op) -> flat_map(REGS, (d) -> map((s) -> {op:, dst: d, src: s}, REGS))
+  )
+  imms = [0, 1, -1, 127, 128, -128, -129, 300, 2_147_483_647, -2_147_483_648]
+  ri = flat_map(
+    ops,
+    (op) -> flat_map(REGS, (d) -> map((n) -> {op:, dst: d, imm: n}, imms))
+  )
+  append(append(rr, ri), [{op: "ret"}, {op: "syscall"}])
+end
+
+test "golden encodings from llvm-mc 21.1.7"
+  golden = [
+    [{op: "mov", dst: "rax", src: "rsi"}, [72, 137, 240]],
+    [{op: "add", dst: "r15", src: "r8"}, [77, 1, 199]],
+    [{op: "mov", dst: "r12", imm: -1}, [73, 199, 196, 255, 255, 255, 255]],
+    [{op: "sub", dst: "rsp", imm: 300}, [72, 129, 236, 44, 1, 0, 0]],
+    [{op: "mov", dst: "r15", src: "r15"}, [77, 137, 255]],
+    [{op: "mov", dst: "rbp", src: "rsp"}, [72, 137, 229]],
+    [{op: "add", dst: "rdx", src: "rcx"}, [72, 1, 202]],
+    [{op: "sub", dst: "r12", src: "r13"}, [77, 41, 236]],
+    [{op: "cmp", dst: "r9", src: "rdi"}, [73, 57, 249]],
+    [{op: "add", dst: "rbx", imm: -128}, [72, 131, 195, 128]],
+    [{op: "add", dst: "r10", imm: 127}, [73, 131, 194, 127]],
+    [{op: "add", dst: "r10", imm: 128}, [73, 129, 194, 128, 0, 0, 0]],
+    [{op: "sub", dst: "rsi", imm: -129}, [72, 129, 238, 127, 255, 255, 255]],
+    [{op: "cmp", dst: "r15", imm: 0}, [73, 131, 255, 0]],
+    [{op: "mov", dst: "rax", imm: 0}, [72, 199, 192, 0, 0, 0, 0]],
+    [
+      {op: "mov", dst: "r11", imm: 2_147_483_647},
+      [73, 199, 195, 255, 255, 255, 127]
+    ],
+    [
+      {op: "mov", dst: "rdi", imm: -2_147_483_648},
+      [72, 199, 199, 0, 0, 0, 128]
+    ],
+    [{op: "syscall"}, [15, 5]],
+    [{op: "cmp", dst: "rax", imm: 300}, [72, 61, 44, 1, 0, 0]],
+    [{op: "add", dst: "rax", imm: 128}, [72, 5, 128, 0, 0, 0]],
+    [{op: "sub", dst: "rax", imm: -129}, [72, 45, 127, 255, 255, 255]],
+    [{op: "ret"}, [195]]
+  ]
+  map((g) -> assert encode(g[0]) == g[1], golden)
+end
+
+test "the printed text is what llvm-mc reads"
+  assert text({op: "add", dst: "r15", src: "r8"}) == "addq %r8, %r15"
+  assert text({op: "sub", dst: "rsp", imm: 300}) == "subq $300, %rsp"
+  assert text({op: "ret"}) == "retq"
+end
+
+test "an unknown register, an unknown op and a wide immediate are refused by name"
+  k = fn(f)
+    begin
+      f()
+    rescue e
+      e.kind
+    end
+  end
+  assert k(() -> encode({op: "mov", dst: "eax", src: "rax"})) ==
+    :unknown_register
+  assert k(() -> encode({op: "xor", dst: "rax", src: "rax"})) == :unknown_op
+  assert k(() -> encode({op: "add", dst: "rax", imm: 2_147_483_648})) ==
+    :out_of_range
+end
+
+test "the helpers are exercised by name"
+  assert length(REGS) == 16
+  assert length(ALU) == 4
+  assert reg("rax") == 0
+  assert row("cmp")[1] == 57
+  assert rex(0, 0) == 72
+  assert modrm(0, 0) == 192
+  assert le32(1) == [1, 0, 0, 0]
+  assert imm8?(-128)
+  assert byte8(5) == 5
+  assert check_imm(7) == 7
+  assert assemble([{op: "ret"}]) == [195]
+  assert length(corpus) == 4 * 16 * 16 + 4 * 16 * 10 + 2
+end

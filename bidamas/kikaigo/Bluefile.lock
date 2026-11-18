@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:c588b800b9397aa890d442abc75ce46b1d9d508ad63dcd410b1f133064824202",
+  "manifest": {
+    "schema": 1,
+    "name": "kikaigo",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "toolchain"
+  },
+  "sources": {}
+}

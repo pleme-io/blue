@@ -1236,8 +1236,25 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
 
             // Operators
             if let Some((arg, ret)) = op_sig(head) {
+                let mut width: Option<Ty> = None;
+                let mut literals: Vec<&Spanned> = Vec::new();
                 for a in &items[1..] {
                     let got = infer(a, env, cx, out);
+                    if arg == Ty::Int {
+                        if let Ty::IntOf { .. } = got {
+                            match &width {
+                                Some(w) if *w != got => out.diagnostics.push(Diagnostic::new(
+                                    Code::B0004,
+                                    format!("`{head}` mixes {} and {}", w.name(), got.name()),
+                                    a.span,
+                                )),
+                                Some(_) => {}
+                                None => width = Some(got.clone()),
+                            }
+                        } else if literal_int(a).is_some() {
+                            literals.push(a);
+                        }
+                    }
                     if !got.accepts(&arg) {
                         out.diagnostics.push(Diagnostic::new(
                             Code::B0004,
@@ -1252,6 +1269,20 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                             // only place the top-level index is known.
                             a.span,
                         ));
+                    }
+                }
+                if let Some(w) = &width {
+                    for a in literals {
+                        if let Some(why) = out_of_range(a, w) {
+                            out.diagnostics.push(Diagnostic::new(
+                                Code::B0004,
+                                format!("`{head}` operand {why}"),
+                                a.span,
+                            ));
+                        }
+                    }
+                    if ret == Ty::Int {
+                        return w.clone();
                     }
                 }
                 return ret;
@@ -2051,6 +2082,20 @@ fn out_of_range(arg: &Spanned, want: &Ty) -> Option<String> {
 #[cfg(test)]
 mod fixed_width {
     use super::*;
+
+    #[test]
+    fn arithmetic_keeps_its_width_and_refuses_a_mix_or_a_literal_that_does_not_fit() {
+        let ok = "def f(a: u8, b: u8) -> u8\n  a + b\nend\n";
+        assert_eq!(codes_of(ok), []);
+        let mixed = "def f(a: u8, b: u32) -> Int\n  a + b\nend\n";
+        assert_eq!(codes_of(mixed), [Code::B0004]);
+        let widened = "def f(a: u8) -> u32\n  a + 1\nend\n";
+        assert_eq!(codes_of(widened), [Code::B0003]);
+        let big = "def f(a: u8) -> Int\n  a + 300\nend\n";
+        assert_eq!(codes_of(big), [Code::B0004]);
+        let plain = "def f(a: u8, n: Int) -> Int\n  a + n < 3\nend\n";
+        assert_eq!(codes_of(plain), [Code::B0003]);
+    }
 
     fn codes_of(src: &str) -> Vec<Code> {
         let forms = blue_lang_syntax::parse_program_tree(src).expect("parses");

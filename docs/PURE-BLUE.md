@@ -37,7 +37,7 @@ Built and on main, each with its lock:
 | S0 | purity ledger, 25 crates, a ratchet | `gen/purity.b` |
 | L0 | rebind census (set!, while, repeated define), a ratchet | `gen/mutation-census.b` |
 | L1 | typed cells `cell`, `cell_get`, `cell_put`; every rebind a closure can see migrated, the census at 0 | `crates/blue-lang-runtime/src/cell.rs`, `spec/rows/cells.b`, `gen/mutation-census.baseline` |
-| L2 (first slice) | `u8`..`i64` in `Ty`, compatible with `Int`; a literal argument out of its parameter's range is B0005 | `crates/blue-lang-check/src/lib.rs` |
+| L2 (two slices) | `u8`..`i64` in `Ty`, compatible with `Int`; a literal argument out of its parameter's range is B0005; arithmetic keeps its operands' width, and a mix of widths or a literal operand that does not fit is B0004 | `crates/blue-lang-check/src/lib.rs` |
 | L3 | `gensym` per interpreter and fork | `crates/blue-lang-runtime/src/stdlib.rs` |
 | B0 | nanopass core: languages, passes, checks | `bidamas/henkan` |
 | B1 | A-normal form, Perceus with a reference-count checker, closure conversion, cond and case, raise and try with explicit propagation, global functions | `bidamas/kuzushi` |
@@ -49,7 +49,7 @@ Built and on main, each with its lock:
 Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
 language in the path, give their value and end with 0 blocks live.
 
-Not yet: L2's width-aware operators and width words; M1-M5 on the Rust runtime; B5; R4-R7
+Not yet: L2's width words in a bidama and kaaneru's typed guards; M1-M5 on the Rust runtime; B5; R4-R7
 beyond the raw words; number and symbol printing (`to_s`); the front end in blue (F1-F4); the
 tower (S1-S5); C2, C3; D1-D6.
 

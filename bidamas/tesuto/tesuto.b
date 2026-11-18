@@ -593,11 +593,11 @@ def coverage_verdict(settled, rows, m)
     na = size(arms)
     ja = hadome::judge(rows, "unbranched", pkg, na)[:verdict]
     branched = ja == :grew or ja == :unrecorded and na > 0
-    b = assoc(b, :unbranched, arms)
+    judged = assoc(b, :unbranched, arms)
     whys = append(
       if grew
         [
-          "#{to_s(n)} untested beyond the recorded debt: #{join(b[:untested], ", ")}"
+          "#{to_s(n)} untested beyond the recorded debt: #{join(judged[:untested], ", ")}"
         ]
       else
         []
@@ -610,12 +610,12 @@ def coverage_verdict(settled, rows, m)
         []
       end
     )
-    if b[:level] == :off
-      assoc(b, :verdict, :off)
-    elsif whys != [] and b[:level] == :enforce
-      assoc(assoc(b, :verdict, :red), :why, join(whys, "; "))
+    if judged[:level] == :off
+      assoc(judged, :verdict, :off)
+    elsif whys != [] and judged[:level] == :enforce
+      assoc(assoc(judged, :verdict, :red), :why, join(whys, "; "))
     else
-      assoc(b, :verdict, :green)
+      assoc(judged, :verdict, :green)
     end
   end
 end

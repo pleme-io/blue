@@ -194,12 +194,12 @@ end
 test "update applies f to the existing value and raises when absent"
   m = {"n" => 1}
   assert update(m, "n", (x) -> x + 1) == {"n" => 2}
-  caught = begin
+  caught_again = begin
     update(m, "z", (x) -> x)
   rescue e
     e.kind
   end
-  assert caught == :not_found
+  assert caught_again == :not_found
 end
 
 test "select keeps listed keys that exist and merge lets b win"
@@ -252,12 +252,12 @@ test "a master verb on a map raises what jisho raises"
     e.kind
   end
   assert caught == :not_found
-  caught = begin
+  caught_again = begin
     blue::update({}, "z", (x) -> x)
   rescue e
     e.kind
   end
-  assert caught == :not_found
+  assert caught_again == :not_found
 end
 
 test "a map is owned by jisho and a tagged map by its own space"

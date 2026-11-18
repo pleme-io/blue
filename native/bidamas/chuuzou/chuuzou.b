@@ -2341,7 +2341,7 @@ def cz_lower(forms, board)
     [],
     const_forms
   )
-  env = {
+  env_whole = {
     **env,
     lb: const_lb,
     nonneg: if word == 64
@@ -2358,13 +2358,13 @@ def cz_lower(forms, board)
     end
   }
   main_env = assoc(
-    env,
+    env_whole,
     :types,
     reduce(
       fn(acc, f)
         append(
           acc,
-          [[cz_sym(second(f)), cz_ty(third(f), assoc(env, :types, acc))]]
+          [[cz_sym(second(f)), cz_ty(third(f), assoc(env_whole, :types, acc))]]
         )
       end,
       [],
@@ -2390,8 +2390,8 @@ def cz_lower(forms, board)
         []
       end,
       cz_record_items(records, word),
-      map((f) -> cz_const(f, env), const_forms),
-      map((f) -> cz_fn(f, env), fn_forms),
+      map((f) -> cz_const(f, env_whole), const_forms),
+      map((f) -> cz_fn(f, env_whole), fn_forms),
       [rs_fn("pub", "main", [], nil, main_body)]
     )
   }

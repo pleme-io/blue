@@ -442,8 +442,8 @@ def tree_sitter_js(grammar)
     ],
     concat_lists(conflict_lines(g[:conflicts]), ["  rules: {"])
   )
-  lines = concat_lists(lines, concat_lists(rules, ["  },", "});", ""]))
-  join(lines, line_break)
+  all_lines = concat_lists(lines, concat_lists(rules, ["  },", "});", ""]))
+  join(all_lines, line_break)
 end
 
 def tree_sitter_json(g)

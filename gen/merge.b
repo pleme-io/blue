@@ -382,9 +382,9 @@ test "BLUE_MERGE_PICK=off and a driver with no label both merge a cherry-pick as
       ]
     )
     must(dir, %w[checkout -q one])
-    picked_up = in_repo(dir, %w[cherry-pick two])
-    assert status_of(picked_up) != 0
-    assert contains?(stderr_of(picked_up), "merged as text")
+    picked_again = in_repo(dir, %w[cherry-pick two])
+    assert status_of(picked_again) != 0
+    assert contains?(stderr_of(picked_again), "merged as text")
     must(dir, %w[cherry-pick --abort])
     must(
       dir,
@@ -394,9 +394,9 @@ test "BLUE_MERGE_PICK=off and a driver with no label both merge a cherry-pick as
         "#{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P"
       ]
     )
-    picked_up = in_repo(dir, %w[cherry-pick two])
-    assert status_of(picked_up) != 0
-    assert contains?(stderr_of(picked_up), "merged as text")
+    picked_last = in_repo(dir, %w[cherry-pick two])
+    assert status_of(picked_last) != 0
+    assert contains?(stderr_of(picked_last), "merged as text")
     assert contains?(read_file(path_join(dir, "made.txt")), "<<<<<<<")
     rm_rf(dir)
   end

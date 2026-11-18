@@ -76,8 +76,8 @@ def azure_login(f)
   tenant = flag(args, "--tenant-id")
   scope = flag(args, "--server-id")
   login = append(%w[az login --use-device-code], with_flag("--tenant", tenant))
-  login = append(login, with_flag("--scope", scoped(scope)))
-  [step(%w[az logout], :plain), step(login, :device)]
+  scoped_login = append(login, with_flag("--scope", scoped(scope)))
+  [step(%w[az logout], :plain), step(scoped_login, :device)]
 end
 
 @doc """

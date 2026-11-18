@@ -473,6 +473,34 @@ def landing?(updates)
 end
 
 @doc """
+main_push?: Whether a push writes main itself. Only a land's fast-forward, run in
+CI, writes main: a commit pushed straight to it makes every queued land's run
+refuse its turn and start again.
+
+    main_push?([{local: "1", remote: "0", ref: "refs/heads/main"}]) #=> true
+    main_push?([{local: "1", remote: "0", ref: "refs/heads/land/a/b"}]) #=> false
+    main_push?([{local: "1", remote: ""}]) #=> false
+"""
+def main_push?(updates)
+  any?((u) -> u[:ref] == "refs/heads/main", updates)
+end
+
+@doc """
+main_refusal: What prepush says when a push writes main, naming the land and the
+one switch that pushes anyway.
+
+    starts_with?(main_refusal, "prepush: ") #=> true
+"""
+def main_refusal()
+  unlines(
+    [
+      "prepush: this push writes main; blue lands through the queue, so run git land --watch",
+      "  (a direct push to main makes every queued land refuse its turn and start again; BLUE_PREPUSH_OFF=1 pushes anyway)"
+    ]
+  )
+end
+
+@doc """
 records_for: The green records that can cover this push. A light record ran no
 land gate, so it never covers a landing.
 
@@ -1093,6 +1121,10 @@ def main()
     )
     exit_with(0)
   end
+  if main_push?(updates)
+    write_stderr(main_refusal)
+    exit_with(2)
+  end
   pairs = map((u) -> [u[:local], base_of(u[:local], u[:remote])], updates)
   blind = any?((p) -> last(p).nil?, pairs)
   paths = distinct(
@@ -1535,6 +1567,18 @@ test "a project's declared tool missing from PATH comes from its toolchain, and 
   assert contains?(last(failed), "tatara-rust-emit")
   assert contains?(last(failed), "no such attribute")
   assert toolchain_step([], () -> raise(:unused, "never built")) == [:path, ""]
+end
+
+test "a push that writes main is refused and names the land"
+  main = updates_of("refs/heads/main 1111 refs/heads/main 0000")
+  assert main_push?(main)
+  assert not main_push?(
+    updates_of("refs/heads/x 1111 refs/heads/land/a/b 0000")
+  )
+  assert not main_push?(updates_of("(delete) 0000 refs/heads/main 1111"))
+  assert not main_push?([])
+  assert moji::includes(main_refusal, "git land --watch")
+  assert moji::includes(main_refusal, "BLUE_PREPUSH_OFF=1")
 end
 
 test "a .b-only change selects the .b gates and no Rust gate"

@@ -178,7 +178,18 @@ Each wave lists defaults in the order their gain is known. Each default meets
   Lock: `tests/native_tier.rs` `a_test_run_seeds_the_profile_only_for_what_it_ran_hot`
   (red when every time is recorded, and red when a seeding run answers from
   the artifact).
-- Proven types drop the guard in compiled code (R6, at T3).
+- ✅ A proven fact drops a guard in compiled code (R6, at T3). The type
+  guard on a call is a few comparisons, so dropping it gains nothing to
+  measure; the guard that costs is the thread that holds the board's depth
+  bound, about 20 µs a call. chuuzou proves a slice shallow when no function
+  of it recurses but in its tail (`cz_recursive`), and says so in the
+  artifact (`pub fn shallow()`, `cz_shallow_fn`); the library runs a shallow
+  definition on its caller's stack under `catch_unwind`. 20,000 calls of the
+  native `square`: 0.40 s through a thread each, 0.03 s on the caller's
+  stack, the same answer. Lock: chuuzou "a slice with no recursion is
+  shallow, and one that recurses is not" (red with the fact inverted);
+  `checks.native-defs` answers `square` (shallow) and `fib` (deep) as the
+  interpreter does.
 
 ### W2: data that fits its use
 

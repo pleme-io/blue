@@ -1,5 +1,7 @@
 //! The definition seam as a library (tier T3, in process): one compiled
-//! definition the native tier loads once and calls as a function. It exports
+//! definition the native tier loads once and calls as a function. A shallow
+//! slice (no function recurses but in its tail, `program::shallow`) runs on
+//! the caller's stack; one that recurses runs on a thread with the board's. It exports
 //! `blue_def_entry(args, len, out)`: the definition on `len` Int arguments,
 //! its result written to `out`. It answers 0 with the result, 1 when the
 //! definition faulted or printed (the interpreter then runs the call, so
@@ -28,12 +30,18 @@ impl kiban_io::Io for Quiet {
 fn answer(args: Vec<i64>) -> Option<i64> {
     static SILENT: std::sync::Once = std::sync::Once::new();
     SILENT.call_once(|| std::panic::set_hook(Box::new(|_| {})));
-    host_io::on_stack(move || {
+    let run = move || {
         let mut io = Quiet { printed: false };
         let value = program::entry(&mut io, &kiban_io::Args(&args));
         (!io.printed).then_some(value)
-    })
-    .flatten()
+    };
+    if program::shallow() {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
+            .ok()
+            .flatten()
+    } else {
+        host_io::on_stack(run).flatten()
+    }
 }
 
 #[no_mangle]

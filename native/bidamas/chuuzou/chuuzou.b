@@ -2815,8 +2815,26 @@ def cz_lower_def(forms, key)
     items: append(
       [{kind: "use", item: {path: %w[kiban_io Args]}}],
       file[:items],
-      [entry]
+      [entry, cz_shallow_fn(cz_recursive(fn_forms, fns) == [])]
     )
+  }
+end
+
+@doc """
+cz_shallow_fn: `pub fn shallow() -> bool`, whether no function of the slice recurses
+other than in its tail: the fact that lets the library run the definition on
+its caller's stack, with no thread to hold the board's depth bound.
+
+    cz_shallow_fn(true)[:item][:sig][:name] #=> "shallow"
+"""
+def cz_shallow_fn(shallow)
+  {
+    kind: "fn",
+    vis: "pub",
+    item: {
+      sig: {name: "shallow", params: [], return_type: rs_ty("bool")},
+      body: rs_block([rs_tail({kind: "bool", value: shallow})])
+    }
   }
 end
 
@@ -3383,4 +3401,17 @@ test "a Bool crosses the seam as a word, and a Bool definition compiles"
     "(define-typed (%root/t (s String)) Int 0)",
     "%root/t"
   ) != nil
+end
+
+test "a slice with no recursion is shallow, and one that recurses is not"
+  sq = cz_lower_def(
+    cz_read("(define-typed (%root/sq (x Int)) Int (* x x))"),
+    "%root/sq"
+  )
+  assert last(sq[:items]) == cz_shallow_fn(true)
+  f = cz_lower_def(
+    cz_read("(define-typed (%root/f (n Int)) Int (if (< n 2) n (+ (%root/f (- n 1)) (%root/f (- n 2)))))"),
+    "%root/f"
+  )
+  assert last(f[:items]) == cz_shallow_fn(false)
 end

@@ -24,6 +24,8 @@ def bound_names(term)
     b = term[1]
     inner = if head_is?(b[1], "if")
       append(bound_names(b[1][2]), bound_names(b[1][3]))
+    elsif head_is?(b[1], "try")
+      bound_names(b[1][1])
     else
       []
     end
@@ -788,6 +790,33 @@ def rc_op(slots, op, args)
     part_code(slots, args[0], 24)
   elsif op == "rest"
     part_code(slots, args[0], 32)
+  elsif op == "raise"
+    append(
+      [{op: "push", src: "rbx"}],
+      append(
+        tagged_atom(slots, args[0], "rbx"),
+        [
+          {op: "mov", dst: "rdi", imm: 4},
+          {op: "call_label", label: "rt_alloc"},
+          {op: "mov", dst: "rcx", imm: 4},
+          {op: "store", src: "rcx", base: "rax", disp: 0},
+          {op: "store", src: "rbx", base: "rax", disp: 24},
+          {op: "pop", dst: "rbx"}
+        ]
+      )
+    )
+  elsif op == "failed?"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [
+        {op: "push", src: "rdi"},
+        {op: "call_label", label: "rt_is_error"},
+        {op: "pop", dst: "rdi"},
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rax"}
+      ]
+    )
   elsif op == "hash-map"
     map_code(slots, args)
   elsif op == "assoc"
@@ -957,7 +986,39 @@ def rc_gen(slots, term, into, n)
     b = term[1]
     v = to_s(b[0])
     rhs = b[1]
-    here = if head_is?(rhs, "if")
+    here = if head_is?(rhs, "try")
+      ok = "tryok_#{to_s(n)}"
+      out = "tryend_#{to_s(n)}"
+      body = rc_gen(slots, rhs[1], v, n + 1)
+      [
+        append(
+          *[
+            body[0],
+            tagged_atom(slots, read_forms(v)[0], "rdi"),
+            [
+              {op: "call_label", label: "rt_is_error"},
+              {op: "cmp", dst: "rax", imm: 0},
+              {op: "j", cond: "e", label: ok}
+            ],
+            tagged_atom(slots, read_forms(v)[0], "rdi"),
+            [
+              {op: "call_label", label: "rt_payload"},
+              {op: "mov", dst: "rdi", src: "rax"}
+            ],
+            tagged_atom(slots, rhs[2], "r11"),
+            [
+              {op: "call_r11"},
+              {op: "store", src: "rax", disp: slot(slots, v)},
+              {op: "jmp", label: out},
+              {op: "label", name: ok}
+            ],
+            tagged_atom(slots, rhs[2], "rdi"),
+            [{op: "call_label", label: "rt_drop"}, {op: "label", name: out}]
+          ]
+        ),
+        body[1]
+      ]
+    elsif head_is?(rhs, "if")
       no = "else_#{to_s(n)}"
       out = "end_#{to_s(n)}"
       yes = rc_gen(slots, rhs[2], v, n + 1)
@@ -1077,7 +1138,9 @@ def rc_program(p, mode)
       RT_DUP,
       RT_DROP,
       RT_LENGTH,
-      RT_GET
+      RT_GET,
+      RT_IS_ERROR,
+      RT_PAYLOAD
     ]
   )
 end
@@ -1364,7 +1427,9 @@ def rc_whole(w, mode)
     length(RT_DUP) -
     length(RT_DROP) -
     length(RT_LENGTH) -
-    length(RT_GET)
+    length(RT_GET) -
+    length(RT_IS_ERROR) -
+    length(RT_PAYLOAD)
   globals = reduce(
     fn(acc, g)
       c = rc_global(g, acc[1])
@@ -1858,4 +1923,102 @@ test "cond compiles to the compares and jumps of nested ifs"
   insns = rc_whole(whole(read_forms(COND_PROGRAMS[0][0])[0]), :exit)
   assert length(filter((i) -> i[:op] == "j", insns)) >= 2
   assert length(COND_PROGRAMS) == 3
+end
+
+@doc """
+RT_IS_ERROR: true (2) when rdi is an error block (kind 4), false (0) for anything else; the value is only read.
+
+    RT_IS_ERROR[0] #=> {op: "label", name: "rt_is_error"}
+"""
+RT_IS_ERROR = append(
+  *[
+    [{op: "label", name: "rt_is_error"}],
+    not_a_block("rt_is_error_no"),
+    [
+      {op: "load", dst: "rcx", base: "rdi", disp: 0},
+      {op: "cmp", dst: "rcx", imm: 4},
+      {op: "j", cond: "ne", label: "rt_is_error_no"},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "ret"},
+      {op: "label", name: "rt_is_error_no"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_PAYLOAD: what the error block in rdi was raised with, with its own reference; the error block, consumed, is dropped.
+
+    RT_PAYLOAD[0] #=> {op: "label", name: "rt_payload"}
+"""
+RT_PAYLOAD = [
+  {op: "label", name: "rt_payload"},
+  {op: "load", dst: "rax", base: "rdi", disp: 24},
+  {op: "push", src: "rax"},
+  {op: "push", src: "rdi"},
+  {op: "mov", dst: "rdi", src: "rax"},
+  {op: "call_label", label: "rt_dup"},
+  {op: "pop", dst: "rdi"},
+  {op: "call_label", label: "rt_drop"},
+  {op: "pop", dst: "rax"},
+  {op: "ret"}
+]
+
+@doc """
+TRY_PROGRAMS: programs with raise and try, and the exit status each must give.
+
+    TRY_PROGRAMS[2][1] #=> 141
+"""
+TRY_PROGRAMS = [
+  ["(try (raise 7) (catch (e) (+ e 1)))", 8],
+  ["(try (+ 1 2) (catch (e) 0))", 3],
+  [
+    "(begin (define (div a b) (if (equal? b 0) (raise 99) (* a b))) (+ (try (div 6 7) (catch (e) 0)) (try (div 1 0) (catch (e) e))))",
+    141
+  ],
+  [
+    "(begin (define (inner l) (if (equal? (length l) 0) (raise 5) (first l))) (define (outer l) (+ 1 (inner l))) (try (outer (list)) (catch (e) (* e 2))))",
+    10
+  ],
+  [
+    "(let ((l (list 1 2 3))) (try (begin (length l) (raise 4)) (catch (e) (+ e (length l)))))",
+    7
+  ]
+]
+
+test "every try program gives its value and frees every block on every path on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "t.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_whole(form, :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+        write_bytes(path, compile_whole(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      TRY_PROGRAMS
+    )
+  end
+end
+
+test "an error is a kind-4 block, and a try calls its handler only on one"
+  r = rc_op(["x"], "raise", [read_forms("x")[0]])
+  assert member?({op: "mov", dst: "rdi", imm: 4}, r)
+  assert member?(
+    {op: "call_label", label: "rt_is_error"},
+    rc_op(["x"], "failed?", [read_forms("x")[0]])
+  )
+  insns = rc_whole(whole(read_forms(TRY_PROGRAMS[0][0])[0]), :exit)
+  assert member?({op: "call_label", label: "rt_payload"}, insns)
+  assert member?({op: "call_r11"}, insns)
+  assert RT_IS_ERROR[0] == {op: "label", name: "rt_is_error"}
+  assert RT_PAYLOAD[0] == {op: "label", name: "rt_payload"}
+  assert length(TRY_PROGRAMS) == 5
 end

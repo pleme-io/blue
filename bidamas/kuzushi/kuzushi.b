@@ -69,6 +69,8 @@ def norm(form, n)
     no = anf_from(form[3], yes[1])
     rhs = [read_forms("if")[0], c[1], yes[0], no[0]]
     [append(c[0], [[v, rhs]]), v, no[1]]
+  elsif head_is?(form, "try")
+    norm_try(form[1], form[2], n)
   elsif head_is?(form, "cond")
     norm(cond_to_if(rest(form)), n)
   elsif head_is?(form, "let")
@@ -189,6 +191,18 @@ def prim(name, vals)
     vals
   elsif name == "id"
     vals[0]
+  elsif name == "length"
+    length(vals[0] or [])
+  elsif name == "first"
+    first(vals[0])
+  elsif name == "rest"
+    rest(vals[0])
+  elsif name == "cons"
+    cons(vals[0], vals[1] or [])
+  elsif name == "raise"
+    [:__blue_error, vals[0]]
+  elsif name == "failed?"
+    error_value?(vals[0])
   elsif name == "dup"
     vals[0]
   elsif name == "drop"
@@ -204,7 +218,14 @@ eval_rhs: the value of a right-hand side: an if takes one branch, anything else 
     eval_rhs(read_forms("(+ 1 2)")[0], []) #=> 3
 """
 def eval_rhs(rhs, env)
-  if head_is?(rhs, "if")
+  if head_is?(rhs, "try")
+    r = eval_anf(rhs[1], env)
+    if error_value?(r)
+      call_closure(value_of(rhs[2], env), [r[1]])
+    else
+      r
+    end
+  elsif head_is?(rhs, "if")
     if value_of(rhs[1], env)
       eval_anf(rhs[2], env)
     else
@@ -372,7 +393,9 @@ rhs_fv: the names a right-hand side reads, its branches included.
     rhs_fv(read_forms("(+ x y)")[0]) #=> ["x", "y"]
 """
 def rhs_fv(rhs)
-  if head_is?(rhs, "lambda")
+  if head_is?(rhs, "try")
+    union(fv(rhs[1]), names_of(rhs[2]))
+  elsif head_is?(rhs, "lambda")
     minus(fv(rhs[2]), map((p) -> to_s(p), rhs[1]))
   elsif head_is?(rhs, "if")
     union(names_of(rhs[1]), union(fv(rhs[2]), fv(rhs[3])))
@@ -447,7 +470,9 @@ arg_names: the names an rhs reads as arguments, repeats kept; for an if, its con
     arg_names(read_forms("(+ x x)")[0]) #=> ["x", "x"]
 """
 def arg_names(rhs)
-  if head_is?(rhs, "if")
+  if head_is?(rhs, "try")
+    names_of(rhs[2])
+  elsif head_is?(rhs, "if")
     names_of(rhs[1])
   else
     flat_map(rest(rhs), names_of)
@@ -486,7 +511,10 @@ def perceus_in(term, owned, keep)
     )
     consumed = filter((x) -> member?(x, owned) and not member?(x, after), used)
     owned_after = union(minus(minus(owned, dead), consumed), [v])
-    new_rhs = if head_is?(rhs, "if")
+    new_rhs = if head_is?(rhs, "try")
+      body_owned = minus(minus(owned, dead), meet(consumed, args))
+      [rhs[0], perceus_in(rhs[1], body_owned, union(after, args)), rhs[2]]
+    elsif head_is?(rhs, "if")
       branch_owned = minus(minus(owned, dead), meet(consumed, args))
       [
         rhs[0],
@@ -590,7 +618,10 @@ rc_rhs: the state and problems after one right-hand side: a dup adds, a drop or 
     rc_rhs(read_forms("(dup x)")[0], [["x", 1]], []) #=> [[["x", 2]], []]
 """
 def rc_rhs(rhs, counts, errors)
-  if head_is?(rhs, "dup")
+  if head_is?(rhs, "try")
+    b = rc(rhs[1], counts, errors)
+    consume_all(b[0], names_of(rhs[2]), b[1])
+  elsif head_is?(rhs, "dup")
     x = to_s(rhs[1])
     if count_get(counts, x) <= 0
       [counts, append(errors, ["`#{x}` duplicated with no reference left"])]
@@ -772,7 +803,10 @@ cc_rhs: a right-hand side with its lambdas lifted: a lambda becomes (closure "la
     cc_rhs(read_forms("(+ 1 2)")[0], [], "t")[1] #=> []
 """
 def cc_rhs(rhs, scope, v)
-  if head_is?(rhs, "if")
+  if head_is?(rhs, "try")
+    body = cc_term(rhs[1], scope)
+    [[rhs[0], body[0], rhs[2]], body[1]]
+  elsif head_is?(rhs, "if")
     yes = cc_term(rhs[2], scope)
     no = cc_term(rhs[3], scope)
     [[rhs[0], rhs[1], yes[0], no[0]], append(yes[1], no[1])]
@@ -826,7 +860,14 @@ lifted_rhs: the value of a right-hand side of a closure-converted program: a clo
     lifted_rhs([], read_forms("(+ 1 2)")[0], []) #=> 3
 """
 def lifted_rhs(fns, rhs, env)
-  if head_is?(rhs, "if")
+  if head_is?(rhs, "try")
+    r = lifted_term(fns, rhs[1], env)
+    if error_value?(r)
+      call_lifted(fns, value_of(rhs[2], env), [r[1]])
+    else
+      r
+    end
+  elsif head_is?(rhs, "if")
     if value_of(rhs[1], env)
       lifted_term(fns, rhs[2], env)
     else
@@ -834,15 +875,18 @@ def lifted_rhs(fns, rhs, env)
     end
   elsif head_is?(rhs, "closure")
     {label: rhs[1], vals: map((a) -> value_of(a, env), rest(rest(rhs)))}
-  elsif head_is?(rhs, "call")
-    c = value_of(rhs[1], env)
-    f = retsu::find_first((g) -> g[:label] == c[:label], fns)
-    args = map((a) -> value_of(a, env), rest(rest(rhs)))
-    bound = append(
-      map((i) -> [f[:params][i], args[i]], range(0, length(args))),
-      map((i) -> [f[:captured][i], c[:vals][i]], range(0, length(c[:vals])))
+  elsif head_is?(rhs, "gcall")
+    call_lifted(
+      fns,
+      {label: "g_#{rhs[1]}", vals: []},
+      map((a) -> value_of(a, env), rest(rest(rhs)))
     )
-    lifted_term(fns, f[:body], bound)
+  elsif head_is?(rhs, "call")
+    call_lifted(
+      fns,
+      value_of(rhs[1], env),
+      map((a) -> value_of(a, env), rest(rest(rhs)))
+    )
   else
     prim(to_s(first(rhs)), map((a) -> value_of(a, env), rest(rhs)))
   end
@@ -1047,7 +1091,9 @@ def globalize(term, names)
   else
     b = term[1]
     rhs = b[1]
-    new_rhs = if head_is?(rhs, "if")
+    new_rhs = if head_is?(rhs, "try")
+      [rhs[0], globalize(rhs[1], names), rhs[2]]
+    elsif head_is?(rhs, "if")
       [rhs[0], rhs[1], globalize(rhs[2], names), globalize(rhs[3], names)]
     elsif head_is?(rhs, "lambda")
       [rhs[0], rhs[1], globalize(rhs[2], names)]
@@ -1094,7 +1140,9 @@ def relabel(term, pre)
   else
     b = term[1]
     rhs = b[1]
-    new_rhs = if head_is?(rhs, "if")
+    new_rhs = if head_is?(rhs, "try")
+      [rhs[0], relabel(rhs[1], pre), rhs[2]]
+    elsif head_is?(rhs, "if")
       [rhs[0], rhs[1], relabel(rhs[2], pre), relabel(rhs[3], pre)]
     elsif head_is?(rhs, "closure")
       cons(rhs[0], cons("#{pre}#{rhs[1]}", rest(rest(rhs))))
@@ -1114,7 +1162,7 @@ def whole(form)
   s = split_program(form)
   names = map((d) -> d[:name], s[:defs])
   prep = fn(body, pre, params)
-    c = cc_term(globalize(anf(body), names), params)
+    c = cc_term(globalize(propagate(anf(body)), names), params)
     p = prefix_labels({main: c[0], fns: c[1]}, pre)
     q = perceus_program(p)
     {main: perceus(p[:main], params), fns: q[:fns]}
@@ -1215,4 +1263,232 @@ test "cond tests its clauses in order, else last, and nil when none matches"
   assert run("(let ((case-subject 2)) (cond ((equal? case-subject 1) 10) ((equal? case-subject 2) 20) (else 30)))") ==
     20
   assert cond_to_if(read_forms("((a 1))")[0])[3].nil?
+end
+
+@doc """
+norm_try: (try body (catch (e) handler)) as two binds: the handler as a lambda over e, then (try B h), where B is the body's term; on an error B answers, h is called with what was raised.
+
+    eval_anf(propagate(anf(read_forms("(try (raise 7) (catch (e) (+ e 1)))")[0])), []) #=> 8
+"""
+def norm_try(body, catch, n)
+  h = fresh(n)
+  handler = anf_from(catch[2], n + 1)
+  b = anf_from(body, handler[1])
+  v = fresh(b[1])
+  lam = [read_forms("lambda")[0], catch[1], handler[0]]
+  [[[h, lam], [v, [read_forms("try")[0], b[0], h]]], v, b[1] + 1]
+end
+
+@doc """
+error_value?: whether a value is an error made by raise.
+
+    error_value?([:__blue_error, 1]) #=> true
+    error_value?(3) #=> false
+"""
+def error_value?(x)
+  list?(x) and length(x) == 2 and x[0] == :__blue_error
+end
+
+@doc """
+call_lifted: a closure of a converted program applied to argument values: its function found by label, its parameters and captures bound.
+
+    call_lifted([{label: "f", params: ["x"], captured: [], body: read_forms("(ret x)")[0]}], {label: "f", vals: []}, [5]) #=> 5
+"""
+def call_lifted(fns, c, args)
+  f = retsu::find_first((g) -> g[:label] == c[:label], fns)
+  bound = append(
+    map((i) -> [f[:params][i], args[i]], range(0, length(args))),
+    map((i) -> [f[:captured][i], c[:vals][i]], range(0, length(c[:vals])))
+  )
+  lifted_term(fns, f[:body], bound)
+end
+
+@doc """
+SAFE_OPS: the operations that never answer an error; after anything else a term checks.
+
+    member?("+", SAFE_OPS) #=> true
+"""
+SAFE_OPS = %w[
+  +
+  -
+  *
+  <
+  >
+  equal?
+  list
+  id
+  cons
+  first
+  rest
+  length
+  get
+  assoc
+  hash-map
+  print
+  string_length
+  dup
+  drop
+  failed?
+  syscall6
+  load_word
+  store_word
+  lambda
+]
+
+@doc """
+may_fail?: whether a right-hand side can answer an error: a raise, a call, an if or try whose branch can, anything not in SAFE_OPS.
+
+    may_fail?(read_forms("(+ 1 2)")[0]) #=> false
+    may_fail?(read_forms("(f 1)")[0]) #=> true
+"""
+def may_fail?(rhs)
+  not (
+    list?(rhs) and symbol?(first(rhs)) and member?(to_s(first(rhs)), SAFE_OPS)
+  )
+end
+
+@doc """
+propagate: a term in which every right-hand side that can answer an error is followed by a check that returns the error at once, so an error travels out of each term and function to the nearest try; Perceus then frees on that path what the term owned, as on any other.
+
+    eval_anf(propagate(anf(read_forms("(+ 1 (raise 4))")[0])), []) #=> [:__blue_error, 4]
+"""
+def propagate(term)
+  if head_is?(term, "ret")
+    term
+  else
+    b = term[1]
+    rhs = b[1]
+    inner = if head_is?(rhs, "if")
+      [rhs[0], rhs[1], propagate(rhs[2]), propagate(rhs[3])]
+    elsif head_is?(rhs, "try")
+      [rhs[0], propagate(rhs[1]), rhs[2]]
+    elsif head_is?(rhs, "lambda")
+      [rhs[0], rhs[1], propagate(rhs[2])]
+    else
+      rhs
+    end
+    k = propagate(term[2])
+    if may_fail?(rhs)
+      v = to_s(b[0])
+      c = read_forms("c_#{v}")[0]
+      r = read_forms("r_#{v}")[0]
+      lt = read_forms("let")[0]
+      [
+        lt,
+        [b[0], inner],
+        [
+          lt,
+          [c, [read_forms("failed?")[0], b[0]]],
+          [
+            lt,
+            [r, [read_forms("if")[0], c, [read_forms("ret")[0], b[0]], k]],
+            [read_forms("ret")[0], r]
+          ]
+        ]
+      ]
+    else
+      [term[0], [b[0], inner], k]
+    end
+  end
+end
+
+@doc """
+TRY_PROGRAMS: programs with raise and try, and the value each must give.
+
+    TRY_PROGRAMS[0][1] #=> 8
+"""
+TRY_PROGRAMS = [
+  ["(try (raise 7) (catch (e) (+ e 1)))", 8],
+  ["(try (+ 1 2) (catch (e) 0))", 3],
+  [
+    "(begin (define (div a b) (if (equal? b 0) (raise 99) (* a b))) (+ (try (div 6 7) (catch (e) 0)) (try (div 1 0) (catch (e) e))))",
+    141
+  ],
+  [
+    "(begin (define (inner l) (if (equal? (length l) 0) (raise 5) (first l))) (define (outer l) (+ 1 (inner l))) (try (outer (list)) (catch (e) (* e 2))))",
+    10
+  ],
+  [
+    "(let ((l (list 1 2 3))) (try (begin (length l) (raise 4)) (catch (e) (+ e (length l)))))",
+    7
+  ]
+]
+
+test "an error travels to the nearest try, through functions, and each try answers its value"
+  map(
+    fn(p)
+      w = whole(read_forms(p[0])[0])
+      assert eval_whole(w) == p[1]
+    end,
+    TRY_PROGRAMS
+  )
+end
+
+test "every try program is reference-clean on every path"
+  map(
+    fn(p)
+      w = whole(read_forms(p[0])[0])
+      assert rc_check(w[:main], []) == []
+      map((g) -> assert rc_check(g[:body], g[:params]) == [], w[:globals])
+      map(
+        fn(f)
+          assert rc_check(f[:body], append(f[:params], f[:captured])) == []
+        end,
+        w[:fns]
+      )
+    end,
+    TRY_PROGRAMS
+  )
+end
+
+@doc """
+eval_whole: the value of a whole program: its main term over its lifted closures, a direct call running a global with its parameters bound.
+
+    eval_whole(whole(read_forms("(+ 1 2)")[0])) #=> 3
+"""
+def eval_whole(w)
+  globals_as_fns = map(
+    fn(g)
+      {label: "g_#{g[:name]}", params: g[:params], captured: [], body: g[:body]}
+    end,
+    w[:globals]
+  )
+  lifted_term(append(w[:fns], globals_as_fns), w[:main], [])
+end
+
+test "the try helpers are exercised by name"
+  binds = norm_try(
+    read_forms("(raise 1)")[0],
+    read_forms("(catch (e) e)")[0],
+    0
+  )
+  assert to_s(binds[0][1][1][0]) == "try"
+  assert error_value?([:__blue_error, 2])
+  assert not error_value?([1, 2])
+  assert call_lifted(
+    [{label: "f", params: ["x"], captured: [], body: read_forms("(ret x)")[0]}],
+    {label: "f", vals: []},
+    [3]
+  ) == 3
+  assert member?("print", SAFE_OPS)
+  assert may_fail?(read_forms("(raise 1)")[0])
+  assert not may_fail?(read_forms("(first l)")[0])
+  t = propagate(anf(read_forms("(+ 1 (f 2))")[0]))
+  assert has_failed_check?(t)
+  assert not has_failed_check?(propagate(anf(read_forms("(+ 1 2)")[0])))
+end
+
+@doc """
+has_failed_check?: whether a tree holds a failed? check anywhere.
+
+    has_failed_check?(7) #=> false
+"""
+def has_failed_check?(x)
+  if not list?(x)
+    false
+  elsif head_is?(x, "failed?")
+    true
+  else
+    retsu::find_first(has_failed_check?, x) != nil
+  end
 end

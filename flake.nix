@@ -564,7 +564,10 @@
           tools = c.tools pkgs;
         }) commands;
 
-      bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = blueFor final.stdenv.hostPlatform.system; };
+      # A `blue` already in the package set (an override, a pinned release, a
+      # pure-blue build) is the one every bidama tool wraps; this flake's own
+      # build is the default when the set holds none (docs/PURE-BLUE.md D1).
+      bidamasOverlay = final: _prev: blueSetFor { pkgs = final; blue = final.blue or (blueFor final.stdenv.hostPlatform.system); };
 
       # blue's tree-sitter grammar, built from the grammar.js that kiwari emits
       # (bidamas/kiwari, gen/kiwari/); its version is the one the emitted
@@ -817,6 +820,18 @@
             if wrapped.passthru.blue.outPath == blue.outPath
             then pkgs.runCommand "distribution-is-the-binarys" { } "touch $out"
             else throw "overlays.bidamas wraps ${wrapped.passthru.blue.outPath}, not this flake's blue ${blue.outPath}: the distribution and the binary come from different revisions";
+
+          # D1: the overlay wraps the package set's own `blue` when it has one,
+          # so an override reaches blue-with-bidamas and every blueApp.
+          overlay-reads-final-blue =
+            let
+              marker = pkgs.runCommand "blue-override" { } "mkdir -p $out/bin";
+              over = (pkgsFor system).extend (final: prev: { blue = marker; });
+              wrapped = (bidamasOverlay over over).blue-with-bidamas;
+            in
+            if wrapped.passthru.blue.outPath == marker.outPath
+            then pkgs.runCommand "overlay-reads-final-blue" { } "touch $out"
+            else throw "overlays.bidamas wraps ${wrapped.passthru.blue.outPath}, not the package set's overridden blue ${marker.outPath}";
 
           # The binary nix builds runs a bare script with no Bluefile and no
           # BLUE_PATH, and the script's `use("retsu")` reaches the standard

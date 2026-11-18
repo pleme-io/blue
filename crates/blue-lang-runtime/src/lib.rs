@@ -41,6 +41,7 @@ pub mod arms;
 pub mod audio;
 pub mod bits;
 pub mod bundle;
+pub mod cell;
 pub mod check_cache;
 pub mod collection;
 pub mod crypto;

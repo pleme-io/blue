@@ -61,6 +61,8 @@ pub enum Topic {
     Crypto,
     /// Delayed values.
     Lazy,
+    /// Typed cells: the one place a value changes.
+    Cell,
     /// tatara-lisp's channels and fibers.
     Concurrency,
     /// blue's own processes: spawn, mailboxes, links, supervision.
@@ -97,6 +99,7 @@ impl Topic {
         Topic::Crypto,
         Topic::Output,
         Topic::Lazy,
+        Topic::Cell,
         Topic::Concurrency,
         Topic::Actor,
         Topic::Lisp,
@@ -128,6 +131,7 @@ impl Topic {
             Topic::Kernel => "The Linux kernel",
             Topic::Crypto => "Hashing and signatures",
             Topic::Lazy => "Delayed values",
+            Topic::Cell => "Cells",
             Topic::Concurrency => "Channels and fibers",
             Topic::Actor => "Blue processes and supervision",
             Topic::Output => "Terminal output",
@@ -156,7 +160,8 @@ impl Topic {
             | Topic::Nix
             | Topic::Xml
             | Topic::Crypto
-            | Topic::Lazy => None,
+            | Topic::Lazy
+            | Topic::Cell => None,
             Topic::File
             | Topic::Process
             | Topic::Environment
@@ -616,6 +621,10 @@ pub const NAMES: &[NameDoc] = names! {
     Lazy: "force" "force(p)" "The value of a promise, computed once; a non-promise is returned as is.";
     Lazy: "cycle" "cycle(xs)" "A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list.";
     Lazy: "realize" "realize(lazy)" "A finite tatara-lisp lazy sequence forced into a list. On anything built from cycle it does not terminate.";
+    Cell: "cell" "cell(v)" "A cell holding v: the one value that changes in place. Read it with cell_get, replace its content with cell_put. A cell is local to the process that made it.";
+    Cell: "cell_get" "cell_get(c)" "The value a cell holds.";
+    Cell: "cell_put" "cell_put(c, v)" "Replace a cell's content with v; the answer is v.";
+    Cell: "cell?" "cell?(x)" "Whether x is a cell.";
     // ── concurrency ───────────────────────────────────────────────────────
     Concurrency: "chan" "chan([capacity])" "A tatara-lisp channel. Its put and take words (>! and <!) have no blue spelling.";
     Concurrency: "close!" "close!(ch)" "Close a channel.";

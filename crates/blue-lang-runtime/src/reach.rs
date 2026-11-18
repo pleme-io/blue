@@ -129,6 +129,9 @@ const NONDETERMINISTIC: &[&str] = &[
     "defquery",
     "defactor",
     "def_hash",
+    "cell",
+    "cell_get",
+    "cell_put",
 ];
 
 /// The host capability that grants `name`, if one does.

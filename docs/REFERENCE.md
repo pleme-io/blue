@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-404 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 199 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+408 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 199 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -574,6 +574,15 @@ Higher binding power binds tighter.
 | `cycle` | `cycle(xs)` | 1 | A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list. Also defined by `gurafu` (`gurafu::cycle`): a file that lists it gets that one. |
 | `force` | `force(p)` | 1 | The value of a promise, computed once; a non-promise is returned as is. |
 | `realize` | `realize(lazy)` | 1 | A finite tatara-lisp lazy sequence forced into a list. On anything built from cycle it does not terminate. |
+
+### Cells
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `cell` | `cell(v)` | 1 | A cell holding v: the one value that changes in place. Read it with cell_get, replace its content with cell_put. A cell is local to the process that made it. |
+| `cell?` | `cell?(x)` | 1 | Whether x is a cell. |
+| `cell_get` | `cell_get(c)` | 1 | The value a cell holds. |
+| `cell_put` | `cell_put(c, v)` | 2 | Replace a cell's content with v; the answer is v. |
 
 ### Channels and fibers
 

@@ -7,7 +7,8 @@
 //! [`crate::reach::Reach::Pure`]) and every argument is a literal, the answer
 //! is known before the run: the prepare stage evaluates the call once and
 //! writes its value in place of the call. `blue bundle` prepares at build
-//! time, so a bundle carries the value, not the call.
+//! time, so a bundle carries the value, not the call, for every call the fold
+//! finishes within its bound.
 //!
 //! **The rewrite is exact.** Only a call that answered is replaced, and only
 //! by a literal that evaluates back to a value of the same kind and content
@@ -20,6 +21,12 @@
 //! it can run more than once: in the body of a definition other than `main`,
 //! or inside a function written in place. A call in `main` or at the top
 //! level runs once; folding it would only move its cost.
+//!
+//! **A site is decided once.** With the check cache installed, what the fold
+//! decided at a call (its literal, or that it gave up with the whole step
+//! bound) is kept under the callee's `def_hash` and the call's text
+//! ([`crate::check_cache::Pass::Fold`]), and a later run recalls it instead
+//! of running the call again.
 //!
 //! `BLUE_FOLD=off` turns the rewrite off; [`crate::fuse::hold_off`] holds it
 //! off with fusion, for the commands that observe the code as written; and
@@ -128,11 +135,16 @@ pub fn fold(erased: Vec<Spanned>, defined: &[Spanned]) -> Folded {
         return unchanged(erased);
     }
     let mut sandbox = Sandbox::new(&erased, defined, &pure);
+    let cache = crate::check_cache::installed();
+    let hashes = cache
+        .as_ref()
+        .map(|_| crate::def_hash::hash_program(defined));
     let mut folder = Folder {
         found: &found,
         pure: &pure,
         sandbox: &mut sandbox,
         calls: Vec::new(),
+        memory: cache.as_ref().zip(hashes.as_ref()),
     };
     let mut sites = Vec::new();
     let forms: Vec<Spanned> = erased
@@ -146,6 +158,9 @@ pub fn fold(erased: Vec<Spanned>, defined: &[Spanned]) -> Folded {
         })
         .collect();
     let calls = folder.calls;
+    if let Some(cache) = &cache {
+        cache.flush();
+    }
     Folded {
         forms,
         calls,
@@ -294,6 +309,10 @@ impl Sandbox {
         sandbox
     }
 
+    fn left(&self) -> usize {
+        PASS_STEPS.saturating_sub(self.spent)
+    }
+
     fn bounded(&mut self, form: &Spanned) -> Option<Value> {
         let left = PASS_STEPS.saturating_sub(self.spent);
         if left == 0 {
@@ -323,6 +342,10 @@ struct Folder<'a> {
     pure: &'a BTreeSet<String>,
     sandbox: &'a mut Sandbox,
     calls: Vec<String>,
+    memory: Option<(
+        &'a crate::check_cache::CheckCache<'static>,
+        &'a crate::def_hash::DefHashes,
+    )>,
 }
 
 impl Folder<'_> {
@@ -349,15 +372,62 @@ impl Folder<'_> {
         if !self.pure.contains(key) {
             return None;
         }
-        let value = self.sandbox.bounded(s)?;
-        let literal = spell(&value, s.span)?;
-        let back = self.sandbox.bounded(&literal)?;
-        if !same(&value, &back) {
-            return None;
+        let remembered = self.memory.and_then(|(cache, hashes)| {
+            let bucket = hashes.of_key(key)?.hash;
+            let text = s.to_sexp().to_string();
+            let entry = cache.key(crate::check_cache::Pass::Fold, &[text.as_bytes()]);
+            Some((cache, bucket, entry))
+        });
+        if let Some((cache, bucket, entry)) = remembered {
+            if let Some(kept) = cache.get(crate::check_cache::Pass::Fold, &bucket, &entry) {
+                let literal = recalled(&kept, s.span)?;
+                self.calls.push(key.to_string());
+                return Some(literal);
+            }
         }
+        let whole = self.sandbox.left() >= STEPS;
+        let decided = self.decide(s);
+        if let Some((cache, bucket, entry)) = remembered {
+            if decided.is_some() || whole {
+                let text = decided
+                    .as_ref()
+                    .map(|l| l.to_sexp().to_string())
+                    .unwrap_or_default();
+                cache.put(&bucket, entry, text.into_bytes());
+            }
+        }
+        let literal = decided?;
         self.calls.push(key.to_string());
         Some(literal)
     }
+
+    fn decide(&mut self, s: &Spanned) -> Option<Spanned> {
+        let value = self.sandbox.bounded(s)?;
+        let literal = spell(&value, s.span)?;
+        let back = self.sandbox.bounded(&literal)?;
+        same(&value, &back).then_some(literal)
+    }
+}
+
+/// The literal a kept fold decided, at the call it replaces; `None` when the
+/// fold gave up on that call, so it stays as written.
+fn recalled(kept: &[u8], at: Span) -> Option<Spanned> {
+    if kept.is_empty() {
+        return None;
+    }
+    let text = std::str::from_utf8(kept).ok()?;
+    let mut forms = tatara_lisp::read_spanned(text).ok()?;
+    (forms.len() == 1).then(|| at_span(forms.remove(0), at))
+}
+
+fn at_span(s: Spanned, at: Span) -> Spanned {
+    let form = match s.form {
+        SpannedForm::List(items) => {
+            SpannedForm::List(items.into_iter().map(|i| at_span(i, at)).collect())
+        }
+        other => other,
+    };
+    Spanned::new(at, form)
 }
 
 fn atom(at: Span, a: Atom) -> Spanned {

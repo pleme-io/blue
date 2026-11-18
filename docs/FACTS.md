@@ -312,17 +312,54 @@ Each wave lists defaults in the order their gain is known. Each default meets
   records runs native by default: 1,000,000 record updates, 2.51 s
   interpreted, 0.01 s native. Locks: as W1's record row.
 - A value nothing else holds is updated in place, decided statically where
-  uniqueness can be proven, not only at run time.
+  uniqueness can be proven, not only at run time. Owned by PURE-BLUE M3 and
+  B5 ([ROADMAP.md](ROADMAP.md), "One deliverable, one owner"); this row is
+  an alias and keeps no state. Native code already updates a list in place
+  when its count shows nothing else holds it.
 
 ### W3: work done once
 
-- Pure top-level values computed at build and baked into the bundle (R4 at
-  build time).
+- ✅ Pure top-level values computed at build and baked into the bundle (R4 at
+  build time). `blue bundle` compiles through the same prepare stage as a
+  run, so a pure call on literals in a definition is folded before the
+  payload is sealed and the bundle carries its value (`fib(12)` in `score`
+  is the Int 144 in the payload). A call past the fold's step bound stays as
+  written and runs at its own time. Lock: `tests/bundle.rs`
+  `a_bundle_carries_a_pure_call_on_literals_as_its_value_folded_at_build_time`
+  (the call, not the value, under `BLUE_FOLD=off`).
 - Pure results shared through the fleet store by default for costly calls
   (R8), with the cost from the profile instead of from a first run.
-- Tests selected by `def_hash`: a change reruns only the tests that reach it.
+  R8 fires on a stored result that cost 20 ms or more (`stored_costly`), and
+  nothing stores a result for a definition no memo ran, so a costly pure
+  definition never gets its first one. The profile tier cannot supply the
+  fact: it times only definitions with a native artifact, which R7 answers
+  anyway. Next: a per-program fact from the run's own evaluation time
+  (`timings::evaluated`, counted always since W1.3) that plans a recording
+  memo over the program's pure definitions on the next run.
+- ✅ Tests selected by `def_hash`: a change reruns only the tests that reach it.
+  A test's identity is its own tree and the hashes of what it reaches
+  (`mondou::def_hash::test_identities`), and `blue test` answers a passed
+  identity from the test tier (`test_cache.rs`, `N cached` in its tally;
+  `BLUE_TEST_CACHE=off`, `--no-cache`). Locks: `def_hash`'s
+  `a_test_is_identified_by_its_tree_and_what_it_reaches_never_by_its_name`;
+  `tests/test_cache.rs`.
 - Expensive optimization (a search over equivalent forms) run once per
   `def_hash` and shared.
+  - ✅ The fold (R4) decides each site once: what it decided, a literal or
+    that it gave up, is kept in the check cache as its own pass
+    (`check_cache::Pass::Fold`), in the callee's `def_hash` bucket under the
+    call's text, and every later run recalls it. A give-up is kept only when
+    it had the whole per-call step bound, since a site that ran short of the
+    pass's budget may finish another time. The cache is keyed by this
+    build's identity, so a new blue decides again. A program whose fold
+    gives up on `fib(22)`: erase 2.95 ms on the first run, 0.17 ms after;
+    one that folds `fib(12)`: 0.53 ms to 0.33 ms, the same answers. Lock:
+    `tests/fold_memory.rs` `a_fold_is_decided_once_per_definition_and_recalled_after`
+    (a poisoned kept literal is what the second fold writes; red when the
+    fold runs the call again). `BLUE_FOLD=off` and `BLUE_CHECK_CACHE=off` turn
+    it off.
+  - Next: a search over equivalent forms, the expensive optimization this
+    row names.
 
 ### W4: concurrency from facts
 

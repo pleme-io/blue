@@ -44,6 +44,7 @@ pub enum Pass {
     Resolve,
     Names,
     Rule,
+    Fold,
 }
 
 impl Pass {
@@ -53,6 +54,7 @@ impl Pass {
             Self::Resolve => "resolve",
             Self::Names => "names",
             Self::Rule => "rule",
+            Self::Fold => "fold",
         }
     }
 }

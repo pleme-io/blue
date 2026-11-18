@@ -118,3 +118,41 @@ fn bundle_refuses_a_stale_lock_and_writes_nothing() {
     assert!(err(&o).contains("run `blue lock"), "{}", err(&o));
     assert!(!out.exists(), "a refused bundle writes nothing");
 }
+
+#[test]
+fn a_bundle_carries_a_pure_call_on_literals_as_its_value_folded_at_build_time() {
+    let dir = std::env::temp_dir().join(format!("blue-bundle-folded-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let main = dir.join("main.b");
+    put(
+        &main,
+        "def fib(n: Int) -> Int\n  if n < 2\n    n\n  else\n    fib(n - 1) + fib(n - 2)\n  end\nend\n\ndef score(x: Int) -> Int\n  x + fib(12)\nend\n\ndef main()\n  write_stdout(unlines([to_s(score(1))]))\nend\n",
+    );
+    let score_tree = |fold: &str| {
+        let sealed = dir.join(format!("p-{fold}.payload"));
+        let o = blue()
+            .env("BLUE_FOLD", fold)
+            .arg("bundle")
+            .arg(&main)
+            .arg("-o")
+            .arg(&sealed)
+            .output()
+            .unwrap();
+        assert!(o.status.success(), "{}", err(&o));
+        let payload = opened(&sealed);
+        let form = payload
+            .forms
+            .iter()
+            .find(|f| f.def.as_ref().is_some_and(|d| d.key == "%root/score"))
+            .expect("score");
+        serde_json::to_string(&form.tree).unwrap()
+    };
+    let folded = score_tree("on");
+    assert!(
+        folded.contains("{\"int\":144}") && !folded.contains("%root/fib"),
+        "{folded}"
+    );
+    let written = score_tree("off");
+    assert!(written.contains("%root/fib"), "{written}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

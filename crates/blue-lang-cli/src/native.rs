@@ -207,6 +207,7 @@ struct Target {
     hash: DefHash,
     hot: bool,
     profiled: bool,
+    from: u64,
 }
 
 /// How the tier decides, from `BLUE_NATIVE`.
@@ -268,6 +269,8 @@ pub(crate) struct Tier {
     by_source: HashMap<Span, Target>,
     inner: Option<Arc<dyn CallObserver>>,
     timing: std::sync::Mutex<Timing>,
+    answers: bool,
+    seeding: bool,
 }
 
 impl Tier {
@@ -334,6 +337,7 @@ impl Tier {
                         hash: hashed.hash,
                         hot,
                         profiled: mean.is_some(),
+                        from: threshold,
                     },
                 );
             }
@@ -342,7 +346,37 @@ impl Tier {
             by_source,
             inner,
             timing: std::sync::Mutex::default(),
+            answers: true,
+            seeding: false,
         })
+    }
+
+    /// The tier a test run seeds the profile through (W1 of docs/FACTS.md):
+    /// it answers no call, times every definition with an artifact, and
+    /// records a definition's time only when it ran hot, so a definition its
+    /// tests call cheaply stays unprofiled and the first real run times it.
+    /// `None` when the program has no definition with an artifact.
+    pub(crate) fn seeding(
+        w: &blue_lang_runtime::pipeline::Watched<'_>,
+        inner: Option<Arc<dyn CallObserver>>,
+    ) -> Option<Arc<Self>> {
+        if !seeds() {
+            return None;
+        }
+        let tier = Self::over(
+            w,
+            Mode::Auto,
+            &blue_lang_mondou::store::native_artifact,
+            &blue_lang_mondou::store::profile,
+            inner,
+        );
+        let mut tier = Arc::into_inner(tier)?;
+        if tier.by_source.is_empty() {
+            return None;
+        }
+        tier.answers = false;
+        tier.seeding = true;
+        Some(Arc::new(tier))
     }
 
     /// The definitions this run answers natively, and the ones it measures
@@ -373,14 +407,22 @@ impl Tier {
 
     /// The time this run's outermost calls of each definition took, added to
     /// the profile tier through `record`.
+    /// When the tier seeds, only the times of definitions that ran hot.
     pub(crate) fn flush(&self, record: &dyn Fn(&DefHash, blue_lang_mondou::store::Profiled)) {
         let seen = self
             .timing
             .lock()
             .map(|mut t| std::mem::take(&mut t.seen))
             .unwrap_or_default();
+        let from: HashMap<DefHash, u64> =
+            self.by_source.values().map(|t| (t.hash, t.from)).collect();
         for (hash, p) in seen {
-            record(&hash, p);
+            let hot = p
+                .mean_ns()
+                .is_some_and(|ns| ns >= from.get(&hash).copied().unwrap_or(HOT_NS));
+            if !self.seeding || hot {
+                record(&hash, p);
+            }
         }
     }
 }
@@ -444,6 +486,12 @@ pub(crate) fn planned(
     Some((tier, reason.join("; ")))
 }
 
+/// Whether a test run seeds the profile: the tier is not off and a native
+/// tier is present, checked before any hashing.
+pub(crate) fn seeds() -> bool {
+    mode() != Mode::Off && blue_lang_mondou::store::native_present()
+}
+
 /// The variable naming the command a run starts, detached, when it asks for
 /// its program to be built (`nix run .#native-build`, which reads the
 /// requests); unset, the requests wait for a builder the node runs itself.
@@ -502,7 +550,7 @@ impl CallObserver for Tier {
             return Some(answered);
         }
         let target = self.target(call_)?;
-        if target.hot {
+        if self.answers && target.hot {
             let answered = target
                 .shape
                 .words(args)

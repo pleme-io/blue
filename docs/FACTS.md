@@ -168,8 +168,16 @@ Each wave lists defaults in the order their gain is known. Each default meets
     (`small`, `big`, `pick` in `native/defs/base.b`; `big` answered by
     `small`'s library proves the library answered).
   - Next: Float, then strings.
-- Doctests as profiles: each `@doc` example is a typed sample input, run at
-  build to seed the profile before the first real run.
+- ✅ Doctests as profiles. The builder runs a program's tests once it has
+  built its definitions, and the test run seeds the profile through the
+  native tier (`native::Tier::seeding`): it answers no call, times each
+  definition with an artifact, and records one only when it ran hot, so a
+  definition its tests call cheaply stays unprofiled and the first real run
+  times it as before. A documented `fib` (`fib(24) #=> 46368`): the first
+  real run after the build is 0.02 s, where it was the 2.36 s profiling run.
+  Lock: `tests/native_tier.rs` `a_test_run_seeds_the_profile_only_for_what_it_ran_hot`
+  (red when every time is recorded, and red when a seeding run answers from
+  the artifact).
 - Proven types drop the guard in compiled code (R6, at T3).
 
 ### W2: data that fits its use

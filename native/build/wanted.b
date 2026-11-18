@@ -1,5 +1,5 @@
 @moduledoc """
-The native builder (tier T3, W1 of docs/FACTS.md): it builds what runs asked for. A run that took 20 ms or more, with a native tier present, writes `<root>/wanted/<key>`, holding its program's path, where `key` is the content hash of the program's text (`blue_lang_mondou::store::want_native`). For each request this builds every function of the program that chuuzou compiles and that has no artifact yet, into `<root>/v1/<hex>/` as `def`, `def.so` and `def.rs`, and writes `<key>.done`. `$NATIVE_ROOT` is the root, else this node's: `$XDG_CACHE_HOME/blue/native`, else `$HOME/.cache/blue/native`. `$DEF_SEAM` holds the seams the definitions link.
+The native builder (tier T3, W1 of docs/FACTS.md): it builds what runs asked for. A run whose evaluation took 20 ms or more, with a native tier present, writes `<root>/wanted/<key>`, holding its program's path, where `key` is the content hash of the program's text (`blue_lang_mondou::store::want_native`). For each request this builds every function of the program that chuuzou compiles and that has no artifact yet, into `<root>/v1/<hex>/` as `def`, `def.so` and `def.rs`, runs the program's tests to seed the profile, and writes `<key>.done`. `$NATIVE_ROOT` is the root, else this node's: `$XDG_CACHE_HOME/blue/native`, else `$HOME/.cache/blue/native`. `$DEF_SEAM` holds the seams the definitions link.
 
     native_root_from("", "/h") #=> "/h/.cache/blue/native"
 """
@@ -95,8 +95,18 @@ def take(root, key, seam)
   else
     []
   end
+  if built != []
+    seed(program)
+  end
   write_file(path_join(wanted, "#{key}.done"), unlines(built))
   built
+end
+
+@doc """
+seed: Run the tests of `program`, its doc examples among them, so the native tier records a profile for each definition they run hot: that one is answered natively from the first real run. Answers whether the tests ran green.
+"""
+def seed(program)
+  exec_capture(self_exe, "test", "--no-cache", program).status == 0
 end
 
 def main()

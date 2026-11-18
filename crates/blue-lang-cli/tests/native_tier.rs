@@ -274,3 +274,61 @@ fn a_library_that_does_not_load_keeps_the_process_threshold() {
     );
     let _ = std::fs::remove_dir_all(&f.dir);
 }
+
+#[test]
+fn a_test_run_seeds_the_profile_only_for_what_it_ran_hot() {
+    let dir = std::env::temp_dir().join(format!("blue-native-tier-seed-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch");
+    let program = dir.join("p.b");
+    std::fs::write(
+        &program,
+        "@doc \"\"\"\nslow: a sum that takes a while.\n\n    slow(300_000) #=> 44999850000\n\"\"\"\ndef slow(n)\n  reduce((a, x) -> a + x, 0, range(n))\nend\n\n@doc \"\"\"\nquick: one more.\n\n    quick(1) #=> 2\n\"\"\"\ndef quick(n)\n  n + 1\nend\n",
+    )
+    .expect("program");
+    let shared = dir.join("shared");
+    let mut hexes = Vec::new();
+    for (key, hex) in hashes(&program) {
+        if key == "%root/slow" || key == "%root/quick" {
+            artifact(&shared, &hex, 7);
+            library(&shared, &hex, "unsafe { out.write(7) };\n    0");
+            hexes.push((key, hex));
+        }
+    }
+    let out = blue()
+        .env("BLUE_CACHE_SHARED", &shared)
+        .env("XDG_CACHE_HOME", dir.join("cache"))
+        .args(["test", "--no-cache"])
+        .arg(&program)
+        .output()
+        .expect("spawn blue test");
+    assert!(
+        out.status.success(),
+        "the tests answer as the interpreter does, the tier answering none: {}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let profiled = |hex: &str| dir.join("cache/blue/profile/v1").join(hex).exists();
+    for (key, hex) in &hexes {
+        match key.as_str() {
+            "%root/slow" => assert!(profiled(hex), "slow ran hot in its doctest"),
+            _ => assert!(
+                !profiled(hex),
+                "quick ran cold, so the first real run times it"
+            ),
+        }
+    }
+    let again = blue()
+        .env("BLUE_CACHE_SHARED", &shared)
+        .env("XDG_CACHE_HOME", dir.join("cache"))
+        .args(["test", "--no-cache"])
+        .arg(&program)
+        .output()
+        .expect("spawn blue test");
+    assert!(
+        again.status.success(),
+        "slow is hot now, and a test still runs it in the interpreter, never the artifact's 7: {}",
+        String::from_utf8_lossy(&again.stdout)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

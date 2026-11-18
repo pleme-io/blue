@@ -600,6 +600,26 @@ fn test_file(
         Some(w) => Some(Arc::clone(w) as Arc<dyn CallObserver>),
         None => watching,
     };
+    let seeded = (!coverage && crate::native::seeds())
+        .then(|| {
+            let lowered = checked.lowered();
+            let erased = blue_lang_runtime::erase_types(&lowered);
+            let definitions = Arc::new(Definitions::of(&checked.program, &erased));
+            crate::native::Tier::seeding(
+                &blue_lang_runtime::pipeline::Watched {
+                    definitions: &definitions,
+                    program: &checked.program,
+                    lowered: &lowered,
+                    erased: &erased,
+                },
+                observer.clone(),
+            )
+        })
+        .flatten();
+    let observer = match &seeded {
+        Some(t) => Some(Arc::clone(t) as Arc<dyn CallObserver>),
+        None => observer,
+    };
     let identities = (identify || watch.cache.is_some()).then(|| {
         let lowered = checked.lowered();
         blue_lang_mondou::def_hash::test_identities(

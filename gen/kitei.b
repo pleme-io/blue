@@ -2,13 +2,23 @@ use("kitei", [:rules])
 use("tesuto", [:skip_for])
 
 @doc """
-row_of: one shipped rule as the Rust tuple the runtime reads: its id, the facts it needs and its switch.
+row_of: one shipped rule as the Rust tuple the runtime reads: its id, the facts it needs and its switch, one part a line when the tuple passes 60 columns, as rustfmt writes it.
 
     row_of(kitei::named("R2")) #=> "    (\"R2\", &[\"pure\", \"self_overlapping\"], \"BLUE_MEMO=off\"),"
+    contains?(row_of(kitei::named("R15")), "        \"R15\",") #=> true
 """
 def row_of(r)
   needs = join(map((f) -> "\"#{to_s(f)}\"", r.needs), ", ")
-  "    (\"#{r.id}\", &[#{needs}], \"#{r.switch}\"),"
+  parts = ["\"#{r.id}\"", "&[#{needs}]", "\"#{r.switch}\""]
+  inner = join(parts, ", ")
+  if length(inner) > 60
+    join(
+      append(["    ("], append(map((p) -> "        #{p},", parts), ["    ),"])),
+      line_break
+    )
+  else
+    "    (#{inner}),"
+  end
 end
 
 @doc """

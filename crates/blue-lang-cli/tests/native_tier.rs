@@ -16,7 +16,8 @@ fn blue() -> Command {
     c.env_remove("BLUE_PATH")
         .env_remove("BLUE_DOOR")
         .env_remove("BLUE_NATIVE")
-        .env_remove("BLUE_CACHE_SHARED");
+        .env_remove("BLUE_CACHE_SHARED")
+        .env("BLUE_MEMO", "off");
     c
 }
 

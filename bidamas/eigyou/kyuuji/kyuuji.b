@@ -2172,7 +2172,7 @@ test "a supervised server's policy fills unset fields from the defaults and its 
   assert procedure?(supervised_dispatch)
 end
 
-test "on a quiet listener the supervised loop hands nothing to a child and keeps its state", {
+test "a quiet listener: the loop adopts no child and keeps its state", {
   kind: :integration,
   allow: %i[network process]
 }

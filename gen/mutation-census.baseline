@@ -1,7 +1,5 @@
 mutation-set: bidamas/chozou/kiibariu/kiibariu.b 2
 mutation-set: bidamas/eigyou/bougyo/bougyo.b 2
-mutation-set: bidamas/eigyou/heddaa/heddaa.b 5
-mutation-while: bidamas/eigyou/heddaa/heddaa.b 1
 mutation-set: bidamas/eigyou/kyuuji/kyuuji.b 2
 mutation-while: bidamas/eigyou/kyuuji/kyuuji.b 1
 mutation-set: bidamas/eigyou/shisei/shisei.b 5
@@ -24,8 +22,6 @@ mutation-redefine: bidamas/tesuto/tesuto.b 1
 mutation-redefine: bidamas/toriyose/danpen/danpen.b 8
 mutation-set: crates/blue-lang-pkg/bidamas/chozou/kiibariu/kiibariu.b 2
 mutation-set: crates/blue-lang-pkg/bidamas/eigyou/bougyo/bougyo.b 2
-mutation-set: crates/blue-lang-pkg/bidamas/eigyou/heddaa/heddaa.b 5
-mutation-while: crates/blue-lang-pkg/bidamas/eigyou/heddaa/heddaa.b 1
 mutation-set: crates/blue-lang-pkg/bidamas/eigyou/kyuuji/kyuuji.b 2
 mutation-while: crates/blue-lang-pkg/bidamas/eigyou/kyuuji/kyuuji.b 1
 mutation-set: crates/blue-lang-pkg/bidamas/eigyou/shisei/shisei.b 5

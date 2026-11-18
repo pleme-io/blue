@@ -658,24 +658,32 @@ huffman_encode: The Huffman encoding of a string or octets, padded with the star
     huffman_encode("www.example.com") #=> hex_bytes("f1e3c2e5f23a6ba0ab90f4ff")
 """
 def huffman_encode(data)
-  st = [0, 0]
-  out = map(
-    fn(b)
+  done = reduce(
+    fn(sofar, b)
+      prev = first(sofar)
       c = huffman_codes[b]
-      acc = shift_left(first(st), c[1]) + first(c)
-      n = st[1] + c[1]
+      acc = shift_left(first(prev), c[1]) + first(c)
+      n = prev[1] + c[1]
       k = floor(n / 8)
       left = n - 8 * k
-      set!(st, [acc % expt(2, left), left])
-      map((j) -> shift_right(acc, n - 8 * (j + 1)) % 256, range(0, k))
+      [
+        [acc % expt(2, left), left],
+        append(
+          sofar[1],
+          map((j) -> shift_right(acc, n - 8 * (j + 1)) % 256, range(0, k))
+        )
+      ]
     end,
+    [[0, 0], []],
     octets(data)
   )
+  st = first(done)
+  out = done[1]
   pad = 8 - st[1]
   if pad == 8
-    append([], flatten(out))
+    out
   else
-    append(flatten(out), [shift_left(first(st), pad) + expt(2, pad) - 1])
+    append(out, [shift_left(first(st), pad) + expt(2, pad) - 1])
   end
 end
 
@@ -705,19 +713,21 @@ too long or not the start of EOS, is refused.
     bytes_text(value(huffman_decode(hex_bytes("f1e3c2e5f23a6ba0ab90f4ff")))) #=> "www.example.com"
 """
 def huffman_decode(bytes)
-  st = [0, 0, false]
-  out = map(
-    fn(b)
+  done = reduce(
+    fn(sofar, b)
+      prev = first(sofar)
       r = reduce(
         (s, i) -> huffman_bit(s, bit_at(b, i)),
-        [first(st), st[1], st[2], []],
+        [first(prev), prev[1], prev[2], []],
         [7, 6, 5, 4, 3, 2, 1, 0]
       )
-      set!(st, [first(r), r[1], r[2]])
-      r[3]
+      [[first(r), r[1], r[2]], append(sofar[1], r[3])]
     end,
+    [[0, 0, false], []],
     bytes
   )
+  st = first(done)
+  out = [done[1]]
   len = st[1]
   if st[2]
     broken("a Huffman string holds EOS or a code longer than 30 bits")
@@ -887,11 +897,23 @@ def decode_one(st, block)
   end
 end
 
+@doc """
+decode_from: decode_one applied to a decoding state until the block is read or a step is refused.
+
+    ok?(decode_from(ok({pos: 0, fields: [], sensitive: [], table: table(4096), open: true}), [])) #=> true
+"""
+def decode_from(r, block)
+  if ok?(r) and value(r)[:pos] < size(block)
+    decode_from(decode_one(value(r), block), block)
+  else
+    r
+  end
+end
+
 def decode(t, block)
-  r = ok({pos: 0, fields: [], sensitive: [], table: t, open: true})
-  while(
-    ok?(r) and value(r)[:pos] < size(block),
-    set!(r, decode_one(value(r), block))
+  r = decode_from(
+    ok({pos: 0, fields: [], sensitive: [], table: t, open: true}),
+    block
   )
   and_then(
     r,
@@ -1001,16 +1023,15 @@ def encode(t, fields, opts?)
   never = opts[:never] or []
   plain = opts[:plain] or []
   head = size_updates(t)
-  cell = [assoc(t, :updates, [])]
-  out = map(
-    fn(f)
-      r = encode_field(first(cell), f, huffman, never, plain)
-      set!(cell, [r[1]])
-      first(r)
+  done = reduce(
+    fn(sofar, f)
+      r = encode_field(first(sofar), f, huffman, never, plain)
+      [r[1], append(sofar[1], first(r))]
     end,
+    [assoc(t, :updates, []), []],
     fields
   )
-  {block: append(head, flatten(out)), table: first(cell)}
+  {block: append(head, done[1]), table: first(done)}
 end
 
 test "integers on an N-bit prefix, RFC 7541 C.1, and the edge at 2^N - 1"
@@ -1242,22 +1263,28 @@ test "a field whose octets are not UTF-8 survives as bytes, and Huffman is used 
 end
 
 def exchange(max, lists, hexes, huffman)
-  cell = [table(max), table(max)]
-  map(
-    fn(i)
-      out = encode(first(cell), lists[i], {huffman:})
-      back = value(decode(cell[1], out[:block]))
-      set!(cell, [out[:table], back[:table]])
-      if bytes_hex(out[:block]) != bytes_hex(hex_bytes(hexes[i]))
-        raise(:mismatch, "block #{i}: #{bytes_hex(out[:block])}")
-      end
-      if back[:fields] != lists[i] or
-          entries(back[:table]) != entries(out[:table])
-        raise(:mismatch, "decode #{i}")
-      end
-      table_size(out[:table])
-    end,
-    range(0, size(lists))
+  nth(
+    1,
+    reduce(
+      fn(sofar, i)
+        tables = first(sofar)
+        out = encode(first(tables), lists[i], {huffman:})
+        back = value(decode(tables[1], out[:block]))
+        if bytes_hex(out[:block]) != bytes_hex(hex_bytes(hexes[i]))
+          raise(:mismatch, "block #{i}: #{bytes_hex(out[:block])}")
+        end
+        if back[:fields] != lists[i] or
+            entries(back[:table]) != entries(out[:table])
+          raise(:mismatch, "decode #{i}")
+        end
+        [
+          [out[:table], back[:table]],
+          append(sofar[1], [table_size(out[:table])])
+        ]
+      end,
+      [[table(max), table(max)], []],
+      range(0, size(lists))
+    )
   )
 end
 
@@ -1269,4 +1296,14 @@ test "octets turns text into bytes and leaves bytes alone"
   assert octets("") == []
   assert octets("ab") == [97, 98]
   assert octets([1, 2]) == [1, 2]
+end
+
+test "decode_from reads a block to its end and stops at the first refusal"
+  start = ok(
+    {pos: 0, fields: [], sensitive: [], table: table(4096), open: true}
+  )
+  done = decode_from(start, hex_bytes("828684"))
+  assert ok?(done)
+  assert value(done)[:pos] == 3
+  assert decode_from(start, []) == start
 end

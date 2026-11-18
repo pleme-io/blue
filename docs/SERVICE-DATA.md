@@ -123,7 +123,7 @@ The state of each step and each pending row, measured on 2026-11-09.
 | MySQL online DDL (`ALGORITHM=INSTANT` or `INPLACE`) | ❌ not built | Needs a second lowering shaped like `pg_step` |
 | `upgrade_eager` rendered as a shinka job | ❌ not built | Waits on S2 and haibi |
 | Strict Valkey entries as hashes or stream entries | ❌ not built | `kv_model` refuses `encoding: :hash` and `:stream` by name |
-| RESP over TLS | ❌ not built | `resp_connect` refuses TLS by name. Waits on the runtime's TLS transport (`HTTP2.md` P4) |
+| RESP over TLS | ✅ built | `net::resp::Client::connect` dials over `tls::Conn` when the target sets `tls` (on unless set to false in `bidamas/chozou/kiibariu`) |
 | A hardened Valkey image | ❌ not built | `pleme-cache` still runs upstream `valkey/valkey` |
 | Outbox without duplicates | ❌ not built | The drain is at-least-once. A `Nats-Msg-Id` header would let JetStream drop a duplicate, but `nats_publish` takes no headers |
 | haibi passes `observe` and the kenshi values into the chart | ❌ not built | Waits on S1 |

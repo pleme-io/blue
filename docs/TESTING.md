@@ -244,23 +244,23 @@ builtin or a bidama already has is used, not aliased.
 | RSpec or Rust shape | blue word | State |
 |---|---|---|
 | `it "does x"`, `#[test]` | `test "does x" … end` | ✅ built |
-| `describe`, `context` | `describe "subject" … end` (one word; a context is a nested `describe`) | ❌ not built (a parser form, like `test`) |
+| `describe`, `context` | `describe "subject" … end` (one word; a context is a nested `describe`) | ✅ built as a word, `describe(name, cases)` in `bidamas/tesuto` (not yet a parser form) |
 | `let`, `subject` | a binding at the top of a `describe`, evaluated per test in the forked interpreter | ❌ not built |
-| `before`, `after`, `around` | `around(f)`: a function that receives the test body; `before` and `after` are `around` with one side | ❌ not built |
+| `before`, `after`, `around` | `around(f)`: a function that receives the test body; `before` and `after` are `around` with one side | ✅ built, `around(setup, teardown, f)` in `bidamas/tesuto` |
 | shared examples | a `def` that takes the subject and asserts; tests call it | ✅ built (plain blue) |
 | table-driven, parametric | `case(name, f)` over a list of rows, one test per row | ❌ not built (a verb graph row) |
 | `eq` | `assert a == b` (structural diff on failure) | ✅ built |
 | `include` | `member?`, `contains?` | ✅ built (builtins) |
 | `raise_error` | `tesuto::raises?(kind, f)` | ✅ built |
-| `change { }.by(n)` | `changes?(probe, f, by)` | ❌ not built |
+| `change { }.by(n)` | `changes?(probe, f, by)` | ✅ built, `changes?(probe, f)` in `bidamas/tesuto` (no `by` argument) |
 | `satisfy` | any predicate in `assert` | ✅ built |
-| match a shape or schema | `conforms?(value, contract)`; a contract is a kousei shape | ❌ not built (a verb graph row) |
+| match a shape or schema | `conforms?(value, contract)`; a contract is a kousei shape | ✅ built, `conforms?(provider, contract)` in `bidamas/tesuto` |
 | stub, fake | `fake(target, impl, f)`: on a declared seam only | ❌ not built (a verb graph row) |
-| spy | `spy(target)`, `calls(spy)` | ❌ not built (verb graph rows) |
+| spy | `spy(target)`, `calls(spy)` | ✅ built, `spy` and `calls` in `bidamas/tesuto` |
 | snapshot, golden | `tesuto::snapshot(value, {name:})` | ✅ built |
 | property | okite laws over `ran` seeded generators | ⏳ in progress: laws run; shrinking is not built |
 | frozen time | `freeze(instant, f)` | ❌ not built (a verb graph row) |
-| fixture file | `fixture(name)`: a file kept beside the test | ❌ not built (a verb graph row) |
+| fixture file | `fixture(name)`: a file kept beside the test | ✅ built, `fixture(dir, name)` in `bidamas/tesuto` |
 | flaky handling | `quarantine(test, reason, until)`, `flaky?` | ❌ not built (verb graph rows) |
 | coverage | `blue test --coverage`, `tesuto::uncovered` | ✅ built |
 

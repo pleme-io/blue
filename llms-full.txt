@@ -2884,7 +2884,7 @@ when its first phase starts.
 | **proof** (HORIZON H6, [`TESTING.md`](docs/TESTING.md)) | ⏳ in progress | Built: heni's caught ratio as a ratchet per package (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`); solver-checked laws (2026-11-10): `blue_lang_check::lia::Backend`, a pure-Rust Cooper search or a typed `Absent`, no C linked, over linear integer arithmetic on `Int`, `Bool` and list lengths. A typed `law_…` is proved, refuted at a counterexample, tested-N or unchecked, named in its test block and tallied; `BLUE_LAWS` is cooper, tested or off (`crates/blue-lang-cli/tests/laws.rs`, `lia::tests`). Not built: record and named return types, drawn `List` and `Sym` arguments in properties, okite's laws as typed laws, integer ranges on parameters, a z3 backend behind the same enum. |
 | **union** (HORIZON H1, SAFETY row 3) | ⏳ in progress | U1 and P1 are built: `spec/rows/unions.b`, `spec/rows/patterns.b`, `spec/rows/refusals.b`, `crates/blue-lang-runtime/tests/unions.rs` (B0081). Next step: one declared `result` union for ok and refused, `?` on an Option, arms with no field. |
 | **HTTP/2 and gRPC** ([`HTTP2.md`](docs/HTTP2.md)) | ⏳ in progress | P1 is built: `bidamas/eigyou/heddaa` (HPACK) and `bidamas/eigyou/tajuu` (frames). No `tls_*` words exist. P2 to P6 are not built. Next step P2: the pure connection value and its `receive` and `send` steps. |
-| **CLI and TUI** ([`CLI-TUI.md`](docs/CLI-TUI.md)) | ⏳ in progress | L1 is built: `bidamas/hikisuu` (spec, parse, help, completion) and `gamen` line output. Not built: `prompt`, `confirm` and `choose` in `gamen`, and a `read_line` host word. |
+| **CLI and TUI** ([`CLI-TUI.md`](docs/CLI-TUI.md)) | ⏳ in progress | L1 and L2 are built: `bidamas/hikisuu` (spec, parse, help, completion), `gamen` line output, the `Terminal` capability with `read_line`, and `prompt`, `confirm` and `choose` in `gamen`. Not built: L3, the full-screen layer (`term_size`, `term_raw`, `term_event`). L4 is in progress. |
 | **service data defaults** ([`SERVICE-DATA.md`](docs/SERVICE-DATA.md)) | ⏳ in progress | Built: `bidamas/chozou/kiibariu` (RESP), `bidamas/chozou/sutoriimu` (JetStream), `bidamas/chozou/teeburu`. The SERVICE-DATA.md ledger holds the rest. |
 | **API evolution** ([`API-EVOLUTION.md`](docs/API-EVOLUTION.md)) | ❌ not built | No `api_policy` word exists in any bidama or crate. Next step P1: lifecycle words, `version`, `api_policy` and the delta catalog in pure blue. Done at P8: a service serves two versions, with the headers seen on the wire. |
 | **build stack** ([`BUILD-STACK.md`](docs/BUILD-STACK.md)) | ⏳ in progress | Built: the `runtime` and `access` entries (`crates/blue-lang-pkg/src/capabilities.rs`, `deploy/service.rs`) and the engine component (`nix build .#blue-component`). No pod runs a component. The BUILD-STACK.md ledger holds the rest. |
@@ -2921,6 +2921,26 @@ Links: the `sakuin` and `kensaku?` spaces in [`VERB-ROADMAP.md`](docs/VERB-ROADM
 (T5); the rmcp and stdin rows of the port register in [`STDLIB.md`](docs/STDLIB.md)
 (the MCP transport).
 
+## One deliverable, one owner
+
+Some deliverables are planned in several design docs under different ids.
+Each has one owner row, which holds the state and the lock. The other ids
+are aliases: they point at the owner and keep no state of their own.
+Folded 2026-11-18 from a sweep of every plan doc.
+
+| Deliverable | Owner | Aliases |
+|---|---|---|
+| ownership facts, cached by `def_hash` | PURE-BLUE M1 | FACTS W0 (the fact store in mondou) |
+| reuse in place from inferred uniqueness | PURE-BLUE M3, B5 | FACTS W2 (static uniqueness) |
+| supervisors, restart windows | PURE-BLUE R5 | ASYNC A5, BUILD-STACK S8, FRONTEND-PLAN S4 |
+| `await`, `scope`, the `heikou` space | ASYNC A2 | BIDAMA-COHESION (heikou), STDLIB (heikou) |
+| TLS in the runtime | PURE-BLUE R7 | HTTP2 P4, VERB-ROADMAP H1, FRONTEND-PLAN S1, placement G24 |
+| the reader, source to tree | PURE-BLUE F1 | NATURALIZE-TREESITTER M3, CST-PLAN P0-P3 |
+| secrets | SAFETY row 14 | STDLIB `himitsu`, BIDAMA-COHESION, SUBSTRATE, FRONTEND-PLAN S6, SERVICE-ARCHITECTURE `secret_open` |
+| VM re-entry for callbacks | PERFORMANCE 3.3 | BLUE-SPEED row 2, COMPILE-TIME phase 4 |
+| `placement` rendered to Flux | SERVICE-ACCESS A7 | BUILD-STACK S5, SUBSTRATE L1.4 |
+| the self-hosting fixpoint | PURE-BLUE S1 | BLUE-NATIVE N9, N10 |
+
 ## Rulings
 
 One answer per question. An overridden text stays, marked superseded with a
@@ -2940,6 +2960,7 @@ dated receipt.
 | R10 | a default that moves work (folding, indexing, the memo) vs a step bound that counts work | the default stands down under any step bound or dispatch bound; its exactness is held by a test that runs without one (FACTS.md C2, C3) | counting the moved work against the bound | 2026-11-17, measured (`processes.spawn_server.dispatch_steps_refuses_a_long_message_and_keeps_the_state` went red) |
 | R11 | R6, a guard dropped where types are proven, vs an interpreter that emits no type guard | R6 folds into the native tier (R7): proven types need no entry check there | typed operators on the VM (under 2 % at best) | 2026-11-17, operator |
 | R12 | a default that is exact but slower vs the ratchet | a default ships only on a measured gain; the measurement stays beside the rule | shipping it for consistency with the cascade | 2026-11-17, measured (R5 on the walker, R11 arena) |
+| R13 | PERFORMANCE 3.1 and BLUE-SPEED row 4, linear builtins moved to Rust, vs PURE-BLUE, the code moved into blue | both stand: the Rust runtime stays a fully supported fallback, so its builtins are made fast in Rust; the pure-blue runtime writes the same builtins in blue; C1, the three-way conformance, holds the two equal row for row | one runtime dropping its builtins for the other's | 2026-11-17, operator (Rust as the full fallback runtime); applied 2026-11-18 |
 
 ---
 

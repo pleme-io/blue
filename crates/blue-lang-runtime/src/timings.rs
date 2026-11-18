@@ -74,8 +74,23 @@ thread_local! {
     static STEPS: Cell<Option<u64>> = const { Cell::new(None) };
     static FUSED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static FOLDED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-    static INDEXED: Cell<usize> = const { Cell::new(0) };
-    static BUILT: Cell<usize> = const { Cell::new(0) };
+    static COUNTED: RefCell<[usize; COUNTED_ROWS.len()]> = const { RefCell::new([0; COUNTED_ROWS.len()]) };
+}
+
+/// The rows a lever counts into the report, in the order the report prints
+/// them: the lists erasure indexed ([`crate::member_index`]), the
+/// string-append loops it built once ([`crate::builder`]), and the
+/// idempotent requests retried after a transient failure ([`crate::net`]).
+pub const COUNTED_ROWS: [&str; 3] = ["indexed", "built", "retried"];
+
+/// Add `n` to the counted row `row` of this thread's report, when it
+/// records; a name that is no row is ignored.
+pub fn count(row: &str, n: usize) {
+    if enabled() {
+        if let Some(i) = COUNTED_ROWS.iter().position(|r| *r == row) {
+            COUNTED.with(|c| c.borrow_mut()[i] += n);
+        }
+    }
 }
 
 /// Record the chains erasure fused ([`crate::fuse`]) for this thread's
@@ -97,17 +112,13 @@ pub fn folded(calls: &[String]) {
 /// Record the lists erasure indexed for loop membership tests
 /// ([`crate::member_index`]) for this thread's report, when it records.
 pub fn indexed(lists: usize) {
-    if enabled() {
-        INDEXED.with(|n| n.set(n.get() + lists));
-    }
+    count("indexed", lists);
 }
 
 /// Record the string-append loops erasure built once ([`crate::builder`])
 /// for this thread's report, when it records.
 pub fn built(loops: usize) {
-    if enabled() {
-        BUILT.with(|n| n.set(n.get() + loops));
-    }
+    count("built", loops);
 }
 
 /// The definitions whose calls were folded since [`enable`].
@@ -131,8 +142,7 @@ pub fn enable() {
     STEPS.with(|s| s.set(None));
     FUSED.with(|f| f.borrow_mut().clear());
     FOLDED.with(|f| f.borrow_mut().clear());
-    INDEXED.with(|n| n.set(0));
-    BUILT.with(|n| n.set(0));
+    COUNTED.with(|c| *c.borrow_mut() = [0; COUNTED_ROWS.len()]);
 }
 
 /// Charge `spent` evaluation steps to this thread's report, when it records.
@@ -289,13 +299,11 @@ pub fn report() -> String {
     if !calls.is_empty() {
         out.push_str(&format!("folded   {} {}\n", calls.len(), calls.join(" ")));
     }
-    let lists = INDEXED.with(Cell::get);
-    if lists > 0 {
-        out.push_str(&format!("indexed  {lists}\n"));
-    }
-    let loops = BUILT.with(Cell::get);
-    if loops > 0 {
-        out.push_str(&format!("built    {loops}\n"));
+    let counted = COUNTED.with(|c| *c.borrow());
+    for (row, n) in COUNTED_ROWS.iter().zip(counted) {
+        if n > 0 {
+            out.push_str(&format!("{row:<8} {n}\n"));
+        }
     }
     out
 }

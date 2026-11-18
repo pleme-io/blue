@@ -374,16 +374,39 @@ Each wave lists defaults in the order their gain is known. Each default meets
   profile.
 - Independent effects batched: calls the effect graph shows to be independent
   share one round trip.
-- An idempotent effect retried on a transient failure, with the retry named in
-  the receipt.
+- ✅ An idempotent effect retried on a transient failure, with the retry named in
+  the receipt (rule R15). An `http_request` whose method is GET, HEAD or
+  OPTIONS, idempotent by RFC 9110, that fails before an answer because the
+  connection was refused or reset is sent again, up to twice, 50 then 100
+  ms apart; every try shares the call's one deadline, so its timeout still
+  bounds it. A timeout, a refused request, a malformed answer and every
+  other method are sent once (PUT and DELETE are idempotent, but a retry of
+  one that reached the server repeats its effect). `--timings` counts each
+  retry (`retried`), from one table of counted rows the fold, the index and
+  the builder share; `BLUE_RETRY=off` turns it off. A GET to a server that
+  comes up 30 ms late raised before and answers now. Locks: `tests/net.rs`
+  `an_idempotent_request_refused_once_is_sent_again_and_answered` (red when
+  nothing is retried) and `a_request_that_is_not_idempotent_is_sent_once`
+  (red when a POST is retried, against the same late server).
 
 ### W5: safety and resources from facts
 
 - A program's capability hold narrowed to what it reaches, by default.
+  Waits on the operator: [SAFETY.md](SAFETY.md) D3 keeps an undeclared
+  script ambient, and flips it to declared through a ratchet when `blue
+  check` counts no undeclared script that reaches the host. Narrowing to a
+  computed reach would refuse a script whose reach the analysis cannot see
+  (a name computed at run time), a refusal bigger than the fault. A
+  project's lock already holds its run to the join of what its reached
+  definitions name (`unit` floors, SAFETY.md §4).
 - A step and memory bound proposed from the profile ("this runs in 120 ms; hold
   it to 10 s"), applied only when the author accepts it (C9).
 - Run-time guards at the seams the checker could not close (R5's "guard kept"),
-  emitted where a declared type meets undeclared code.
+  emitted where a declared type meets undeclared code. Waits on the
+  operator: today `half(4)`, `half(x: Float)` reached through an untyped
+  caller, answers 2.0; a guard makes it raise. That changes what a working
+  program does, which no default may (§2: an exact fallback), so it is a
+  semantic decision, not a lever.
 
 ### W6: configuration from context
 

@@ -476,6 +476,47 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
     );
 }
 
+/// The requests HTTP defines as idempotent and safe to send again (RFC 9110
+/// §9.2.2): GET, HEAD and OPTIONS. PUT and DELETE are idempotent too, but a
+/// retry of one whose first try reached the server repeats its effect.
+const RETRIED_METHODS: [&str; 3] = ["GET", "HEAD", "OPTIONS"];
+
+/// How many times an idempotent request is sent again after a transient
+/// failure, and the pause before each, doubling.
+const RETRIES: u32 = 2;
+const RETRY_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// `send` within `timeout`, sent again (rule R15) when the method is
+/// idempotent and the failure transient: the connection refused or reset
+/// ([`http::HttpError::Io`]), never a timeout, a refusal or a malformed
+/// answer. Every try shares the one deadline, so the caller's timeout still
+/// bounds the call; each retry is counted in `--timings` as `retried`.
+/// `BLUE_RETRY=off`, the switch the `kitei` registry names for R15, sends it
+/// once.
+fn retried<T>(
+    method: &str,
+    timeout: std::time::Duration,
+    mut send: impl FnMut(std::time::Duration) -> Result<T, http::HttpError>,
+) -> Result<T, http::HttpError> {
+    let deadline = std::time::Instant::now() + timeout;
+    let again = RETRIED_METHODS.contains(&method.to_ascii_uppercase().as_str())
+        && !crate::kitei::switched_off("R15");
+    let mut pause = RETRY_PAUSE;
+    let mut tries = 0;
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        match send(left) {
+            Err(http::HttpError::Io(_)) if again && tries < RETRIES && left > pause * 2 => {
+                tries += 1;
+                crate::timings::count("retried", 1);
+                std::thread::sleep(pause);
+                pause *= 2;
+            }
+            other => return other,
+        }
+    }
+}
+
 fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "http_request",
@@ -489,13 +530,15 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                 other => Some(arg_str(other, "http_request", span)?),
             };
             let timeout = arg_ms(&args[4], "http_request", span, false)?;
-            let resp = http::request(
-                &method,
-                &url,
-                &headers,
-                body.as_deref().map(str::as_bytes),
-                timeout,
-            )
+            let resp = retried(&method, timeout, |left| {
+                http::request(
+                    &method,
+                    &url,
+                    &headers,
+                    body.as_deref().map(str::as_bytes),
+                    left,
+                )
+            })
             .map_err(|e| EvalError::native_fn("http_request", e.to_string(), span))?;
             Ok(record(vec![
                 ("status", Value::Int(i64::from(resp.status))),

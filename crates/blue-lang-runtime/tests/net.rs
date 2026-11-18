@@ -537,3 +537,41 @@ fn an_idle_listener_answers_nil_and_a_request_is_answered_once() {
     ));
     assert!(taken.contains("cannot listen"), "{taken}");
 }
+
+fn late_server(port: u16, after: Duration) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        std::thread::sleep(after);
+        let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind late");
+        let (mut stream, _) = listener.accept().expect("accept");
+        read_request(&mut stream);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nlate")
+            .expect("respond");
+    })
+}
+
+#[test]
+fn an_idempotent_request_refused_once_is_sent_again_and_answered() {
+    let port = free_port();
+    let server = late_server(port, Duration::from_millis(30));
+    let v = run(&format!(
+        "r = http_request(\"GET\", \"http://127.0.0.1:{port}/\", nil, nil, 3000)\n[get(r, :status), get(r, :body)]"
+    ));
+    server.join().expect("server");
+    assert_eq!(strs(&v), ["200", "late"]);
+}
+
+#[test]
+fn a_request_that_is_not_idempotent_is_sent_once() {
+    let port = free_port();
+    let server = late_server(port, Duration::from_millis(30));
+    let err = run_err(&format!(
+        "http_request(\"POST\", \"http://127.0.0.1:{port}/\", nil, \"x\", 3000)"
+    ));
+    assert!(err.contains("http_request"), "{err}");
+    std::thread::sleep(Duration::from_millis(100));
+    let mut wake = TcpStream::connect(("127.0.0.1", port)).expect("the late server is up");
+    wake.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+        .expect("wake");
+    server.join().expect("server");
+}

@@ -770,6 +770,29 @@ def rc_op(slots, op, args)
     append(two, tagged_compare("g"))
   elsif op == "equal?"
     append(two, tagged_compare("e"))
+  elsif op == "cons"
+    cons_code(
+      tagged_atom(slots, args[0], "rcx"),
+      tagged_atom(slots, args[1], "rbx")
+    )
+  elsif op == "list"
+    list_code(slots, args)
+  elsif op == "first"
+    part_code(slots, args[0], 24)
+  elsif op == "rest"
+    part_code(slots, args[0], 32)
+  elsif op == "length"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [
+        {op: "push", src: "rdi"},
+        {op: "call_label", label: "rt_length"},
+        {op: "pop", dst: "rdi"},
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rax"}
+      ]
+    )
   elsif op == "id"
     tagged_atom(slots, args[0], "rax")
   elsif op == "dup"
@@ -1003,7 +1026,8 @@ def rc_program(p, mode)
       fns[0],
       RT_ALLOC,
       RT_DUP,
-      RT_DROP
+      RT_DROP,
+      RT_LENGTH
     ]
   )
 end
@@ -1084,9 +1108,148 @@ test "the reference-counted code tags, allocates and calls the runtime"
   ) == {op: "push_rbp"}
   assert compile_rc(read_forms("1")[0], :leaks)[1] == 69
   refused = begin
-    rc_op([], "list", [1])
+    rc_op([], "frob", [1])
   rescue e
     e.kind
   end
   assert refused == :unsupported
+end
+
+@doc """
+cons_code: allocate a cons cell [kind, count, size, head, tail] with the head loaded by one sequence into rcx and the tail by another into rbx; the references move into the cell, answered in rax.
+
+    cons_code([], [])[0] #=> {op: "mov", dst: "rdi", imm: 5}
+"""
+def cons_code(head, tail)
+  append(
+    *[
+      [{op: "mov", dst: "rdi", imm: 5}, {op: "call_label", label: "rt_alloc"}],
+      tail,
+      [
+        {op: "store", src: "rbx", base: "rax", disp: 32},
+        {op: "push", src: "rax"}
+      ],
+      head,
+      [
+        {op: "pop", dst: "rax"},
+        {op: "store", src: "rcx", base: "rax", disp: 24},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rax", disp: 0}
+      ]
+    ]
+  )
+end
+
+@doc """
+list_code: a list of atoms built from its last element to its first, each a cons onto the list so far, which stays in rbx; the empty list is 0.
+
+    list_code([], []) #=> [{op: "mov", dst: "rax", imm: 0}]
+"""
+def list_code(slots, args)
+  if length(args) == 0
+    [{op: "mov", dst: "rax", imm: 0}]
+  else
+    append(
+      [{op: "mov", dst: "rbx", imm: 0}],
+      flat_map(
+        reverse(args),
+        fn(a)
+          append(
+            cons_code(tagged_atom(slots, a, "rcx"), []),
+            [{op: "mov", dst: "rbx", src: "rax"}]
+          )
+        end
+      )
+    )
+  end
+end
+
+@doc """
+part_code: the head (offset 24) or the tail (offset 32) of a list: the part gets its own reference, then the list, which the operation consumed, is dropped.
+
+    length(part_code([], 1, 24)) #=> 9
+"""
+def part_code(slots, l, offset)
+  append(
+    tagged_atom(slots, l, "rdi"),
+    [
+      {op: "load", dst: "rax", base: "rdi", disp: offset},
+      {op: "push", src: "rax"},
+      {op: "push", src: "rdi"},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "call_label", label: "rt_dup"},
+      {op: "pop", dst: "rdi"},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rax"}
+    ]
+  )
+end
+
+@doc """
+RT_LENGTH: the number of cells of the list in rdi, tagged, in rax; the list is only read.
+
+    RT_LENGTH[0] #=> {op: "label", name: "rt_length"}
+"""
+RT_LENGTH = [
+  {op: "label", name: "rt_length"},
+  {op: "mov", dst: "rax", imm: 1},
+  {op: "mov", dst: "rdx", src: "rdi"},
+  {op: "label", name: "rt_length_loop"},
+  {op: "cmp", dst: "rdx", imm: 0},
+  {op: "j", cond: "e", label: "rt_length_out"},
+  {op: "add", dst: "rax", imm: 2},
+  {op: "load", dst: "rdx", base: "rdx", disp: 32},
+  {op: "jmp", label: "rt_length_loop"},
+  {op: "label", name: "rt_length_out"},
+  {op: "ret"}
+]
+
+@doc """
+LIST_PROGRAMS: programs over lists and the exit status each must give.
+
+    LIST_PROGRAMS[0][1] #=> 7
+"""
+LIST_PROGRAMS = [
+  ["(first (list 7 8 9))", 7],
+  ["(first (rest (list 7 8 9)))", 8],
+  ["(length (list 1 2 3 4))", 4],
+  ["(let ((l (list 5 6))) (+ (first l) (length l)))", 7],
+  ["(length (cons 1 (cons 2 (list))))", 2],
+  [
+    "(let ((l (list 1 2 3))) (let ((f (lambda (x) (+ x (length l))))) (f 10)))",
+    13
+  ],
+  ["(let ((l (list 4 5))) (+ (first l) (first (rest l))))", 9]
+]
+
+test "every list program gives its value and frees every cell on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        form = read_forms(p[0])[0]
+        assert rc_run(form, :exit) == p[1]
+        assert rc_run(form, :leaks) == 0
+      end,
+      LIST_PROGRAMS
+    )
+  end
+end
+
+test "lists are cons cells built from the end, and a part keeps its own reference"
+  assert list_code([], []) == [{op: "mov", dst: "rax", imm: 0}]
+  assert list_code([], [1])[0] == {op: "mov", dst: "rbx", imm: 0}
+  assert cons_code([], [])[1] == {op: "call_label", label: "rt_alloc"}
+  p = part_code([], 1, 32)
+  assert p[1] == {op: "load", dst: "rax", base: "rdi", disp: 32}
+  assert member?({op: "call_label", label: "rt_dup"}, p)
+  assert member?({op: "call_label", label: "rt_drop"}, p)
+  assert RT_LENGTH[0] == {op: "label", name: "rt_length"}
+  assert length(LIST_PROGRAMS) == 7
+  assert member?(
+    {op: "call_label", label: "rt_length"},
+    rc_op([], "length", [1])
+  )
 end

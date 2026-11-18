@@ -832,13 +832,13 @@ test "a step line reads mark, place, name, note and duration, and refuses an unk
 end
 
 test "show_step writes one line through the sink and keeps colour off when told"
-  seen = [""]
-  sink = (t) -> set!(seen, [concat(first(seen), t)])
+  seen = cell("")
+  sink = (t) -> cell_put(seen, concat(cell_get(seen), t))
   assert show_step(
     {state: :done, at: 1, of: 2, name: "x", ms: 1500},
     {sink:, color: false}
   ).nil?
-  assert first(seen) == unlines(["✅ [1/2] x (1.5s)"])
+  assert cell_get(seen) == unlines(["✅ [1/2] x (1.5s)"])
   assert terminal?(9) == false
 end
 

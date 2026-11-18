@@ -222,10 +222,10 @@ def exporter(observe, service)
 end
 
 def collect(f)
-  seen = [[]]
-  sink = (s) -> set!(seen, [append(first(seen), [s])])
+  seen = cell([])
+  sink = (s) -> cell_put(seen, append(cell_get(seen), [s]))
   f(sink)
-  first(seen)
+  cell_get(seen)
 end
 
 test "span returns the value of its function and hands it the open span"
@@ -250,11 +250,11 @@ test "span emits one closed record: name, ids, attrs, start, duration, status ok
 end
 
 test "span gives the function the same ids the record carries"
-  seen = [nil]
-  records = collect((sink) -> span("a", (s) -> set!(seen, [s]), {sink:}))
-  assert first(seen)[:id] == first(records)[:id]
-  assert first(seen)[:trace_id] == first(records)[:trace_id]
-  assert first(seen)[:name] == "a"
+  seen = cell(nil)
+  records = collect((sink) -> span("a", (s) -> cell_put(seen, s), {sink:}))
+  assert cell_get(seen)[:id] == first(records)[:id]
+  assert cell_get(seen)[:trace_id] == first(records)[:trace_id]
+  assert cell_get(seen)[:name] == "a"
 end
 
 test "a child span names its parent and shares the trace"
@@ -285,10 +285,10 @@ test "two root spans start two traces"
 end
 
 test "span records an error, emits it, and raises the same error again"
-  seen = [[]]
-  sink = (s) -> set!(seen, [append(first(seen), [s])])
+  seen = cell([])
+  sink = (s) -> cell_put(seen, append(cell_get(seen), [s]))
   assert raised(() -> span("bad", (_s) -> raise(:oops, "no"), {sink:})) == :oops
-  r = first(first(seen))
+  r = first(cell_get(seen))
   assert r[:status] == :error
   assert r[:error] == {kind: :oops, message: "no"}
   assert r[:duration_ns] >= 0
@@ -307,8 +307,8 @@ test "span keeps the attrs it was given, minus its own two keys"
 end
 
 test "span refuses a bad name, a bad attrs, a bad parent, and runs nothing then"
-  ran = [false]
-  f = (_s) -> set!(ran, [true])
+  ran = cell(false)
+  f = (_s) -> cell_put(ran, true)
   assert raised(() -> span("", f, {})) == :bad_option
   assert raised(() -> span(:a, f, {})) == :bad_option
   assert raised(() -> span(nil, f, {})) == :bad_option
@@ -316,7 +316,7 @@ test "span refuses a bad name, a bad attrs, a bad parent, and runs nothing then"
   assert raised(() -> span("a", f, {parent: 5})) == :bad_option
   assert raised(() -> span("a", f, {parent: {id: "x"}})) == :bad_option
   assert raised(() -> span("a", f, {parent: {trace_id: "x"}})) == :bad_option
-  assert first(ran) == false
+  assert cell_get(ran) == false
 end
 
 test "attributes carry integers, booleans and text in their OTLP fields"

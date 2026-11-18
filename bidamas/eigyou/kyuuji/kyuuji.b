@@ -278,8 +278,22 @@ def serve_metered(addr, health, handler, service, listening?)
       ]
     )
   )
-  m = metrics_empty
-  while(true, set!(m, serve_metered_once(l, health, handler, 1000, m, service)))
+  serve_metered_loop(l, health, handler, metrics_empty, service)
+end
+
+@doc """
+serve_metered_loop: serve one request at a time forever, each with the metrics the one before left; a tail call, so it runs in constant stack.
+
+    procedure?(serve_metered_loop) #=> true
+"""
+def serve_metered_loop(l, health, handler, m, service)
+  serve_metered_loop(
+    l,
+    health,
+    handler,
+    serve_metered_once(l, health, handler, 1000, m, service),
+    service
+  )
 end
 
 def address(settings)
@@ -970,9 +984,9 @@ stream: Send chunks as f produces them.
 """
 def stream(_req, f, opts?)
   o = opts or {}
-  chunks = [[]]
-  f((chunk) -> set!(chunks, [append(first(chunks), [to_s(chunk)])]))
-  cs = first(chunks)
+  chunks = cell([])
+  f((chunk) -> cell_put(chunks, append(cell_get(chunks), [to_s(chunk)])))
+  cs = cell_get(chunks)
   {
     status: o[:status] or 200,
     headers: {
@@ -1952,4 +1966,8 @@ test "over HTTP a request is a POST answered 200, a notification 202, a bad body
   ) == 202
   assert json_read(h(post("{"))[:body])["error"]["code"] == -32700
   assert h(request("GET", "/mcp", ""))[:status] == 405
+end
+
+test "the metered server loop is a function of its own, called in tail position"
+  assert procedure?(serve_metered_loop)
 end

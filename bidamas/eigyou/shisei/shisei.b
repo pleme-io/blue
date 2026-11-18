@@ -22,7 +22,7 @@ use(
 
 use("kyohi", [:kinds])
 
-use("retsu", %i[first flat_map size])
+use("retsu", %i[flat_map size])
 
 @doc """
 posture: one named behaviour of a service with its fields.
@@ -173,18 +173,18 @@ test "a bare service runs every posture it is given"
 end
 
 test "a layer wraps the handler and the first layer is outermost"
-  order = [[]]
+  order = cell([])
   mark = fn(label)
     fn(handler)
       fn(req)
-        set!(order, [append(first(order), [label])])
+        cell_put(order, append(cell_get(order), [label]))
         handler(req)
       end
     end
   end
   h = stack([mark("outer"), mark("inner")], echo)
   assert h(req_at("/"))[:status] == 200
-  assert first(order) == %w[outer inner]
+  assert cell_get(order) == %w[outer inner]
   assert stack([], echo)(req_at("/a")) == echo(req_at("/a"))
 end
 
@@ -208,14 +208,14 @@ test "a tune lays fields over the default, and a bad tune is refused alone"
 end
 
 test "audit records the violation and goes on, enforce refuses it"
-  seen = [[]]
-  note = (name, why) -> set!(seen, [append(first(seen), [[name, why]])])
+  seen = cell([])
+  note = (name, why) -> cell_put(seen, append(cell_get(seen), [[name, why]]))
   audit = serving([veto("audit")], [], note, echo)
   r = audit[:handler](req_at("/no"))
   assert r[:status] == 200
-  assert first(seen) == [[:veto, "/no is vetoed"]]
-  seen2 = [[]]
-  note2 = (name, why) -> set!(seen2, [append(first(seen2), [[name, why]])])
+  assert cell_get(seen) == [[:veto, "/no is vetoed"]]
+  seen2 = cell([])
+  note2 = (name, why) -> cell_put(seen2, append(cell_get(seen2), [[name, why]]))
   enforce = serving(
     [veto("audit")],
     [tune(:veto, "default", {mode: "enforce"})],
@@ -224,7 +224,7 @@ test "audit records the violation and goes on, enforce refuses it"
   )
   r2 = enforce[:handler](req_at("/no"))
   assert r2[:status] == 403
-  assert first(seen2) == []
+  assert cell_get(seen2) == []
   assert enforce[:handler](req_at("/fine"))[:status] == 200
 end
 
@@ -277,10 +277,10 @@ test "defaults follow the posture's own settings, so a different default is a di
 end
 
 def gate_probe(mode)
-  seen = [[]]
-  note = (name, why) -> set!(seen, [append(first(seen), [[name, why]])])
+  seen = cell([])
+  note = (name, why) -> cell_put(seen, append(cell_get(seen), [[name, why]]))
   out = gated(mode, note, :veto, "why", "denied", () -> "allowed")
-  [out, first(seen)]
+  [out, cell_get(seen)]
 end
 
 test "gated in audit records the violation and goes on"
@@ -294,7 +294,7 @@ end
 test "gated treats any mode but audit as a refusal, and allow is not called when refusing"
   assert gate_probe("") == ["denied", []]
   assert gate_probe("off") == ["denied", []]
-  called = [false]
+  called = cell(false)
   r = gated(
     "enforce",
     silent,
@@ -302,10 +302,10 @@ test "gated treats any mode but audit as a refusal, and allow is not called when
     "why",
     "denied",
     fn()
-      set!(called, [true])
+      cell_put(called, true)
       "allowed"
     end
   )
   assert r == "denied"
-  assert first(called) == false
+  assert cell_get(called) == false
 end

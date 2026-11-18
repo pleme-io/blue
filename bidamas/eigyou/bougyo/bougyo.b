@@ -22,7 +22,7 @@ use("eigyou/shisei", %i[gated posture serving])
 use("gamen")
 use("kousei", %i[field int_in list_of off one_of text tune])
 use("moji", [:lower])
-use("retsu", %i[contains first is_empty size])
+use("retsu", %i[contains is_empty size])
 use("shinsuu", %i[bytes_base64 hex_bytes])
 
 legacy_names("0.1.1", [%w[request_header eigyou::kyuuji::header]])
@@ -176,15 +176,15 @@ def request_id_posture()
     [field(:header, text), field(:max_length, int_in(8, 128))],
     {header: "X-Request-Id", max_length: 64},
     fn(settings, _sink)
-      counter = [0]
+      counter = cell(0)
       fn(handler)
         fn(req)
           inbound = header(req, settings[:header])
           id = if safe_id?(inbound, settings[:max_length])
             inbound
           else
-            set!(counter, [first(counter) + 1])
-            "req-#{now_ms}-#{first(counter)}"
+            cell_put(counter, cell_get(counter) + 1)
+            "req-#{now_ms}-#{cell_get(counter)}"
           end
           r = handler(assoc(req, :request_id, id))
           assoc(r, :headers, assoc(r[:headers], settings[:header], id))
@@ -411,16 +411,16 @@ test "the request id reaches the handler"
 end
 
 test "limits in audit record the violation and let the request through"
-  hits = [[]]
-  note = (name, why) -> set!(hits, [append(first(hits), [[name, why]])])
+  hits = cell([])
+  note = (name, why) -> cell_put(hits, append(cell_get(hits), [[name, why]]))
   d = defended([tune(:limits, "default", {max_body: 5})], note, ok)
   r = d[:handler](get_req("/", [], "0123456789"))
   assert r[:status] == 200
-  assert size(first(hits)) == 1
-  assert first(hits)[0][0] == :limits
+  assert size(cell_get(hits)) == 1
+  assert cell_get(hits)[0][0] == :limits
   fine = d[:handler](get_req("/", [], "0123"))
   assert fine[:status] == 200
-  assert size(first(hits)) == 1
+  assert size(cell_get(hits)) == 1
 end
 
 test "limits in enforce refuse with the status that names the limit"

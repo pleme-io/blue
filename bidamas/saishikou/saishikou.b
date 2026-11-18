@@ -42,13 +42,13 @@ def pause(wait_ms, n)
 end
 
 def flaky(failures)
-  calls = [0]
+  calls = cell(0)
   fn()
-    set!(calls, [first(calls) + 1])
-    if first(calls) <= failures
-      raise(:refused, "call #{first(calls)} refused")
+    cell_put(calls, cell_get(calls) + 1)
+    if cell_get(calls) <= failures
+      raise(:refused, "call #{cell_get(calls)} refused")
     end
-    first(calls)
+    cell_get(calls)
   end
 end
 

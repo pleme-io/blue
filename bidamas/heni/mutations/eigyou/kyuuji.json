@@ -122,8 +122,8 @@
   {
     "name": "stream keeps every chunk",
     "file": "kyuuji.b",
-    "find": "[append(first(chunks), [to_s(chunk)])]",
-    "replace": "[[to_s(chunk)]]"
+    "find": "append(cell_get(chunks), [to_s(chunk)])",
+    "replace": "[to_s(chunk)]"
   },
   {
     "name": "file validator",

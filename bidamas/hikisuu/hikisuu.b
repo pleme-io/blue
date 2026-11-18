@@ -1005,25 +1005,21 @@ test "outcome answers help, completion, a usage refusal with 64, or the record"
 end
 
 test "run_with calls the program only on a good line, and exits 64 on a bad one"
-  seen = [[], [], []]
+  outs = cell([])
+  errs = cell([])
+  exits = cell([])
   io = {
-    out: fn(t)
-      set!(seen, [append(first(seen), [t]), second(seen), third(seen)])
-    end,
-    err: fn(t)
-      set!(seen, [first(seen), append(second(seen), [t]), third(seen)])
-    end,
-    exit: fn(n)
-      set!(seen, [first(seen), second(seen), append(third(seen), [n])])
-    end
+    out: (t) -> cell_put(outs, append(cell_get(outs), [t])),
+    err: (t) -> cell_put(errs, append(cell_get(errs), [t])),
+    exit: (n) -> cell_put(exits, append(cell_get(exits), [n]))
   }
   assert run_with(["nix"], souji_like, (o) -> o[:older_than_days], io) == 14
   assert run_with(["sweep"], souji_like, (_o) -> 1, io).nil?
   assert run_with(["-h"], souji_like, (_o) -> 1, io).nil?
   assert run_with(%w[__complete zz], souji_like, (_o) -> 1, io).nil?
-  assert third(seen) == [64]
-  assert size(second(seen)) == 1
-  assert first(seen) == [render(souji_like, nil)]
+  assert cell_get(exits) == [64]
+  assert size(cell_get(errs)) == 1
+  assert cell_get(outs) == [render(souji_like, nil)]
 end
 
 test "flag reads the word after a flag, and nil when the flag or its value is absent"

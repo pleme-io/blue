@@ -263,14 +263,14 @@ scan: every key matching a pattern.
     raised(() -> scan(nil, "*", 10)) #=> :bad_option
 """
 def scan(c, pattern, batch)
-  found = [[]]
+  found = cell([])
   scan_each(
     c,
     pattern,
     batch,
-    (keys) -> set!(found, [append(first(found), keys)])
+    (keys) -> cell_put(found, append(cell_get(found), keys))
   )
-  first(found)
+  cell_get(found)
 end
 
 @doc """
@@ -477,14 +477,14 @@ upgrade_eager: rewrite every old entry to the new schema in SCAN batches, keepin
 """
 def upgrade_eager(c, plan, batch)
   plan_ok(plan)
-  moved = [0]
+  moved = cell(0)
   scan_each(
     c,
     "#{plan[:old]}*",
     batch,
-    (keys) -> set!(moved, [first(moved) + batch_rewrite(c, plan, keys)])
+    (keys) -> cell_put(moved, cell_get(moved) + batch_rewrite(c, plan, keys))
   )
-  first(moved)
+  cell_get(moved)
 end
 
 test "settings default the port and the timeout and turn TLS on"

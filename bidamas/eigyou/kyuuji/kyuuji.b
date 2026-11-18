@@ -253,7 +253,6 @@ def metered(req, health, handler, m, service)
   end
 end
 
-# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def serve_metered_once(l, health, handler, wait_ms, m, service)
   req = http_next_request(l, wait_ms)
   if req.nil?
@@ -399,7 +398,7 @@ def supervised_step(l, health, handler, sup, state)
   waiting = state[:waiting]
   m = state[:metrics]
   settled = begin
-    receive(%i[response _], 0, :none)
+    receive(%i[response _ _], 0, :none)
   rescue _e
     :none
   end
@@ -2183,4 +2182,45 @@ test "a quiet listener: the loop adopts no child and keeps its state", {
   assert supervised_dispatch(l, health, h, sup, 1).nil?
   state = {waiting: {}, metrics: metrics_empty, next_id: 1}
   assert supervised_step(l, health, h, sup, state) == state
+end
+
+test "a supervised child sends its answer, and a request it cannot answer becomes a 500"
+  ok = supervised_child("/healthz", (r) -> text(200, "fine"))
+  ok(request("GET", "/x", ""), self, 7)
+  got = receive(%i[response _ _], 1000, :none)
+  assert got[1] == 7
+  assert got[2][:status] == 200
+  ok(nil, self, 8)
+  bad = receive(%i[response _ _], 1000, :none)
+  assert bad[1] == 8
+  assert bad[2][:status] == 500
+end
+
+test "a step takes a settled child's reply out of the mailbox", {
+  kind: :integration,
+  allow: %i[network process]
+}
+  l = http_listen("127.0.0.1:0")
+  sup = supervisor(:one_for_one, [], 5, {window_ms: 60000, backoff_ms: [10]})
+  send(self, [:response, 99, text(200, "late")])
+  state = {waiting: {}, metrics: metrics_empty, next_id: 1}
+  assert supervised_step(l, "/healthz", (r) -> text(200, "ok"), sup, state) ==
+    state
+  assert receive(%i[response _ _], 0, :none) == :none
+end
+
+test "with no request waiting, one metered turn answers nothing and keeps its metrics", {
+  kind: :integration,
+  allow: %i[network process]
+}
+  l = http_listen("127.0.0.1:0")
+  m = metrics_empty
+  assert serve_metered_once(
+    l,
+    "/healthz",
+    (r) -> text(200, "ok"),
+    10,
+    m,
+    "svc"
+  ) == m
 end

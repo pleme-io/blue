@@ -75,7 +75,7 @@ def recorded()
   unlines(
     [
       "untested: deeta 3",
-      "untested: eigyou 2",
+      "untested: eigyou 3",
       "untested: kakehashi 24",
       "untested: keiyu 1",
       "untested: kiwari 5",
@@ -98,7 +98,7 @@ def recorded()
       "unbranched: bunsho 67",
       "unbranched: chozou 63",
       "unbranched: deeta 95",
-      "unbranched: eigyou 48",
+      "unbranched: eigyou 52",
       "unbranched: fairu 1",
       "unbranched: gamen 18",
       "unbranched: gitto 15",

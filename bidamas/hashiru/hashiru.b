@@ -959,6 +959,11 @@ def rc_op(slots, op, args)
         {op: "pop", dst: "rax"}
       ]
     )
+  elsif op == "read_file"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_read_file"}]
+    )
   elsif op == "write_stdout"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1252,7 +1257,8 @@ def rc_program(p, mode)
       RT_PAYLOAD,
       RT_CONCAT,
       RT_EQUAL,
-      RT_TO_S
+      RT_TO_S,
+      RT_READ_FILE
     ]
   )
 end
@@ -2713,4 +2719,165 @@ test "the allocator maps a block of FREE_CLASSES words or more and checks the he
   assert member?({op: "j", cond: "ge", label: "rt_drop_large"}, RT_DROP)
   assert length(assemble(RT_ALLOC)) > 0
   assert length(assemble(RT_DROP)) > 0
+end
+
+@doc """
+RT_READ_FILE: read_file natively (R4 of docs/PURE-BLUE.md): the string block whose path is in rdi, consumed; answered in rax as a new string holding the file's bytes, or an error block whose payload is the errno when the file does not open. The path is copied to the stack with a NUL ending; open, fstat for the size, one block (rt_alloc maps a large one), read until the size or an end, close. Locals live in an rbp frame, since a memory operand cannot be based on rsp here.
+
+    RT_READ_FILE[0] #=> {op: "label", name: "rt_read_file"}
+"""
+RT_READ_FILE = append(
+  *[
+    [
+      {op: "label", name: "rt_read_file"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "load", dst: "r8", base: "rdi", disp: 24},
+      {op: "mov", dst: "r9", src: "r8"},
+      {op: "add", dst: "r9", imm: 16},
+      {op: "and", dst: "r9", imm: -16},
+      {op: "sub", dst: "rsp", src: "r9"},
+      {op: "mov", dst: "r11", src: "rsp"},
+      {op: "mov", dst: "rdx", src: "rdi"},
+      {op: "add", dst: "rdx", imm: 32}
+    ],
+    copy_bytes("r8", "rt_rf_path"),
+    [
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store_byte", src: "rcx", base: "r11"},
+      {op: "mov", dst: "rdi", src: "rsp"},
+      {op: "mov", dst: "rsi", imm: 0},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "syscall"},
+      {op: "add", dst: "rsp", src: "r9"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_rf_refused"},
+      {op: "store", src: "rax", base: "rbp", disp: -16},
+      {op: "sub", dst: "rsp", imm: 144},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "mov", dst: "rsi", src: "rsp"},
+      {op: "mov", dst: "rax", imm: 5},
+      {op: "syscall"},
+      {op: "load", dst: "r10", base: "rsi", disp: 48},
+      {op: "add", dst: "rsp", imm: 144},
+      {op: "store", src: "r10", base: "rbp", disp: -24},
+      {op: "mov", dst: "rdi", src: "r10"},
+      {op: "add", dst: "rdi", imm: 7},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "add", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "mov", dst: "r8", imm: 0},
+      {op: "label", name: "rt_rf_loop"},
+      {op: "load", dst: "r10", base: "rbp", disp: -24},
+      {op: "cmp", dst: "r8", src: "r10"},
+      {op: "j", cond: "ge", label: "rt_rf_done"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "load", dst: "rsi", base: "rbp", disp: -32},
+      {op: "add", dst: "rsi", imm: 32},
+      {op: "add", dst: "rsi", src: "r8"},
+      {op: "mov", dst: "rdx", src: "r10"},
+      {op: "sub", dst: "rdx", src: "r8"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "le", label: "rt_rf_done"},
+      {op: "add", dst: "r8", src: "rax"},
+      {op: "jmp", label: "rt_rf_loop"},
+      {op: "label", name: "rt_rf_done"},
+      {op: "load", dst: "rax", base: "rbp", disp: -32},
+      {op: "store", src: "r8", base: "rax", disp: 24},
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "jmp", label: "rt_rf_out"},
+      {op: "label", name: "rt_rf_refused"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "sub", dst: "rcx", src: "rax"},
+      {op: "add", dst: "rcx", src: "rcx"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "mov", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 4},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "store", src: "rcx", base: "rax", disp: 24},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "label", name: "rt_rf_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -32},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+read_programs: programs over read_file, given a small file holding "hello\n" and a big one of 5000 bytes, with the exit status and output each must give: the small file printed and measured, the big one measured (a mapped block), and a path that does not open caught as its errno (ENOENT, 2).
+
+    length(read_programs("/s", "/b")) #=> 4
+"""
+def read_programs(small, big)
+  [
+    [
+      "(begin (write_stdout (read_file \"#{small}\")) 0)",
+      0,
+      unlines(["hello"])
+    ],
+    ["(string_length (read_file \"#{small}\"))", 6, ""],
+    ["(string_length (read_file \"#{big}\"))", 5000 % 256, ""],
+    ["(try (read_file \"/no/such/file\") (catch (e) e))", 2, ""]
+  ]
+end
+
+test "read_file reads small and mapped files and refuses a missing one with its errno on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    dir = temp_dir("hashiru-rf")
+    small = path_join(dir, "small.txt")
+    big = path_join(dir, "big.txt")
+    write_file(small, unlines(["hello"]))
+    write_file(big, join(map((k) -> "x", range(0, 5000)), ""))
+    path = path_join(dir, "rf.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      read_programs(small, big)
+    )
+  end
+end
+
+test "read_file is a call to rt_read_file, which opens, sizes, reads and closes in an rbp frame"
+  assert last(rc_op([], "read_file", ["p"])) ==
+    {op: "call_label", label: "rt_read_file"}
+  assert member?({op: "mov", dst: "rax", imm: 2}, RT_READ_FILE)
+  assert member?({op: "mov", dst: "rax", imm: 5}, RT_READ_FILE)
+  assert member?({op: "mov", dst: "rax", imm: 3}, RT_READ_FILE)
+  assert member?({op: "push_rbp"}, RT_READ_FILE)
+  stand_ins = [
+    {op: "label", name: "rt_alloc"},
+    {op: "ret"},
+    {op: "label", name: "rt_drop"},
+    {op: "ret"}
+  ]
+  assert length(assemble(append(RT_READ_FILE, stand_ins))) > 0
 end

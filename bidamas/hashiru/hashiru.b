@@ -778,7 +778,27 @@ def rc_op(slots, op, args)
   elsif op == ">"
     append(two, tagged_compare("g"))
   elsif op == "equal?"
-    append(two, tagged_compare("e"))
+    append(
+      append(
+        tagged_atom(slots, args[0], "rdi"),
+        tagged_atom(slots, args[1], "rsi")
+      ),
+      [
+        {op: "push", src: "rdi"},
+        {op: "push", src: "rsi"},
+        {op: "call_label", label: "rt_equal"},
+        {op: "pop", dst: "rsi"},
+        {op: "pop", dst: "rdi"},
+        {op: "push", src: "rax"},
+        {op: "push", src: "rsi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rdi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rax"}
+      ]
+    )
+  elsif op == "concat"
+    concat_code(slots, args)
   elsif op == "cons"
     cons_code(
       tagged_atom(slots, args[0], "rcx"),
@@ -1140,7 +1160,9 @@ def rc_program(p, mode)
       RT_LENGTH,
       RT_GET,
       RT_IS_ERROR,
-      RT_PAYLOAD
+      RT_PAYLOAD,
+      RT_CONCAT,
+      RT_EQUAL
     ]
   )
 end
@@ -1429,7 +1451,9 @@ def rc_whole(w, mode)
     length(RT_LENGTH) -
     length(RT_GET) -
     length(RT_IS_ERROR) -
-    length(RT_PAYLOAD)
+    length(RT_PAYLOAD) -
+    length(RT_CONCAT) -
+    length(RT_EQUAL)
   globals = reduce(
     fn(acc, g)
       c = rc_global(g, acc[1])
@@ -2110,4 +2134,204 @@ test "the prelude's words are global functions placed before the program"
   w = whole(with_prelude(read_forms("(nth 0 (list 5))")[0]))
   assert member?("nth", map((g) -> g[:name], w[:globals]))
   assert length(PRELUDE_PROGRAMS) == 6
+end
+
+@doc """
+copy_bytes: the instructions that copy a count of bytes, the count in one register, from the address in rdx to the address in r11, both advancing; rcx is used for each byte.
+
+    length(copy_bytes("r8", "x")) #=> 10
+"""
+def copy_bytes(count, tag)
+  [
+    {op: "label", name: "#{tag}_loop"},
+    {op: "cmp", dst: count, imm: 0},
+    {op: "j", cond: "e", label: "#{tag}_done"},
+    {op: "load_byte", dst: "rcx", base: "rdx"},
+    {op: "store_byte", src: "rcx", base: "r11"},
+    {op: "add", dst: "rdx", imm: 1},
+    {op: "add", dst: "r11", imm: 1},
+    {op: "sub", dst: count, imm: 1},
+    {op: "jmp", label: "#{tag}_loop"},
+    {op: "label", name: "#{tag}_done"}
+  ]
+end
+
+@doc """
+RT_CONCAT: a new string holding the bytes of the string in rdi then those of the string in rsi, answered in rax; both inputs, consumed, are dropped.
+
+    RT_CONCAT[0] #=> {op: "label", name: "rt_concat"}
+"""
+RT_CONCAT = append(
+  *[
+    [
+      {op: "label", name: "rt_concat"},
+      {op: "load", dst: "r8", base: "rdi", disp: 24},
+      {op: "load", dst: "r9", base: "rsi", disp: 24},
+      {op: "mov", dst: "r10", src: "r8"},
+      {op: "add", dst: "r10", src: "r9"},
+      {op: "push", src: "rdi"},
+      {op: "push", src: "rsi"},
+      {op: "mov", dst: "rdi", src: "r10"},
+      {op: "add", dst: "rdi", imm: 7},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "add", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "pop", dst: "rsi"},
+      {op: "pop", dst: "rdi"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "store", src: "r10", base: "rax", disp: 24},
+      {op: "mov", dst: "r11", src: "rax"},
+      {op: "add", dst: "r11", imm: 32},
+      {op: "mov", dst: "rdx", src: "rdi"},
+      {op: "add", dst: "rdx", imm: 32}
+    ],
+    copy_bytes("r8", "rt_concat_a"),
+    [{op: "mov", dst: "rdx", src: "rsi"}, {op: "add", dst: "rdx", imm: 32}],
+    copy_bytes("r9", "rt_concat_b"),
+    [
+      {op: "push", src: "rax"},
+      {op: "push", src: "rsi"},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rdi"},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rax"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_EQUAL: true (2) or false (0) for whether the values in rdi and rsi are equal: the same word is equal; two strings are equal when their bytes are; anything else is compared by identity. Both values are only read.
+
+    RT_EQUAL[0] #=> {op: "label", name: "rt_equal"}
+"""
+RT_EQUAL = [
+  {op: "label", name: "rt_equal"},
+  {op: "cmp", dst: "rdi", src: "rsi"},
+  {op: "j", cond: "e", label: "rt_equal_yes"},
+  {op: "mov", dst: "rax", src: "rdi"},
+  {op: "and", dst: "rax", imm: 1},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "mov", dst: "rax", src: "rsi"},
+  {op: "and", dst: "rax", imm: 1},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "cmp", dst: "rdi", imm: 4096},
+  {op: "j", cond: "l", label: "rt_equal_no"},
+  {op: "cmp", dst: "rsi", imm: 4096},
+  {op: "j", cond: "l", label: "rt_equal_no"},
+  {op: "load", dst: "rax", base: "rdi", disp: 0},
+  {op: "cmp", dst: "rax", imm: 1},
+  {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "load", dst: "rax", base: "rsi", disp: 0},
+  {op: "cmp", dst: "rax", imm: 1},
+  {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "load", dst: "r8", base: "rdi", disp: 24},
+  {op: "load", dst: "rax", base: "rsi", disp: 24},
+  {op: "cmp", dst: "r8", src: "rax"},
+  {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "mov", dst: "rdx", src: "rdi"},
+  {op: "add", dst: "rdx", imm: 32},
+  {op: "mov", dst: "r11", src: "rsi"},
+  {op: "add", dst: "r11", imm: 32},
+  {op: "label", name: "rt_equal_loop"},
+  {op: "cmp", dst: "r8", imm: 0},
+  {op: "j", cond: "e", label: "rt_equal_yes"},
+  {op: "load_byte", dst: "rax", base: "rdx"},
+  {op: "load_byte", dst: "rcx", base: "r11"},
+  {op: "cmp", dst: "rax", src: "rcx"},
+  {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "add", dst: "rdx", imm: 1},
+  {op: "add", dst: "r11", imm: 1},
+  {op: "sub", dst: "r8", imm: 1},
+  {op: "jmp", label: "rt_equal_loop"},
+  {op: "label", name: "rt_equal_yes"},
+  {op: "mov", dst: "rax", imm: 2},
+  {op: "ret"},
+  {op: "label", name: "rt_equal_no"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "ret"}
+]
+
+@doc """
+concat_code: the strings of its arguments joined left to right, each join through rt_concat, which consumes both sides.
+
+    last(concat_code([], ["a", "b"])) #=> {op: "call_label", label: "rt_concat"}
+"""
+def concat_code(slots, args)
+  append(
+    tagged_atom(slots, args[0], "rax"),
+    flat_map(
+      rest(args),
+      fn(a)
+        append(
+          [{op: "mov", dst: "rdi", src: "rax"}],
+          append(
+            tagged_atom(slots, a, "rsi"),
+            [{op: "call_label", label: "rt_concat"}]
+          )
+        )
+      end
+    )
+  )
+end
+
+@doc """
+CONCAT_PROGRAMS: programs that join and compare strings, with the exit status and output each must give.
+
+    CONCAT_PROGRAMS[0][1] #=> 5
+"""
+CONCAT_PROGRAMS = [
+  ["(string_length (concat \"ab\" \"cde\"))", 5, ""],
+  [
+    "(begin (print (concat \"hello, \" \"blue\" \"\\n\")) 0)",
+    0,
+    unlines(["hello, blue"])
+  ],
+  ["(if (equal? (concat \"a\" \"b\") \"ab\") 1 2)", 1, ""],
+  ["(if (equal? \"x\" \"y\") 1 2)", 2, ""],
+  [
+    "(begin (define (rep s n) (if (equal? n 0) \"\" (concat s (rep s (- n 1))))) (string_length (rep \"ab\" 10)))",
+    20,
+    ""
+  ]
+]
+
+test "every string-joining program prints what it should, exits with its value and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "c.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_program(form, :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_program(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      CONCAT_PROGRAMS
+    )
+  end
+end
+
+test "concat joins through rt_concat, and equality goes through rt_equal and drops both sides"
+  assert length(concat_code([], %w[a b c])) == 7
+  e = rc_op(%w[a b], "equal?", [read_forms("a")[0], read_forms("b")[0]])
+  assert member?({op: "call_label", label: "rt_equal"}, e)
+  assert length(filter((i) -> i == {op: "call_label", label: "rt_drop"}, e)) ==
+    2
+  assert copy_bytes("r9", "t")[0] == {op: "label", name: "t_loop"}
+  assert RT_CONCAT[0] == {op: "label", name: "rt_concat"}
+  assert RT_EQUAL[0] == {op: "label", name: "rt_equal"}
+  assert length(CONCAT_PROGRAMS) == 5
 end

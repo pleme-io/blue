@@ -158,6 +158,24 @@ def encode(i)
     else
       [65, 80 + r]
     end
+  elsif op == "shr1"
+    r = reg(i[:dst])
+    [rex(0, r), 209, modrm(5, r)]
+  elsif op == "load_byte"
+    r = reg(i[:dst])
+    b = byte_base(i)
+    [rex(r, b), 15, 182, r % 8 * 8 + b % 8]
+  elsif op == "store_byte"
+    r = reg(i[:src])
+    if r > 3
+      raise(:unsupported, "kikaigo: a byte store takes al, cl, dl or bl")
+    end
+    b = byte_base(i)
+    if b < 8
+      [136, r * 8 + b % 8]
+    else
+      [65, 136, r * 8 + b % 8]
+    end
   elsif op == "sar1"
     r = reg(i[:dst])
     [rex(0, r), 209, modrm(7, r)]
@@ -273,6 +291,12 @@ def text(i)
     "popq %#{i[:dst]}"
   elsif op == "sar1"
     "sarq %#{i[:dst]}"
+  elsif op == "shr1"
+    "shrq %#{i[:dst]}"
+  elsif op == "load_byte"
+    "movzbq (%#{i[:base]}), %#{i[:dst]}"
+  elsif op == "store_byte"
+    "movb %#{%w[al cl dl bl][reg(i[:src])]}, (%#{i[:base]})"
   elsif op == "load"
     "movq #{to_s(i[:disp])}(%#{i[:base] or "rbp"}), %#{i[:dst]}"
   elsif op == "store"
@@ -375,6 +399,20 @@ def le64(n)
 end
 
 @doc """
+byte_base: the base register of a byte load or store, which takes no displacement: rsp, rbp, r12 and r13 cannot be such a base.
+
+    byte_base({base: "rsi"}) #=> 6
+"""
+def byte_base(i)
+  b = reg(i[:base])
+  if b % 8 == 4 or b % 8 == 5
+    raise(:unsupported_base, "kikaigo: `#{i[:base]}` cannot be a byte base")
+  else
+    b
+  end
+end
+
+@doc """
 assemble: the bytes of a sequence of instructions, in order.
 
     assemble([{op: "syscall"}, {op: "ret"}]) #=> [15, 5, 195]
@@ -431,7 +469,24 @@ def corpus()
   mul = flat_map(REGS, (d) -> map((s) -> {op: "imul", dst: d, src: s}, REGS))
   stack = flat_map(
     REGS,
-    (r) -> [{op: "push", src: r}, {op: "pop", dst: r}, {op: "sar1", dst: r}]
+    fn(r)
+      [
+        {op: "push", src: r},
+        {op: "pop", dst: r},
+        {op: "sar1", dst: r},
+        {op: "shr1", dst: r}
+      ]
+    end
+  )
+  byte_bases = %w[rax rcx rdx rbx rsi rdi r8 r9 r10 r11 r14 r15]
+  bytes = flat_map(
+    byte_bases,
+    fn(b)
+      append(
+        map((r) -> {op: "load_byte", dst: r, base: b}, %w[rax rcx r9 r15]),
+        map((r) -> {op: "store_byte", src: r, base: b}, %w[rax rcx rdx rbx])
+      )
+    end
   )
   sets = map((c) -> {op: "set", cond: c[0]}, CONDS)
   rest_ops = [
@@ -442,7 +497,7 @@ def corpus()
     {op: "ret"},
     {op: "syscall"}
   ]
-  append(*[rr, ri, mem, at, based, mul, stack, sets, rest_ops])
+  append(*[rr, ri, mem, at, based, mul, stack, bytes, sets, rest_ops])
 end
 
 test "golden encodings from llvm-mc 21.1.7"
@@ -548,6 +603,26 @@ test "lea of a label reaches any register, and raw bytes are placed as they are"
   assert le64(4_294_967_297) == [1, 0, 0, 0, 1, 0, 0, 0]
 end
 
+test "byte loads and stores take a base with no displacement and a low byte register"
+  assert byte_base({base: "rsi"}) == 6
+  assert encode({op: "load_byte", dst: "rax", base: "rsi"}) == [72, 15, 182, 6]
+  assert encode({op: "store_byte", src: "rcx", base: "rdi"}) == [136, 15]
+  assert encode({op: "store_byte", src: "rax", base: "r9"}) == [65, 136, 1]
+  assert encode({op: "shr1", dst: "rax"}) == [72, 209, 232]
+  base = begin
+    byte_base({base: "rbp"})
+  rescue e
+    e.kind
+  end
+  assert base == :unsupported_base
+  wide = begin
+    encode({op: "store_byte", src: "rsi", base: "rdi"})
+  rescue e
+    e.kind
+  end
+  assert wide == :unsupported
+end
+
 test "the helpers are exercised by name"
   assert length(REGS) == 16
   assert length(ALU) == 5
@@ -567,7 +642,8 @@ test "the helpers are exercised by name"
       16 * 2 +
       7 * 3 * 2 +
       16 * 16 +
-      16 * 3 +
+      16 * 4 +
+      12 * 8 +
       6 +
       6
   assert encode({op: "push", src: "r12"}) == [65, 84]

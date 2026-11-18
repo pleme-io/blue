@@ -43,6 +43,33 @@ def header_layout()
 end
 
 @doc """
+phdr_layout: `Elf64_Phdr`, one program header: a segment the loader maps.
+
+    width(phdr_layout) #=> 56
+"""
+def phdr_layout()
+  layout(
+    [
+      %i[type u32],
+      %i[flags u32],
+      %i[offset u64],
+      %i[vaddr u64],
+      %i[paddr u64],
+      %i[filesz u64],
+      %i[memsz u64],
+      %i[align u64]
+    ]
+  )
+end
+
+@doc """
+EXEC_BASE: the address an executable's one segment is mapped at, the conventional 0x400000.
+
+    EXEC_BASE #=> 4194304
+"""
+EXEC_BASE = 4_194_304
+
+@doc """
 section_layout: `Elf64_Shdr`.
 
     width(section_layout) #=> 64
@@ -2299,4 +2326,89 @@ test "a program with unbound kernel fields under {core: false}, a reference into
   assert (object(named, {section: "xdp"}) rescue :refused) == :refused
   assert (program_of(decode(encode([], [])), "gone") rescue :refused) ==
     :refused
+end
+
+@doc """
+executable: a static x86-64 ELF executable whose one loadable segment holds the headers and the code, mapped read and execute at EXEC_BASE and entered at the code's first byte. No section table: the loader reads only program headers.
+
+    exec_header(executable([195]))[:entry] #=> 4194424
+"""
+def executable(code)
+  heads = width(header_layout) + width(phdr_layout)
+  total = heads + size(code)
+  append(
+    *[
+      pack(
+        header_layout,
+        {
+          ident: ident_bytes,
+          type: 2,
+          machine: 62,
+          version: 1,
+          entry: EXEC_BASE + heads,
+          phoff: width(header_layout),
+          shoff: 0,
+          flags: 0,
+          ehsize: width(header_layout),
+          phentsize: width(phdr_layout),
+          phnum: 1,
+          shentsize: 0,
+          shnum: 0,
+          shstrndx: 0
+        }
+      ),
+      pack(
+        phdr_layout,
+        {
+          type: 1,
+          flags: 5,
+          offset: 0,
+          vaddr: EXEC_BASE,
+          paddr: EXEC_BASE,
+          filesz: total,
+          memsz: total,
+          align: 4096
+        }
+      ),
+      code
+    ]
+  )
+end
+
+@doc """
+exec_header: the ELF header of an executable, as named fields.
+
+    exec_header(executable([195]))[:machine] #=> 62
+"""
+def exec_header(bytes)
+  unpack(header_layout, bytes)
+end
+
+@doc """
+exec_segment: the first program header of an executable, as named fields.
+
+    exec_segment(executable([195]))[:flags] #=> 5
+"""
+def exec_segment(bytes)
+  unpack(phdr_layout, bytes, exec_header(bytes)[:phoff])
+end
+
+test "an executable is one read-execute segment over its headers and code, entered at the code"
+  code = [72, 199, 192, 60, 0, 0, 0, 72, 199, 199, 42, 0, 0, 0, 15, 5]
+  bytes = executable(code)
+  h = exec_header(bytes)
+  s = exec_segment(bytes)
+  assert slice_bytes(bytes, 0, 4) == [127, 69, 76, 70]
+  assert h[:type] == 2
+  assert h[:machine] == 62
+  assert h[:phnum] == 1
+  assert h[:phentsize] == width(phdr_layout)
+  assert h[:entry] == EXEC_BASE + 120
+  assert s[:type] == 1
+  assert s[:flags] == 5
+  assert s[:vaddr] == EXEC_BASE
+  assert s[:filesz] == size(bytes)
+  assert s[:memsz] == size(bytes)
+  assert size(bytes) == 120 + size(code)
+  assert slice_bytes(bytes, 120, size(code)) == code
 end

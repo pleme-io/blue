@@ -1,12 +1,14 @@
 # Pure blue — the implementation plan
 
-**Tier: DESIGN (2026-11-17).** Nothing here is built unless a row says so.
+**Tier: DESIGN (2026-11-17).** Nothing here is built unless a row says so. This file is the
+single source for rungs, dependencies, invariants and order; the track docs under
+[`pure-blue/`](pure-blue/) map each rung to the code and do not restate dependencies.
 
 ## 1. The destination
 
-1. **Pure.** Every byte of blue's toolchain that runs (reader, checker, formatter, compiler,
-   runtime, standard library) is blue source, or machine code that blue emitted from blue
-   source. Four facts of the world stay outside, each a typed seam of data, never code in
+1. **Pure.** Every byte of blue's toolchain that runs (reader, expander, checker, formatter,
+   compiler, runtime, standard library) is blue source, or machine code that blue emitted from
+   blue source. Four facts of the world stay outside, each a typed seam of data, never code in
    another language:
    - the instruction set;
    - the kernel's system call ABI;
@@ -14,215 +16,267 @@
    - on macOS, the `libSystem` dynamic imports, because Apple gives no stable raw syscall ABI.
 2. **Rust's discipline is the floor, and the compiler proves it.** One owner per value, a
    value freed at its owner's last use, sharing only through a counted handle. Rust makes the
-   author prove ownership to the compiler; blue makes the compiler prove it for the author
-   (§4).
+   author prove ownership to the compiler; blue makes the compiler prove it for the author (§4).
 3. **Blue all the way down.** `blue` compiles itself to the same bytes twice, and the tower
-   ends at a full-source chain from a seed small enough to audit as hex (Guix style).
+   ends at a full-source chain from a seed small enough to audit as hex (Guix style). The
+   binary seed is a stepping stone, retired at S4.
 4. **Two runtimes, one language.** The pure native build is the default. The Rust
-   implementation stays a fully supported fallback runtime. Both are held to the same
-   conformance suite, permanently.
-5. **Linux first.** x86-64 Linux (rio, plo); aarch64 macOS follows.
+   implementation stays a fully supported fallback runtime, and also the independent witness
+   for diverse double-compiling. Both are held to the same conformance suite, permanently.
+5. **Every build is a selectable configuration.** Runtime, front end, backend, seed and memory
+   model are entries of one module-trio registry, chosen per node, per project or per run, with
+   the reusable builders in substrate (track D).
+6. **Linux first.** x86-64 Linux; aarch64 macOS follows.
 
 ## 2. Ground truth (measured 2026-11-17)
 
 | Fact | Value |
 |---|---|
 | Rust in blue | 25 crates, 144,354 source lines |
-| Rust from crates.io | tatara-lisp (~95k lines; reader, macro expander), tatara-lisp-eval (~25k; walker, VM) |
+| Rust from crates.io | tatara-lisp 0.4.23 (~95k lines; reader, expander), tatara-lisp-eval 0.4.23 (~25k; walker, VM). Eight other repos depend on tatara-lisp-eval, so a change to it is a fleet release |
 | Blue | 600 `.b` files, ~246k lines |
 | Already pure | the BPF path: `kaaneru/bpf` encodes BPF (7,610 lines), `kaaneru/erufu` writes ELF (2,302); byte-identical to `llvm-mc` on 166 of 166 instructions |
-| Native today | `chuuzou` (3,231 lines) lowers the resolved tree to a Rust AST; rustc emits the code |
-| Value model (fallback runtime) | `Value` holds `Arc<str>`, `Arc<List>`, `Arc<Map>`, `Arc<Closure>`: atomic reference counts, copy-on-write |
-| Reuse in place | already: `cons`, `append`, `assoc` update in place when the value is held nowhere else |
-| Mutation | one form, `set!` (rebind a name): 43 calls in 18 of 600 files in this repo, 4 files elsewhere; `while` (needs `set!`): 69 calls in 22 files |
-| Types in the checker | `Dyn, Int, Float, Str, Bool, Sym, Nil, List, Map, Record, Union, Named, Fragment`; no fixed-width integers |
-
-So the fallback runtime is already a reference-counted runtime with reuse in place. The
-model in §4 makes those counts *inferred, non-atomic and mostly removed*, and gives the
-native build the same semantics.
+| Native today | `chuuzou` (3,386 lines) lowers the resolved tree to a Rust AST for rustc; its subset is Ints, records and Int lists |
+| Speed | the walker runs ~790× slower than Rust per unit of work (`docs/PERFORMANCE.md` §1.4.1) |
+| Value model (fallback) | `Value` holds `Arc` counts, copy-on-write; `cons`, `append`, `assoc` update in place, but only in tail position |
+| Rebinds | `set!` 43 calls in 18 files; `while` 69 in 22 (a `letrec` macro over `set!`); `define` after capture, `letrec` and `delay` also rebind |
+| `gensym` | a registered primitive only, so blue can override it without a tatara-lisp release |
+| Types | `Dyn, Int, Float, Str, Bool, Sym, Nil, List, Map, Record, Union, Named, Fragment`; no fixed-width integers |
+| Build surface | builders in this repo (`bidamas/mk-bidama.nix`, `nix/project.nix`); one `blue` per fleet; per-run `BLUE_DOOR` only |
 
 ## 3. Invariants
 
-Each is a check that fails the build. They hold from the rung that introduces them onward.
+Each is a check that fails the build, from the rung named in "From".
 
-| # | Invariant | Check |
-|---|---|---|
-| I1 | Every conformance row gives the same answer on the walker, the VM and native | `checks.conformance-three-way`, one run per row per runtime |
-| I2 | Both runtimes free and close at the same points for every row that observes it | resource-timing rows in `spec/rows` |
-| I3 | No row leaks | `checks.no-leak`: live-object count is zero at exit, per runtime |
-| I4 | A cycle can form only through a typed cell | a checker rule; a fuzz row that builds every value shape |
-| I5 | Raw-memory words are reachable only from the runtime bidama | a check-stage rule |
-| I6 | The non-blue bytes in the pure toolchain only fall | `checks.purity-ledger`, a ratchet |
-| I7 | Native speed never regresses | `checks.native-bench`, a ratchet per benchmark against its Rust equivalent |
-| I8 | The compiler is a fixpoint of its own source, and the seed chain rebuilds it | `checks.pure-fixpoint`, `checks.pure-full-source` |
+| # | Invariant | Check | From |
+|---|---|---|---|
+| I1 | Every conformance row gives the same answer on the walker, the VM and native | `checks.conformance-three-way` | C1 |
+| I2 | Both runtimes free and close at the same points for every row that observes it | resource-timing rows | C2, held by M3 |
+| I3 | No row leaks | `checks.no-leak`, live count zero at exit per runtime | C2, held by M3 |
+| I4 | A cycle can form only through a typed cell | a checker rule; a fuzz row over every value shape | M3 (flat closures) |
+| I5 | Raw-memory words are used only in the runtime subset | a check-stage rule | R1 |
+| I6 | The non-blue bytes in the pure toolchain only fall | `checks.purity-ledger` | S0 |
+| I7 | Native speed never regresses | `checks.native-bench`, owned by C3 | C3 |
+| I8 | The compiler is a fixpoint of its own source | `checks.pure-fixpoint` | S1 |
+| I9 | The seed and the Rust witness rebuild the same bytes (DDC) | `checks.pure-seed-ddc` | S2 |
+| I10 | The full-source chain rebuilds the seed | `checks.pure-full-source` | S4 |
+| I11 | Every buildable toolchain entry builds and passes conformance | `checks.toolchain-matrix` | D5 |
 
 ## 4. Memory: inferred ownership
 
 1. **Values are immutable.** A new value points only at older values, so ordinary data
    cannot form a cycle.
-2. **Ownership is inferred.** The compiler computes each value's last use and frees it there
-   (Perceus, as shipped in Lean 4 and Koka). No lifetimes, no `&`/`&mut`, no borrow checker
-   for the author.
+2. **Ownership is inferred.** Each value is freed at its last use (Perceus, as shipped in Lean 4
+   and Koka). No lifetimes, no `&`/`&mut`, no borrow checker for the author.
 3. **Borrowing is inferred.** A value only read inside a call is passed with no count change.
 4. **Counts are the compiler's fallback** where sharing is real (where Rust makes the author
    write `Rc`/`Arc`). They are non-atomic inside a process.
-5. **Reuse in place.** An update to a value whose count is one mutates it in place (blue
-   already does this for `cons`, `append`, `assoc`; the model makes it universal).
+5. **Reuse in place.** An update to a value whose count is one mutates it in place, in any
+   position, not only a tail call.
 6. **A heap per blue process** (the Erlang model). A message moves when uniquely held and is
    copied otherwise; a dead process frees its heap at once; counts never cross a process.
 7. **Cells are the only mutation and the only cycle source.** A `cell` is a typed value; a
-   small collector scans cells only, never the whole heap.
+   small collector scans cells only. Closures are flat, so `letrec` and local `def` cannot
+   build hidden cycles.
 8. **Resources are values.** A file, socket or lock closes at its last use, without `defer`,
    `finally` or a finaliser.
 9. **The cost model is visible.** The engine and the LSP report each fact: freed here, shared
    here, updated in place here, copied into a message here.
 
-## 5. Tracks and rungs
+## 5. The method: Lisp
 
-Seven tracks. Each rung ends at a check that fails without it. A rung depends only on the
-rungs named in its "after" column. Each track is mapped to the code, file by file, with its
-first commit and its blockers:
+Blue's tree is tatara-lisp data, so: the IR is forms; every pass is a small rewrite between two
+declared IR languages (nanopass, `defir`/`defpass`); Perceus, borrow inference and reuse pairing
+are such rewrites; macros generate encoder tables and specialisations; the runtime is written in
+a declared subset that needs no allocation (PreScheme); the bottom of the tower is a tiny Lisp
+over blue forms (GNU Mes). Detail: [`pure-blue/lisp-layer.md`](pure-blue/lisp-layer.md).
+
+## 6. Rungs
+
+Eight tracks. Each rung ends at a check that fails without it. Dependencies are in §7 only.
 
 | Track doc | Tracks |
 |---|---|
 | [`pure-blue/language-memory.md`](pure-blue/language-memory.md) | L, M |
 | [`pure-blue/backend-runtime.md`](pure-blue/backend-runtime.md) | B, R |
 | [`pure-blue/front-tower-conformance.md`](pure-blue/front-tower-conformance.md) | F, S, C |
-| [`pure-blue/lisp-layer.md`](pure-blue/lisp-layer.md) | how every track is written over tatara-lisp forms |
+| [`pure-blue/build-surface.md`](pure-blue/build-surface.md) | D |
+| [`pure-blue/lisp-layer.md`](pure-blue/lisp-layer.md) | the method for all of them |
 
-**Lisp is the method.** Blue's tree is tatara-lisp data, so the IR is forms, every pass is a
-small rewrite between declared languages (nanopass), Perceus is one of those rewrites, macros
-generate tables and specialisations, the runtime is a declared subset (PreScheme), and the
-bottom of the tower is a tiny Lisp (Mes). See `lisp-layer.md`.
+### L — the language
 
-### L — the language moves onto the model
+| # | Rung | Exit check |
+|---|---|---|
+| L0 | **Census of every rebind**: `set!`, `define` after capture, `while`, `letrec`, `delay`; rule `B0101 captured-rebind` with a ratchet; `blue census` loads `rules/mutation.b` | census count equals the ratchet; a rise fails `checks.namespace-census` |
+| L1 | **Typed cells** `cell`/`cell_get`/`cell_put`; `B0101` active at 0; `blue migrate` rewrites `while`+`set!` to recursion or `reduce`, and sinks to cells | census 0; `spec/rows/cells.b` on walker and VM |
+| L2 | **Fixed-width integers** `u8`…`i64` in `Ty`, width-aware `op_sig`, width words in a bidama | checker rows; kaaneru's hand width guards become typed |
+| L3 | **Deterministic expansion**: blue's own `gensym` per interpreter, seeded by def-hash; lower → expand → check | two expansions of the corpus byte-identical |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| L0 | **Measure** mutation: every `set!`, `while` and captured rebound name across the fleet, with the closures that share one | — | a committed census; the count is a ratchet |
-| L1 | **Typed cells.** A `cell` word (`cell`, `get`, `put`); `set!` on a name a closure captures becomes a checker error pointing at `cell`; `while` loops rewritten as recursion or `reduce` | L0 | the census reaches 0 untyped captured rebinds; `legacy_names` and a `blue migrate` rule rewrite the 22 files |
-| L2 | **Fixed-width integers** (`u8`…`u64`, `i8`…`i64`) and a type language the IR and encoders need | — | checker rows; the encoders in B2 use them |
-| L3 | **Deterministic expansion**: expansion before check, deterministic `gensym` | — | two expansions of the corpus are byte-identical |
+### M — memory
 
-### M — the memory model
+| # | Rung | Exit check |
+|---|---|---|
+| M1 | **Ownership facts**: B1's Perceus and borrow passes in explain mode over the expanded tree, returning last use, borrow, unique, escape, reuse as data, cached by def-hash | `Expect::Facts` rows in `spec/rows/memory.b` |
+| M2 | **Facts reported**: `blue explain --memory`; LSP hints without live evaluation | golden output per row; an LSP test |
+| M3a | **Early reuse in the fallback runtime**: `Env::take` from a local liveness pass in tatara-lisp-eval, behind a flag off by default | a non-tail `assoc` in a fold updates in place (allocation count) |
+| M3 | **The fallback runtime on the model**: `%move` marks from M1's cached facts, a VM `MoveLocal`, flat closures, cells as the only collector roots | I2, I3, I4 on walker and VM; a gain on `bench/cost.baseline` |
+| M4 | **Per-process heaps** in `blue-lang-proc`: `send` moves a unique message and copies otherwise; forks stop sharing frames | move-vs-copy rows; a dead process's account falls to zero |
+| M5 | **Non-atomic counts** (Lean 4's scheme): atomic only for a value marked shared across threads | the `Send + Sync` blockers gone; a benchmark gain |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| M1 | **Ownership facts**: the Perceus pass (B1) in explain mode, on the expanded tree, returning last use, borrow, uniqueness, escape, reuse as data | L1, L3, B1 | facts over the corpus; a row per fact kind |
-| M2 | **Facts reported**: `blue explain --memory`, LSP hints without live evaluation | M1 | golden output per row |
-| M3 | **The fallback runtime follows the model** (a tatara-lisp-eval release): `Env::take`, a VM `MoveLocal`, `%move` marks from M1, flat closures, cells as the only collector roots | M1 | I2, I3 on the walker and the VM; a gain on `bench/cost.baseline` |
-| M4 | **Per-process heaps** in `blue-lang-proc`: `send` moves a uniquely held message and copies otherwise; forks stop sharing frames; strings copied across processes | M3 | process rows; a dead process's account falls to zero |
-| M5 | **Non-atomic counts**: Lean 4's scheme, non-atomic by default, atomic only for a value marked shared across threads | M4 | the `Send + Sync` blockers gone; a benchmark gain |
+### B — the backend
 
-### F — the front end in blue
+| # | Rung | Exit check |
+|---|---|---|
+| B0 | **Nanopass library** `defir`/`defpass` in blue | a pass emitting a form its target language forbids fails at expansion |
+| B1 | **IR as forms**: ANF, closure conversion, Perceus `dup`/`drop`, borrow inference, `ir_eval`; chuuzou's front passes move in; chuuzou stays as the IR → Rust backend | `ir_eval` equals the walker on every accepted row (a ratchet), live count zero; the passes over `chuuzou.b` timed on the walker |
+| B2 | **x86-64 encoder** (the `kaaneru/bpf` method), with branch relaxation, `movabs` imm64, SSE2 floats; `isa_llvm.b` and the new oracle become flake checks | `checks.x86-isa-llvm`: N of N byte-identical |
+| B4 | **ELF executables**: `erufu` writes ET_EXEC with program headers | a hand-assembled exit program runs; `readelf` agrees with `erufu::decode` |
+| B3 | **Code generation**: instruction selection, linear-scan allocation, the calling convention, the overflow fault stub, stack-depth guards, yield points | `checks.native-x64-corpus`; an `Ev::Native` column in conformance |
+| B5 | **Optimisation**: reuse pairing, drop fusion, inlining, unboxing, specialisation, `cz_nonneg` on the IR | C3's benchmarks improve; none regresses |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| F1 | **Reader**: lexer and parser as a bidama, emitting the same tree as `blue-lang-syntax` | — | differential over every `.b` in the fleet: identical trees and spans |
-| F2 | **Macro expander** in blue (replaces tatara-lisp's expander for blue) | F1, L3 | differential over the corpus |
-| F3 | **Checker** in blue: names, types, rules, and M1's facts | F2, M1 | differential against `blue-lang-check` |
-| F4 | **Formatter** in blue | F1 | `blue fmt` differential over the corpus |
+### R — the runtime
 
-### B — the backend in blue
+| # | Rung | Exit check |
+|---|---|---|
+| R1 | **Raw seam and runtime subset**: `load_word`, `store_word`, `syscall6`; the runtime subset as a declared IR language; a rule confines both | I5; `write(1, …)` prints natively |
+| R2 | **Allocator**: size-classed per-process heaps, counts, `dup`/`drop`/`reuse`, the cell collector, a live counter | `checks.no-leak` native |
+| R3 | **Values**: UTF-8 strings with Unicode case tables, a persistent vector and sorted map (cross-kind key order), closures, errors, a packed byte value, shortest round-trip float printing and correctly rounded parsing, `render` byte-identical to Rust's | the value rows in the `Ev::Native` column |
+| R4 | **Host words over syscalls**: files, time, `execve`/`fork`/`pipe`/`wait4`, sockets, `epoll`, terminal | the host rows natively; `docs/REFERENCE.md` gains a home column |
+| R5 | **Processes**: scheduler, green stacks, mailboxes that move or copy, links, monitors, supervisors | the process rows natively |
+| R6a | **JSON and hashes** (BLAKE3, SHA-2) in blue — what the compiler needs | json and hash rows natively |
+| R6b | **Crypto**: Ed25519, X25519, ChaCha20-Poly1305, HMAC, Bao, FROST, ECDSA P-256, RSA with bignums | crypto rows; the ledger falls |
+| R6c | **Formats**: Nix parsing, XML, YAML | their rows; the ledger falls |
+| R7 | **TLS 1.3** over R6b | RFC 8448 vectors; the ledger at the four world facts |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| B0 | **Nanopass library**: `defir` (a declared IR language) and `defpass` (a rewrite between two), in blue | — | a pass emitting a form its target language forbids fails at expansion |
-| B1 | **IR as forms**: ANF, closure conversion, Perceus `dup`/`drop`/`reuse` from IR liveness, `ir_eval`; chuuzou's front passes move in, chuuzou stays as the IR → Rust backend | B0 | `ir_eval` equals the walker on every accepted row (a ratchet), live count zero at exit |
-| B2 | **x86-64 encoder**, assembler style (the `kaaneru/bpf` method); aarch64 and riscv64 later | L2 | byte-identical to `llvm-mc` on a generated instruction corpus |
-| B3 | **Code generation**: instruction selection, linear-scan register allocation, the calling convention | B1, B2 | conformance rows run native on rio |
-| B4 | **ELF executables**: `erufu` grows from relocatable BPF objects to static executables | B3 | a blue-written hello runs on Linux; `readelf` agrees with erufu's own reader |
-| B5 | **Optimisation**: inlining, specialisation, unboxed integers, drop fusion | B3 | I7 benchmarks improve; none regresses |
+### F — the front end
 
-### R — the runtime in blue
+| # | Rung | Exit check |
+|---|---|---|
+| F1 | **Reader** emitted from the kiwari grammar (the kiwari parser rung, `docs/NATURALIZE-TREESITTER.md:254`), with spans and comments; oracle `blue ast --tree-json` | `checks.reader-differential`: 604 files identical, spans included |
+| F2 | **Expander** in blue, running macro bodies on `ir_eval` | `checks.expand-differential` |
+| F3 | **Checker** in blue, including import resolution | an `Ev::BlueFront` column agrees with `static`; a JSON differential |
+| F4 | **Formatter** in blue | `Ev::BlueFront` on every `formats` row; `blue fmt` byte-identical |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| R1 | **Raw seam**: a handful of words (load and store a machine word, a system call), reachable only from the runtime bidama | B3 | I5 |
-| R2 | **Allocator and counts**: size-classed per-process heaps, non-atomic counts, `dup`/`drop`/`reuse`, the cell collector | R1, M1 | I2, I3 native |
-| R3 | **Values**: strings, persistent lists and maps, closures, errors, in blue | R2 | the value rows pass native |
-| R4 | **Host words over syscalls**: files, processes, time, sockets, terminal | R1 | host rows pass native; `docs/REFERENCE.md` marks each word's home |
-| R5 | **Blue processes**: scheduler, mailboxes, links, supervisors, per-process heaps | R2, R4 | process rows pass native |
-| R6 | **Libraries moved from Rust crates to blue**: JSON, crypto (BLAKE3, Ed25519, ChaCha20), protocols over TCP | R4 | their rows pass native; the purity ledger drops |
-| R7 | **TLS**: the last contained seam, ported last | R6 | the ledger at the four world facts |
+### S — the stages
 
-### S — the stages (the tower; "T3" already names a native tier)
+| # | Rung | Exit check |
+|---|---|---|
+| S0 | **Purity ledger** (`gen/purity.b`, hadome) | I6 |
+| S1 | **The fixpoint.** Stage 0 is `bluec.b` built through IR → chuuzou → rustc (fast); stage 1 → `bluec₁`, `bluec₁` → `bluec₂`, `bluec₂` → `bluec₃`; `bluec₂ == bluec₃` | I8; `nix build --rebuild` bit-identical |
+| S2 | **Binary seed and witness**: `seed/x86_64-linux/bluec` as a `generate` row; one walker build per seed as the DDC leg | I9; the default `blue` comes from the seed |
+| S3 | **Two runtimes in the fleet**: `pure` default, `rust` selectable (through D) | I1–I3 under both binaries |
+| S4 | **Full-source bootstrap**: a hex seed (the nixpkgs `stage0-posix` model), a tiny Lisp over blue forms, then the compiler; the binary seed retires | I10 |
+| S5 | **aarch64 macOS**: encoder, Mach-O writer with libSystem imports and an ad-hoc signature, darwin host words | native conformance on aarch64 macOS |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| S0 | **Purity ledger**: non-blue bytes in the toolchain closure, by layer (`gen/purity.b`, hadome) | — | I6 |
-| S1 | **The fixpoint**: stage 0 (the Rust blue) runs `bluec.b` → `bluec₁`; `bluec₁` → `bluec₂`; `bluec₂` → `bluec₃`; `bluec₂ == bluec₃` | F1, B4, R5 | I8; `nix build --rebuild` bit-identical |
-| S2 | **Binary seed and witness**: `seed/x86_64-linux/bluec` as a `generate` row (`nix run .#regen` updates it); DDC: the Rust runtime and the seed rebuild the same bytes | S1 | `checks.pure-seed-ddc`; the fleet's `blue` comes from the seed build |
-| S3 | **Two runtimes**: `blue-native` default, `blue-rust` selectable per node (`pleme.blue.runtime`) or per run (`BLUE_DOOR`); needs `bidamasOverlay` to read `final.blue` | S2, M5 | I1–I3 on both, permanently |
-| S4 | **Full-source bootstrap**: a hex seed (the nixpkgs `stage0-posix` model), a tiny Lisp reader and evaluator over blue forms, then the compiler; the binary seed is retired | S2 | `checks.pure-full-source`: the chain rebuilds `bluec` byte-identical to S2's seed |
-| S5 | **aarch64 macOS**: encoder, Mach-O writer with libSystem imports and an ad-hoc code signature, the darwin host words | B5, R7 | conformance native on cid and ryn |
+### C — conformance
 
-### C — conformance, the spine every track stands on
+| # | Rung | Exit check |
+|---|---|---|
+| C1 | **Three-way conformance** with a ratchet on rows native passes | I1 |
+| C2 | **Memory rows**: `leaks(0)`, `closes_at(...)`, cycle-through-cell, move vs copy | I2, I3, I4 rows exist and run |
+| C3 | **Benchmarks** against Rust twins, keyed per host | I7 |
 
-| # | Rung | After | Exit check |
-|---|---|---|---|
-| C1 | **Three-way conformance** (walker, VM, native) per row, as the native build gains rows | — | I1, with a ratchet on the count of rows native passes |
-| C2 | **Memory rows**: resource close timing, leak, cycle-through-cell, message move vs copy | M1 | I2, I3, I4 |
-| C3 | **Benchmarks** against Rust equivalents, native and fallback | B3 | I7 |
+### D — the build surface
 
-## 6. Phases and the critical path
+| # | Rung | Exit check |
+|---|---|---|
+| D0 | **Builders into substrate** (`substrate/lib/build/blue/`), toolchain as an argument | every project's and node's drvPaths identical before and after |
+| D1 | **`bidamasOverlay` reads `final.blue`** | `blueApp` over an overridden `blue` points at the override |
+| D2 | **The `blue.toolchain` registry** (module trio, kind `registry`): entries per permutation, refusals named by rung | kijun `trio/every-concept`; the kinds test |
+| D3 | **Bluefile `toolchain(...)`** per project | each buildable entry builds a project |
+| D4 | **Fleet selection** per node; the fleet's blue overlay becomes the `rust` projection | identical drvPaths with `rust` selected |
+| D5 | **The matrix** over every buildable entry | I11 |
+| D6 | **Entries come alive** as their rungs land (M3, B1, S2, S4, S5) | a matrix row per entry |
+
+## 7. Dependencies (canonical)
+
+| Rung | After |
+|---|---|
+| L0, L2, L3, S0, C1, B0, F1, M3a, D0 | — |
+| L1 | L0 |
+| D1, D2 | D0 |
+| D3, D4, D5 | D2 |
+| B1 | B0, L1 |
+| M1 | B1, L3 |
+| M2 | M1 |
+| C2 | L1 |
+| M3 | M1, C2, M3a |
+| M4 | M3 |
+| M5 | M4 |
+| B2 | L2 |
+| B4 | B2 |
+| B3 | B1, B2, B4 |
+| C3 | B3 |
+| B5 | B3, C3 |
+| R1 | B3 |
+| R2 | R1 |
+| R3 | R2 |
+| R4 | R1, R3 |
+| R5 | R2, R4, M4 |
+| R6a | R3, R4, L2 |
+| R6b | R6a |
+| R6c | R3 |
+| R7 | R6b |
+| F2 | F1, L3, B1 |
+| F3 | F2, M1 |
+| F4 | F1 |
+| S1 | F1, F2, B4, R3, R5, R6a |
+| S2 | S1 |
+| S3 | S2, M5, R7, D4 |
+| S4 | S2 |
+| S5 | S1, R7 |
+| D6 | the rung each entry names |
+
+**The critical path:** L0 → L1 → B1 → B3 → R1 → R2 → R3 → R4 → R6a → S1 → S2 → S4 (12 rungs).
+The memory chain (B1 → M1 → M3 → M4 → R5) runs beside it and joins at S1. By effort, B1 (the IR
+over the whole language) and F1 (~7.7k lines of reader behaviour) are the heaviest; B1 is on
+every chain.
+
+## 8. Phases
 
 | Phase | Rungs | What exists at the end |
 |---|---|---|
-| 1. Ground | S0, L0, L1, L2, L3, C1, B0 | the ledger, typed cells, fixed-width integers, deterministic expansion, the nanopass library |
-| 2. The model | B1, M1, M2, M3, M4, M5, C2 | the IR and Perceus as forms; both existing runtimes on inferred ownership; the facts visible to authors |
-| 3. First native program | B2, B3, B4, R1, R2, R3, C3 | blue programs compiled by blue to x86-64 ELF, no rustc |
-| 4. A real host program | R4, R5, R6, R7, B5 | the compiler itself can run natively |
-| 5. The front end | F1, F2, F3, F4 | reader, expander, checker and formatter in blue |
-| 6. The tower | S1, S2, S3, S4 | the fixpoint, the seed, two runtimes, full-source bootstrap |
+| 1. Ground | S0, L0, L1, L2, L3, C1, B0, M3a, D0, D1, D2 | the ledger; typed cells; fixed-width ints; deterministic expansion; the nanopass library; in-place updates outside tail calls; the toolchain registry |
+| 2. The model | B1, M1, M2, C2, M3, M4, M5, D3, D4, D5; F1 beside | the IR and Perceus as forms; both existing runtimes on inferred ownership; facts visible to authors; every build selectable |
+| 3. First native program | B2, B4, B3, C3, R1, R2, R3 | blue compiled by blue to x86-64 ELF, no rustc |
+| 4. A real host program | R4, R5, R6a, R6b, R6c, R7, B5 | the runtime and libraries in blue |
+| 5. The front end | F2, F3, F4 | expander, checker and formatter in blue |
+| 6. The tower | S1, S2, S3, S4, D6 | the fixpoint, the seed, two runtimes in the fleet, full-source bootstrap |
 | 7. The second host | S5 | aarch64 macOS |
 
-The critical path is **L1 → B0 → B1 → B3 → R2 → R4 (exec) → R5 → S1**. B1 computes
-`dup`/`drop` from IR liveness on its own; M1 is the same pass in explain mode, a cross-check.
-F1 (the kiwari-emitted reader) and B2 have exact oracles and no dependencies, so they run
-beside phases 1 and 2. Phase 2 pays off before any native code exists: the fallback runtime
-gains last-use frees, in-place updates outside tail position, and non-atomic counts.
+Phase 1 pays off on its own: M3a gives today's runtime in-place updates outside tail calls, and
+D0-D2 make every later rung a one-field switch.
 
-### Work the first draft missed (found by mapping the code)
+## 9. The first five commits
 
-- **Rebinds beyond `set!`**: `define` after capture, `while`, `letrec`, `delay` (L0, L1).
-- **`letrec` and local `def` build cycles without a cell** until closures are flat (M3).
-- **F2 needs an evaluator in blue**: macros run their bodies (`ir_eval`, B1).
-- **F1 is kiwari's M3** (`docs/NATURALIZE-TREESITTER.md:254`), not a third parser.
-- **L3 and M3 are tatara-lisp-eval releases** (pinned 0.4.23; nine dependents).
-- **The compiler spawns processes** (`exec_capture`, `exec_with_stdin`, `self_exe`): R4's exec
-  words are on the critical path.
-- **Floats**: SSE2 encodings, shortest round-trip printing, correctly rounded parsing.
-- **x86**: branch relaxation, stack-depth guards, yield points for preemption.
-- **Values**: Unicode case tables, cross-kind key ordering, a packed byte value.
-- **More Rust-backed words** to move: Nix parsing, XML, YAML, FROST, Bao, SHA/HMAC, ECDSA/RSA.
-- **Stage 1 speed**: the walker runs ~790× slower than Rust; measure the first self-build early.
-- **S3** needs `bidamasOverlay` to read `final.blue`; **S5** needs Mach-O code signing.
+1. **S0**: `gen/purity.b`, a per-crate `purity-bytes` baseline, a gate test that a rise is red.
+2. **L0**: `rules/mutation.b` `captured_rebind` with its tests, `census` loading it, the ratchet.
+3. **L3**: blue's own `gensym` per interpreter, and a test that expands one file twice to equal bytes.
+4. **L1**: `cell`/`cell_get`/`cell_put` as `Value::Foreign`, with `spec/rows/cells.b` on walker and VM.
+5. **B0**: a minimal `defir`/`defpass`, with a row where a forbidden form fails at expansion.
 
-## 7. Decisions (2026-11-17)
+D0 (lifting the builders into substrate) runs beside these: it touches only nix.
+
+## 10. Decisions (2026-11-17)
 
 1. Linux first.
 2. Memory: inferred ownership (§4).
 3. Seed: the most pure; S2's binary seed is a stepping stone to S4's full-source chain.
-4. The Rust implementation is a fully supported fallback runtime (S3).
-5. Lisp is the method: every pass, optimisation and the memory model are written over
-   tatara-lisp forms (`pure-blue/lisp-layer.md`).
+4. The Rust implementation is a fully supported fallback runtime (S3, D).
+5. Lisp is the method (§5).
+6. Every build option is a module-trio configuration, with the builders in substrate (D).
 
-## 8. Prior art, used as oracles
+## 11. Prior art, used as oracles
 
-- **Perceus** (Reinking, Xie, de Moura, Leijen; PLDI 2021) and its successor **frame-limited
-  reuse** (Lorenzen, Leijen; ICFP 2022): the inference in §4.2–4.5. Koka's test programs are
-  oracles for M1 and B1.
-- **Lean 4** ("Counting Immutable Beans", Ullrich, de Moura; IFL 2019): borrow inference and
-  reuse in a shipped compiler; its benchmarks are oracles for C3.
-- **Project Verona** (Microsoft Research): ownership by regions with concurrency; the
-  reference for M4 and R5.
-- **Erlang/BEAM**: per-process heaps, message copying, supervisors; the reference for §4.6
-  and R5.
-- **Guix full-source bootstrap** (`hex0`, stage0, GNU Mes): the reference for S4.
-- **Go 1.5 and Zig** (`zig1.wasm`): self-hosting from a committed previous build; the
-  reference for S2.
-- **Diverse double-compiling** (Wheeler, 2009): the reference for S2's witness check.
-- **Lisp prior art** (`pure-blue/lisp-layer.md`): Chez Scheme's nanopass framework (B0, B1),
-  PreScheme and Scheme48 (the runtime subset, R1-R2), Carp and Baker's Linear Lisp (ownership in
-  a Lisp without a collector), GNU Mes (the tiny Lisp at the bottom of S4).
+- **Perceus** (Reinking, Xie, de Moura, Leijen; PLDI 2021) and **frame-limited reuse** (Lorenzen,
+  Leijen; ICFP 2022): §4.2-4.5; Koka's tests are oracles for B1 and M1.
+- **Lean 4** ("Counting Immutable Beans", Ullrich, de Moura; IFL 2019): borrow inference, reuse,
+  and the shared-marking scheme for M5; its benchmarks are oracles for C3.
+- **Project Verona** (Microsoft Research): region ownership with concurrency; M4 and R5.
+- **Erlang/BEAM**: per-process heaps, message copying, supervisors; §4.6 and R5.
+- **Chez Scheme's nanopass framework** (Keep, Dybvig, 2013): B0 and B1.
+- **PreScheme and Scheme48**: the runtime subset, R1-R2.
+- **Carp** and **Baker's Linear Lisp** (1992): ownership in a Lisp without a collector.
+- **Guix full-source bootstrap** (`hex0`, stage0-posix, GNU Mes): S4.
+- **Go 1.5 and Zig** (`zig1.wasm`): self-hosting from a committed previous build; S2.
+- **Diverse double-compiling** (Wheeler, 2009): S2's witness.

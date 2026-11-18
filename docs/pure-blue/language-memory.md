@@ -86,13 +86,13 @@ fleet change.
 
 ### M1 — ownership facts
 
-- **Conflict to resolve.** The checker is built to skip unannotated code ("zero analysis at rung
-  0", `lib.rs:1-30`). Ownership needs every expression, so it is its own pass, outside the
-  typing ladder, with its own `check_cache::Pass` entry.
-- **Change.** `Fact { span, kind: LastUse | Borrow | Unique | Escape | Reuse, name }`, computed
-  per definition with a borrowed-parameter summary per callee, **on the expanded, resolved tree
-  the runtimes execute** (so after L3). Written in tatara-lisp or Rust until blue code can see
-  spans (F1); the Lisp-layer plan puts it in a tatara-lisp pass (`lisp-layer.md`).
+- **Why it is not a checker pass.** The checker skips unannotated code by design ("zero
+  analysis at rung 0", `lib.rs:1-30`), and ownership needs every expression.
+- **Change.** M1 is B1's Perceus and borrow passes run in explain mode: instead of rewriting,
+  they return `Fact { span, kind: LastUse | Borrow | Unique | Escape | Reuse, name }` as data,
+  per definition with a borrowed-parameter summary per callee, **on the expanded tree the
+  runtimes execute** (so after L3). Written in blue over forms (`lisp-layer.md` §3), cached by
+  def-hash through `check_cache`, so a program load never re-runs it at walker speed.
 - **First commit.** `last_use` for parameters and `let` bindings in straight-line code, one row.
 - **Exit.** `Expect::Facts` in `crates/blue-lang-test/tests/conformance/rows.rs:116`; rows per
   kind in `spec/rows/memory.b`.
@@ -125,6 +125,16 @@ fleet change.
 - **Exit.** I2 and I3 on walker and VM (extend `tests/interpreter_leak.rs`); a gain on
   `bench/bench.b` against `bench/cost.baseline`.
 
+### M3a — early reuse, before the facts exist
+
+- **Change.** In tatara-lisp-eval, `Env::take` driven by a small liveness pass in Rust over each
+  closure body, so a binding at its last use moves out and `assoc`/`append`/`cons` update in
+  place outside tail position. Behind a flag, off by default, so the eight dependents see no
+  change until it is turned on.
+- **First commit.** `Env::take` and the flag, with a test where a non-tail `assoc` in a fold
+  allocates once (`blue-lang-runtime/src/alloc.rs`).
+- **Exit.** The row green with the flag on; walker and VM conformance unchanged with it off.
+
 ### M4 — per-process heaps
 
 - **Today.** A `Vm` and `Interpreter` per process (`blue-lang-proc/src/lib.rs:219`), but not a
@@ -136,12 +146,17 @@ fleet change.
 - **First commit.** A row showing a dead process's `Account` falls to 0.
 - **Exit.** Move-vs-copy rows in `spec/rows/processes.b`; live count zero after exit.
 
-## Corrections to the plan
 
-1. **The census counts every rebind**, not only `set!`: `define` after capture, `while`,
-   `letrec`, `delay`.
-2. **M1 needs L3**: facts on the expanded tree.
-3. **M4 comes before the `Arc` → `Rc` half of M3.**
-4. **I4 (cycles only through cells) is broken by `letrec` and local `def`** until closures are flat
-   or `letrec` cells are collector roots.
-5. **M3 is a tatara-lisp-eval release**, a fleet change for its nine dependents.
+### M5 — non-atomic counts
+
+- **Change.** Lean 4's scheme in tatara-lisp-eval: counts are non-atomic by default; a value
+  that becomes reachable from another thread (a channel, an idle lane, `Value::Foreign`) is
+  marked shared, and only shared values count atomically. Needs M4, because today whole
+  processes move between threads and forks share frames.
+- **First commit.** The shared mark on `Value` and the marking at the one cross-thread send
+  site, with a test that a value sent to a lane is marked.
+- **Exit.** No `Send + Sync` requirement on unshared values; a gain on `bench/cost.baseline`.
+
+Every finding of this mapping (the wider census, M1 after L3, M4 before non-atomic counts,
+flat closures for I4, tatara-lisp-eval releases with eight dependents) is folded into the
+plan's §6-§7.

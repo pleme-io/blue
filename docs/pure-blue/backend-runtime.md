@@ -16,6 +16,17 @@ the repo root and were read on 2026-11-17.
 
 ## B — the backend
 
+### B0 — the nanopass library
+
+- **Today.** Nothing; `chuuzou.b` is one hand-written pass.
+- **Change.** A bidama with two macros: `defir` declares an IR language (terminals, productions
+  as form shapes); `defpass` declares a rewrite from one language to another, writing only the
+  cases it changes and generating the identity cases. Expansion checks every emitted form
+  against the target language. Method: `lisp-layer.md` §2.
+- **First commit.** `defir` for a two-production toy language and a `defpass` that renames one
+  form, with a row where a pass emitting a forbidden form fails at expansion.
+- **Exit.** That row; B1's first pass written with it.
+
 ### B1 — the IR
 
 - **Today.** `native/bidamas/chuuzou/chuuzou.b` (3,386 lines) is one pass from the resolved
@@ -85,7 +96,7 @@ the repo root and were read on 2026-11-17.
   relocations: codegen resolves every address, as `assemble` resolves labels.
 - **First commit.** `erufu::executable` over hand-assembled `mov eax,60; xor edi,edi; syscall`;
   a doctest round-trips through `decode`; a Linux check runs it and gets exit 0.
-- **Exit.** `checks.native-hello-elf` on rio: a blue-compiled hello prints; `readelf -lh` agrees
+- **Exit.** `checks.native-hello-elf` on an x86-64 Linux builder: a blue-compiled hello prints; `readelf -lh` agrees
   with `erufu::decode` (the `kernel/object_llvm.b` pattern).
 
 ### B5 — optimisation
@@ -190,16 +201,14 @@ So the minimum native rows are `functions`, `control`, `lists`, `maps`, `strings
 `errors`, `patterns`, `numbers`, `keywords`, `modules`, `json`, and the host file and exec
 rows, plus a native reader (F1) before S1.
 
-## Corrections to the plan
+## Stage 0 and speed
 
-1. **B1 does not need M1.** Perceus computes `dup`/`drop` from IR liveness alone; M1's facts
-   become a cross-check. The critical path shortens to L1 → B1 → B3 → R2 → R5 → S1.
-2. **`checks.x86-isa-llvm` and the BPF oracle become flake checks**, not manual runs.
-3. **The `Ev::Native` column** needs a blue `render` byte-identical to Rust's.
-4. **Floats** need SSE2 encodings and round-trip printing and parsing.
-5. **x86 branch relaxation**, **stack-depth guards** and **yield points** are new work.
-6. **More Rust-backed words** than the plan named: Nix, XML, YAML, FROST, Bao, SHA/HMAC,
-   ECDSA/RSA.
-7. **Bootstrap speed:** at ~790× Rust, measure stage 1 early; chuuzou's Rust path cannot host the
-   compiler, because its subset has no closures, maps or strings.
-8. **A packed byte value** (or proven reuse in place) for encoders and ELF writing.
+At ~790× Rust, a blue compiler run on the walker would take hours per build. Once B1 makes
+chuuzou the IR → Rust backend, chuuzou's subset is the IR's subset, so stage 0 is `bluec.b`
+compiled through IR → chuuzou → rustc and runs at native speed. The walker builds the compiler
+once per seed, as the DDC witness (S2). B1's exit times its passes over `chuuzou.b` on the
+walker, so the cost is measured, not guessed.
+
+Every finding of this mapping (B1 without M1, flake-checked oracles, a byte-identical
+`render`, floats, branch relaxation, stack guards, yield points, the Rust-backed words split
+into R6a-c, a packed byte value) is folded into the plan's §6-§7.

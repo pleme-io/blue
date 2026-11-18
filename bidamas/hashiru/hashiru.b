@@ -2022,3 +2022,92 @@ test "an error is a kind-4 block, and a try calls its handler only on one"
   assert RT_PAYLOAD[0] == {op: "label", name: "rt_payload"}
   assert length(TRY_PROGRAMS) == 5
 end
+
+@doc """
+PRELUDE: the list words every compiled program can call, written in blue's core forms and compiled with it: what blue's runtime gives as builtins, here as ordinary global functions over cons, first, rest and length, freed by Perceus like any other code.
+
+    length(PRELUDE) > 0 #=> true
+"""
+PRELUDE = [
+  "(define (append a b) (if (equal? (length a) 0) b (cons (first a) (append (rest a) b))))",
+  "(define (nth i l) (if (equal? i 0) (first l) (nth (- i 1) (rest l))))",
+  "(define (reverse_onto l acc) (if (equal? (length l) 0) acc (reverse_onto (rest l) (cons (first l) acc))))",
+  "(define (reverse l) (reverse_onto l (list)))",
+  "(define (map f l) (if (equal? (length l) 0) (list) (cons (f (first l)) (map f (rest l)))))",
+  "(define (filter f l) (if (equal? (length l) 0) (list) (if (f (first l)) (cons (first l) (filter f (rest l))) (filter f (rest l)))))",
+  "(define (reduce f acc l) (if (equal? (length l) 0) acc (reduce f (f acc (first l)) (rest l))))"
+]
+
+@doc """
+with_prelude: a program with the prelude's definitions placed before its own, so it can call them by name.
+
+    head_is?(with_prelude(read_forms("7")[0]), "begin") #=> true
+"""
+def with_prelude(form)
+  defs = map((s) -> read_forms(s)[0], PRELUDE)
+  body = if head_is?(form, "begin")
+    rest(form)
+  else
+    [form]
+  end
+  cons(read_forms("begin")[0], append(defs, body))
+end
+
+@doc """
+compile_program: a program compiled with the prelude through Perceus to a reference-counted executable.
+
+    compile_program(read_forms("7")[0], :exit)[0] #=> 127
+"""
+def compile_program(form, mode)
+  compile_whole(with_prelude(form), mode)
+end
+
+@doc """
+PRELUDE_PROGRAMS: programs over the prelude's list words and the exit status each must give.
+
+    PRELUDE_PROGRAMS[0][1] #=> 4
+"""
+PRELUDE_PROGRAMS = [
+  ["(length (append (list 1 2) (list 3 4)))", 4],
+  ["(nth 2 (list 10 20 30 40))", 30],
+  ["(first (reverse (list 1 2 3)))", 3],
+  [
+    "(reduce (lambda (a x) (+ a x)) 0 (map (lambda (x) (* x 2)) (list 1 2 3 4 5 6)))",
+    42
+  ],
+  ["(length (filter (lambda (x) (> x 2)) (list 1 2 3 4 5)))", 3],
+  [
+    "(let ((k 3)) (reduce (lambda (a x) (+ a x)) 0 (map (lambda (x) (* x k)) (list 1 2 3))))",
+    18
+  ]
+]
+
+test "every prelude program gives its value and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "p.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_program(form, :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+        write_bytes(path, compile_program(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      PRELUDE_PROGRAMS
+    )
+  end
+end
+
+test "the prelude's words are global functions placed before the program"
+  p = with_prelude(read_forms("(begin (define (f) 1) (f))")[0])
+  assert head_is?(p, "begin")
+  assert length(rest(p)) == length(PRELUDE) + 2
+  w = whole(with_prelude(read_forms("(nth 0 (list 5))")[0]))
+  assert member?("nth", map((g) -> g[:name], w[:globals]))
+  assert length(PRELUDE_PROGRAMS) == 6
+end

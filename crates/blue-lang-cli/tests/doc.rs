@@ -162,3 +162,29 @@ fn the_derived_view_names_the_host_capabilities_a_definition_reaches() {
         "{v}"
     );
 }
+
+#[test]
+fn a_bidama_definition_lists_the_defaults_it_gets_and_what_the_next_waits_on() {
+    let fired = doc(&["kazu::int_sqrt_fix"]);
+    let text = String::from_utf8_lossy(&fired.stdout);
+    assert!(
+        fired.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fired.stderr)
+    );
+    assert!(
+        text.contains("default R2: its repeated calls are answered from a table"),
+        "{text}"
+    );
+    let waiting = doc(&["junjo::sort_by"]);
+    let text = String::from_utf8_lossy(&waiting.stdout);
+    assert!(text.contains("R2 waits on: it is not pure"), "{text}");
+    let json = json_lines(&doc(&["kazu::int_sqrt_fix", "--json"]));
+    let rules = json[0]["defaults"].as_array().expect("defaults");
+    assert!(
+        rules
+            .iter()
+            .any(|r| r["rule"] == "R2" && r["fires"] == true),
+        "{rules:?}"
+    );
+}

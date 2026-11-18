@@ -168,8 +168,67 @@ def def_entry(pkg, e, text, tier)
       nil
     else
       derived_of(pkg, name)
+    end,
+    defaults: if pkg.nil?
+      []
+    else
+      defaults_of(pkg, "#{qualifier}#{name}")
     end
   }
+end
+
+@doc """
+defaults_of: The defaults rules the definition `qualified` of package `pkg` gets (W7.2 of
+docs/FACTS.md), as `blue shift --defaults` decides them from its facts: each
+rule that fires, and each that waits on a fact, with the fact it lacks. A
+package is every `.b` file directly in its directory.
+
+    defaults_of(["none"], "none::x") #=> []
+"""
+def defaults_of(pkg, qualified)
+  dir = pkg_dir(pkg)
+  files = if dir.nil?
+    []
+  else
+    filter((p) -> ends_with?(p, ".b") and path_dirname(p) == dir, walk_dir(dir))
+  end
+  flat_map(files, (f) -> rules_in(f, qualified))
+end
+
+@doc """
+rules_in: The rules `blue shift --defaults` decided for `qualified` in the file `f`, or
+[] when the file does not check.
+
+    rules_in("no-such-file.b", "x") #=> []
+"""
+def rules_in(f, qualified)
+  r = run_blue(["shift", "--defaults", "--json", f])
+  if r[0][1] != 0
+    []
+  else
+    flat_map(
+      filter(
+        (d) -> json_get(d, :name) == qualified,
+        json_get(json_read(r[1][1]), :definitions)
+      ),
+      (d) -> json_get(d, :rules)
+    )
+  end
+end
+
+@doc """
+default_line: one rule `blue shift --defaults` decided for a definition, as `blue doc`
+writes it.
+
+    default_line({rule: "R2", fires: true, detail: "answered from a table"}) #=> "default R2: answered from a table"
+    default_line({rule: "R2", fires: false, missing: "it is not pure"}) #=> "R2 waits on: it is not pure"
+"""
+def default_line(r)
+  if json_get(r, :fires)
+    "default #{json_get(r, :rule)}: #{json_get(r, :detail)}"
+  else
+    "#{json_get(r, :rule)} waits on: #{json_get(r, :missing)}"
+  end
 end
 
 # ── tiers ──────────────────────────────────────────────────────────────────
@@ -255,6 +314,7 @@ def entry_text(e)
     else
       map((l) -> "  · #{l}", json_get(derived, :lines))
     end,
+    map((r) -> "  · #{default_line(r)}", e[:defaults] or []),
     if example.nil?
       []
     else

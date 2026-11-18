@@ -433,8 +433,18 @@ Each wave lists defaults in the order their gain is known. Each default meets
 ### W7: the author sees it
 
 - The editor shows each atom's defaults and the one declaration that unlocks the
-  next.
-- Docs list the defaults a word gets, generated from the facts.
+  next. `blue doc` answers the same question (W7.2, below); next, the
+  language server shows it as a hint on the definition.
+- ✅ Docs list the defaults a word gets, generated from the facts. `blue doc`
+  on a bidama definition adds each rule `blue shift --defaults` decides for
+  it from its facts: a rule that fires as `default R2: …`, one that waits as
+  `R2 waits on: …` with the fact it lacks, which is the declaration that
+  would unlock it; `--json` carries them as `defaults`. `blue doc
+  kazu::int_sqrt_fix` says `default R2: its repeated calls are answered from
+  a table`; `blue doc junjo::sort_by` says `R2 waits on: it is not pure: it
+  reaches retsu::is_empty`. Lock: `tests/doc.rs`
+  `a_bidama_definition_lists_the_defaults_it_gets_and_what_the_next_waits_on`
+  (red when no defaults are read).
 
 ## 6. How a wave is measured
 

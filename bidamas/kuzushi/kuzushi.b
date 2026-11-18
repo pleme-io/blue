@@ -65,13 +65,16 @@ def norm(form, n)
   elsif head_is?(form, "if")
     c = norm(form[1], n)
     v = fresh(c[2])
-    rhs = [
-      read_forms("if")[0],
-      c[1],
-      anf_from(form[2], c[2] + 1)[0],
-      anf_from(form[3], c[2] + 1)[0]
-    ]
-    [append(c[0], [[v, rhs]]), v, c[2] + 1]
+    yes = anf_from(form[2], c[2] + 1)
+    no = anf_from(form[3], yes[1])
+    rhs = [read_forms("if")[0], c[1], yes[0], no[0]]
+    [append(c[0], [[v, rhs]]), v, no[1]]
+  elsif head_is?(form, "let")
+    norm_let(form[1], form[2], n)
+  elsif head_is?(form, "lambda")
+    v = fresh(n)
+    body = anf_from(form[2], n + 1)
+    [[[v, [read_forms("lambda")[0], form[1], body[0]]]], v, body[1]]
   elsif head_is?(form, "begin")
     norm_seq(rest(form), n)
   else
@@ -182,6 +185,12 @@ def prim(name, vals)
     vals[0] == vals[1]
   elsif name == "list"
     vals
+  elsif name == "id"
+    vals[0]
+  elsif name == "dup"
+    vals[0]
+  elsif name == "drop"
+    nil
   else
     raise(:unknown_op, "kuzushi: no primitive `#{name}`")
   end
@@ -199,9 +208,28 @@ def eval_rhs(rhs, env)
     else
       eval_anf(rhs[3], env)
     end
+  elsif head_is?(rhs, "lambda")
+    {params: map((p) -> to_s(p), rhs[1]), body: rhs[2], env:}
   else
-    prim(to_s(first(rhs)), map((a) -> value_of(a, env), rest(rhs)))
+    op = to_s(first(rhs))
+    vals = map((a) -> value_of(a, env), rest(rhs))
+    f = retsu::find_first((r) -> r[0] == op, env)
+    if f.nil?
+      prim(op, vals)
+    else
+      call_closure(f[1], vals)
+    end
   end
+end
+
+@doc """
+call_closure: the value of a closure applied to argument values: its body run with its parameters bound over the environment it captured.
+
+    call_closure({params: ["x"], body: anf(read_forms("(+ x 1)")[0]), env: []}, [2]) #=> 3
+"""
+def call_closure(c, vals)
+  bound = map((i) -> [c[:params][i], vals[i]], range(0, length(vals)))
+  eval_anf(c[:body], append(bound, c[:env]))
 end
 
 @doc """
@@ -342,7 +370,9 @@ rhs_fv: the names a right-hand side reads, its branches included.
     rhs_fv(read_forms("(+ x y)")[0]) #=> ["x", "y"]
 """
 def rhs_fv(rhs)
-  if head_is?(rhs, "if")
+  if head_is?(rhs, "lambda")
+    minus(fv(rhs[2]), map((p) -> to_s(p), rhs[1]))
+  elsif head_is?(rhs, "if")
     union(names_of(rhs[1]), union(fv(rhs[2]), fv(rhs[3])))
   else
     reduce((acc, a) -> union(acc, names_of(a)), [], rest(rhs))
@@ -711,4 +741,262 @@ test "the counting helpers are exercised by name"
   assert perceus_in(read_forms("(ret 1)")[0], [], []) ==
     read_forms("(ret 1)")[0]
   assert rc(read_forms("(ret 1)")[0], [], []) == [[], []]
+end
+
+@doc """
+norm_let: the binds for a source let: each binding's value normalised and named by its own name through id, then the body.
+
+    eval_anf(anf(read_forms("(let ((a 2)) (* a a))")[0]), []) #=> 4
+"""
+def norm_let(bindings, body, n)
+  r = reduce(
+    fn(acc, b)
+      x = norm(b[1], acc[1])
+      [
+        append(acc[0], append(x[0], [[b[0], [read_forms("id")[0], x[1]]]])),
+        x[2]
+      ]
+    end,
+    [[], n],
+    bindings
+  )
+  t = norm(body, r[1])
+  [append(r[0], t[0]), t[1], t[2]]
+end
+
+@doc """
+cc_rhs: a right-hand side with its lambdas lifted: a lambda becomes (closure "label" captured...) and its function joins the lifted list; a call through a name in scope becomes (call f args...).
+
+    cc_rhs(read_forms("(+ 1 2)")[0], [], "t")[1] #=> []
+"""
+def cc_rhs(rhs, scope, v)
+  if head_is?(rhs, "if")
+    yes = cc_term(rhs[2], scope)
+    no = cc_term(rhs[3], scope)
+    [[rhs[0], rhs[1], yes[0], no[0]], append(yes[1], no[1])]
+  elsif head_is?(rhs, "lambda")
+    params = map((p) -> to_s(p), rhs[1])
+    captured = meet(minus(fv(rhs[2]), params), scope)
+    inner = cc_term(rhs[2], append(params, captured))
+    label = "fn_#{v}"
+    lifted = {label:, params:, captured:, body: inner[0]}
+    made = cons(
+      read_forms("closure")[0],
+      cons(label, map((c) -> read_forms(c)[0], captured))
+    )
+    [made, append(inner[1], [lifted])]
+  elsif member?(to_s(first(rhs)), scope)
+    [cons(read_forms("call")[0], rhs), []]
+  else
+    [rhs, []]
+  end
+end
+
+@doc """
+cc_term: a term with every lambda lifted, as [term, lifted functions], given the names in scope.
+
+    cc_term(read_forms("(ret 1)")[0], [])[1] #=> []
+"""
+def cc_term(term, scope)
+  if head_is?(term, "ret")
+    [term, []]
+  else
+    b = term[1]
+    r = cc_rhs(b[1], scope, to_s(b[0]))
+    k = cc_term(term[2], append(scope, [to_s(b[0])]))
+    [[term[0], [b[0], r[0]], k[0]], append(r[1], k[1])]
+  end
+end
+
+@doc """
+closure_convert: a term with every lambda lifted to a top-level function whose captured names are explicit: {main:, fns:}.
+
+    closure_convert(anf(read_forms("(+ 1 2)")[0]))[:fns] #=> []
+"""
+def closure_convert(term)
+  r = cc_term(term, [])
+  {main: r[0], fns: r[1]}
+end
+
+@doc """
+lifted_rhs: the value of a right-hand side of a closure-converted program: a closure packs its captured values, a call runs its function by label.
+
+    lifted_rhs([], read_forms("(+ 1 2)")[0], []) #=> 3
+"""
+def lifted_rhs(fns, rhs, env)
+  if head_is?(rhs, "if")
+    if value_of(rhs[1], env)
+      lifted_term(fns, rhs[2], env)
+    else
+      lifted_term(fns, rhs[3], env)
+    end
+  elsif head_is?(rhs, "closure")
+    {label: rhs[1], vals: map((a) -> value_of(a, env), rest(rest(rhs)))}
+  elsif head_is?(rhs, "call")
+    c = value_of(rhs[1], env)
+    f = retsu::find_first((g) -> g[:label] == c[:label], fns)
+    args = map((a) -> value_of(a, env), rest(rest(rhs)))
+    bound = append(
+      map((i) -> [f[:params][i], args[i]], range(0, length(args))),
+      map((i) -> [f[:captured][i], c[:vals][i]], range(0, length(c[:vals])))
+    )
+    lifted_term(fns, f[:body], bound)
+  else
+    prim(to_s(first(rhs)), map((a) -> value_of(a, env), rest(rhs)))
+  end
+end
+
+@doc """
+lifted_term: the value of a term of a closure-converted program.
+
+    lifted_term([], read_forms("(ret 4)")[0], []) #=> 4
+"""
+def lifted_term(fns, term, env)
+  if head_is?(term, "ret")
+    value_of(term[1], env)
+  else
+    b = term[1]
+    lifted_term(
+      fns,
+      term[2],
+      cons([to_s(b[0]), lifted_rhs(fns, b[1], env)], env)
+    )
+  end
+end
+
+@doc """
+eval_program: the value of a closure-converted program, its functions found by label and every captured name passed in explicitly.
+
+    eval_program(closure_convert(anf(read_forms("(+ 1 2)")[0]))) #=> 3
+"""
+def eval_program(p)
+  lifted_term(p[:fns], p[:main], [])
+end
+
+@doc """
+has_lambda?: whether a tree holds a lambda anywhere.
+
+    has_lambda?(7) #=> false
+"""
+def has_lambda?(x)
+  if not list?(x)
+    false
+  elsif head_is?(x, "lambda")
+    true
+  else
+    retsu::find_first(has_lambda?, x) != nil
+  end
+end
+
+test "closure conversion lifts every lambda and keeps every answer"
+  progs = [
+    "(let ((k 10)) (let ((f (lambda (x) (+ x k)))) (f 5)))",
+    "(let ((f (lambda (x) (lambda (y) (+ x y))))) (let ((g (f 3))) (g 4)))",
+    "(let ((a 1)) (let ((f (lambda (x) (if (< x a) a x)))) (+ (f 0) (f 5))))",
+    "(let ((twice (lambda (g x) (g (g x))))) (let ((inc (lambda (n) (+ n 1)))) (twice inc 5)))"
+  ]
+  map(
+    fn(src)
+      t = anf(read_forms(src)[0])
+      p = closure_convert(t)
+      assert eval_program(p) == eval_anf(t, [])
+      assert not has_lambda?(p[:main])
+      assert retsu::find_first((f) -> has_lambda?(f[:body]), p[:fns]).nil?
+    end,
+    progs
+  )
+  assert eval_anf(anf(read_forms(first(progs))[0]), []) == 15
+end
+
+test "a lifted function captures exactly the names it reads from outside"
+  p = closure_convert(
+    anf(
+      nth(
+        0,
+        read_forms("(let ((f (lambda (x) (lambda (y) (+ x y))))) (let ((g (f 3))) (g 4)))")
+      )
+    )
+  )
+  inner = retsu::find_first((f) -> f[:params] == ["y"], p[:fns])
+  outer = retsu::find_first((f) -> f[:params] == ["x"], p[:fns])
+  assert inner[:captured] == ["x"]
+  assert outer[:captured] == []
+  assert length(p[:fns]) == 2
+end
+
+test "the closure helpers are exercised by name"
+  assert norm_let([], read_forms("1")[0], 0)[1] == 1
+  assert call_closure(
+    {params: ["x"], body: anf(read_forms("(* x 2)")[0]), env: []},
+    [4]
+  ) == 8
+  assert cc_rhs(read_forms("(+ 1 2)")[0], [], "t")[0] ==
+    read_forms("(+ 1 2)")[0]
+  assert cc_term(read_forms("(ret 1)")[0], [])[0] == read_forms("(ret 1)")[0]
+  assert lifted_rhs([], read_forms("(+ 1 2)")[0], []) == 3
+  assert lifted_term([], read_forms("(ret 4)")[0], []) == 4
+  assert has_lambda?(read_forms("(a (lambda (x) x))")[0])
+  assert not has_lambda?(7)
+end
+
+@doc """
+perceus_program: perceus over a closure-converted program: the main term owns nothing, and each lifted function owns its parameters and the names it captured.
+
+    perceus_program(closure_convert(anf(read_forms("(+ 1 2)")[0])))[:fns] #=> []
+"""
+def perceus_program(p)
+  {
+    main: perceus(p[:main], []),
+    fns: map(
+      fn(f)
+        assoc(f, :body, perceus(f[:body], append(f[:params], f[:captured])))
+      end,
+      p[:fns]
+    )
+  }
+end
+
+@doc """
+rc_program: every reference problem of a closure-converted program, the main term's and each function's.
+
+    rc_program(closure_convert(anf(read_forms("(+ 1 2)")[0]))) #=> []
+"""
+def rc_program(p)
+  append(
+    rc_check(p[:main], []),
+    flat_map(
+      p[:fns],
+      fn(f)
+        map(
+          (m) -> "#{f[:label]}: #{m}",
+          rc_check(f[:body], append(f[:params], f[:captured]))
+        )
+      end
+    )
+  )
+end
+
+test "perceus over closures leaves every function and the main term reference-clean, and keeps every answer"
+  progs = [
+    "(let ((k 10)) (let ((f (lambda (x) (+ x k)))) (f 5)))",
+    "(let ((f (lambda (x) (lambda (y) (+ x y))))) (let ((g (f 3))) (g 4)))",
+    "(let ((a 1)) (let ((f (lambda (x) (if (< x a) a x)))) (+ (f 0) (f 5))))",
+    "(let ((twice (lambda (g x) (g (g x))))) (let ((inc (lambda (n) (+ n 1)))) (twice inc 5)))",
+    "(let ((f (lambda (x) (+ x x)))) (f 2))"
+  ]
+  map(
+    fn(src)
+      t = anf(read_forms(src)[0])
+      p = closure_convert(t)
+      q = perceus_program(p)
+      assert rc_program(q) == []
+      assert eval_program(q) == eval_anf(t, [])
+    end,
+    progs
+  )
+  noisy = filter(
+    (src) -> rc_program(closure_convert(anf(read_forms(src)[0]))) != [],
+    progs
+  )
+  assert length(noisy) >= 3
 end

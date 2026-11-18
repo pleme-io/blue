@@ -28,6 +28,30 @@ single source for rungs, dependencies, invariants and order; the track docs unde
    the reusable builders in substrate (track D).
 6. **Linux first.** x86-64 Linux; aarch64 macOS follows.
 
+## State (2026-11-18)
+
+Built and on main, each with its lock:
+
+| Rung | What exists | Where |
+|---|---|---|
+| S0 | purity ledger, 25 crates, a ratchet | `gen/purity.b` |
+| L0 | rebind census (set!, while, repeated define), a ratchet | `gen/mutation-census.b` |
+| L1 (first slice) | typed cells `cell`, `cell_get`, `cell_put` | `crates/blue-lang-runtime/src/cell.rs`, `spec/rows/cells.b` |
+| L3 | `gensym` per interpreter and fork | `crates/blue-lang-runtime/src/stdlib.rs` |
+| B0 | nanopass core: languages, passes, checks | `bidamas/henkan` |
+| B1 | A-normal form, Perceus with a reference-count checker, closure conversion, cond and case, raise and try with explicit propagation, global functions | `bidamas/kuzushi` |
+| B2 | x86-64 encoder, 2774 instructions byte-identical to llvm-mc | `bidamas/kikaigo`, `checks.x86-isa-llvm` |
+| B3, R1-R3 | native code: tagged values, a free-list allocator, recursive drop, closures, recursion, lists, strings, keywords, maps, errors, string join and content equality, structural list equality, system calls; a list prelude in blue (append, nth, reverse, map, filter, reduce) | `bidamas/hashiru` |
+| B4 | static x86-64 ELF executables | `bidamas/kaaneru/erufu` |
+| D0 (substrate half) | the bidama builders in substrate | `substrate/lib/build/blue` |
+
+Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
+language in the path, give their value and end with 0 blocks live.
+
+Not yet: L1's migration of the existing rebinds; L2; M1-M5 on the Rust runtime; B5; R4-R7
+beyond the raw words; number and symbol printing (`to_s`); the front end in blue (F1-F4); the
+tower (S1-S5); C2, C3; D1-D6.
+
 ## 2. Ground truth (measured 2026-11-17)
 
 | Fact | Value |

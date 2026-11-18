@@ -9,7 +9,7 @@ This first code generator is the simplest correct one: every named value lives i
 use("kaaneru/erufu", [:executable])
 use("kikaigo", [:assemble])
 use("kuzushi", %i[anf head_is?])
-use("retsu", %i[first index_of rest])
+use("retsu", %i[first flat_map index_of rest])
 use("shisutemu", %i[status_of stdout_of])
 
 @doc """
@@ -44,6 +44,13 @@ def slot(slots, name)
     -8 * (i + 1)
   end
 end
+
+@doc """
+SYSCALL_REGS: where a Linux x86-64 system call takes its number and its six arguments, in order.
+
+    SYSCALL_REGS[4] #=> "r10"
+"""
+SYSCALL_REGS = %w[rax rdi rsi rdx r10 r8 r9]
 
 @doc """
 load_atom: the instructions that put an atom's value in a register: an integer or a boolean as an immediate, a name from its slot.
@@ -93,6 +100,24 @@ def op_code(slots, op, args)
     append(two, compare("g"))
   elsif op == "equal?"
     append(two, compare("e"))
+  elsif op == "syscall6"
+    append(
+      flat_map(
+        range(0, length(args)),
+        (k) -> load_atom(slots, args[k], SYSCALL_REGS[k])
+      ),
+      [{op: "syscall"}]
+    )
+  elsif op == "load_word"
+    append(load_atom(slots, args[0], "rcx"), [{op: "load_at", dst: "rax"}])
+  elsif op == "store_word"
+    append(
+      append(
+        load_atom(slots, args[0], "rcx"),
+        load_atom(slots, args[1], "rax")
+      ),
+      [{op: "store_at", src: "rax"}]
+    )
   elsif op == "id" or op == "dup"
     load_atom(slots, args[0], "rax")
   elsif op == "drop"
@@ -219,7 +244,15 @@ PROGRAMS = [
   ["(+ 1 (if (equal? 2 2) (* 3 4) 0))", 13],
   ["(let ((a 5)) (* a a))", 25],
   ["(let ((a 3)) (let ((b (+ a 4))) (- (* b b) a)))", 46],
-  ["(begin (+ 1 1) (+ 2 3))", 5]
+  ["(begin (+ 1 1) (+ 2 3))", 5],
+  [
+    "(let ((p (syscall6 9 0 4096 3 34 -1 0))) (begin (store_word p 42) (load_word p)))",
+    42
+  ],
+  [
+    "(let ((p (syscall6 9 0 4096 3 34 -1 0))) (begin (store_word p 40) (store_word (+ p 8) 2) (+ (load_word p) (load_word (+ p 8)))))",
+    42
+  ]
 ]
 
 test "every program's exit status is its value when run on x86-64 Linux", {
@@ -258,7 +291,10 @@ test "the helpers are exercised by name"
   assert gen([], read_forms("(ret 3)")[0], nil, 0)[0][0] ==
     {op: "mov", dst: "rax", imm: 3}
   assert compile(read_forms("1")[0])[1] == 69
-  assert length(PROGRAMS) == 9
+  assert length(PROGRAMS) == 11
+  assert SYSCALL_REGS[0] == "rax"
+  assert length(op_code([], "syscall6", [60, 0, 0, 0, 0, 0, 0])) == 8
+  assert op_code([], "load_word", [8])[1] == {op: "load_at", dst: "rax"}
 end
 
 test "linux_x86? answers whether this host runs what compile makes", {

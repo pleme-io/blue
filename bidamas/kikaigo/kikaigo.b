@@ -159,6 +159,21 @@ def encode(i)
     d = reg(i[:dst])
     s = reg(i[:src])
     [rex(d, s), 15, 175, modrm(d, s)]
+  elsif op == "load_at" or op == "store_at"
+    r = if op == "load_at"
+      reg(i[:dst])
+    else
+      reg(i[:src])
+    end
+    [
+      rex(r, 1),
+      if op == "load_at"
+        139
+      else
+        137
+      end,
+      r % 8 * 8 + 1
+    ]
   elsif op == "load" or op == "store"
     r = if op == "load"
       reg(i[:dst])
@@ -216,6 +231,10 @@ def text(i)
     "set#{i[:cond]} %al"
   elsif op == "imul"
     "imulq %#{i[:src]}, %#{i[:dst]}"
+  elsif op == "load_at"
+    "movq (%rcx), %#{i[:dst]}"
+  elsif op == "store_at"
+    "movq %#{i[:src]}, (%rcx)"
   elsif op == "load"
     "movq #{to_s(i[:disp])}(%rbp), %#{i[:dst]}"
   elsif op == "store"
@@ -325,6 +344,10 @@ def corpus()
       )
     end
   )
+  at = flat_map(
+    REGS,
+    (r) -> [{op: "load_at", dst: r}, {op: "store_at", src: r}]
+  )
   mul = flat_map(REGS, (d) -> map((s) -> {op: "imul", dst: d, src: s}, REGS))
   sets = map((c) -> {op: "set", cond: c[0]}, CONDS)
   rest_ops = [
@@ -334,7 +357,7 @@ def corpus()
     {op: "ret"},
     {op: "syscall"}
   ]
-  append(*[rr, ri, mem, mul, sets, rest_ops])
+  append(*[rr, ri, mem, at, mul, sets, rest_ops])
 end
 
 test "golden encodings from llvm-mc 21.1.7"
@@ -430,5 +453,5 @@ test "the helpers are exercised by name"
   assert check_imm(7) == 7
   assert assemble([{op: "ret"}]) == [195]
   assert length(corpus) ==
-    4 * 16 * 16 + 4 * 16 * 10 + 16 * 6 * 2 + 16 * 16 + 6 + 5
+    4 * 16 * 16 + 4 * 16 * 10 + 16 * 6 * 2 + 16 * 2 + 16 * 16 + 6 + 5
 end

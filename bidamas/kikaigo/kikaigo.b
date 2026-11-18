@@ -186,6 +186,8 @@ def encode(i)
     append([rex(d, 0), 141, d % 8 * 8 + 5], le32(i[:rel] or 0))
   elsif op == "bytes"
     i[:bytes]
+  elsif op == "align"
+    map((k) -> 0, range(0, i[:pad] or 0))
   elsif op == "call_r11"
     [65, 255, 19]
   elsif op == "push_rbp"
@@ -342,19 +344,32 @@ link: a sequence with every jump's label resolved to a rel32 from the end of the
     link([{op: "jmp", label: "a"}, {op: "label", name: "a"}])[0][:rel] #=> 0
 """
 def link(insns)
-  sizes = map((i) -> length(encode(i)), insns)
-  ends = reduce((acc, n) -> append(acc, [last_or0(acc) + n]), [], sizes)
-  at = (name) -> ends[index_of(map((i) -> i[:name], insns), name)]
+  padded = reduce(
+    fn(acc, i)
+      pos = last_or0(acc[1])
+      j = if i[:op] == "align"
+        assoc(i, :pad, (i[:to] - pos % i[:to]) % i[:to])
+      else
+        i
+      end
+      [append(acc[0], [j]), append(acc[1], [pos + length(encode(j))])]
+    end,
+    [[], []],
+    insns
+  )
+  laid = padded[0]
+  ends = padded[1]
+  at = (name) -> ends[index_of(map((i) -> i[:name], laid), name)]
   map(
     fn(k)
-      i = insns[k]
+      i = laid[k]
       if i[:label] != nil
         assoc(i, :rel, at(i[:label]) - ends[k])
       else
         i
       end
     end,
-    range(0, length(insns))
+    range(0, length(laid))
   )
 end
 
@@ -621,6 +636,18 @@ test "byte loads and stores take a base with no displacement and a low byte regi
     e.kind
   end
   assert wide == :unsupported
+end
+
+test "align pads to a multiple of its size from where it falls"
+  a = assemble(
+    [{op: "ret"}, {op: "align", to: 8}, {op: "label", name: "x"}, {op: "ret"}]
+  )
+  assert length(a) == 9
+  assert a[8] == 195
+  b = assemble([{op: "align", to: 8}, {op: "ret"}])
+  assert b == [195]
+  j = link([{op: "syscall"}, {op: "align", to: 4}])
+  assert j[1][:pad] == 2
 end
 
 test "the helpers are exercised by name"

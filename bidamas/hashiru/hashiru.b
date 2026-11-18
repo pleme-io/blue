@@ -1731,16 +1731,21 @@ end
 @doc """
 static_data: the data section: each string literal's block and each keyword's block, under its label.
 
-    static_data([:a])[0] #=> {op: "label", name: "kw_61"}
+    static_data([:a])[1] #=> {op: "label", name: "kw_61"}
 """
 def static_data(values)
   flat_map(
     values,
     fn(v)
       if keyword?(v)
-        [{op: "label", name: kw_label(v)}, {op: "bytes", bytes: keyword_block}]
+        [
+          {op: "align", to: 8},
+          {op: "label", name: kw_label(v)},
+          {op: "bytes", bytes: keyword_block}
+        ]
       else
         [
+          {op: "align", to: 8},
           {op: "label", name: str_label(v)},
           {op: "bytes", bytes: string_block(v)}
         ]
@@ -1894,7 +1899,7 @@ end
 test "keywords are static blocks by name, and a map is an association list"
   assert kw_label(:p) == "kw_70"
   assert slice(keyword_block, 0, 8) == le64(2)
-  assert static_data([:a, "x"])[2] == {op: "label", name: "str_78"}
+  assert static_data([:a, "x"])[4] == {op: "label", name: "str_78"}
   assert tagged_atom([], :a, "rsi") ==
     [{op: "lea_label", dst: "rsi", label: "kw_61"}]
   assert map_code([], [])[0] == {op: "push", src: "rbx"}
@@ -2204,7 +2209,7 @@ RT_CONCAT = append(
 )
 
 @doc """
-RT_EQUAL: true (2) or false (0) for whether the values in rdi and rsi are equal: the same word is equal; two strings are equal when their bytes are; anything else is compared by identity. Both values are only read.
+RT_EQUAL: true (2) or false (0) for whether the values in rdi and rsi are equal: the same word is equal; two strings are equal when their bytes are; two lists are equal when their heads are equal and their tails are, element by element; anything else is compared by identity. Both values are only read.
 
     RT_EQUAL[0] #=> {op: "label", name: "rt_equal"}
 """
@@ -2225,9 +2230,11 @@ RT_EQUAL = [
   {op: "cmp", dst: "rsi", imm: 4096},
   {op: "j", cond: "l", label: "rt_equal_no"},
   {op: "load", dst: "rax", base: "rdi", disp: 0},
-  {op: "cmp", dst: "rax", imm: 1},
+  {op: "load", dst: "rcx", base: "rsi", disp: 0},
+  {op: "cmp", dst: "rax", src: "rcx"},
   {op: "j", cond: "ne", label: "rt_equal_no"},
-  {op: "load", dst: "rax", base: "rsi", disp: 0},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "e", label: "rt_equal_cells"},
   {op: "cmp", dst: "rax", imm: 1},
   {op: "j", cond: "ne", label: "rt_equal_no"},
   {op: "load", dst: "r8", base: "rdi", disp: 24},
@@ -2249,6 +2256,19 @@ RT_EQUAL = [
   {op: "add", dst: "r11", imm: 1},
   {op: "sub", dst: "r8", imm: 1},
   {op: "jmp", label: "rt_equal_loop"},
+  {op: "label", name: "rt_equal_cells"},
+  {op: "push", src: "rdi"},
+  {op: "push", src: "rsi"},
+  {op: "load", dst: "rdi", base: "rdi", disp: 24},
+  {op: "load", dst: "rsi", base: "rsi", disp: 24},
+  {op: "call_label", label: "rt_equal"},
+  {op: "pop", dst: "rsi"},
+  {op: "pop", dst: "rdi"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "e", label: "rt_equal_no"},
+  {op: "load", dst: "rdi", base: "rdi", disp: 32},
+  {op: "load", dst: "rsi", base: "rsi", disp: 32},
+  {op: "jmp", label: "rt_equal"},
   {op: "label", name: "rt_equal_yes"},
   {op: "mov", dst: "rax", imm: 2},
   {op: "ret"},
@@ -2298,7 +2318,10 @@ CONCAT_PROGRAMS = [
     "(begin (define (rep s n) (if (equal? n 0) \"\" (concat s (rep s (- n 1))))) (string_length (rep \"ab\" 10)))",
     20,
     ""
-  ]
+  ],
+  ["(if (equal? (list 1 (list 2 3)) (list 1 (list 2 3))) 1 2)", 1, ""],
+  ["(if (equal? (list 1 2) (list 1 3)) 1 2)", 2, ""],
+  ["(if (equal? (list \"a\" \"b\") (list \"a\" \"b\")) 1 2)", 1, ""]
 ]
 
 test "every string-joining program prints what it should, exits with its value and frees every block on x86-64 Linux", {
@@ -2333,5 +2356,5 @@ test "concat joins through rt_concat, and equality goes through rt_equal and dro
   assert copy_bytes("r9", "t")[0] == {op: "label", name: "t_loop"}
   assert RT_CONCAT[0] == {op: "label", name: "rt_concat"}
   assert RT_EQUAL[0] == {op: "label", name: "rt_equal"}
-  assert length(CONCAT_PROGRAMS) == 5
+  assert length(CONCAT_PROGRAMS) == 8
 end

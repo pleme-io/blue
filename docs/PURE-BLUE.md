@@ -47,7 +47,7 @@ Built and on main, each with its lock:
 | B1 (partial) | A-normal form, Perceus with a reference-count checker, closure conversion, cond and case, raise and try with explicit propagation, global functions | `bidamas/kuzushi` |
 | B2 | x86-64 encoder, 2774 instructions byte-identical to llvm-mc | `bidamas/kikaigo`, `checks.x86-isa-llvm` |
 | B3 (partial), R1-R3 | native code: tagged values, a free-list allocator, recursive drop, closures, recursion, lists, strings, keywords, maps, errors, string join and content equality, structural list equality, system calls; a list prelude in blue (append, nth, reverse, map, filter, reduce) | `bidamas/hashiru` |
-| R4 (two slices) | `write_stdout` (the native op that was named `print`, renamed to what it does; `print`, which shows a value as blue does, is refused natively until it can), `exit_with` as an exit system call, and `read_file` (open, fstat, one block, read, close; a missing file is an error carrying its errno); blocks of 64 words or more are their own mapping, so the native heap is bounded and large strings fit | `bidamas/hashiru` (`HOST_PROGRAMS`) |
+| R4 (three slices) | `write_stdout` (the native op that was named `print`, renamed to what it does; `print`, which shows a value as blue does, is refused natively until it can), `exit_with` as an exit system call, `read_file` (open, fstat, one block, read, close) and `write_bytes` (a list of bytes gathered into one block, created or truncated, written, closed); a path that does not open is an error carrying its errno; blocks of 64 words or more are their own mapping, so the native heap is bounded and large strings fit | `bidamas/hashiru` (`HOST_PROGRAMS`) |
 | B4 | static x86-64 ELF executables | `bidamas/kaaneru/erufu` |
 | D0 (substrate half) | the bidama builders in substrate | `substrate/lib/build/blue` |
 | D1 | `overlays.bidamas` wraps the package set's own `blue`, so an override reaches every bidama tool | `flake.nix`, `checks.overlay-reads-final-blue` |
@@ -57,7 +57,7 @@ Built and on main, each with its lock:
 Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
 language in the path, give their value and end with 0 blocks live.
 
-Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with` and `read_file` (`write_bytes`, processes, sockets) and R5-R7
+Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
 beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2, C3; D3-D6.
 
 ## 2. Ground truth (measured 2026-11-17)

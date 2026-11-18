@@ -959,6 +959,14 @@ def rc_op(slots, op, args)
         {op: "pop", dst: "rax"}
       ]
     )
+  elsif op == "write_bytes"
+    append(
+      append(
+        tagged_atom(slots, args[0], "rdi"),
+        tagged_atom(slots, args[1], "rsi")
+      ),
+      [{op: "call_label", label: "rt_write_bytes"}]
+    )
   elsif op == "read_file"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1258,7 +1266,8 @@ def rc_program(p, mode)
       RT_CONCAT,
       RT_EQUAL,
       RT_TO_S,
-      RT_READ_FILE
+      RT_READ_FILE,
+      RT_WRITE_BYTES
     ]
   )
 end
@@ -2722,6 +2731,53 @@ test "the allocator maps a block of FREE_CLASSES words or more and checks the he
 end
 
 @doc """
+path_on_stack: the instructions that copy the string block at rdi to the stack with a NUL ending, leaving rsp at the copy and the bytes reserved in r9 (rt_read_file and rt_write_bytes give them back with add rsp, r9 after their open).
+
+    path_on_stack("t")[0] #=> {op: "load", dst: "r8", base: "rdi", disp: 24}
+"""
+def path_on_stack(tag)
+  append(
+    *[
+      [
+        {op: "load", dst: "r8", base: "rdi", disp: 24},
+        {op: "mov", dst: "r9", src: "r8"},
+        {op: "add", dst: "r9", imm: 16},
+        {op: "and", dst: "r9", imm: -16},
+        {op: "sub", dst: "rsp", src: "r9"},
+        {op: "mov", dst: "r11", src: "rsp"},
+        {op: "mov", dst: "rdx", src: "rdi"},
+        {op: "add", dst: "rdx", imm: 32}
+      ],
+      copy_bytes("r8", tag),
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store_byte", src: "rcx", base: "r11"}
+      ]
+    ]
+  )
+end
+
+@doc """
+errno_block: the instructions that turn the negative return of a refused system call in rax into an error block whose payload is its errno, stored at rbp+disp.
+
+    length(errno_block(-24)) #=> 10
+"""
+def errno_block(disp)
+  [
+    {op: "mov", dst: "rcx", imm: 0},
+    {op: "sub", dst: "rcx", src: "rax"},
+    {op: "add", dst: "rcx", src: "rcx"},
+    {op: "add", dst: "rcx", imm: 1},
+    {op: "store", src: "rcx", base: "rbp", disp:},
+    {op: "mov", dst: "rdi", imm: 4},
+    {op: "call_label", label: "rt_alloc"},
+    {op: "mov", dst: "rcx", imm: 4},
+    {op: "store", src: "rcx", base: "rax", disp: 0},
+    {op: "load", dst: "rcx", base: "rbp", disp:}
+  ]
+end
+
+@doc """
 RT_READ_FILE: read_file natively (R4 of docs/PURE-BLUE.md): the string block whose path is in rdi, consumed; answered in rax as a new string holding the file's bytes, or an error block whose payload is the errno when the file does not open. The path is copied to the stack with a NUL ending; open, fstat for the size, one block (rt_alloc maps a large one), read until the size or an end, close. Locals live in an rbp frame, since a memory operand cannot be based on rsp here.
 
     RT_READ_FILE[0] #=> {op: "label", name: "rt_read_file"}
@@ -2733,20 +2789,10 @@ RT_READ_FILE = append(
       {op: "push_rbp"},
       {op: "mov", dst: "rbp", src: "rsp"},
       {op: "sub", dst: "rsp", imm: 32},
-      {op: "store", src: "rdi", base: "rbp", disp: -8},
-      {op: "load", dst: "r8", base: "rdi", disp: 24},
-      {op: "mov", dst: "r9", src: "r8"},
-      {op: "add", dst: "r9", imm: 16},
-      {op: "and", dst: "r9", imm: -16},
-      {op: "sub", dst: "rsp", src: "r9"},
-      {op: "mov", dst: "r11", src: "rsp"},
-      {op: "mov", dst: "rdx", src: "rdi"},
-      {op: "add", dst: "rdx", imm: 32}
+      {op: "store", src: "rdi", base: "rbp", disp: -8}
     ],
-    copy_bytes("r8", "rt_rf_path"),
+    path_on_stack("rt_rf_path"),
     [
-      {op: "mov", dst: "rcx", imm: 0},
-      {op: "store_byte", src: "rcx", base: "r11"},
       {op: "mov", dst: "rdi", src: "rsp"},
       {op: "mov", dst: "rsi", imm: 0},
       {op: "mov", dst: "rax", imm: 2},
@@ -2797,17 +2843,10 @@ RT_READ_FILE = append(
       {op: "mov", dst: "rax", imm: 3},
       {op: "syscall"},
       {op: "jmp", label: "rt_rf_out"},
-      {op: "label", name: "rt_rf_refused"},
-      {op: "mov", dst: "rcx", imm: 0},
-      {op: "sub", dst: "rcx", src: "rax"},
-      {op: "add", dst: "rcx", src: "rcx"},
-      {op: "add", dst: "rcx", imm: 1},
-      {op: "store", src: "rcx", base: "rbp", disp: -24},
-      {op: "mov", dst: "rdi", imm: 4},
-      {op: "call_label", label: "rt_alloc"},
-      {op: "mov", dst: "rcx", imm: 4},
-      {op: "store", src: "rcx", base: "rax", disp: 0},
-      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "label", name: "rt_rf_refused"}
+    ],
+    errno_block(-24),
+    [
       {op: "store", src: "rcx", base: "rax", disp: 24},
       {op: "store", src: "rax", base: "rbp", disp: -32},
       {op: "label", name: "rt_rf_out"},
@@ -2880,4 +2919,172 @@ test "read_file is a call to rt_read_file, which opens, sizes, reads and closes 
     {op: "ret"}
   ]
   assert length(assemble(append(RT_READ_FILE, stand_ins))) > 0
+end
+
+@doc """
+RT_WRITE_BYTES: write_bytes natively (R4 of docs/PURE-BLUE.md): the list of byte values in rsi written to the path in rdi, both consumed; answers nil, or an error block whose payload is the errno when the file does not open. The bytes are gathered into one string block (rt_alloc maps a large one), the file opened to create or truncate (O_WRONLY|O_CREAT|O_TRUNC, mode 0644), written until done, and closed.
+
+    RT_WRITE_BYTES[0] #=> {op: "label", name: "rt_write_bytes"}
+"""
+RT_WRITE_BYTES = append(
+  *[
+    [
+      {op: "label", name: "rt_write_bytes"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "mov", dst: "rdx", src: "rsi"},
+      {op: "label", name: "rt_wb_count"},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "e", label: "rt_wb_counted"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "load", dst: "rdx", base: "rdx", disp: 32},
+      {op: "jmp", label: "rt_wb_count"},
+      {op: "label", name: "rt_wb_counted"},
+      {op: "store", src: "rcx", base: "rbp", disp: -40},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "add", dst: "rdi", imm: 7},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "add", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "store", src: "rcx", base: "rax", disp: 24},
+      {op: "mov", dst: "r11", src: "rax"},
+      {op: "add", dst: "r11", imm: 32},
+      {op: "load", dst: "rdx", base: "rbp", disp: -16},
+      {op: "label", name: "rt_wb_fill"},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "e", label: "rt_wb_filled"},
+      {op: "load", dst: "rcx", base: "rdx", disp: 24},
+      {op: "sar1", dst: "rcx"},
+      {op: "store_byte", src: "rcx", base: "r11"},
+      {op: "add", dst: "r11", imm: 1},
+      {op: "load", dst: "rdx", base: "rdx", disp: 32},
+      {op: "jmp", label: "rt_wb_fill"},
+      {op: "label", name: "rt_wb_filled"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8}
+    ],
+    path_on_stack("rt_wb_path"),
+    [
+      {op: "mov", dst: "rdi", src: "rsp"},
+      {op: "mov", dst: "rsi", imm: 577},
+      {op: "mov", dst: "rdx", imm: 420},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "syscall"},
+      {op: "add", dst: "rsp", src: "r9"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_wb_refused"},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "mov", dst: "r8", imm: 0},
+      {op: "label", name: "rt_wb_loop"},
+      {op: "load", dst: "r10", base: "rbp", disp: -40},
+      {op: "cmp", dst: "r8", src: "r10"},
+      {op: "j", cond: "ge", label: "rt_wb_done"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "load", dst: "rsi", base: "rbp", disp: -32},
+      {op: "add", dst: "rsi", imm: 32},
+      {op: "add", dst: "rsi", src: "r8"},
+      {op: "mov", dst: "rdx", src: "r10"},
+      {op: "sub", dst: "rdx", src: "r8"},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "le", label: "rt_wb_done"},
+      {op: "add", dst: "r8", src: "rax"},
+      {op: "jmp", label: "rt_wb_loop"},
+      {op: "label", name: "rt_wb_done"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "jmp", label: "rt_wb_out"},
+      {op: "label", name: "rt_wb_refused"}
+    ],
+    errno_block(-24),
+    [
+      {op: "store", src: "rcx", base: "rax", disp: 24},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "label", name: "rt_wb_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -32},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+write_programs: programs over write_bytes, given a directory to write in, with the exit status and output each must give: bytes written and read back, 600 bytes written (a mapped buffer) and measured, and a path that does not open caught as its errno (ENOENT, 2).
+
+    length(write_programs("/d")) #=> 3
+"""
+def write_programs(dir)
+  [
+    [
+      "(begin (write_bytes \"#{dir}/hi.txt\" (list 104 105 10)) (write_stdout (read_file \"#{dir}/hi.txt\")) 0)",
+      0,
+      unlines(["hi"])
+    ],
+    [
+      "(begin (define (mk n acc) (if (equal? n 0) acc (mk (- n 1) (cons 120 acc)))) (write_bytes \"#{dir}/big.txt\" (mk 600 (list))) (string_length (read_file \"#{dir}/big.txt\")))",
+      600 % 256,
+      ""
+    ],
+    ["(try (write_bytes \"/no/such/dir/x\" (list 1)) (catch (e) e))", 2, ""]
+  ]
+end
+
+test "write_bytes writes what read_file reads back, maps a large buffer and refuses a bad path on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    dir = temp_dir("hashiru-wb")
+    path = path_join(dir, "wb.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_program(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      write_programs(dir)
+    )
+  end
+end
+
+test "write_bytes is a call to rt_write_bytes, which gathers, opens to create, writes and closes"
+  assert last(rc_op([], "write_bytes", %w[p b])) ==
+    {op: "call_label", label: "rt_write_bytes"}
+  assert member?({op: "mov", dst: "rsi", imm: 577}, RT_WRITE_BYTES)
+  assert member?({op: "mov", dst: "rax", imm: 1}, RT_WRITE_BYTES)
+  stand_ins = [
+    {op: "label", name: "rt_alloc"},
+    {op: "ret"},
+    {op: "label", name: "rt_drop"},
+    {op: "ret"}
+  ]
+  assert length(assemble(append(RT_WRITE_BYTES, stand_ins))) > 0
+  assert length(path_on_stack("t")) > 0
+  assert errno_block(-24)[4] ==
+    {op: "store", src: "rcx", base: "rbp", disp: -24}
 end

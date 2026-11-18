@@ -457,6 +457,20 @@ HEAP_BYTES: the size of the region a program maps at start for its records, bump
 HEAP_BYTES = 1_048_576
 
 @doc """
+FREE_CLASSES: how many block sizes, in words, keep a free list in the table at r14 (its first word is the live count). A block this size or larger is bumped and never recycled, so it can never index past the table.
+
+    FREE_CLASSES #=> 64
+"""
+FREE_CLASSES = 64
+
+@doc """
+HEAP_EXHAUSTED: the exit status of a program whose heap is used up (ENOMEM), instead of a write past the heap's end.
+
+    HEAP_EXHAUSTED #=> 12
+"""
+HEAP_EXHAUSTED = 12
+
+@doc """
 heap_start: map HEAP_BYTES read-write anonymous and keep its address in r15, the bump pointer.
 
     last(heap_start)[:src] #=> "rax"
@@ -592,7 +606,12 @@ RT_ALLOC: the runtime's allocator, in machine code. It takes a block of rdi word
 """
 RT_ALLOC = append(
   *[
-    [{op: "label", name: "rt_alloc"}, {op: "mov", dst: "rax", src: "rdi"}],
+    [
+      {op: "label", name: "rt_alloc"},
+      {op: "cmp", dst: "rdi", imm: FREE_CLASSES},
+      {op: "j", cond: "ge", label: "rt_alloc_bump"},
+      {op: "mov", dst: "rax", src: "rdi"}
+    ],
     times8("rax"),
     [
       {op: "add", dst: "rax", src: "r14"},
@@ -610,6 +629,10 @@ RT_ALLOC = append(
     times8("rcx"),
     [
       {op: "add", dst: "r15", src: "rcx"},
+      {op: "mov", dst: "rcx", src: "r14"},
+      {op: "add", dst: "rcx", imm: HEAP_BYTES},
+      {op: "cmp", dst: "r15", src: "rcx"},
+      {op: "j", cond: "g", label: "rt_alloc_full"},
       {op: "label", name: "rt_alloc_init"},
       {op: "mov", dst: "rcx", imm: 1},
       {op: "store", src: "rcx", base: "rax", disp: 8},
@@ -617,7 +640,11 @@ RT_ALLOC = append(
       {op: "load", dst: "rcx", base: "r14", disp: 0},
       {op: "add", dst: "rcx", imm: 1},
       {op: "store", src: "rcx", base: "r14", disp: 0},
-      {op: "ret"}
+      {op: "ret"},
+      {op: "label", name: "rt_alloc_full"},
+      {op: "mov", dst: "rdi", imm: HEAP_EXHAUSTED},
+      {op: "mov", dst: "rax", imm: 60},
+      {op: "syscall"}
     ]
   ]
 )
@@ -696,6 +723,8 @@ RT_DROP = append(
       {op: "add", dst: "rcx", imm: 1},
       {op: "jmp", label: "rt_drop_loop"},
       {op: "label", name: "rt_drop_free"},
+      {op: "cmp", dst: "rdx", imm: FREE_CLASSES},
+      {op: "j", cond: "ge", label: "rt_drop_count"},
       {op: "mov", dst: "rax", src: "rdx"}
     ],
     times8("rax"),
@@ -704,6 +733,7 @@ RT_DROP = append(
       {op: "load", dst: "rcx", base: "rax", disp: 0},
       {op: "store", src: "rcx", base: "rdi", disp: 0},
       {op: "store", src: "rdi", base: "rax", disp: 0},
+      {op: "label", name: "rt_drop_count"},
       {op: "load", dst: "rcx", base: "r14", disp: 0},
       {op: "sub", dst: "rcx", imm: 1},
       {op: "store", src: "rcx", base: "r14", disp: 0},
@@ -1121,7 +1151,7 @@ def rc_function(f, n)
 end
 
 @doc """
-rc_program: a whole reference-counted program: the main frame, a heap whose first 512 bytes hold the live count and the free-list heads, the main term, every function, then the runtime.
+rc_program: a whole reference-counted program: the main frame, a heap whose first FREE_CLASSES words hold the live count and the free-list heads, the main term, every function, then the runtime.
 
     rc_program(perceus_program(closure_convert(anf(read_forms("7")[0]))), :exit)[0] #=> {op: "push_rbp"}
 """
@@ -1144,7 +1174,10 @@ def rc_program(p, mode)
         {op: "sub", dst: "rsp", imm: 8 * length(slots)}
       ],
       heap_start,
-      [{op: "mov", dst: "r14", src: "r15"}, {op: "add", dst: "r15", imm: 512}],
+      [
+        {op: "mov", dst: "r14", src: "r15"},
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8}
+      ],
       main[0],
       fns[0],
       RT_ALLOC,
@@ -2560,4 +2593,52 @@ test "exit_with untags its status and calls exit, and print is refused until it 
   assert member?({op: "mov", dst: "rax", imm: 60}, code)
   assert member?({op: "sar1", dst: "rdi"}, code)
   assert (rc_op([], "print", ["x"]) rescue :refused) == :refused
+end
+
+@doc """
+LARGE_PROGRAMS: programs whose blocks outgrow the free-list table, with the exit status each must give: a string of more than FREE_CLASSES words is bumped and never indexes past the table, and a heap used up exits with HEAP_EXHAUSTED.
+
+    LARGE_PROGRAMS[0][1] #=> 64
+"""
+LARGE_PROGRAMS = [
+  [
+    "(begin (define (rep n s) (if (equal? n 0) s (rep (- n 1) (concat s s)))) (string_length (rep 6 \"abcdefghi\")))",
+    64
+  ],
+  [
+    "(begin (define (rep n s) (if (equal? n 0) s (rep (- n 1) (concat s s)))) (string_length (rep 19 \"ab\")))",
+    HEAP_EXHAUSTED
+  ]
+]
+
+test "large blocks are bumped, freed and counted, and a used-up heap exits with ENOMEM on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru"), "l.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      LARGE_PROGRAMS
+    )
+    write_bytes(
+      path,
+      compile_whole(read_forms(LARGE_PROGRAMS[0][0])[0], :leaks)
+    )
+    exec_capture("chmod", "+x", path)
+    assert status_of(exec_capture(path)) == 0
+  end
+end
+
+test "the allocator sends a block of FREE_CLASSES words or more past the free lists and checks the heap's end"
+  assert member?({op: "cmp", dst: "rdi", imm: FREE_CLASSES}, RT_ALLOC)
+  assert member?({op: "j", cond: "g", label: "rt_alloc_full"}, RT_ALLOC)
+  assert member?({op: "mov", dst: "rdi", imm: HEAP_EXHAUSTED}, RT_ALLOC)
+  assert member?({op: "cmp", dst: "rdx", imm: FREE_CLASSES}, RT_DROP)
+  assert length(assemble(RT_ALLOC)) > 0
+  assert length(assemble(RT_DROP)) > 0
 end

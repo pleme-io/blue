@@ -8,8 +8,8 @@ This first code generator is the simplest correct one: every named value lives i
 
 use("kaaneru/erufu", [:executable])
 use("kikaigo", [:assemble])
-use("kuzushi", %i[anf closure_convert head_is? perceus_program])
-use("retsu", %i[first flat_map index_of last rest take_n])
+use("kuzushi", %i[anf closure_convert head_is? perceus_program whole])
+use("retsu", %i[drop_n first flat_map index_of last rest take_n])
 use("shisutemu", %i[status_of stdout_of])
 
 @doc """
@@ -870,6 +870,8 @@ def rc_rhs(slots, rhs)
     rc_closure(slots, rhs[1], rest(rest(rhs)))
   elsif head_is?(rhs, "call")
     rc_call(slots, rhs[1], rest(rest(rhs)))
+  elsif head_is?(rhs, "gcall")
+    rc_gcall(slots, rhs[1], rest(rest(rhs)))
   else
     rc_op(slots, to_s(first(rhs)), rest(rhs))
   end
@@ -1252,4 +1254,148 @@ test "lists are cons cells built from the end, and a part keeps its own referenc
     {op: "call_label", label: "rt_length"},
     rc_op([], "length", [1])
   )
+end
+
+@doc """
+rc_gcall: a direct call to a global function: the arguments in ARG_REGS and a call to its label.
+
+    last(rc_gcall([], "f", [1])) #=> {op: "call_label", label: "g_f"}
+"""
+def rc_gcall(slots, name, args)
+  if length(args) > 6
+    raise(:unsupported, "hashiru: a call passes at most six arguments")
+  end
+  append(
+    flat_map(
+      range(0, length(args)),
+      (k) -> tagged_atom(slots, args[k], ARG_REGS[k])
+    ),
+    [{op: "call_label", label: "g_#{name}"}]
+  )
+end
+
+@doc """
+rc_global: one global function: its label, a frame with a slot per parameter and bound name, the parameters stored from ARG_REGS, then its body returning in rax.
+
+    rc_global({name: "f", params: [], body: read_forms("(ret 1)")[0]}, 0)[0][0] #=> {op: "label", name: "g_f"}
+"""
+def rc_global(g, n)
+  slots = append(g[:params], rc_names(g[:body]))
+  body = rc_gen(slots, g[:body], :return, n)
+  [
+    append(
+      *[
+        [
+          {op: "label", name: "g_#{g[:name]}"},
+          {op: "push_rbp"},
+          {op: "mov", dst: "rbp", src: "rsp"},
+          {op: "sub", dst: "rsp", imm: 8 * length(slots)}
+        ],
+        flat_map(
+          range(0, length(g[:params])),
+          fn(k)
+            [{op: "store", src: ARG_REGS[k], disp: slot(slots, g[:params][k])}]
+          end
+        ),
+        body[0]
+      ]
+    ),
+    body[1]
+  ]
+end
+
+@doc """
+rc_whole: the instructions of a program with global functions: rc_program's frame, heap, main and closures, then every global function, then the runtime.
+
+    rc_whole(whole(read_forms("7")[0]), :exit)[0] #=> {op: "push_rbp"}
+"""
+def rc_whole(w, mode)
+  base = rc_program({main: w[:main], fns: w[:fns]}, mode)
+  start = length(base) -
+    length(RT_ALLOC) -
+    length(RT_DUP) -
+    length(RT_DROP) -
+    length(RT_LENGTH)
+  globals = reduce(
+    fn(acc, g)
+      c = rc_global(g, acc[1])
+      [append(acc[0], c[0]), c[1]]
+    end,
+    [[], 100_000],
+    w[:globals]
+  )
+  append(*[take_n(base, start), globals[0], drop_n(base, start)])
+end
+
+@doc """
+compile_whole: a program with global functions compiled through Perceus to a reference-counted executable.
+
+    compile_whole(read_forms("7")[0], :exit)[0] #=> 127
+"""
+def compile_whole(form, mode)
+  executable(assemble(rc_whole(whole(form), mode)))
+end
+
+@doc """
+RECURSIVE_PROGRAMS: programs with recursive global functions and the exit status each must give.
+
+    RECURSIVE_PROGRAMS[0][1] #=> 120
+"""
+RECURSIVE_PROGRAMS = [
+  [
+    "(begin (define (fact n) (if (< n 2) 1 (* n (fact (- n 1))))) (fact 5))",
+    120
+  ],
+  [
+    "(begin (define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10))",
+    55
+  ],
+  [
+    "(begin (define (sum l) (if (equal? (length l) 0) 0 (+ (first l) (sum (rest l))))) (sum (list 1 2 3 4)))",
+    10
+  ],
+  [
+    "(begin (define (count n acc) (if (equal? n 0) acc (count (- n 1) (+ acc 1)))) (count 200 0))",
+    200
+  ],
+  [
+    "(begin (define (twice f x) (f (f x))) (define (add k) (lambda (x) (+ x k))) (twice (add 20) 2))",
+    42
+  ]
+]
+
+test "every recursive program gives its value and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "w.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_whole(form, :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+        write_bytes(path, compile_whole(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      RECURSIVE_PROGRAMS
+    )
+  end
+end
+
+test "a global function is a label called directly, its parameters from ARG_REGS"
+  g = nth(
+    0,
+    rc_global({name: "f", params: ["x"], body: read_forms("(ret x)")[0]}, 0)
+  )
+  assert g[0] == {op: "label", name: "g_f"}
+  assert g[4] == {op: "store", src: "rdi", disp: -8}
+  assert last(rc_gcall([], "f", [1, 2])) == {op: "call_label", label: "g_f"}
+  insns = rc_whole(whole(read_forms("(begin (define (f) 1) (f))")[0]), :exit)
+  assert member?({op: "label", name: "g_f"}, insns)
+  assert last(insns) == {op: "ret"}
+  assert length(RECURSIVE_PROGRAMS) == 5
+  assert compile_whole(read_forms("1")[0], :exit)[1] == 69
 end

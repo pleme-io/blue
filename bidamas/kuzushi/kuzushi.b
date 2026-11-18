@@ -1000,3 +1000,189 @@ test "perceus over closures leaves every function and the main term reference-cl
   )
   assert length(noisy) >= 3
 end
+
+@doc """
+split_program: a program (begin (define (f params...) body)... main) as {defs: [{name, params, body}], main}; a form that is no such begin is all main.
+
+    split_program(read_forms("(+ 1 2)")[0])[:defs] #=> []
+"""
+def split_program(form)
+  if head_is?(form, "begin")
+    parts = rest(form)
+    defs = filter((d) -> head_is?(d, "define") and list?(d[1]), parts)
+    others = filter((d) -> not (head_is?(d, "define") and list?(d[1])), parts)
+    main = if length(others) == 1
+      first(others)
+    else
+      cons(read_forms("begin")[0], others)
+    end
+    {
+      defs: map(
+        fn(d)
+          {
+            name: to_s(first(d[1])),
+            params: map((p) -> to_s(p), rest(d[1])),
+            body: d[2]
+          }
+        end,
+        defs
+      ),
+      main:
+    }
+  else
+    {defs: [], main: form}
+  end
+end
+
+@doc """
+globalize: a term with every call to a global function named in names, (f args...), made a direct call (gcall "f" args...).
+
+    globalize(read_forms("(let (t (f 1)) (ret t))")[0], ["f"])[1][1][0] == read_forms("gcall")[0] #=> true
+"""
+def globalize(term, names)
+  if head_is?(term, "ret")
+    term
+  else
+    b = term[1]
+    rhs = b[1]
+    new_rhs = if head_is?(rhs, "if")
+      [rhs[0], rhs[1], globalize(rhs[2], names), globalize(rhs[3], names)]
+    elsif head_is?(rhs, "lambda")
+      [rhs[0], rhs[1], globalize(rhs[2], names)]
+    elsif list?(rhs) and
+        symbol?(first(rhs)) and
+        member?(to_s(first(rhs)), names)
+      cons(read_forms("gcall")[0], cons(to_s(first(rhs)), rest(rhs)))
+    else
+      rhs
+    end
+    [term[0], [b[0], new_rhs], globalize(term[2], names)]
+  end
+end
+
+@doc """
+prefix_labels: a closure-converted program with every lifted label given a prefix, so the closures of different functions never share a name.
+
+    prefix_labels({main: read_forms("(ret 1)")[0], fns: []}, "g")[:fns] #=> []
+"""
+def prefix_labels(p, pre)
+  {
+    main: relabel(p[:main], pre),
+    fns: map(
+      fn(f)
+        assoc(
+          assoc(f, :label, "#{pre}#{f[:label]}"),
+          :body,
+          relabel(f[:body], pre)
+        )
+      end,
+      p[:fns]
+    )
+  }
+end
+
+@doc """
+relabel: a term with the label of every closure it makes given a prefix.
+
+    relabel(read_forms("(ret 1)")[0], "g") == read_forms("(ret 1)")[0] #=> true
+"""
+def relabel(term, pre)
+  if head_is?(term, "ret")
+    term
+  else
+    b = term[1]
+    rhs = b[1]
+    new_rhs = if head_is?(rhs, "if")
+      [rhs[0], rhs[1], relabel(rhs[2], pre), relabel(rhs[3], pre)]
+    elsif head_is?(rhs, "closure")
+      cons(rhs[0], cons("#{pre}#{rhs[1]}", rest(rest(rhs))))
+    else
+      rhs
+    end
+    [term[0], [b[0], new_rhs], relabel(term[2], pre)]
+  end
+end
+
+@doc """
+whole: a program with global functions, each made A-normal, closure-converted, given Perceus over its parameters and its lifted closures relabelled, and the main term the same: {main:, fns:, globals: [{name, params, body}]}.
+
+    whole(read_forms("(+ 1 2)")[0])[:globals] #=> []
+"""
+def whole(form)
+  s = split_program(form)
+  names = map((d) -> d[:name], s[:defs])
+  prep = fn(body, pre, params)
+    c = cc_term(globalize(anf(body), names), params)
+    p = prefix_labels({main: c[0], fns: c[1]}, pre)
+    q = perceus_program(p)
+    {main: perceus(p[:main], params), fns: q[:fns]}
+  end
+  globals = map(
+    fn(d)
+      p = prep(d[:body], "#{d[:name]}__", d[:params])
+      {name: d[:name], params: d[:params], body: p[:main], fns: p[:fns]}
+    end,
+    s[:defs]
+  )
+  m = prep(s[:main], "main__", [])
+  {
+    main: m[:main],
+    fns: append(m[:fns], flat_map(globals, (g) -> g[:fns])),
+    globals: map(
+      (g) -> {name: g[:name], params: g[:params], body: g[:body]},
+      globals
+    )
+  }
+end
+
+test "a program splits into its global functions and its main, and calls to them become direct"
+  s = split_program(
+    read_forms("(begin (define (f x) (+ x 1)) (define (g) 2) (f (g)))")[0]
+  )
+  assert map((d) -> d[:name], s[:defs]) == %w[f g]
+  assert s[:defs][0][:params] == ["x"]
+  w = whole(read_forms("(begin (define (f x) (+ x 1)) (f 2))")[0])
+  assert length(w[:globals]) == 1
+  assert has_gcall?(w[:main])
+  t = globalize(anf(read_forms("(f 1)")[0]), ["f"])
+  assert to_s(t[1][1][0]) == "gcall"
+  assert t[1][1][1] == "f"
+end
+
+test "lifted labels are prefixed per function, in the function and at every closure made"
+  p = closure_convert(anf(read_forms("(let ((f (lambda (x) x))) (f 1))")[0]))
+  q = prefix_labels(p, "g__")
+  assert starts_with?(q[:fns][0][:label], "g__")
+  assert has_label?(q[:main], q[:fns][0][:label])
+  assert relabel(read_forms("(ret 1)")[0], "z") == read_forms("(ret 1)")[0]
+end
+
+@doc """
+has_gcall?: whether a tree makes a direct call to a global anywhere.
+
+    has_gcall?(7) #=> false
+"""
+def has_gcall?(x)
+  if not list?(x)
+    false
+  elsif head_is?(x, "gcall")
+    true
+  else
+    retsu::find_first(has_gcall?, x) != nil
+  end
+end
+
+@doc """
+has_label?: whether a tree holds a closure made with this label.
+
+    has_label?(7, "f") #=> false
+"""
+def has_label?(x, label)
+  if not list?(x)
+    false
+  elsif head_is?(x, "closure") and x[1] == label
+    true
+  else
+    retsu::find_first((c) -> has_label?(c, label), x) != nil
+  end
+end

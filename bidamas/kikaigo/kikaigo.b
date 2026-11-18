@@ -24,7 +24,8 @@ ALU = [
   ["mov", 137, 0, nil],
   ["add", 1, 0, 5],
   ["sub", 41, 5, 45],
-  ["cmp", 57, 7, 61]
+  ["cmp", 57, 7, 61],
+  ["and", 33, 4, 37]
 ]
 
 @doc """
@@ -143,6 +144,25 @@ def encode(i)
     [15, 5]
   elsif op == "label"
     []
+  elsif op == "push"
+    r = reg(i[:src])
+    if r < 8
+      [80 + r]
+    else
+      [65, 72 + r]
+    end
+  elsif op == "pop"
+    r = reg(i[:dst])
+    if r < 8
+      [88 + r]
+    else
+      [65, 80 + r]
+    end
+  elsif op == "sar1"
+    r = reg(i[:dst])
+    [rex(0, r), 209, modrm(7, r)]
+  elsif op == "call_label"
+    append([232], le32(i[:rel] or 0))
   elsif op == "lea_label"
     append([72, 141, 5], le32(i[:rel] or 0))
   elsif op == "call_r11"
@@ -244,6 +264,12 @@ def text(i)
     "movq %#{i[:src]}, (%rcx)"
   elsif op == "call_r11"
     "callq *(%r11)"
+  elsif op == "push"
+    "pushq %#{i[:src]}"
+  elsif op == "pop"
+    "popq %#{i[:dst]}"
+  elsif op == "sar1"
+    "sarq %#{i[:dst]}"
   elsif op == "load"
     "movq #{to_s(i[:disp])}(%#{i[:base] or "rbp"}), %#{i[:dst]}"
   elsif op == "store"
@@ -391,6 +417,10 @@ def corpus()
     end
   )
   mul = flat_map(REGS, (d) -> map((s) -> {op: "imul", dst: d, src: s}, REGS))
+  stack = flat_map(
+    REGS,
+    (r) -> [{op: "push", src: r}, {op: "pop", dst: r}, {op: "sar1", dst: r}]
+  )
   sets = map((c) -> {op: "set", cond: c[0]}, CONDS)
   rest_ops = [
     {op: "movzx"},
@@ -400,7 +430,7 @@ def corpus()
     {op: "ret"},
     {op: "syscall"}
   ]
-  append(*[rr, ri, mem, at, based, mul, sets, rest_ops])
+  append(*[rr, ri, mem, at, based, mul, stack, sets, rest_ops])
 end
 
 test "golden encodings from llvm-mc 21.1.7"
@@ -498,7 +528,7 @@ end
 
 test "the helpers are exercised by name"
   assert length(REGS) == 16
-  assert length(ALU) == 4
+  assert length(ALU) == 5
   assert reg("rax") == 0
   assert row("cmp")[1] == 57
   assert rex(0, 0) == 72
@@ -509,12 +539,17 @@ test "the helpers are exercised by name"
   assert check_imm(7) == 7
   assert assemble([{op: "ret"}]) == [195]
   assert length(corpus) ==
-    4 * 16 * 16 +
-      4 * 16 * 10 +
+    5 * 16 * 16 +
+      5 * 16 * 10 +
       16 * 6 * 2 +
       16 * 2 +
       7 * 3 * 2 +
       16 * 16 +
+      16 * 3 +
       6 +
       6
+  assert encode({op: "push", src: "r12"}) == [65, 84]
+  assert encode({op: "pop", dst: "rdi"}) == [95]
+  assert encode({op: "sar1", dst: "rax"}) == [72, 209, 248]
+  assert encode({op: "call_label", rel: 0}) == [232, 0, 0, 0, 0]
 end

@@ -8,8 +8,8 @@ This first code generator is the simplest correct one: every named value lives i
 
 use("kaaneru/erufu", [:executable])
 use("kikaigo", [:assemble])
-use("kuzushi", %i[anf closure_convert head_is?])
-use("retsu", %i[first flat_map index_of last rest])
+use("kuzushi", %i[anf closure_convert head_is? perceus_program])
+use("retsu", %i[first flat_map index_of last rest take_n])
 use("shisutemu", %i[status_of stdout_of])
 
 @doc """
@@ -568,6 +568,523 @@ test "a closure is a record at r15 and a call goes through r11"
   assert length(CLOSURE_PROGRAMS) == 5
   refused = begin
     call_code([], 1, [1, 2, 3, 4, 5, 6, 7])
+  rescue e
+    e.kind
+  end
+  assert refused == :unsupported
+end
+
+@doc """
+times8: the instructions that multiply a register by 8, by three doublings.
+
+    length(times8("rax")) #=> 3
+"""
+def times8(r)
+  map((k) -> {op: "add", dst: r, src: r}, range(0, 3))
+end
+
+@doc """
+RT_ALLOC: the runtime's allocator, in machine code. It takes a block of rdi words from the free list kept for that size at r14, or bumps r15 when the list is empty; it sets the block's count to 1 and records its size, counts it live at r14, and answers it in rax.
+
+    RT_ALLOC[0] #=> {op: "label", name: "rt_alloc"}
+"""
+RT_ALLOC = append(
+  *[
+    [{op: "label", name: "rt_alloc"}, {op: "mov", dst: "rax", src: "rdi"}],
+    times8("rax"),
+    [
+      {op: "add", dst: "rax", src: "r14"},
+      {op: "load", dst: "rcx", base: "rax", disp: 0},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_alloc_bump"},
+      {op: "load", dst: "rdx", base: "rcx", disp: 0},
+      {op: "store", src: "rdx", base: "rax", disp: 0},
+      {op: "mov", dst: "rax", src: "rcx"},
+      {op: "jmp", label: "rt_alloc_init"},
+      {op: "label", name: "rt_alloc_bump"},
+      {op: "mov", dst: "rax", src: "r15"},
+      {op: "mov", dst: "rcx", src: "rdi"}
+    ],
+    times8("rcx"),
+    [
+      {op: "add", dst: "r15", src: "rcx"},
+      {op: "label", name: "rt_alloc_init"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 8},
+      {op: "store", src: "rdi", base: "rax", disp: 16},
+      {op: "load", dst: "rcx", base: "r14", disp: 0},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "r14", disp: 0},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+not_a_block: the instructions that jump to a label when rdi is no block: an odd word is an integer, and a word below 4096 is false, nil or true.
+
+    length(not_a_block("x")) #=> 6
+"""
+def not_a_block(out)
+  [
+    {op: "mov", dst: "rax", src: "rdi"},
+    {op: "and", dst: "rax", imm: 1},
+    {op: "cmp", dst: "rax", imm: 0},
+    {op: "j", cond: "ne", label: out},
+    {op: "cmp", dst: "rdi", imm: 4096},
+    {op: "j", cond: "l", label: out}
+  ]
+end
+
+@doc """
+RT_DUP: add one reference to the block in rdi; anything that is no block is left alone.
+
+    RT_DUP[0] #=> {op: "label", name: "rt_dup"}
+"""
+RT_DUP = append(
+  *[
+    [{op: "label", name: "rt_dup"}],
+    not_a_block("rt_dup_out"),
+    [
+      {op: "load", dst: "rcx", base: "rdi", disp: 8},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rdi", disp: 8},
+      {op: "label", name: "rt_dup_out"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_DROP: take one reference from the block in rdi; at zero, drop every capture it holds, put it on the free list for its size and count it no longer live.
+
+    RT_DROP[0] #=> {op: "label", name: "rt_drop"}
+"""
+RT_DROP = append(
+  *[
+    [{op: "label", name: "rt_drop"}],
+    not_a_block("rt_drop_out"),
+    [
+      {op: "load", dst: "rcx", base: "rdi", disp: 8},
+      {op: "sub", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rdi", disp: 8},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_drop_out"},
+      {op: "load", dst: "rdx", base: "rdi", disp: 16},
+      {op: "mov", dst: "rcx", imm: 3},
+      {op: "label", name: "rt_drop_loop"},
+      {op: "cmp", dst: "rcx", src: "rdx"},
+      {op: "j", cond: "ge", label: "rt_drop_free"},
+      {op: "push", src: "rdi"},
+      {op: "push", src: "rcx"},
+      {op: "push", src: "rdx"},
+      {op: "mov", dst: "rax", src: "rcx"}
+    ],
+    times8("rax"),
+    [
+      {op: "add", dst: "rax", src: "rdi"},
+      {op: "load", dst: "rdi", base: "rax", disp: 0},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rdx"},
+      {op: "pop", dst: "rcx"},
+      {op: "pop", dst: "rdi"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "jmp", label: "rt_drop_loop"},
+      {op: "label", name: "rt_drop_free"},
+      {op: "mov", dst: "rax", src: "rdx"}
+    ],
+    times8("rax"),
+    [
+      {op: "add", dst: "rax", src: "r14"},
+      {op: "load", dst: "rcx", base: "rax", disp: 0},
+      {op: "store", src: "rcx", base: "rdi", disp: 0},
+      {op: "store", src: "rdi", base: "rax", disp: 0},
+      {op: "load", dst: "rcx", base: "r14", disp: 0},
+      {op: "sub", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "r14", disp: 0},
+      {op: "label", name: "rt_drop_out"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+tagged_atom: the instructions that put an atom's runtime value in a register: an integer n as 2n + 1, false and nil as 0, true as 2, a name from its slot.
+
+    tagged_atom([], 20, "rax") #=> [{op: "mov", dst: "rax", imm: 41}]
+"""
+def tagged_atom(slots, a, r)
+  if symbol?(a)
+    [{op: "load", dst: r, disp: slot(slots, to_s(a))}]
+  elsif a == true
+    [{op: "mov", dst: r, imm: 2}]
+  elsif a == false or a.nil?
+    [{op: "mov", dst: r, imm: 0}]
+  else
+    [{op: "mov", dst: r, imm: 2 * a + 1}]
+  end
+end
+
+@doc """
+tagged_compare: a comparison of rax with rcx left in rax as true (2) or false (0).
+
+    last(tagged_compare("e")) #=> {op: "add", dst: "rax", src: "rax"}
+"""
+def tagged_compare(code)
+  append(compare(code), [{op: "add", dst: "rax", src: "rax"}])
+end
+
+@doc """
+rc_op: the instructions for a primitive over tagged values, answering in rax: arithmetic corrects for the tag, a comparison answers a boolean, dup and drop call the runtime.
+
+    length(rc_op([], "+", [1, 2])) #=> 4
+"""
+def rc_op(slots, op, args)
+  two = append(
+    tagged_atom(slots, args[0], "rax"),
+    tagged_atom(slots, args[1], "rcx")
+  )
+  if op == "+"
+    append(
+      two,
+      [{op: "add", dst: "rax", src: "rcx"}, {op: "sub", dst: "rax", imm: 1}]
+    )
+  elsif op == "-"
+    append(
+      two,
+      [{op: "sub", dst: "rax", src: "rcx"}, {op: "add", dst: "rax", imm: 1}]
+    )
+  elsif op == "*"
+    append(
+      two,
+      [
+        {op: "sar1", dst: "rax"},
+        {op: "sub", dst: "rcx", imm: 1},
+        {op: "imul", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", imm: 1}
+      ]
+    )
+  elsif op == "<"
+    append(two, tagged_compare("l"))
+  elsif op == ">"
+    append(two, tagged_compare("g"))
+  elsif op == "equal?"
+    append(two, tagged_compare("e"))
+  elsif op == "id"
+    tagged_atom(slots, args[0], "rax")
+  elsif op == "dup"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_dup"}]
+    )
+  elsif op == "drop"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_drop"}]
+    )
+  else
+    raise(:unsupported, "hashiru: no reference-counted code for `#{op}` yet")
+  end
+end
+
+@doc """
+rc_closure: allocate a closure block of 3 + captures words through rt_alloc and fill it: its code address at word 0, each captured value from word 3; the captured references move into it.
+
+    rc_closure([], "f", [])[0] #=> {op: "mov", dst: "rdi", imm: 3}
+"""
+def rc_closure(slots, label, captured)
+  append(
+    *[
+      [
+        {op: "mov", dst: "rdi", imm: 3 + length(captured)},
+        {op: "call_label", label: "rt_alloc"},
+        {op: "mov", dst: "rbx", src: "rax"},
+        {op: "lea_label", label:},
+        {op: "store", src: "rax", base: "rbx", disp: 0}
+      ],
+      flat_map(
+        range(0, length(captured)),
+        fn(k)
+          append(
+            tagged_atom(slots, captured[k], "rax"),
+            [{op: "store", src: "rax", base: "rbx", disp: 8 * (k + 3)}]
+          )
+        end
+      ),
+      [{op: "mov", dst: "rax", src: "rbx"}]
+    ]
+  )
+end
+
+@doc """
+rc_call: a call through a closure with tagged arguments: the arguments in ARG_REGS, the closure in r11, a call through its code address.
+
+    last(rc_call(["f"], read_forms("f")[0], [1])) #=> {op: "call_r11"}
+"""
+def rc_call(slots, f, args)
+  if length(args) > 6
+    raise(:unsupported, "hashiru: a call passes at most six arguments")
+  end
+  append(
+    *[
+      flat_map(
+        range(0, length(args)),
+        (k) -> tagged_atom(slots, args[k], ARG_REGS[k])
+      ),
+      tagged_atom(slots, f, "r11"),
+      [{op: "call_r11"}]
+    ]
+  )
+end
+
+@doc """
+rc_rhs: a right-hand side that is not an if, over tagged values.
+
+    length(rc_rhs([], read_forms("(+ 1 2)")[0])) #=> 4
+"""
+def rc_rhs(slots, rhs)
+  if head_is?(rhs, "closure")
+    rc_closure(slots, rhs[1], rest(rest(rhs)))
+  elsif head_is?(rhs, "call")
+    rc_call(slots, rhs[1], rest(rest(rhs)))
+  else
+    rc_op(slots, to_s(first(rhs)), rest(rhs))
+  end
+end
+
+@doc """
+rc_gen: a term over tagged values; at its ret the value goes into a slot, returns from a function, or ends the program: as its untagged value, or, in leak mode, as the count of blocks still live after it is dropped.
+
+    rc_gen([], read_forms("(ret 3)")[0], :exit, 0)[1] #=> 0
+"""
+def rc_gen(slots, term, into, n)
+  if head_is?(term, "ret")
+    value = tagged_atom(slots, term[1], "rax")
+    tail = if into == :return
+      [{op: "mov", dst: "rsp", src: "rbp"}, {op: "pop_rbp"}, {op: "ret"}]
+    elsif into == :exit
+      [
+        {op: "mov", dst: "rdi", src: "rax"},
+        {op: "sar1", dst: "rdi"},
+        {op: "mov", dst: "rax", imm: 60},
+        {op: "syscall"}
+      ]
+    elsif into == :leaks
+      [
+        {op: "mov", dst: "rdi", src: "rax"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "load", dst: "rdi", base: "r14", disp: 0},
+        {op: "mov", dst: "rax", imm: 60},
+        {op: "syscall"}
+      ]
+    else
+      [{op: "store", src: "rax", disp: slot(slots, into)}]
+    end
+    [append(value, tail), n]
+  else
+    b = term[1]
+    v = to_s(b[0])
+    rhs = b[1]
+    here = if head_is?(rhs, "if")
+      no = "else_#{to_s(n)}"
+      out = "end_#{to_s(n)}"
+      yes = rc_gen(slots, rhs[2], v, n + 1)
+      other = rc_gen(slots, rhs[3], v, yes[1])
+      [
+        append(
+          *[
+            tagged_atom(slots, rhs[1], "rax"),
+            [{op: "cmp", dst: "rax", imm: 0}, {op: "j", cond: "e", label: no}],
+            yes[0],
+            [{op: "jmp", label: out}, {op: "label", name: no}],
+            other[0],
+            [{op: "label", name: out}]
+          ]
+        ),
+        other[1]
+      ]
+    elsif v == "_"
+      [rc_rhs(slots, rhs), n]
+    else
+      [
+        append(
+          rc_rhs(slots, rhs),
+          [{op: "store", src: "rax", disp: slot(slots, v)}]
+        ),
+        n
+      ]
+    end
+    k = rc_gen(slots, term[2], into, here[1])
+    [append(here[0], k[0]), k[1]]
+  end
+end
+
+@doc """
+rc_names: the slot names of a term, without the _ that binds a dup's or a drop's unused answer.
+
+    rc_names(read_forms("(let (_ (dup x)) (ret 1))")[0]) #=> []
+"""
+def rc_names(term)
+  filter((x) -> x != "_", bound_names(term))
+end
+
+@doc """
+rc_function: one lifted function over tagged values: its frame, its parameters stored, each capture read from the closure in r11 and given its own reference, then the closure itself dropped (the call consumed it), then its body.
+
+    rc_function({label: "f", params: [], captured: [], body: read_forms("(ret 1)")[0]}, 0)[0][0] #=> {op: "label", name: "f"}
+"""
+def rc_function(f, n)
+  slots = append(append(f[:params], f[:captured]), rc_names(f[:body]))
+  body = rc_gen(slots, f[:body], :return, n)
+  [
+    append(
+      *[
+        [
+          {op: "label", name: f[:label]},
+          {op: "push_rbp"},
+          {op: "mov", dst: "rbp", src: "rsp"},
+          {op: "sub", dst: "rsp", imm: 8 * length(slots)}
+        ],
+        flat_map(
+          range(0, length(f[:params])),
+          fn(k)
+            [{op: "store", src: ARG_REGS[k], disp: slot(slots, f[:params][k])}]
+          end
+        ),
+        flat_map(
+          range(0, length(f[:captured])),
+          fn(k)
+            [
+              {op: "load", dst: "rdi", base: "r11", disp: 8 * (k + 3)},
+              {op: "store", src: "rdi", disp: slot(slots, f[:captured][k])},
+              {op: "push", src: "r11"},
+              {op: "call_label", label: "rt_dup"},
+              {op: "pop", dst: "r11"}
+            ]
+          end
+        ),
+        [
+          {op: "mov", dst: "rdi", src: "r11"},
+          {op: "call_label", label: "rt_drop"}
+        ],
+        body[0]
+      ]
+    ),
+    body[1]
+  ]
+end
+
+@doc """
+rc_program: a whole reference-counted program: the main frame, a heap whose first 512 bytes hold the live count and the free-list heads, the main term, every function, then the runtime.
+
+    rc_program(perceus_program(closure_convert(anf(read_forms("7")[0]))), :exit)[0] #=> {op: "push_rbp"}
+"""
+def rc_program(p, mode)
+  slots = rc_names(p[:main])
+  main = rc_gen(slots, p[:main], mode, 0)
+  fns = reduce(
+    fn(acc, f)
+      c = rc_function(f, acc[1])
+      [append(acc[0], c[0]), c[1]]
+    end,
+    [[], main[1]],
+    p[:fns]
+  )
+  append(
+    *[
+      [
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sub", dst: "rsp", imm: 8 * length(slots)}
+      ],
+      heap_start,
+      [{op: "mov", dst: "r14", src: "r15"}, {op: "add", dst: "r15", imm: 512}],
+      main[0],
+      fns[0],
+      RT_ALLOC,
+      RT_DUP,
+      RT_DROP
+    ]
+  )
+end
+
+@doc """
+compile_rc: a core form compiled through Perceus to a reference-counted executable; :exit ends with the value, :leaks with the count of blocks still live.
+
+    compile_rc(read_forms("7")[0], :exit)[0] #=> 127
+"""
+def compile_rc(form, mode)
+  executable(
+    assemble(rc_program(perceus_program(closure_convert(anf(form))), mode))
+  )
+end
+
+@doc """
+rc_run: compile a form through Perceus to a reference-counted executable, run it in a mode, and answer its exit status.
+
+    integer?(1) #=> true
+"""
+def rc_run(form, mode)
+  path = path_join(temp_dir("hashiru"), "rc.out")
+  write_bytes(path, compile_rc(form, mode))
+  exec_capture("chmod", "+x", path)
+  status_of(exec_capture(path))
+end
+
+test "every program gives its value, and frees every block, when compiled through Perceus and run on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    progs = append(take_n(PROGRAMS, 9), CLOSURE_PROGRAMS)
+    map(
+      fn(p)
+        form = read_forms(p[0])[0]
+        assert rc_run(form, :exit) == p[1]
+        assert rc_run(form, :leaks) == 0
+      end,
+      progs
+    )
+  end
+end
+
+test "the reference-counted code tags, allocates and calls the runtime"
+  assert tagged_atom([], 20, "rax") == [{op: "mov", dst: "rax", imm: 41}]
+  assert tagged_atom([], false, "rax") == [{op: "mov", dst: "rax", imm: 0}]
+  assert tagged_atom([], true, "rax") == [{op: "mov", dst: "rax", imm: 2}]
+  assert last(rc_op([], "+", [1, 2])) == {op: "sub", dst: "rax", imm: 1}
+  assert last(rc_op(["x"], "drop", [read_forms("x")[0]])) ==
+    {op: "call_label", label: "rt_drop"}
+  assert rc_op([], "dup", [1])[1] == {op: "call_label", label: "rt_dup"}
+  assert rc_closure([], "f", [1])[1] == {op: "call_label", label: "rt_alloc"}
+  assert last(rc_call(["f"], read_forms("f")[0], [])) == {op: "call_r11"}
+  assert length(rc_rhs([], read_forms("(* 2 3)")[0])) == 6
+  assert rc_names(read_forms("(let (_ (dup x)) (ret 1))")[0]) == []
+  assert rc_gen([], read_forms("(ret 3)")[0], :exit, 0)[0][0] ==
+    {op: "mov", dst: "rax", imm: 7}
+  assert nth(
+    0,
+    nth(
+      0,
+      rc_function(
+        {label: "f", params: [], captured: [], body: read_forms("(ret 1)")[0]},
+        0
+      )
+    )
+  ) == {op: "label", name: "f"}
+  assert RT_ALLOC[0] == {op: "label", name: "rt_alloc"}
+  assert RT_DUP[0] == {op: "label", name: "rt_dup"}
+  assert RT_DROP[0] == {op: "label", name: "rt_drop"}
+  assert length(not_a_block("x")) == 6
+  assert times8("rcx")[0] == {op: "add", dst: "rcx", src: "rcx"}
+  assert last(tagged_compare("l")) == {op: "add", dst: "rax", src: "rax"}
+  assert nth(
+    0,
+    rc_program(perceus_program(closure_convert(anf(read_forms("1")[0]))), :exit)
+  ) == {op: "push_rbp"}
+  assert compile_rc(read_forms("1")[0], :leaks)[1] == 69
+  refused = begin
+    rc_op([], "list", [1])
   rescue e
     e.kind
   end

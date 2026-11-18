@@ -36,7 +36,8 @@ Built and on main, each with its lock:
 |---|---|---|
 | S0 | purity ledger, 25 crates, a ratchet | `gen/purity.b` |
 | L0 | rebind census (set!, while, repeated define), a ratchet | `gen/mutation-census.b` |
-| L1 (first slice) | typed cells `cell`, `cell_get`, `cell_put` | `crates/blue-lang-runtime/src/cell.rs`, `spec/rows/cells.b` |
+| L1 | typed cells `cell`, `cell_get`, `cell_put`; every rebind a closure can see migrated, the census at 0 | `crates/blue-lang-runtime/src/cell.rs`, `spec/rows/cells.b`, `gen/mutation-census.baseline` |
+| L2 (first slice) | `u8`..`i64` in `Ty`, compatible with `Int`; a literal argument out of its parameter's range is B0005 | `crates/blue-lang-check/src/lib.rs` |
 | L3 | `gensym` per interpreter and fork | `crates/blue-lang-runtime/src/stdlib.rs` |
 | B0 | nanopass core: languages, passes, checks | `bidamas/henkan` |
 | B1 | A-normal form, Perceus with a reference-count checker, closure conversion, cond and case, raise and try with explicit propagation, global functions | `bidamas/kuzushi` |
@@ -48,7 +49,7 @@ Built and on main, each with its lock:
 Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
 language in the path, give their value and end with 0 blocks live.
 
-Not yet: L1's migration of the existing rebinds; L2; M1-M5 on the Rust runtime; B5; R4-R7
+Not yet: L2's width-aware operators and width words; M1-M5 on the Rust runtime; B5; R4-R7
 beyond the raw words; number and symbol printing (`to_s`); the front end in blue (F1-F4); the
 tower (S1-S5); C2, C3; D1-D6.
 
@@ -65,7 +66,7 @@ tower (S1-S5); C2, C3; D1-D6.
 | Value model (fallback) | `Value` holds `Arc` counts, copy-on-write; `cons`, `append`, `assoc` update in place, but only in tail position |
 | Rebinds | `set!` 43 calls in 18 files; `while` 69 in 22 (a `letrec` macro over `set!`); `define` after capture, `letrec` and `delay` also rebind |
 | `gensym` | a registered primitive only, so blue can override it without a tatara-lisp release |
-| Types | `Dyn, Int, Float, Str, Bool, Sym, Nil, List, Map, Record, Union, Named, Fragment`; no fixed-width integers |
+| Types | `Dyn, Int, Float, Str, Bool, Sym, Nil, List, Map, Record, Union, Named, Fragment`; fixed-width `u8`..`i64` (L2) |
 | Build surface | builders in this repo (`bidamas/mk-bidama.nix`, `nix/project.nix`); one `blue` per fleet; per-run `BLUE_DOOR` only |
 
 ## 3. Invariants

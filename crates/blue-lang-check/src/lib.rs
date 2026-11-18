@@ -73,6 +73,13 @@ pub use rules::{Code, Explain, FixKind, Rule, Severity, RULES};
 pub enum Ty {
     Dyn,
     Int,
+    /// A fixed-width integer: `u8`..`u64` (`signed` false) or `i8`..`i64`. Compatible
+    /// with `Int` both ways (the gradual guarantee); a literal passed where one is
+    /// wanted is held to its range.
+    IntOf {
+        signed: bool,
+        bits: u8,
+    },
     Float,
     Str,
     Bool,
@@ -94,6 +101,38 @@ impl Ty {
             Sexp::Atom(Atom::Symbol(n)) => match n.as_str() {
                 "dyn" => Ty::Dyn,
                 "Int" => Ty::Int,
+                "u8" => Ty::IntOf {
+                    signed: false,
+                    bits: 8,
+                },
+                "u16" => Ty::IntOf {
+                    signed: false,
+                    bits: 16,
+                },
+                "u32" => Ty::IntOf {
+                    signed: false,
+                    bits: 32,
+                },
+                "u64" => Ty::IntOf {
+                    signed: false,
+                    bits: 64,
+                },
+                "i8" => Ty::IntOf {
+                    signed: true,
+                    bits: 8,
+                },
+                "i16" => Ty::IntOf {
+                    signed: true,
+                    bits: 16,
+                },
+                "i32" => Ty::IntOf {
+                    signed: true,
+                    bits: 32,
+                },
+                "i64" => Ty::IntOf {
+                    signed: true,
+                    bits: 64,
+                },
                 "Float" => Ty::Float,
                 "Str" => Ty::Str,
                 "Bool" => Ty::Bool,
@@ -125,6 +164,7 @@ impl Ty {
     pub fn accepts(&self, want: &Ty) -> bool {
         match (self, want) {
             (Ty::Dyn, _) | (_, Ty::Dyn) => true,
+            (Ty::Int, Ty::IntOf { .. }) | (Ty::IntOf { .. }, Ty::Int) => true,
             (Ty::List(a), Ty::List(b)) => a.accepts(b),
             (Ty::Map(ka, va), Ty::Map(kb, vb)) => ka.accepts(kb) && va.accepts(vb),
             (Ty::Record(_), Ty::Map(k, _)) => Ty::Sym.accepts(k),
@@ -139,6 +179,7 @@ impl Ty {
         match self {
             Ty::Dyn => "dyn".into(),
             Ty::Int => "Int".into(),
+            Ty::IntOf { signed, bits } => format!("{}{bits}", if *signed { "i" } else { "u" }),
             Ty::Float => "Float".into(),
             Ty::Str => "Str".into(),
             Ty::Bool => "Bool".into(),
@@ -1256,6 +1297,12 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                             at: format!("argument {} of `{head}`", i + 1),
                             span: a.span,
                         });
+                    } else if let Some(why) = out_of_range(a, want) {
+                        out.diagnostics.push(Diagnostic::new(
+                            Code::B0005,
+                            format!("`{head}` argument {} {why}", i + 1),
+                            a.span,
+                        ));
                     } else if !got.accepts(want)
                         && !(cx.boundary && (got.opaque() || want.opaque()))
                     {
@@ -1961,5 +2008,103 @@ mod tests {
         let o = check_program_in(&forms, &|_, _| true);
         assert_eq!(codes(&o), [Code::B0082], "{:?}", msgs(&o));
         assert_eq!(o.diagnostics[0].top_level, 2);
+    }
+}
+
+/// Why an integer literal does not fit the fixed-width type a parameter
+/// wants, or `None` when it fits, when the argument is no literal, or when
+/// the parameter wants no fixed width.
+fn literal_int(arg: &Spanned) -> Option<i64> {
+    match &arg.form {
+        SpannedForm::Atom(Atom::Int(n)) => Some(*n),
+        SpannedForm::List(items) => match items.as_slice() {
+            [h, z, n]
+                if matches!(&h.form, SpannedForm::Atom(Atom::Symbol(s)) if s == "-")
+                    && matches!(&z.form, SpannedForm::Atom(Atom::Int(0))) =>
+            {
+                match &n.form {
+                    SpannedForm::Atom(Atom::Int(n)) => n.checked_neg(),
+                    _ => None,
+                }
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn out_of_range(arg: &Spanned, want: &Ty) -> Option<String> {
+    let (Some(n), Ty::IntOf { signed, bits }) = (literal_int(arg), want) else {
+        return None;
+    };
+    let (lo, hi): (i128, i128) = if *signed {
+        (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
+    } else if *bits == 64 {
+        (0, i128::from(i64::MAX))
+    } else {
+        (0, (1i128 << bits) - 1)
+    };
+    let v = i128::from(n);
+    (v < lo || v > hi).then(|| format!("is {n}, which does not fit {} ({lo}..={hi})", want.name()))
+}
+
+#[cfg(test)]
+mod fixed_width {
+    use super::*;
+
+    fn codes_of(src: &str) -> Vec<Code> {
+        let forms = blue_lang_syntax::parse_program_tree(src).expect("parses");
+        check_program(&forms)
+            .diagnostics
+            .iter()
+            .map(|d| d.code)
+            .collect()
+    }
+
+    #[test]
+    fn a_literal_out_of_a_fixed_width_range_is_refused_and_one_inside_is_not() {
+        let def = "def f(x: u8) -> Int\n  x\nend\n\n";
+        assert_eq!(
+            codes_of(&format!("{def}def g() -> Int\n  f(300)\nend")),
+            [Code::B0005]
+        );
+        assert_eq!(codes_of(&format!("{def}def g() -> Int\n  f(255)\nend")), []);
+        assert_eq!(
+            codes_of(&format!("{def}def g() -> Int\n  f(-1)\nend")),
+            [Code::B0005]
+        );
+        let signed = "def h(x: i8) -> Int\n  x\nend\n\n";
+        assert_eq!(
+            codes_of(&format!("{signed}def g() -> Int\n  h(-128)\nend")),
+            []
+        );
+        assert_eq!(
+            codes_of(&format!("{signed}def g() -> Int\n  h(-129)\nend")),
+            [Code::B0005]
+        );
+    }
+
+    #[test]
+    fn a_fixed_width_type_and_int_are_compatible_both_ways() {
+        let w = Ty::from_sexp(&Sexp::Atom(Atom::Symbol("u32".into())));
+        assert_eq!(
+            w,
+            Ty::IntOf {
+                signed: false,
+                bits: 32
+            }
+        );
+        assert!(w.accepts(&Ty::Int));
+        assert!(Ty::Int.accepts(&w));
+        assert!(!w.accepts(&Ty::IntOf {
+            signed: true,
+            bits: 32
+        }));
+        assert_eq!(w.name(), "u32");
+        let def = "def f(x: u8) -> Int\n  x\nend\n\n";
+        assert_eq!(
+            codes_of(&format!("{def}def g(n: Int) -> Int\n  f(n)\nend")),
+            []
+        );
     }
 }

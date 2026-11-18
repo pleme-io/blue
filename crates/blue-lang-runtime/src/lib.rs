@@ -622,7 +622,7 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
     }
     #[cfg(all(feature = "host", unix))]
     {
-        config.fd_of = Some(net::stream::fd_of);
+        config.fd_of = Some(net::fd_of);
     }
     config.clock = NODE_CLOCK
         .get()

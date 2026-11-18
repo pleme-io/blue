@@ -353,3 +353,92 @@ fn a_bad_strategy_and_a_bad_child_are_refused_by_name() {
     let out = run(&mut root, "spawn(fn() 1 end, 7)");
     assert!(out.is_err_and(|e| e.contains("the arguments are a list")));
 }
+
+#[test]
+fn a_window_counts_only_the_restarts_inside_it() {
+    let (mut root, _) = node(50);
+    let out = show(
+        &mut root,
+        "me = self()\n\
+         def crasher(parent)\n  send(parent, [:started, self()])\n  throw(error(:always, \"x\"))\nend\n\
+         sup = supervisor(:one_for_one, [[crasher, [me]]], 1, {window_ms: 100000})\n\
+         m = monitor(sup)\n\
+         receive([:started, :_])\n\
+         receive([:started, :_])\n\
+         receive([:down, m, :_, :_])",
+    );
+    assert_eq!(
+        out, "(:down 1 1 (:gave_up 2))",
+        "one restart inside the window is allowed, the second is refused"
+    );
+    let (mut root, _) = node(50);
+    let out = show(
+        &mut root,
+        "me = self()\n\
+         def crasher(parent)\n  send(parent, [:started, self()])\n  throw(error(:always, \"x\"))\nend\n\
+         sup = supervisor(:one_for_one, [[crasher, [me]]], 2, {window_ms: 10})\n\
+         receive([:started, :_])\n\
+         sleep_for(50)\n\
+         receive([:started, :_])\n\
+         sleep_for(50)\n\
+         receive([:started, :_])\n\
+         :still_alive",
+    );
+    assert_eq!(
+        out, ":still_alive",
+        "each restart ages out of the window, so the intensity never trips"
+    );
+}
+
+#[test]
+fn backoff_delays_a_restart_by_its_table_entry() {
+    let (mut root, _) = node(50);
+    let out = show(
+        &mut root,
+        "me = self()\n\
+         def crasher(parent)\n  send(parent, [:started, self(), node_time()])\n  throw(error(:always, \"x\"))\nend\n\
+         sup = supervisor(:one_for_one, [[crasher, [me]]], 5, {backoff_ms: [25]})\n\
+         first = receive([:started, :_, :_])\n\
+         again = receive([:started, :_, :_])\n\
+         [nth(1, first), nth(2, again) - nth(2, first)]",
+    );
+    assert!(out.starts_with("(2 "), "the restart keeps the pid: {out}");
+    let gap = out
+        .trim_matches(|c| c == '(' || c == ')')
+        .split(' ')
+        .nth(1)
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    assert!(gap >= 25, "the restart waited the backoff: got {gap}ms");
+}
+
+#[test]
+fn an_adopted_child_is_restarted_by_its_supervisor() {
+    let (mut root, _) = node(50);
+    let out = show(
+        &mut root,
+        "me = self()\n\
+         def child(parent)\n  send(parent, [:started, self()])\n  m = receive()\n  if m == :poison\n    throw(error(:poisoned, \"p\"))\n  end\n  send(parent, [:got, m])\nend\n\
+         sup = supervisor(:one_for_one, [], 3)\n\
+         supervisor_adopt(sup, child, [me])\n\
+         first = receive([:started, :_])\n\
+         send(nth(1, first), :poison)\n\
+         again = receive([:started, :_])\n\
+         send(nth(1, again), :fresh)\n\
+         [nth(1, again), receive([:got, :_])]",
+    );
+    assert_eq!(out, "(2 (:got :fresh))");
+}
+
+#[test]
+fn an_adopted_child_that_never_stops_trips_its_supervisors_intensity() {
+    let (mut root, _) = node(50);
+    let out = show(
+        &mut root,
+        "sup = supervisor(:one_for_one, [], 2)\n\
+         supervisor_adopt(sup, fn() throw(error(:always, \"x\")) end)\n\
+         m = monitor(sup)\n\
+         receive([:down, m, :_, :_])",
+    );
+    assert_eq!(out, "(:down 1 1 (:gave_up 2))");
+}

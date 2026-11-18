@@ -188,6 +188,13 @@ pub struct Listener {
     spooled: AtomicU64,
 }
 
+#[cfg(unix)]
+impl std::os::fd::AsFd for Listener {
+    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
+        self.inner.as_fd()
+    }
+}
+
 impl Listener {
     pub fn bind(addr: &str) -> Result<Listener, ServeError> {
         Listener::bind_with(addr, ListenOptions::default())

@@ -582,6 +582,30 @@ fn install_tcp<H: 'static>(interp: &mut Interpreter<H>) {
 
 struct HttpListener(serve::Listener);
 
+#[cfg(unix)]
+impl std::os::fd::AsFd for HttpListener {
+    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
+        self.0.as_fd()
+    }
+}
+
+#[cfg(not(unix))]
+#[must_use]
+pub(crate) fn fd_of(v: &Value) -> Option<blue_lang_proc::readiness::Pollable> {
+    stream::fd_of(v)
+}
+
+#[cfg(unix)]
+#[must_use]
+pub(crate) fn fd_of(v: &Value) -> Option<blue_lang_proc::readiness::Pollable> {
+    if let Value::Foreign(any) = v {
+        if let Ok(l) = std::sync::Arc::downcast::<HttpListener>(any.clone()) {
+            return Some(l as blue_lang_proc::readiness::Pollable);
+        }
+    }
+    stream::fd_of(v)
+}
+
 struct HttpExchange {
     stream: Mutex<Option<TcpStream>>,
     spooled: Option<std::path::PathBuf>,

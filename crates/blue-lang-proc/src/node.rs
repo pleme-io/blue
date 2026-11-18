@@ -133,6 +133,7 @@ pub const PROCESS_WORDS: &[&str] = &[
     "exit",
     "trap_exit",
     "supervisor",
+    "supervisor_adopt",
     "children",
     "defmigrate",
     "def_hash",
@@ -386,6 +387,14 @@ struct Sup {
     strategy: Strategy,
     max_restarts: usize,
     children: Vec<Pid>,
+    /// Restarts counted per child inside this many milliseconds; `None`
+    /// counts every restart ever, which is the behaviour a supervisor
+    /// without a window had before windows existed.
+    window_ms: Option<u64>,
+    /// Delay before restart n (1-based), the last entry repeating; an empty
+    /// table restarts immediately, which is the behaviour a supervisor
+    /// without backoff had before backoff existed.
+    backoff_ms: Vec<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -591,6 +600,12 @@ struct NodeState {
     timers: BTreeMap<(u64, u64), (Pid, Value)>,
     next_timer: u64,
     nets: BTreeMap<Pid, Net>,
+    /// Node times a child's recent restarts happened at, pruned to each
+    /// supervisor's window when it decides.
+    restarts_at: BTreeMap<Pid, Vec<u64>>,
+    /// Restart a child is waiting for, keyed by the node time it happens at,
+    /// so backoff is a parked restart rather than a sleep that blocks.
+    pending_restarts: BTreeMap<u64, Pid>,
 }
 
 impl NodeState {
@@ -620,6 +635,8 @@ impl NodeState {
             root_signal: None,
             root_due: 0,
             evicting: BTreeSet::new(),
+            restarts_at: BTreeMap::new(),
+            pending_restarts: BTreeMap::new(),
             arrivals: Arrivals::default(),
             aloft: BTreeSet::new(),
             doomed: BTreeMap::new(),
@@ -634,7 +651,13 @@ impl NodeState {
         scheduling::lane().unwrap_or(self.current)
     }
 
-    fn supervisor(&mut self, strategy: Strategy, max_restarts: usize) -> Pid {
+    fn supervisor(
+        &mut self,
+        strategy: Strategy,
+        max_restarts: usize,
+        window_ms: Option<u64>,
+        backoff_ms: Vec<u64>,
+    ) -> Pid {
         let sup = Pid(self.next_pid);
         self.next_pid += 1;
         self.info.insert(
@@ -643,6 +666,8 @@ impl NodeState {
                 strategy,
                 max_restarts,
                 children: Vec::new(),
+                window_ms,
+                backoff_ms,
             })),
         );
         self.boxes.insert(sup, VecDeque::new());
@@ -722,7 +747,11 @@ impl NodeState {
 
     fn earliest_deadline(&self) -> Option<u64> {
         let waits = self.waits.values().filter_map(Wait::wakes).min();
-        earliest(waits, self.timers.keys().next().map(|(at, _)| *at))
+        let timers = self.timers.keys().next().map(|(at, _)| *at);
+        earliest(
+            earliest(waits, timers),
+            self.pending_restarts.keys().next().copied(),
+        )
     }
 
     fn bound_of(&self, pid: Pid) -> Option<u64> {
@@ -1002,7 +1031,8 @@ const WORDS: &[(&str, Arity, Word)] = &[
     ("demonitor", Arity::Exact(1), w_demonitor),
     ("exit", Arity::Exact(2), w_exit),
     ("trap_exit", Arity::Exact(1), w_trap_exit),
-    ("supervisor", Arity::Range(2, 3), w_supervisor),
+    ("supervisor", Arity::Range(2, 4), w_supervisor),
+    ("supervisor_adopt", Arity::Range(2, 3), w_supervisor_adopt),
     ("children", Arity::Exact(1), w_children),
     ("defmigrate", Arity::Range(2, 3), w_defmigrate),
     ("def_hash", Arity::Exact(1), w_def_hash),
@@ -2136,25 +2166,80 @@ impl Node {
     }
 
     fn supervise(&self, sched: &mut Vec<Proc<()>>, sup: Pid, child: Pid) {
-        let (spec, restarts) = {
-            let st = self.st();
+        let (spec, in_window) = {
+            let mut st = self.st();
             let Some(Kind::Supervisor(spec)) = st.info.get(&sup).map(|i| i.kind.clone()) else {
                 return;
             };
-            let restarts = st.info.get(&child).map_or(0, |i| i.restarts);
-            (spec, restarts)
+            let counted = match spec.window_ms {
+                Some(window) => {
+                    let now = st.clock.now();
+                    let at = st.restarts_at.entry(child).or_default();
+                    at.retain(|t| now.saturating_sub(*t) < window);
+                    at.len()
+                }
+                None => st.info.get(&child).map_or(0, |i| i.restarts),
+            };
+            (spec, counted)
         };
         // Intensity is checked on the child that exited, as `Supervisor` does:
-        // a sibling restarted as collateral has not misbehaved.
-        if restarts >= spec.max_restarts {
+        // a sibling restarted as collateral has not misbehaved. A window
+        // counts the restarts inside it, so a child that misbehaved once an
+        // hour keeps running under a per-minute window.
+        if in_window >= spec.max_restarts {
+            let mut st = self.st();
+            st.pending_restarts.retain(|_, p| *p != child);
+            drop(st);
             self.shutdown_sup(sched, sup, Value::list([kw("gave_up"), int(child.0)]));
             return;
         }
         let Some(pos) = spec.children.iter().position(|c| *c == child) else {
             return;
         };
+        let delay = if spec.backoff_ms.is_empty() {
+            0
+        } else {
+            spec.backoff_ms[(in_window.min(spec.backoff_ms.len() - 1)) as usize]
+        };
         for t in spec.strategy.targets(pos, spec.children.len()) {
-            self.restart(sched, spec.children[t]);
+            let target = spec.children[t];
+            if t == pos && delay > 0 {
+                let mut st = self.st();
+                let mut at = st.clock.now() + delay;
+                while st.pending_restarts.contains_key(&at) {
+                    at += 1;
+                }
+                st.pending_restarts.insert(at, target);
+            } else {
+                self.restart(sched, target);
+            }
+        }
+    }
+
+    /// Restarts whose backoff has elapsed. Called where timers fire, so a
+    /// parked restart and a timer wake together.
+    fn fire_pending_restarts(&self, sched: &mut Vec<Proc<()>>) {
+        let due: Vec<Pid> = {
+            let mut st = self.st();
+            let now = st.clock.now();
+            let due = st
+                .pending_restarts
+                .range(..=now)
+                .map(|(_, p)| *p)
+                .collect::<Vec<_>>();
+            let keys = st
+                .pending_restarts
+                .range(..=now)
+                .map(|(at, _)| *at)
+                .collect::<Vec<_>>();
+            for at in keys {
+                st.pending_restarts.remove(&at);
+            }
+            drop(st);
+            due
+        };
+        for pid in due {
+            self.restart(sched, pid);
         }
     }
 
@@ -2181,6 +2266,8 @@ impl Node {
             st.journals.remove(&pid);
             st.accounts.remove(&pid);
             self.config.host_io.take(pid);
+            let now = st.clock.now();
+            st.restarts_at.entry(pid).or_default().push(now);
             st.info.get_mut(&pid).map_or((None, None), |info| {
                 info.restarts += 1;
                 info.live = true;
@@ -2844,9 +2931,10 @@ impl Node {
         if let (Some(s), None) = (&handed, &parked) {
             image.code.bind("%state", s.initial.clone());
         }
-        let sup = handed
-            .as_ref()
-            .map(|s| self.st().supervisor(Strategy::OneForOne, s.max_restarts));
+        let sup = handed.as_ref().map(|s| {
+            self.st()
+                .supervisor(Strategy::OneForOne, s.max_restarts, None, Vec::new())
+        });
         let started = self.start(
             image.code,
             if parked.is_some() {
@@ -3125,6 +3213,7 @@ impl Node {
         loop {
             self.adopt(&mut sched);
             self.process_signals(&mut sched);
+            self.fire_pending_restarts(&mut sched);
             {
                 let mut st = self.st();
                 st.fire_timers();
@@ -3820,6 +3909,7 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
     let max_restarts = match args.get(2) {
         None | Some(Value::Nil) => DEFAULT_MAX_RESTARTS,
         Some(Value::Int(n)) if *n >= 0 => usize::try_from(*n).unwrap_or(usize::MAX),
+        Some(Value::List(_)) | Some(Value::Map(_)) => DEFAULT_MAX_RESTARTS,
         Some(other) => {
             return Err(refuse(
                 "supervisor",
@@ -3828,7 +3918,20 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
             ))
         }
     };
-    let sup = node.st().supervisor(strategy, max_restarts);
+    let (window_ms, backoff_ms) = match (args.get(2), args.get(3)) {
+        (Some(Value::Map(m)), _) | (_, Some(Value::Map(m))) => sup_policy(m, span)?,
+        (Some(Value::List(_)), _) | (_, Some(Value::List(_))) => {
+            return Err(refuse(
+                "supervisor",
+                "a policy is a record: {window_ms: …, backoff_ms: […]}",
+                span,
+            ))
+        }
+        _ => (None, Vec::new()),
+    };
+    let sup = node
+        .st()
+        .supervisor(strategy, max_restarts, window_ms, backoff_ms);
     for spec in specs.iter() {
         let pid = match spec {
             // `[:server, handler, state]`: a supervised spawn_server.
@@ -3873,6 +3976,102 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
         node.st().enrol(sup, pid);
     }
     Ok(int(sup.0))
+}
+
+fn sup_policy(m: &tatara_lisp_eval::Map, span: Span) -> Result<(Option<u64>, Vec<u64>), EvalError> {
+    let shape = "supervisor policy keys are window_ms (Int or nil) and backoff_ms (a list of Int)";
+    let window_ms = match m.get(&MapKey::Keyword(Arc::from("window_ms"))) {
+        None | Some(Value::Nil) => None,
+        Some(Value::Int(n)) if *n >= 0 => Some(n.unsigned_abs()),
+        Some(other) => {
+            return Err(refuse(
+                "supervisor",
+                format!("{shape}, window_ms is {other}"),
+                span,
+            ))
+        }
+    };
+    let backoff_ms = match m.get(&MapKey::Keyword(Arc::from("backoff_ms"))) {
+        None | Some(Value::Nil) => Vec::new(),
+        Some(Value::List(rows)) => {
+            let mut out = Vec::with_capacity(rows.len());
+            for v in rows.iter() {
+                match v {
+                    Value::Int(n) if *n >= 0 => out.push(n.unsigned_abs()),
+                    other => {
+                        return Err(refuse(
+                            "supervisor",
+                            format!("{shape}, backoff_ms holds {other}"),
+                            span,
+                        ))
+                    }
+                }
+            }
+            out
+        }
+        Some(other) => {
+            return Err(refuse(
+                "supervisor",
+                format!("{shape}, backoff_ms is {other}"),
+                span,
+            ))
+        }
+    };
+    Ok((window_ms, backoff_ms))
+}
+
+fn w_supervisor_adopt(
+    node: &Node,
+    who: Who,
+    args: &[Value],
+    span: Span,
+) -> Result<Value, EvalError> {
+    let sup = pid_arg(&args[0], "supervisor_adopt", span)?;
+    let supervised = {
+        let st = node.st();
+        st.info
+            .get(&sup)
+            .is_some_and(|i| matches!(i.kind, Kind::Supervisor(_)))
+    };
+    if !supervised {
+        return Err(refuse(
+            "supervisor_adopt",
+            format!("pid {} is not a supervisor", sup.0),
+            span,
+        ));
+    }
+    let f = if code::is_function(&args[1]) {
+        &args[1]
+    } else {
+        return Err(refuse(
+            "supervisor_adopt",
+            format!("the child is a function, got {}", args[1].type_name()),
+            span,
+        ));
+    };
+    let a = match args.get(2) {
+        None | Some(Value::Nil) => Vec::new(),
+        Some(Value::List(a)) => a.iter().cloned().collect(),
+        Some(other) => {
+            return Err(refuse(
+                "supervisor_adopt",
+                format!("args are a list, got {}", other.type_name()),
+                span,
+            ))
+        }
+    };
+    let _ = who;
+    let pid = spawn_one(
+        node,
+        f,
+        &a,
+        Some(sup),
+        "supervisor_adopt",
+        span,
+        Scheduling::Normal,
+    )?;
+    node.st().enrol(sup, pid);
+    Ok(int(pid.0))
 }
 
 fn w_children(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {

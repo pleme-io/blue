@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-409 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+410 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -620,7 +620,8 @@ Higher binding power binds tighter.
 | `spawn` | `spawn(f[, args][, opts])` | 1..3 | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. opts {scheduling: :normal \| :idle}: :normal (the default) changes nothing; :idle runs each of its slices on a thread the OS gives its lowest priority (nice 19 on Linux, the background band on darwin), apart from the node: the node runs its other processes while that thread waits for a core, and the process still acts only while the program waits. A host with no such class raises :unsupported. :realtime, the class the OS never preempts, raises :permission_denied: the OS gives it only to a privileged process. |
 | `spawn_link` | `spawn_link(f[, args][, opts])` | 1..3 | spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits. opts as for spawn. |
 | `spawn_server` | `spawn_server(handler, state[, opts])` | 2..3 | A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms and evict carries. opts as for spawn, and dispatch_steps: n, the most steps one message's handler may take, met with the project's bounds({dispatch_steps:}) so each only narrows. Past it the process exits [:runaway, "execution budget exhausted: steps per dispatch (limit n)"], as a step bound ends one; nothing the handler did to the state lands, and a supervisor restarts it from the state before that message. A positive integer, or :bad_option. |
-| `supervisor` | `supervisor(strategy, children[, max_restarts])` | 2..3 | Start children (functions, [f, args] pairs, or [:server, handler, state[, opts]] with spawn_server's opts) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. Each crash writes a trace for blue replay. |
+| `supervisor` | `supervisor(strategy, children[, max_restarts])` | 2..4 | Start children (functions, [f, args] pairs, or [:server, handler, state[, opts]] with spawn_server's opts) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. Each crash writes a trace for blue replay. |
+| `supervisor_adopt` | `supervisor_adopt(sup, f[, args])` | 2..3 | Start f(args...) as a new child of a running supervisor and return its pid; the supervisor restarts it under its own strategy and restart window. Raises when sup is not a supervisor, f is not a function or args is not a list. |
 | `timeout` | `timeout(ms, f)` | 2 | deadline(node_time + ms, f). |
 | `trap_exit` | `trap_exit(flag)` | 1 | While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag. |
 | `unlink` | `unlink(pid)` | 1 | Remove a link; true. |

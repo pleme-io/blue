@@ -11,6 +11,7 @@ serves request counts and latencies as Prometheus text.
     answer(request("GET", "/x", ""), "/healthz", (_req) -> raise(:boom, "no"))[:status] #=> 500
 """
 
+use("deeta", [:get_or])
 use("gamen", %i[css element? render url_ok?])
 use("jisho", [:get_any])
 
@@ -313,6 +314,175 @@ def serve_settings(settings, handler, listening?)
     handler,
     getenv("BLUE_SERVICE", "blue"),
     listening
+  )
+end
+
+@doc """
+serve_policy_defaults: the restart policy serve_supervised uses when none is given: five restarts in a minute, backing off 10, 100 and 1000 ms.
+
+    serve_policy_defaults[:backoff_ms] #=> [10, 100, 1000]
+"""
+def serve_policy_defaults()
+  {max_restarts: 5, window_ms: 60000, backoff_ms: [10, 100, 1000]}
+end
+
+@doc """
+supervised_child: the body of one supervised handler process: it answers one request and sends [:response, id, response] to the parent; a handler that raises answers 500 with its message.
+
+    procedure?(supervised_child("/health", (r) -> text(200, "ok"))) #=> true
+"""
+def supervised_child(health, handler)
+  fn(req, parent, id)
+    resp = begin
+      answer(req, health, handler)
+    rescue e
+      text(500, unlines([e.message]))
+    end
+    send(parent, [:response, id, resp])
+    nil
+  end
+end
+
+@doc """
+supervised_dispatch: take the next waiting request off the listener and adopt a child process to answer it, keeping the wire in the root: the waiting row {id, started, req}, or nil when none waits.
+
+    procedure?(supervised_dispatch) #=> true
+"""
+def supervised_dispatch(l, health, handler, sup, next_id)
+  req = http_next_request(l, 0)
+  if req.nil?
+    nil
+  else
+    started = now_ms
+    plain = dissoc(req, :exchange)
+    supervisor_adopt(
+      sup,
+      supervised_child(health, handler),
+      [plain, self, next_id]
+    )
+    {id: next_id, started:, req:}
+  end
+end
+
+@doc """
+supervised_answer_one: answer the waiting request id with resp, log it and observe its status and latency: [waiting without id, metrics]; an id no longer waiting changes nothing.
+
+    supervised_answer_one({}, metrics_empty, 9, text(200, "x"))[0] #=> {}
+"""
+def supervised_answer_one(waiting, m, id, resp)
+  row = get(waiting, id)
+  if row.nil?
+    [waiting, m]
+  else
+    wire_resp = wire(resp)
+    answer_wire(row[:req], wire_resp)
+    write_stderr(
+      unlines(
+        [
+          "kyuuji: #{row[:req][:method]} #{row[:req][:path]} #{to_s(wire_resp[:status])}"
+        ]
+      )
+    )
+    [
+      dissoc(waiting, id),
+      observe(m, wire_resp[:status], (now_ms - row[:started]) / 1000)
+    ]
+  end
+end
+
+@doc """
+supervised_step: one turn of the supervised loop: answer one settled child, then hand the next waiting request to a new child: the next {waiting, metrics, next_id}.
+
+    procedure?(supervised_step) #=> true
+"""
+def supervised_step(l, health, handler, sup, state)
+  waiting = state[:waiting]
+  m = state[:metrics]
+  settled = begin
+    receive(%i[response _], 0, :none)
+  rescue _e
+    :none
+  end
+  after_drain = if settled == :none
+    [waiting, m]
+  else
+    supervised_answer_one(waiting, m, first(rest(settled)), last(settled))
+  end
+  ready = net_wait([[l, :read]], 50)
+  if ready.nil?
+    {
+      waiting: first(after_drain),
+      metrics: second(after_drain),
+      next_id: state[:next_id]
+    }
+  else
+    handed = supervised_dispatch(l, health, handler, sup, state[:next_id])
+    if handed.nil?
+      {
+        waiting: first(after_drain),
+        metrics: second(after_drain),
+        next_id: state[:next_id]
+      }
+    else
+      {
+        waiting: assoc(first(after_drain), handed[:id], handed),
+        metrics: second(after_drain),
+        next_id: handed[:id] + 1
+      }
+    end
+  end
+end
+
+# waive B0083: integration debt recorded 2026-11-17: over-the-wire serve tests wait on parked I/O (ASYNC A3); monban's real docker-push e2e is the lock
+@doc """
+serve_supervised: serve with each handler run as a supervised process.
+
+The root keeps the listener and every wire; a child computes one response and
+sends it back, so a handler that raises is contained by its process and
+restarted by the supervisor, and a slow handler delays no other request.
+
+    procedure?(serve_supervised) #=> true
+"""
+def serve_supervised(addr, health, handler, _service, listening?, policy?)
+  p = policy or serve_policy_defaults
+  sup = supervisor(
+    :one_for_one,
+    [],
+    get_or(p, :max_restarts, 5),
+    {
+      window_ms: get_or(p, :window_ms, nil),
+      backoff_ms: get_or(p, :backoff_ms, [])
+    }
+  )
+  l = http_listen(addr, listening or {})
+  write_stderr(
+    unlines(
+      [
+        "kyuuji: supervised on #{addr}, health #{health}, metrics #{metrics_path}"
+      ]
+    )
+  )
+  supervised_loop(
+    l,
+    health,
+    handler,
+    sup,
+    {waiting: {}, metrics: metrics_empty, next_id: 1}
+  )
+end
+
+@doc """
+supervised_loop: run supervised_step forever, each turn on the state the one before left; a tail call, so it runs in constant stack.
+
+    procedure?(supervised_loop) #=> true
+"""
+def supervised_loop(l, health, handler, sup, state)
+  supervised_loop(
+    l,
+    health,
+    handler,
+    sup,
+    supervised_step(l, health, handler, sup, state)
   )
 end
 
@@ -1290,7 +1460,6 @@ def upgrade(req, f)
   end
 end
 
-# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 answer_wire: Send a response, logging a client that left rather than stopping the loop.
 
@@ -1970,4 +2139,48 @@ end
 
 test "the metered server loop is a function of its own, called in tail position"
   assert procedure?(serve_metered_loop)
+end
+
+test "a settled request leaves the waiting table and is observed"
+  row = {
+    id: 4,
+    started: now_ms,
+    req: {
+      exchange: :gone,
+      method: "GET",
+      path: "/x",
+      query: "",
+      headers: [],
+      body: ""
+    }
+  }
+  out = supervised_answer_one({4 => row}, metrics_empty, 4, text(200, "y"))
+  assert get(first(out), 4).nil?
+  assert second(out)["count"] == 1
+  assert supervised_answer_one(first(out), second(out), 99, text(200, "n")) ==
+    [first(out), second(out)]
+end
+
+test "a supervised server's policy fills unset fields from the defaults and its child is a process body"
+  assert get_or({max_restarts: 2}, :max_restarts, 5) == 2
+  assert get_or({}, :window_ms, 60000) == 60000
+  assert serve_policy_defaults[:max_restarts] == 5
+  assert procedure?(supervised_child("/health", (r) -> text(200, "ok")))
+  assert procedure?(serve_supervised)
+  assert procedure?(supervised_loop)
+  assert procedure?(supervised_step)
+  assert procedure?(supervised_dispatch)
+end
+
+test "on a quiet listener the supervised loop hands nothing to a child and keeps its state", {
+  kind: :integration,
+  allow: %i[network process]
+}
+  l = http_listen("127.0.0.1:0")
+  sup = supervisor(:one_for_one, [], 5, {window_ms: 60000, backoff_ms: [10]})
+  health = "/healthz"
+  h = (r) -> text(200, "ok")
+  assert supervised_dispatch(l, health, h, sup, 1).nil?
+  state = {waiting: {}, metrics: metrics_empty, next_id: 1}
+  assert supervised_step(l, health, h, sup, state) == state
 end

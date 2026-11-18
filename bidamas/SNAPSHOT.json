@@ -1,4 +1,4 @@
-{"blind":[],"definitions":6266,"format":"arika/1","leaves":6266,"repo":"blue","shape_root":"b3:ee17ca62d3b1d40604c51e31f2f087291e0a1a34dc0f057c0cd9ee4567c6da45","shapes":6040,"snapshot_root":"b3:476824127543802982c51720126c91f77349f8bbfede0fec3be1f405826b88e6","units":[
+{"blind":[],"definitions":6289,"format":"arika/1","leaves":6289,"repo":"blue","shape_root":"b3:e88a9187e34bdbc8216b57c81fc1b408cfa06c6f14c95ca62ae756e0f642e002","shapes":6063,"snapshot_root":"b3:262107743521181c875d2426ee45cd4dfe6dc05d73e6b9f90541af079ca8aaa9","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:36ac9aa57ad58e5b08dd8fee1127bcbde40bde943b04e867dff894a6ef4232e0"},
 {"leaves":23,"package":"baito","unit_root":"b3:553d60efdc6eb55aa63416f3308f3e6c33ac71cebd97aa35d31b119e0cc44385"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:a0981b7cef626011be53bd3c07cdf79f2a11e86a49792955c8cb42040510d24d"},
@@ -62,7 +62,7 @@
 {"leaves":203,"package":"kueri","unit_root":"b3:e2a7a76948be528efe29e8de6c9abeb13a63a2b330e760872a8182e8493fe648"},
 {"leaves":1,"package":"kurasuta","unit_root":"b3:94766af8c8f15e3a3d9366f1f3688905dc0f28427174c3cbfa94f6ea15ca2687"},
 {"leaves":38,"package":"kurasuta/kinds","unit_root":"b3:d622d217045f6a5680441e4d5a214e6ae42714f33cf389fe2a0b2eaf44de4348"},
-{"leaves":14,"package":"kuzushi","unit_root":"b3:7ecb7c43917b4bdca5405c69695daeb15e6d0caf33dcce2a6757e87a1d06fc2b"},
+{"leaves":37,"package":"kuzushi","unit_root":"b3:8ecb02912f87552ff1047f79d7589a30b09ed2f8a09d4a5c048e540056efcb37"},
 {"leaves":24,"package":"kyohi","unit_root":"b3:c945f574a65f1dc54371e9488aba848d48663d8578577e9edc9f4af073c81f48"},
 {"leaves":10,"package":"maakuappu","unit_root":"b3:c38aa7a40570dab19cbf7b2445756befbc12ecc16d16321a51a28eb195f35fd4"},
 {"leaves":39,"package":"mitoshi/keisoku","unit_root":"b3:568d1c02ebead9132a7e213d187c6ee4446488d564bfa67ce6d1f63c92afd43c"},

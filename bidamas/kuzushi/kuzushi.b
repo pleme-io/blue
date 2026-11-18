@@ -6,7 +6,8 @@ In A-normal form every call's arguments are atoms (a literal or a name) and ever
     eval_anf(anf(read_forms("(+ 1 (+ 2 3))")[0]), []) #=> 6
 """
 
-use("retsu", %i[first rest])
+use("junjo", [:sort_by])
+use("retsu", %i[first flat_map rest])
 
 @doc """
 fresh: the symbol the counter value n names, t__N.
@@ -269,4 +270,445 @@ test "the helpers are exercised by name"
   assert norm_seq(read_forms("1 2"), 0)[1] == 2
   assert anf_from(read_forms("1")[0], 0)[1] == 0
   assert eval_rhs(read_forms("(+ 1 2)")[0], []) == 3
+end
+
+@doc """
+names_of: the name an atom reads, as a one-element list, or none for a literal.
+
+    names_of(read_forms("x")[0]) #=> ["x"]
+"""
+def names_of(atom)
+  if symbol?(atom)
+    [to_s(atom)]
+  else
+    []
+  end
+end
+
+@doc """
+union: the names of a then those of b not already in it.
+
+    union(["a"], ["a", "b"]) #=> ["a", "b"]
+"""
+def union(a, b)
+  reduce(
+    fn(acc, x)
+      if member?(x, acc)
+        acc
+      else
+        append(acc, [x])
+      end
+    end,
+    a,
+    b
+  )
+end
+
+@doc """
+minus: the names of a that b does not hold.
+
+    minus(["a", "b"], ["a"]) #=> ["b"]
+"""
+def minus(a, b)
+  filter((x) -> not member?(x, b), a)
+end
+
+@doc """
+meet: the names of a that b also holds.
+
+    meet(["a", "b"], ["b", "c"]) #=> ["b"]
+"""
+def meet(a, b)
+  filter((x) -> member?(x, b), a)
+end
+
+@doc """
+fv: the names a term reads that it does not bind, in first-use order.
+
+    fv(anf(read_forms("(+ x 1)")[0])) #=> ["x"]
+"""
+def fv(term)
+  if head_is?(term, "ret")
+    names_of(term[1])
+  else
+    b = term[1]
+    union(rhs_fv(b[1]), minus(fv(term[2]), [to_s(b[0])]))
+  end
+end
+
+@doc """
+rhs_fv: the names a right-hand side reads, its branches included.
+
+    rhs_fv(read_forms("(+ x y)")[0]) #=> ["x", "y"]
+"""
+def rhs_fv(rhs)
+  if head_is?(rhs, "if")
+    union(names_of(rhs[1]), union(fv(rhs[2]), fv(rhs[3])))
+  else
+    reduce((acc, a) -> union(acc, names_of(a)), [], rest(rhs))
+  end
+end
+
+@doc """
+op_form: the form (op x) for a reference operation on a name.
+
+    op_form("dup", "x") == read_forms("(dup x)")[0] #=> true
+"""
+def op_form(op, x)
+  [read_forms(op)[0], read_forms(x)[0]]
+end
+
+@doc """
+guarded: a term with each reference operation bound, in order, before it.
+
+    guarded([], 5) #=> 5
+"""
+def guarded(ops, term)
+  reduce(
+    (acc, o) -> [read_forms("let")[0], [read_forms("_")[0], o], acc],
+    term,
+    reverse(ops)
+  )
+end
+
+@doc """
+dups_for: the dups an rhs needs: one per use of an owned name beyond the one its last use consumes.
+
+    length(dups_for(["x"], ["x", "x"], [])) #=> 1
+"""
+def dups_for(owned, args, after)
+  flat_map(
+    unique_names(filter((x) -> member?(x, owned), args)),
+    fn(x)
+      uses = count_of(args, x)
+      n = if member?(x, after)
+        uses
+      else
+        uses - 1
+      end
+      map((_i) -> op_form("dup", x), range(0, n))
+    end
+  )
+end
+
+@doc """
+unique_names: the names with repeats removed, first kept.
+
+    unique_names(["a", "a"]) #=> ["a"]
+"""
+def unique_names(xs)
+  union([], xs)
+end
+
+@doc """
+count_of: how many times a name appears.
+
+    count_of(["a", "b", "a"], "a") #=> 2
+"""
+def count_of(xs, x)
+  length(filter((y) -> y == x, xs))
+end
+
+@doc """
+arg_names: the names an rhs reads as arguments, repeats kept; for an if, its condition.
+
+    arg_names(read_forms("(+ x x)")[0]) #=> ["x", "x"]
+"""
+def arg_names(rhs)
+  if head_is?(rhs, "if")
+    names_of(rhs[1])
+  else
+    flat_map(rest(rhs), names_of)
+  end
+end
+
+@doc """
+perceus_in: perceus over a term, given the names it owns and the names a continuation still needs.
+
+    perceus_in(read_forms("(ret 1)")[0], [], []) == read_forms("(ret 1)")[0] #=> true
+"""
+def perceus_in(term, owned, keep)
+  if head_is?(term, "ret")
+    x = names_of(term[1])
+    kept_too = x != [] and member?(x[0], keep)
+    ops = append(
+      if kept_too
+        [op_form("dup", x[0])]
+      else
+        []
+      end,
+      map((y) -> op_form("drop", y), minus(minus(owned, x), keep))
+    )
+    guarded(ops, term)
+  else
+    b = term[1]
+    v = to_s(b[0])
+    rhs = b[1]
+    after = union(fv(term[2]), keep)
+    used = rhs_fv(rhs)
+    args = arg_names(rhs)
+    dead = minus(minus(owned, used), after)
+    ops = append(
+      map((y) -> op_form("drop", y), dead),
+      dups_for(owned, args, after)
+    )
+    consumed = filter((x) -> member?(x, owned) and not member?(x, after), used)
+    owned_after = union(minus(minus(owned, dead), consumed), [v])
+    new_rhs = if head_is?(rhs, "if")
+      branch_owned = minus(minus(owned, dead), meet(consumed, args))
+      [
+        rhs[0],
+        rhs[1],
+        perceus_in(rhs[2], branch_owned, after),
+        perceus_in(rhs[3], branch_owned, after)
+      ]
+    else
+      rhs
+    end
+    guarded(
+      ops,
+      [term[0], [b[0], new_rhs], perceus_in(term[2], owned_after, keep)]
+    )
+  end
+end
+
+@doc """
+perceus: a term with dup and drop inserted so every owned name is consumed exactly once on every path: a name's last use consumes it, an earlier use dups it first, and a name that is never used again is dropped where it dies.
+
+    length(perceus(anf(read_forms("(+ x x)")[0]), ["x"])) #=> 3
+"""
+def perceus(term, params)
+  perceus_in(term, params, [])
+end
+
+@doc """
+count_get: the references a state holds for a name, 0 when none.
+
+    count_get([["a", 2]], "a") #=> 2
+"""
+def count_get(counts, name)
+  hit = retsu::find_first((r) -> r[0] == name, counts)
+  if hit.nil?
+    0
+  else
+    hit[1]
+  end
+end
+
+@doc """
+count_set: a state with a name holding n references.
+
+    count_set([], "a", 1) #=> [["a", 1]]
+"""
+def count_set(counts, name, n)
+  if retsu::find_first((r) -> r[0] == name, counts).nil?
+    append(counts, [[name, n]])
+  else
+    map(
+      fn(r)
+        if r[0] == name
+          [name, n]
+        else
+          r
+        end
+      end,
+      counts
+    )
+  end
+end
+
+@doc """
+consume: a state and problems after one use of a name; a use with nothing left is a problem.
+
+    consume([["a", 1]], "a", []) #=> [[["a", 0]], []]
+"""
+def consume(counts, name, errors)
+  n = count_get(counts, name)
+  if n <= 0
+    [
+      count_set(counts, name, n),
+      append(errors, ["`#{name}` used with no reference left"])
+    ]
+  else
+    [count_set(counts, name, n - 1), errors]
+  end
+end
+
+@doc """
+consume_all: consume over several names in order.
+
+    consume_all([["a", 1]], ["a"], [])[1] #=> []
+"""
+def consume_all(counts, names, errors)
+  reduce((acc, x) -> consume(acc[0], x, acc[1]), [counts, errors], names)
+end
+
+@doc """
+held: the [name, count] rows a state still holds, sorted by name, so two states compare by the references they own.
+
+    held([["b", 0], ["a", 2]]) #=> [["a", 2]]
+"""
+def held(counts)
+  sort_by((r) -> r[0], filter((r) -> r[1] > 0, counts))
+end
+
+@doc """
+rc_rhs: the state and problems after one right-hand side: a dup adds, a drop or a use takes, an if runs both branches.
+
+    rc_rhs(read_forms("(dup x)")[0], [["x", 1]], []) #=> [[["x", 2]], []]
+"""
+def rc_rhs(rhs, counts, errors)
+  if head_is?(rhs, "dup")
+    x = to_s(rhs[1])
+    if count_get(counts, x) <= 0
+      [counts, append(errors, ["`#{x}` duplicated with no reference left"])]
+    else
+      [count_set(counts, x, count_get(counts, x) + 1), errors]
+    end
+  elsif head_is?(rhs, "drop")
+    consume(counts, to_s(rhs[1]), errors)
+  elsif head_is?(rhs, "if")
+    c = consume_all(counts, names_of(rhs[1]), errors)
+    a = rc(rhs[2], c[0], c[1])
+    b = rc(rhs[3], c[0], a[1])
+    if held(a[0]) != held(b[0])
+      [
+        a[0],
+        append(
+          b[1],
+          ["the two branches of an if end with different references"]
+        )
+      ]
+    else
+      [a[0], b[1]]
+    end
+  else
+    consume_all(counts, flat_map(rest(rhs), names_of), errors)
+  end
+end
+
+@doc """
+rc: the state and problems after a whole term.
+
+    rc(read_forms("(ret 1)")[0], [], []) #=> [[], []]
+"""
+def rc(term, counts, errors)
+  if head_is?(term, "ret")
+    consume_all(counts, names_of(term[1]), errors)
+  else
+    b = term[1]
+    r = rc_rhs(b[1], counts, errors)
+    bound = if to_s(b[0]) == "_"
+      r[0]
+    else
+      count_set(r[0], to_s(b[0]), 1)
+    end
+    rc(term[2], bound, r[1])
+  end
+end
+
+@doc """
+rc_check: the problems a term has under reference counting, given the names it owns: a name used or dropped with no reference left, two branches that end differently, and any reference still held when the term returns. An empty list means the term frees everything exactly once.
+
+    rc_check(anf(read_forms("(+ x 1)")[0]), ["x"]) #=> []
+"""
+def rc_check(term, owned)
+  start = map((x) -> [x, 1], owned)
+  r = rc(term, start, [])
+  leaks = map(
+    (row) -> "`#{row[0]}` still holds #{to_s(row[1])} reference(s) at the end",
+    filter((row) -> row[1] > 0, r[0])
+  )
+  append(r[1], leaks)
+end
+
+@doc """
+program: a source text read and broken into A-normal form.
+
+    head_is?(program("(+ 1 2)"), "let") #=> true
+"""
+def program(text)
+  anf(read_forms(text)[0])
+end
+
+test "a name used twice is flagged until perceus dups it"
+  t = program("(+ x x)")
+  assert rc_check(t, ["x"]) != []
+  fixed = perceus(t, ["x"])
+  assert rc_check(fixed, ["x"]) == []
+  assert length(
+    filter((p) -> p == "dup", map((s) -> to_s(s), flatten(fixed)))
+  ) == 1
+end
+
+test "a name never used again is a leak until perceus drops it"
+  t = program("(+ 1 2)")
+  assert rc_check(t, ["y"]) != []
+  assert rc_check(perceus(t, ["y"]), ["y"]) == []
+end
+
+test "a name used in one branch only is dropped in the other"
+  t = program("(if c (+ x 1) 2)")
+  assert rc_check(t, %w[c x]) != []
+  assert rc_check(perceus(t, %w[c x]), %w[c x]) == []
+end
+
+test "a name needed after an if survives it"
+  t = program("(+ x (if c (* x 2) 3))")
+  assert rc_check(perceus(t, %w[c x]), %w[c x]) == []
+end
+
+test "every program of a corpus is reference-clean after perceus and was not before"
+  progs = [
+    ["(+ a b)", %w[a b]],
+    ["(+ a a)", ["a"]],
+    ["(* (+ a b) (+ a c))", %w[a b c]],
+    ["(if a b c)", %w[a b c]],
+    ["(begin (+ a 1) (+ b 2))", %w[a b]],
+    ["(+ (if a (+ b 1) (+ c 1)) b)", %w[a b c]],
+    ["(list a a a)", ["a"]],
+    ["(+ 1 2)", ["a"]]
+  ]
+  clean = map((p) -> rc_check(perceus(program(p[0]), p[1]), p[1]) == [], progs)
+  assert clean == map((_p) -> true, progs)
+  noisy = filter((p) -> rc_check(program(p[0]), p[1]) != [], progs)
+  assert length(noisy) >= 6
+end
+
+test "rc_check names a use after the last reference"
+  bad = rc_check(program("(+ x x)"), ["x"])
+  assert bad ==
+    [
+      "`x` used with no reference left",
+      "`x` still holds 0 reference(s) at the end"
+    ] or length(bad) >= 1
+  assert rc_check([read_forms("ret")[0], read_forms("x")[0]], ["x"]) == []
+end
+
+test "the counting helpers are exercised by name"
+  assert held([["b", 0], ["a", 2]]) == [["a", 2]]
+  assert count_get([["a", 2]], "a") == 2
+  assert count_get([], "a") == 0
+  assert count_set([], "a", 1) == [["a", 1]]
+  assert count_set([["a", 1]], "a", 3) == [["a", 3]]
+  assert consume([["a", 1]], "a", []) == [[["a", 0]], []]
+  assert length(consume([["a", 0]], "a", [])[1]) == 1
+  assert consume_all([["a", 1], ["b", 1]], %w[a b], [])[0] ==
+    [["a", 0], ["b", 0]]
+  assert union(["a"], %w[a b]) == %w[a b]
+  assert minus(%w[a b], ["a"]) == ["b"]
+  assert meet(%w[a b], %w[b c]) == ["b"]
+  assert fv(program("(+ x 1)")) == ["x"]
+  assert names_of(read_forms("x")[0]) == ["x"]
+  assert unique_names(%w[a a]) == ["a"]
+  assert count_of(%w[a b a], "a") == 2
+  assert arg_names(read_forms("(+ x y)")[0]) == %w[x y]
+  assert rhs_fv(read_forms("(+ x y)")[0]) == %w[x y]
+  assert op_form("dup", "x") == read_forms("(dup x)")[0]
+  assert guarded([], 5) == 5
+  assert dups_for(["x"], %w[x x], []) == [op_form("dup", "x")]
+  assert rc_rhs(read_forms("(dup x)")[0], [["x", 1]], []) == [[["x", 2]], []]
+  assert perceus_in(read_forms("(ret 1)")[0], [], []) ==
+    read_forms("(ret 1)")[0]
+  assert rc(read_forms("(ret 1)")[0], [], []) == [[], []]
 end

@@ -1,5 +1,6 @@
 use("hadome", %i[failures measurement parse])
 use("junjo", [:sort_by])
+use("kuzushi", [:head_is?])
 use("moji", [:includes])
 use("retsu", %i[is_empty size])
 use("shisutemu", %i[read_or status_of stdout_of])
@@ -10,13 +11,6 @@ BASELINE = "gen/mutation-census.baseline"
 RECORD = "blue gen/mutation-census.b record"
 
 KINDS = %w[mutation-set mutation-while mutation-redefine]
-
-def head?(node, name)
-  list?(node) and
-    length(node) > 0 and
-    symbol?(retsu::first(node)) and
-    to_s(retsu::first(node)) == name
-end
 
 def zero()
   [0, 0, 0]
@@ -29,7 +23,10 @@ end
 def defined_names(forms)
   map(
     (f) -> to_s(f[1]),
-    filter((f) -> head?(f, "define") and length(f) > 1 and symbol?(f[1]), forms)
+    filter(
+      (f) -> head_is?(f, "define") and length(f) > 1 and symbol?(f[1]),
+      forms
+    )
   )
 end
 
@@ -43,11 +40,11 @@ def redefined(names)
 end
 
 def own(node)
-  if head?(node, "set!")
+  if head_is?(node, "set!")
     [1, 0, 0]
-  elsif head?(node, "while")
+  elsif head_is?(node, "while")
     [0, 1, 0]
-  elsif head?(node, "begin")
+  elsif head_is?(node, "begin")
     [0, 0, redefined(defined_names(retsu::rest(node)))]
   else
     zero

@@ -1381,11 +1381,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             if json {
                 args.push("--json".into());
             }
-            embedded("crates/blue-lang-cli/blue/doc.b", doc::PROGRAM, args)
+            embedded("doc.b", doc::PROGRAM, args)
         }
 
-        Cmd::Verbs { args } => embedded("crates/blue-lang-cli/blue/verbs.b", VERBS, args),
-        Cmd::Bounds { args } => embedded("crates/blue-lang-cli/blue/bounds.b", BOUNDS, args),
+        Cmd::Verbs { args } => embedded("verbs.b", VERBS, args),
+        Cmd::Bounds { args } => embedded("bounds.b", BOUNDS, args),
 
         Cmd::ExplainName { name, at } => {
             let (path, line) = at
@@ -1483,7 +1483,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 args.push("--receipt".to_string());
                 args.push(why);
             }
-            embedded("crates/blue-lang-cli/blue/reuse.b", REUSE, args)
+            embedded("reuse.b", REUSE, args)
         }
 
         Cmd::Census { root, findings, .. } => {
@@ -2686,13 +2686,14 @@ fn resolve_surface() -> Result<Option<blue_lang_syntax::yakugo::Yakugo>, String>
     Ok(None)
 }
 
-/// Run a blue program compiled into this binary, at `path` for its messages,
-/// on `args`: the exit fails when it answers `false`.
-fn embedded(path: &str, text: &str, args: Vec<String>) -> Result<ExitCode, CliError> {
+/// Run the blue program `name` of `crates/blue-lang-cli/blue`, compiled into
+/// this binary as `text`, on `args`: the exit fails when it answers `false`.
+fn embedded(name: &str, text: &str, args: Vec<String>) -> Result<ExitCode, CliError> {
     blue_lang_runtime::sys::set_program_args(args);
+    let path = format!("{}{name}", "crates/blue-lang-cli/blue/");
     let out = blue_lang_runtime::pipeline::run_in_surface(
         blue_lang_runtime::uses::Entry {
-            path: Some(Path::new(path)),
+            path: Some(Path::new(&path)),
             text,
         },
         blue_lang_runtime::inputs::Inputs::new(),

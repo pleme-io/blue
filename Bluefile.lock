@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:30c714961db33067ba64f9df21f8d6269bb0dbe326be766e600170c9a89a68eb",
+  "bluefile_b3": "b3:e39966c19e97a87d91f8aa8b778acb3dad231e1ff7fe15caf1ef5279aeef70c3",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -157,6 +157,10 @@
           "gen/proof.b"
         ],
         "stage": "push"
+      },
+      "purity-ledger": {
+        "file": "gen/purity.b",
+        "stage": "ci"
       },
       "regen-untracked": {
         "file": "gen/regen_test.b",

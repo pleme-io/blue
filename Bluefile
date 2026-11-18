@@ -163,6 +163,12 @@ vm_check(
 check("verb-graph", "gen/verb-graph.b", {stage: :ci})
 check("heni-mutations", "gen/heni-gate.b", {stage: :ci})
 
+# The purity ledger (docs/PURE-BLUE.md S0): the Rust source bytes of each crate,
+# held by gen/purity.baseline. A crate may shrink or hold and never grow; a new
+# crate must be recorded (blue gen/purity.b record). The count only falls as
+# blue replaces its Rust layers with blue.
+check("purity-ledger", "gen/purity.b", {stage: :ci})
+
 # Tests live beside what they test (docs/TESTING.md): every bidama definition
 # is reached by a test in its package, or waived with a why and a date, or
 # held as recorded debt that may only shrink. `checks.test-beside` is every

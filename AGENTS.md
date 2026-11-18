@@ -58,6 +58,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/prepush.b` | `checks.prepush` |
 | `blue test rules/conventions.b` | `checks.project-rules` |
 | `blue test gen/proof.b` | `checks.proof` |
+| `blue test gen/purity.b` | `checks.purity-ledger` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |
 | `blue test gen/release.b` | `checks.release` |
 | `blue test gen/test-beside.b` | `checks.test-beside-judge` |

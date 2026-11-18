@@ -866,7 +866,7 @@ def rc_op(slots, op, args)
         {op: "pop", dst: "rax"}
       ]
     )
-  elsif op == "print"
+  elsif op == "write_stdout"
     append(
       tagged_atom(slots, args[0], "rdi"),
       [
@@ -880,6 +880,15 @@ def rc_op(slots, op, args)
         {op: "pop", dst: "rdi"},
         {op: "call_label", label: "rt_drop"},
         {op: "mov", dst: "rax", imm: 0}
+      ]
+    )
+  elsif op == "exit_with"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [
+        {op: "sar1", dst: "rdi"},
+        {op: "mov", dst: "rax", imm: 60},
+        {op: "syscall"}
       ]
     )
   elsif op == "length"
@@ -1616,16 +1625,20 @@ STRING_PROGRAMS: programs over strings, with the exit status and the output each
     STRING_PROGRAMS[1][1] #=> 4
 """
 STRING_PROGRAMS = [
-  ["(begin (print \"hello, world\\n\") 0)", 0, unlines(["hello, world"])],
+  [
+    "(begin (write_stdout \"hello, world\\n\") 0)",
+    0,
+    unlines(["hello, world"])
+  ],
   ["(string_length \"blue\")", 4, ""],
   ["(let ((s \"ab\")) (+ (string_length s) (string_length s)))", 4, ""],
   [
-    "(begin (define (greet s) (print s)) (greet \"hi\\n\") (greet \"there\\n\") 7)",
+    "(begin (define (greet s) (write_stdout s)) (greet \"hi\\n\") (greet \"there\\n\") 7)",
     7,
     unlines(%w[hi there])
   ],
   [
-    "(let ((f (lambda (x) (print x)))) (begin (f \"one\\n\") (f \"two\\n\") 2))",
+    "(let ((f (lambda (x) (write_stdout x)))) (begin (f \"one\\n\") (f \"two\\n\") 2))",
     2,
     unlines(%w[one two])
   ]
@@ -1656,7 +1669,8 @@ end
 
 test "a string literal is one immortal static block, labelled by its bytes"
   assert str_label("hi") == "str_6869"
-  assert strings_in(read_forms("(print \"a\") (f \"a\" \"b\")")) == %w[a b]
+  assert strings_in(read_forms("(write_stdout \"a\") (f \"a\" \"b\")")) ==
+    %w[a b]
   b = string_block("hi")
   assert slice(b, 0, 8) == le64(1)
   assert slice(b, 24, 8) == le64(2)
@@ -1666,7 +1680,7 @@ test "a string literal is one immortal static block, labelled by its bytes"
   assert string_data(["x"])[0] == {op: "label", name: "str_78"}
   assert tagged_atom([], "x", "rcx") ==
     [{op: "lea_label", dst: "rcx", label: "str_78"}]
-  assert member?({op: "syscall"}, rc_op([], "print", ["x"]))
+  assert member?({op: "syscall"}, rc_op([], "write_stdout", ["x"]))
   assert length(STRING_PROGRAMS) == 5
   assert literals_in(
     read_forms("(let (t (gcall \"f\" \"x\")) (ret \"y\"))")[0]
@@ -2295,7 +2309,7 @@ CONCAT_PROGRAMS: programs that join and compare strings, with the exit status an
 CONCAT_PROGRAMS = [
   ["(string_length (concat \"ab\" \"cde\"))", 5, ""],
   [
-    "(begin (print (concat \"hello, \" \"blue\" \"\\n\")) 0)",
+    "(begin (write_stdout (concat \"hello, \" \"blue\" \"\\n\")) 0)",
     0,
     unlines(["hello, blue"])
   ],
@@ -2426,16 +2440,20 @@ TO_S_PROGRAMS: programs that print numbers, with the exit status and output each
     TO_S_PROGRAMS[0][2] #=> "n=42\n"
 """
 TO_S_PROGRAMS = [
-  ["(begin (print (concat \"n=\" (to_s 42) \"\\n\")) 0)", 0, unlines(["n=42"])],
+  [
+    "(begin (write_stdout (concat \"n=\" (to_s 42) \"\\n\")) 0)",
+    0,
+    unlines(["n=42"])
+  ],
   ["(string_length (to_s -1234))", 5, ""],
   ["(begin (print (to_s 0)) 0)", 0, "0"],
   [
-    "(begin (define (fact n) (if (< n 2) 1 (* n (fact (- n 1))))) (print (concat \"10! = \" (to_s (fact 10)) \"\\n\")) 0)",
+    "(begin (define (fact n) (if (< n 2) 1 (* n (fact (- n 1))))) (write_stdout (concat \"10! = \" (to_s (fact 10)) \"\\n\")) 0)",
     0,
     unlines(["10! = 3628800"])
   ],
   [
-    "(begin (print (concat (to_s (reduce (lambda (a x) (+ a x)) 0 (list 1 2 3))) \"\\n\")) 0)",
+    "(begin (write_stdout (concat (to_s (reduce (lambda (a x) (+ a x)) 0 (list 1 2 3))) \"\\n\")) 0)",
     0,
     unlines(["6"])
   ]
@@ -2495,7 +2513,8 @@ test "every primitive the code generators know emits code beside them, and an un
     assoc
     get
     string_length
-    print
+    write_stdout
+    exit_with
     length
     id
     dup
@@ -2507,4 +2526,41 @@ test "every primitive the code generators know emits code beside them, and an un
   seven = [1, 2, 3, 4, 5, 6, 7]
   assert (rc_gcall([], "f", seven) rescue :refused) == :refused
   assert (call_code([], 1, seven, tagged_atom) rescue :refused) == :refused
+end
+
+@doc """
+HOST_PROGRAMS: programs over host words (R4 of docs/PURE-BLUE.md), with the exit status and the output each must give. A program that leaves through exit_with leaves before any block count, so these are judged by status and output alone.
+
+    HOST_PROGRAMS[0][1] #=> 3
+"""
+HOST_PROGRAMS = [
+  ["(begin (write_stdout \"bye\\n\") (exit_with 3))", 3, unlines(["bye"])],
+  ["(begin (exit_with 0) (write_stdout \"never\"))", 0, ""],
+  ["(exit_with (+ 40 2))", 42, ""]
+]
+
+test "host programs leave with exit_with's status and write what write_stdout is given on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "h.out")
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+      end,
+      HOST_PROGRAMS
+    )
+  end
+end
+
+test "exit_with untags its status and calls exit, and print is refused until it prints as blue does"
+  code = rc_op([], "exit_with", [3])
+  assert member?({op: "mov", dst: "rax", imm: 60}, code)
+  assert member?({op: "sar1", dst: "rdi"}, code)
+  assert (rc_op([], "print", ["x"]) rescue :refused) == :refused
 end

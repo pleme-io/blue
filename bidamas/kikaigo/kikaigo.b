@@ -143,6 +143,10 @@ def encode(i)
     [15, 5]
   elsif op == "label"
     []
+  elsif op == "lea_label"
+    append([72, 141, 5], le32(i[:rel] or 0))
+  elsif op == "call_r11"
+    [65, 255, 19]
   elsif op == "push_rbp"
     [85]
   elsif op == "pop_rbp"
@@ -186,10 +190,13 @@ def encode(i)
       137
     end
     disp = check_imm(i[:disp])
-    if imm8?(disp)
-      [rex(r, 5), code, 64 + r % 8 * 8 + 5, byte8(disp)]
+    b = base_of(i)
+    if disp == 0 and b % 8 != 5
+      [rex(r, b), code, r % 8 * 8 + b % 8]
+    elsif imm8?(disp)
+      [rex(r, b), code, 64 + r % 8 * 8 + b % 8, byte8(disp)]
     else
-      append([rex(r, 5), code, 128 + r % 8 * 8 + 5], le32(disp))
+      append([rex(r, b), code, 128 + r % 8 * 8 + b % 8], le32(disp))
     end
   elsif i[:imm] != nil
     d = reg(i[:dst])
@@ -235,10 +242,12 @@ def text(i)
     "movq (%rcx), %#{i[:dst]}"
   elsif op == "store_at"
     "movq %#{i[:src]}, (%rcx)"
+  elsif op == "call_r11"
+    "callq *(%r11)"
   elsif op == "load"
-    "movq #{to_s(i[:disp])}(%rbp), %#{i[:dst]}"
+    "movq #{to_s(i[:disp])}(%#{i[:base] or "rbp"}), %#{i[:dst]}"
   elsif op == "store"
-    "movq %#{i[:src]}, #{to_s(i[:disp])}(%rbp)"
+    "movq %#{i[:src]}, #{to_s(i[:disp])}(%#{i[:base] or "rbp"})"
   elsif i[:imm] != nil
     "#{op}q $#{to_s(i[:imm])}, %#{i[:dst]}"
   else
@@ -310,6 +319,24 @@ def last_or0(xs)
 end
 
 @doc """
+base_of: the base register of a memory operand, rbp when none is named; rsp and r12 need a SIB byte this encoder does not write, so they are refused.
+
+    base_of({disp: 8}) #=> 5
+    base_of({base: "r15", disp: 8}) #=> 15
+"""
+def base_of(i)
+  b = reg(i[:base] or "rbp")
+  if b % 8 == 4
+    raise(
+      :unsupported_base,
+      "kikaigo: `#{i[:base]}` as a base needs a SIB byte"
+    )
+  else
+    b
+  end
+end
+
+@doc """
 assemble: the bytes of a sequence of instructions, in order.
 
     assemble([{op: "syscall"}, {op: "ret"}]) #=> [15, 5, 195]
@@ -348,16 +375,32 @@ def corpus()
     REGS,
     (r) -> [{op: "load_at", dst: r}, {op: "store_at", src: r}]
   )
+  bases = %w[rax rcx rbx rbp r11 r13 r15]
+  based = flat_map(
+    bases,
+    fn(b)
+      flat_map(
+        [0, 8, -2048],
+        fn(d)
+          [
+            {op: "load", dst: "rax", base: b, disp: d},
+            {op: "store", src: "r9", base: b, disp: d}
+          ]
+        end
+      )
+    end
+  )
   mul = flat_map(REGS, (d) -> map((s) -> {op: "imul", dst: d, src: s}, REGS))
   sets = map((c) -> {op: "set", cond: c[0]}, CONDS)
   rest_ops = [
     {op: "movzx"},
     {op: "push_rbp"},
     {op: "pop_rbp"},
+    {op: "call_r11"},
     {op: "ret"},
     {op: "syscall"}
   ]
-  append(*[rr, ri, mem, at, mul, sets, rest_ops])
+  append(*[rr, ri, mem, at, based, mul, sets, rest_ops])
 end
 
 test "golden encodings from llvm-mc 21.1.7"
@@ -440,6 +483,19 @@ test "jumps resolve to their labels and conditions refuse a code they do not kno
   assert k == :unknown_condition
 end
 
+test "a memory base is any register but rsp and r12, which need a SIB byte"
+  assert base_of({base: "r15", disp: 0}) == 15
+  assert encode({op: "store", src: "rax", base: "r15", disp: 0}) == [73, 137, 7]
+  assert encode({op: "load", dst: "rax", base: "rbp", disp: 0}) ==
+    [72, 139, 69, 0]
+  refused = begin
+    base_of({base: "rsp", disp: 0})
+  rescue e
+    e.kind
+  end
+  assert refused == :unsupported_base
+end
+
 test "the helpers are exercised by name"
   assert length(REGS) == 16
   assert length(ALU) == 4
@@ -453,5 +509,12 @@ test "the helpers are exercised by name"
   assert check_imm(7) == 7
   assert assemble([{op: "ret"}]) == [195]
   assert length(corpus) ==
-    4 * 16 * 16 + 4 * 16 * 10 + 16 * 6 * 2 + 16 * 2 + 16 * 16 + 6 + 5
+    4 * 16 * 16 +
+      4 * 16 * 10 +
+      16 * 6 * 2 +
+      16 * 2 +
+      7 * 3 * 2 +
+      16 * 16 +
+      6 +
+      6
 end

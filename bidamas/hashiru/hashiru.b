@@ -8,8 +8,8 @@ This first code generator is the simplest correct one: every named value lives i
 
 use("kaaneru/erufu", [:executable])
 use("kikaigo", [:assemble])
-use("kuzushi", %i[anf head_is?])
-use("retsu", %i[first flat_map index_of rest])
+use("kuzushi", %i[anf closure_convert head_is?])
+use("retsu", %i[first flat_map index_of last rest])
 use("shisutemu", %i[status_of stdout_of])
 
 @doc """
@@ -135,7 +135,9 @@ gen: the instructions of a term and the label counter after it; at its ret the v
 def gen(slots, term, into, n)
   if head_is?(term, "ret")
     value = load_atom(slots, term[1], "rax")
-    tail = if into.nil?
+    tail = if into == :return
+      [{op: "mov", dst: "rsp", src: "rbp"}, {op: "pop_rbp"}, {op: "ret"}]
+    elsif into.nil?
       [
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "mov", dst: "rax", imm: 60},
@@ -170,7 +172,7 @@ def gen(slots, term, into, n)
     else
       [
         append(
-          op_code(slots, to_s(first(rhs)), rest(rhs)),
+          rhs_code(slots, rhs),
           [{op: "store", src: "rax", disp: slot(slots, v)}]
         ),
         n
@@ -320,4 +322,254 @@ test "an unsupported op is refused by name"
     e.kind
   end
   assert k == :unsupported
+end
+
+@doc """
+ARG_REGS: where a call passes its first six arguments; the closure itself goes in r11.
+
+    ARG_REGS[0] #=> "rdi"
+"""
+ARG_REGS = %w[rdi rsi rdx rcx r8 r9]
+
+@doc """
+rhs_code: the instructions for a right-hand side that is not an if: a closure allocates its record, a call runs through one, anything else is a primitive.
+
+    length(rhs_code([], read_forms("(+ 1 2)")[0])) #=> 3
+"""
+def rhs_code(slots, rhs)
+  if head_is?(rhs, "closure")
+    closure_code(slots, rhs[1], rest(rest(rhs)))
+  elsif head_is?(rhs, "call")
+    call_code(slots, rhs[1], rest(rest(rhs)))
+  else
+    op_code(slots, to_s(first(rhs)), rest(rhs))
+  end
+end
+
+@doc """
+closure_code: allocate a closure record at r15, its code address first and then each captured value, answering its address in rax.
+
+    length(closure_code([], "f", [])) #=> 4
+"""
+def closure_code(slots, label, captured)
+  append(
+    *[
+      [
+        {op: "lea_label", label:},
+        {op: "store", src: "rax", base: "r15", disp: 0}
+      ],
+      flat_map(
+        range(0, length(captured)),
+        fn(k)
+          append(
+            load_atom(slots, captured[k], "rax"),
+            [{op: "store", src: "rax", base: "r15", disp: 8 * (k + 1)}]
+          )
+        end
+      ),
+      [
+        {op: "mov", dst: "rax", src: "r15"},
+        {op: "add", dst: "r15", imm: 8 * (length(captured) + 1)}
+      ]
+    ]
+  )
+end
+
+@doc """
+call_code: a call through a closure: the arguments in ARG_REGS, the closure in r11, then a call through its code address; the answer comes back in rax.
+
+    last(call_code(["f"], read_forms("f")[0], [1]))[:op] #=> "call_r11"
+"""
+def call_code(slots, f, args)
+  if length(args) > 6
+    raise(:unsupported, "hashiru: a call passes at most six arguments")
+  end
+  append(
+    *[
+      flat_map(
+        range(0, length(args)),
+        (k) -> load_atom(slots, args[k], ARG_REGS[k])
+      ),
+      load_atom(slots, f, "r11"),
+      [{op: "call_r11"}]
+    ]
+  )
+end
+
+@doc """
+function_code: one lifted function: its label, a frame with a slot per parameter, capture and bound name, the parameters stored from ARG_REGS, the captures read from the closure in r11, then its body returning in rax.
+
+    function_code({label: "f", params: [], captured: [], body: read_forms("(ret 1)")[0]}, 0)[0][0] #=> {op: "label", name: "f"}
+"""
+def function_code(f, n)
+  slots = append(append(f[:params], f[:captured]), bound_names(f[:body]))
+  body = gen(slots, f[:body], :return, n)
+  [
+    append(
+      *[
+        [
+          {op: "label", name: f[:label]},
+          {op: "push_rbp"},
+          {op: "mov", dst: "rbp", src: "rsp"},
+          {op: "sub", dst: "rsp", imm: 8 * length(slots)}
+        ],
+        flat_map(
+          range(0, length(f[:params])),
+          fn(k)
+            [{op: "store", src: ARG_REGS[k], disp: slot(slots, f[:params][k])}]
+          end
+        ),
+        flat_map(
+          range(0, length(f[:captured])),
+          fn(k)
+            [
+              {op: "load", dst: "rax", base: "r11", disp: 8 * (k + 1)},
+              {op: "store", src: "rax", disp: slot(slots, f[:captured][k])}
+            ]
+          end
+        ),
+        body[0]
+      ]
+    ),
+    body[1]
+  ]
+end
+
+@doc """
+HEAP_BYTES: the size of the region a program maps at start for its records, bumped by r15.
+
+    HEAP_BYTES #=> 1_048_576
+"""
+HEAP_BYTES = 1_048_576
+
+@doc """
+heap_start: map HEAP_BYTES read-write anonymous and keep its address in r15, the bump pointer.
+
+    last(heap_start)[:src] #=> "rax"
+"""
+def heap_start()
+  append(
+    op_code([], "syscall6", [9, 0, HEAP_BYTES, 3, 34, -1, 0]),
+    [{op: "mov", dst: "r15", src: "rax"}]
+  )
+end
+
+@doc """
+whole_program: the instructions of a closure-converted program: the main frame and heap, the main term ending in exit, then every lifted function.
+
+    whole_program(closure_convert(anf(read_forms("7")[0])))[0] #=> {op: "push_rbp"}
+"""
+def whole_program(p)
+  slots = bound_names(p[:main])
+  main = gen(slots, p[:main], nil, 0)
+  fns = reduce(
+    fn(acc, f)
+      c = function_code(f, acc[1])
+      [append(acc[0], c[0]), c[1]]
+    end,
+    [[], main[1]],
+    p[:fns]
+  )
+  append(
+    *[
+      [
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sub", dst: "rsp", imm: 8 * length(slots)}
+      ],
+      heap_start,
+      main[0],
+      fns[0]
+    ]
+  )
+end
+
+@doc """
+compile_closures: a core form with lambdas as the bytes of a static executable whose exit status is its value.
+
+    compile_closures(read_forms("7")[0])[0] #=> 127
+"""
+def compile_closures(form)
+  executable(assemble(whole_program(closure_convert(anf(form)))))
+end
+
+@doc """
+CLOSURE_PROGRAMS: programs with lambdas and the exit status each must give.
+
+    CLOSURE_PROGRAMS[0][1] #=> 15
+"""
+CLOSURE_PROGRAMS = [
+  ["(let ((k 10)) (let ((f (lambda (x) (+ x k)))) (f 5)))", 15],
+  ["(let ((f (lambda (x) (lambda (y) (+ x y))))) (let ((g (f 3))) (g 4)))", 7],
+  [
+    "(let ((a 1)) (let ((f (lambda (x) (if (< x a) a x)))) (+ (f 0) (f 5))))",
+    6
+  ],
+  [
+    "(let ((twice (lambda (g x) (g (g x))))) (let ((inc (lambda (n) (+ n 1)))) (twice inc 5)))",
+    7
+  ],
+  ["(let ((add3 (lambda (a b c) (+ a (+ b c))))) (add3 10 20 12))", 42]
+]
+
+@doc """
+run_closures_exit: compile a form with lambdas, run it, and answer its exit status.
+
+    integer?(1) #=> true
+"""
+def run_closures_exit(form)
+  path = path_join(temp_dir("hashiru"), "c.out")
+  write_bytes(path, compile_closures(form))
+  exec_capture("chmod", "+x", path)
+  status_of(exec_capture(path))
+end
+
+test "every closure program's exit status is its value when run on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      (p) -> assert run_closures_exit(read_forms(p[0])[0]) == p[1],
+      CLOSURE_PROGRAMS
+    )
+  end
+end
+
+test "a closure is a record at r15 and a call goes through r11"
+  c = closure_code([], "f", [3])
+  assert c[0] == {op: "lea_label", label: "f"}
+  assert last(c) == {op: "add", dst: "r15", imm: 16}
+  k = call_code(["g"], read_forms("g")[0], [1, 2])
+  assert k[0] == {op: "mov", dst: "rdi", imm: 1}
+  assert last(k) == {op: "call_r11"}
+  f = nth(
+    0,
+    function_code(
+      {
+        label: "h",
+        params: ["x"],
+        captured: ["k"],
+        body: read_forms("(ret x)")[0]
+      },
+      0
+    )
+  )
+  assert f[0] == {op: "label", name: "h"}
+  assert last(f) == {op: "ret"}
+  assert length(ARG_REGS) == 6
+  assert HEAP_BYTES == 1_048_576
+  assert last(heap_start)[:dst] == "r15"
+  assert rhs_code([], read_forms("(+ 1 2)")[0])[2] ==
+    {op: "add", dst: "rax", src: "rcx"}
+  assert whole_program(closure_convert(anf(read_forms("1")[0])))[0] ==
+    {op: "push_rbp"}
+  assert compile_closures(read_forms("1")[0])[1] == 69
+  assert length(CLOSURE_PROGRAMS) == 5
+  refused = begin
+    call_code([], 1, [1, 2, 3, 4, 5, 6, 7])
+  rescue e
+    e.kind
+  end
+  assert refused == :unsupported
 end

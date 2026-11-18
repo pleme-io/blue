@@ -117,14 +117,19 @@ def norm_args(forms, n)
 end
 
 @doc """
-norm_seq: the binds, last atom and counter after normalising forms in sequence.
+norm_seq: the binds, last atom and counter after normalising forms in sequence; a (define name form) among them binds the name for the forms after it, as blue's resolved tree writes a local.
 
     norm_seq(read_forms("1 2"), 0)[1] #=> 2
 """
 def norm_seq(forms, n)
   r = reduce(
     fn(acc, f)
-      x = norm(f, acc[2])
+      x = if head_is?(f, "define") and symbol?(f[1])
+        b = named(f[1], f[2], acc[2])
+        [b[0], nil, b[1]]
+      else
+        norm(f, acc[2])
+      end
       [append(acc[0], x[0]), x[1], x[2]]
     end,
     [[], nil, n],
@@ -778,17 +783,24 @@ norm_let: the binds for a source let: each binding's value normalised and named 
 def norm_let(bindings, body, n)
   r = reduce(
     fn(acc, b)
-      x = norm(b[1], acc[1])
-      [
-        append(acc[0], append(x[0], [[b[0], [read_forms("id")[0], x[1]]]])),
-        x[2]
-      ]
+      x = named(b[0], b[1], acc[1])
+      [append(acc[0], x[0]), x[1]]
     end,
     [[], n],
     bindings
   )
   t = norm(body, r[1])
   [append(r[0], t[0]), t[1], t[2]]
+end
+
+@doc """
+named: the binds that give a name the value of a form, through id, and the counter after them.
+
+    named(read_forms("a")[0], read_forms("(+ 1 2)")[0], 0)[1] #=> 1
+"""
+def named(name, form, n)
+  x = norm(form, n)
+  [append(x[0], [[name, [read_forms("id")[0], x[1]]]]), x[2]]
 end
 
 @doc """
@@ -1552,4 +1564,252 @@ test "a parameter, a lambda's or a let's binding that shares a function's name i
   ) == []
   assert arity_misses(read_forms("(let ((f 1)) (f 2 3))")[0], [["f", 1]], []) ==
     []
+end
+
+@doc """
+temp?: whether a name is one A-normal form introduced, t__N, rather than one the source wrote.
+
+    temp?("t__3") #=> true
+"""
+def temp?(name)
+  starts_with?(name, "t__")
+end
+
+@doc """
+lisp_text: a form as the lisp text that reads back to it.
+
+    lisp_text(read_forms("(+ x (f 1))")[0]) #=> "(+ x (f 1))"
+"""
+def lisp_text(form)
+  if string?(form)
+    json_write(form)
+  elsif list?(form)
+    "(#{join(map(lisp_text, form), " ")})"
+  else
+    to_s(form)
+  end
+end
+
+@doc """
+src_atom: the source form an atom stands for: a temporary's form from the environment, any other atom itself.
+
+    src_atom(read_forms("t__0")[0], [["t__0", 5]]) #=> 5
+"""
+def src_atom(atom, env)
+  if symbol?(atom) and temp?(to_s(atom))
+    hit = retsu::find_first((r) -> r[0] == to_s(atom), env)
+    if hit.nil?
+      atom
+    else
+      hit[1]
+    end
+  else
+    atom
+  end
+end
+
+@doc """
+src_rhs: the source form a right-hand side was broken down from, its temporaries put back.
+
+    lisp_text(src_rhs(read_forms("(+ x t__0)")[0], [["t__0", read_forms("(* x 2)")[0]]])) #=> "(+ x (* x 2))"
+"""
+def src_rhs(rhs, env)
+  if head_is?(rhs, "id")
+    src_atom(rhs[1], env)
+  elsif head_is?(rhs, "if")
+    [
+      rhs[0],
+      src_atom(rhs[1], env),
+      src_term(rhs[2], env),
+      src_term(rhs[3], env)
+    ]
+  elsif head_is?(rhs, "try")
+    [rhs[0], src_term(rhs[1], env), rhs[2]]
+  elsif head_is?(rhs, "lambda")
+    rhs
+  else
+    cons(first(rhs), map((a) -> src_atom(a, env), rest(rhs)))
+  end
+end
+
+@doc """
+ref_op?: whether a right-hand side is a reference operation Perceus inserted, a dup or a drop.
+
+    ref_op?(read_forms("(dup x)")[0]) #=> true
+"""
+def ref_op?(rhs)
+  head_is?(rhs, "dup") or head_is?(rhs, "drop")
+end
+
+@doc """
+src_term: the source form a term was broken down from.
+
+    lisp_text(src_term(anf(read_forms("(+ x (* x 2))")[0]), [])) #=> "(+ x (* x 2))"
+"""
+def src_term(term, env)
+  if head_is?(term, "ret")
+    src_atom(term[1], env)
+  elsif ref_op?(term[1][1])
+    src_term(term[2], env)
+  else
+    b = term[1]
+    src_term(term[2], cons([to_s(b[0]), src_rhs(b[1], env)], env))
+  end
+end
+
+@doc """
+take_one: a list with its first occurrence of x removed, and whether there was one.
+
+    take_one(%w[a b a], "a") #=> [%w[b a], true]
+"""
+def take_one(xs, x)
+  i = position(x, xs)
+  if i < 0
+    [xs, false]
+  else
+    [append(take(i, xs), drop(i + 1, xs)), true]
+  end
+end
+
+@doc """
+reads_at: the last uses among the source names a site reads, given the dups Perceus placed before it: a read a dup covers shares the value, the read none covers consumes it. Answers [last uses as [name, form], dups left].
+
+    reads_at(%w[x x], ["x"], 7)[0] #=> [["x", 7]]
+"""
+def reads_at(names, pending, form)
+  reduce(
+    fn(acc, x)
+      t = take_one(acc[1], x)
+      if temp?(x) or t[1]
+        [acc[0], t[0]]
+      else
+        [append(acc[0], [[x, form]]), acc[1]]
+      end
+    end,
+    [[], pending],
+    names
+  )
+end
+
+@doc """
+last_uses: every [name, form] where a source name is used for the last time on its path, read from a term Perceus has rewritten, each form the source the use was broken down from.
+
+    last_uses(perceus(anf(read_forms("(+ x 1)")[0]), ["x"]), [], []) == [["x", read_forms("(+ x 1)")[0]]] #=> true
+"""
+def last_uses(term, env, pending)
+  if head_is?(term, "ret")
+    reads_at(names_of(term[1]), pending, src_atom(term[1], env))[0]
+  else
+    b = term[1]
+    rhs = b[1]
+    if head_is?(rhs, "dup")
+      last_uses(term[2], env, append(pending, [to_s(rhs[1])]))
+    elsif head_is?(rhs, "drop")
+      last_uses(term[2], env, pending)
+    else
+      here = reads_at(arg_names(rhs), pending, src_rhs(rhs, env))
+      inner = if head_is?(rhs, "if")
+        append(last_uses(rhs[2], env, here[1]), last_uses(rhs[3], env, here[1]))
+      elsif head_is?(rhs, "try")
+        last_uses(rhs[1], env, here[1])
+      else
+        []
+      end
+      rest_env = cons([to_s(b[0]), src_rhs(rhs, env)], env)
+      append(here[0], append(inner, last_uses(term[2], rest_env, here[1])))
+    end
+  end
+end
+
+@doc """
+short_name: a resolved definition's name without its namespace, %root/f as f.
+
+    short_name("%root/f") #=> "f"
+"""
+def short_name(name)
+  parts = split(name, "/")
+  parts[length(parts) - 1]
+end
+
+@doc """
+memory_facts: the ownership facts of each definition among resolved top-level forms, as text, "f: last_use x (+ x 1)": where each parameter and local is used for the last time (docs/PURE-BLUE.md M1).
+
+    memory_facts(read_forms("(define (%root/f x) (+ x 1))")) #=> ["f: last_use x (+ x 1)"]
+"""
+def memory_facts(forms)
+  defs = filter((d) -> head_is?(d, "define") and list?(d[1]), forms)
+  flat_map(
+    defs,
+    fn(d)
+      name = short_name(to_s(first(d[1])))
+      params = map(to_s, rest(d[1]))
+      t = perceus(anf(d[2]), params)
+      map(
+        (u) -> "#{name}: last_use #{u[0]} #{lisp_text(u[1])}",
+        last_uses(t, [], [])
+      )
+    end
+  )
+end
+
+test "a local defined in a body is a name the forms after it read"
+  t = anf(read_forms("(begin (define y (+ x 1)) (* y x))")[0])
+  assert eval_anf(t, [["x", 3]]) == 12
+  assert named(read_forms("a")[0], read_forms("(f)")[0], 0)[0] ==
+    [
+      [read_forms("t__0")[0], read_forms("(f)")[0]],
+      [read_forms("a")[0], read_forms("(id t__0)")[0]]
+    ]
+end
+
+test "each parameter and local has its last use, in straight-line code"
+  forms = read_forms("(define (%root/f x) (begin (define y (+ x 1)) (* y x)))")
+  assert memory_facts(forms) ==
+    ["f: last_use y (* y x)", "f: last_use x (* y x)"]
+  assert memory_facts([]) == []
+  assert memory_facts(read_forms("(+ 1 2)")) == []
+end
+
+test "a name read twice in one call is last used by that call, not before"
+  assert memory_facts(read_forms("(define (%root/sq x) (* x x))")) ==
+    ["sq: last_use x (* x x)"]
+  assert memory_facts(read_forms("(define (%root/g x) (+ x (* x 2)))")) ==
+    ["g: last_use x (+ x (* x 2))"]
+end
+
+test "each branch has its own last use"
+  forms = read_forms("(define (%root/h c x) (if c (+ x 1) 0))")
+  assert memory_facts(forms) ==
+    ["h: last_use c (if c (+ x 1) 0)", "h: last_use x (+ x 1)"]
+end
+
+test "a name never read has no last use"
+  assert memory_facts(read_forms("(define (%root/k x) 1)")) == []
+end
+
+test "the source helpers put temporaries back and print lisp"
+  assert temp?("t__0")
+  assert not temp?("x")
+  assert lisp_text(read_forms("(f \"a\" 1)")[0]) == "(f \"a\" 1)"
+  assert src_atom(read_forms("y")[0], []) == read_forms("y")[0]
+  assert src_atom(read_forms("t__9")[0], []) == read_forms("t__9")[0]
+  assert ref_op?(read_forms("(drop x)")[0])
+  assert not ref_op?(read_forms("(+ x 1)")[0])
+  assert take_one(["a"], "b") == [["a"], false]
+  assert short_name("f") == "f"
+  assert reads_at(["t__0"], [], 1)[0] == []
+  assert lisp_text(src_term(anf(read_forms("(f (g x) 1)")[0]), [])) ==
+    "(f (g x) 1)"
+  assert lisp_text(src_rhs(read_forms("(id t__0)")[0], [["t__0", 4]])) == "4"
+  assert last_uses(perceus(anf(read_forms("(+ x x)")[0]), ["x"]), [], []) ==
+    [["x", read_forms("(+ x x)")[0]]]
+end
+
+test "a last use inside a try body is found, and its handler and try put back"
+  t = perceus(anf(read_forms("(try (+ y 1) (catch (e) 0))")[0]), ["y"])
+  assert last_uses(t, [], []) == [["y", read_forms("(+ y 1)")[0]]]
+  lam = read_forms("(lambda (e) (ret 0))")[0]
+  assert src_rhs(lam, []) == lam
+  caught = src_rhs(read_forms("(try (ret 5) h)")[0], [])
+  assert lisp_text(caught) == "(try 5 h)"
 end

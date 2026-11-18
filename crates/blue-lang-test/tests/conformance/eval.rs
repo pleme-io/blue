@@ -43,6 +43,8 @@ pub enum Obs {
     Text(String),
     /// A blueshift reading: the rung (or `none`) and what holds it back.
     Shift { rung: String, holding: Vec<String> },
+    /// Ownership facts, one line each.
+    Facts(Vec<String>),
     /// The evaluator itself died: a Rust panic, an abort (a stack overflow is
     /// one, and nothing in-process can catch it), or a run past its time.
     /// Never a pass, whatever the row expects: a crash is not a refusal.
@@ -71,6 +73,7 @@ impl std::fmt::Display for Obs {
             Obs::Codes(c) => write!(f, "diagnoses {c:?}"),
             Obs::Text(t) => write!(f, "formats {t:?}"),
             Obs::Shift { rung, holding } => write!(f, "shifts {rung} holding {holding:?}"),
+            Obs::Facts(facts) => write!(f, "facts {facts:?}"),
             Obs::Crashed(why) => write!(f, "CRASHED: {why}"),
             Obs::Blind(why) => write!(f, "blind: {why}"),
         }
@@ -538,10 +541,52 @@ pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
                 holding: s.holding_back().iter().map(|f| f.subject.clone()).collect(),
             }
         }
+        Expect::Facts(_) => static_facts(&row.src, roots),
         _ => Obs::Blind(format!(
             "a {} row runs on the evaluators",
             row.expect.kind()
         )),
+    }
+}
+
+const FACTS: &str =
+    "use(\"kuzushi\")\n\ndef facts(text)\n  kuzushi::memory_facts(read_forms(text))\nend\n";
+
+/// The ownership facts of the entry file: its resolved tree, the forms
+/// `blue ast --resolved` prints, read by kuzushi through blue-lang-host.
+fn static_facts(src: &str, roots: &[PathBuf]) -> Obs {
+    let loader = blue_lang_pkg::load_path::LoadPath::new(roots.to_vec());
+    let entry = Entry {
+        path: Some(Path::new(ROW_FILE)),
+        text: src,
+    };
+    let checked = match check_entry(entry, &loader as &dyn Loader, None, Checking::WithTests) {
+        Ok(c) => c,
+        Err(e) => return failed(&e),
+    };
+    let tree = checked.resolve().resolved_tree(
+        checked.program.forms(),
+        blue_lang_check::names::Rule::Namespaced,
+    );
+    let text = tree
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| {
+            checked.program.owner_of(*i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+        })
+        .map(|(_, f)| f.to_sexp().to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut host = ();
+    let facts = blue_lang_host::Program::load_with(
+        blue_lang_host::Entry::anonymous(FACTS),
+        &loader as &dyn Loader,
+        &mut host,
+    )
+    .and_then(|mut p| p.call::<Vec<String>>("facts", (text,), &mut host));
+    match facts {
+        Ok(f) => Obs::Facts(f),
+        Err(e) => Obs::Crashed(format!("kuzushi's memory_facts: {e}")),
     }
 }
 
@@ -796,6 +841,11 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         // The printer has rows of its own (spec/rows/printing.b).
         return Obs::Blind("a value is not observable on stdout; see printing.b".into());
     }
+    if matches!(row.expect, Expect::Facts(_)) {
+        return Obs::Blind(
+            "facts are observed in-process until `blue explain --memory` (M2)".into(),
+        );
+    }
     if row.frontend.is_some() {
         return Obs::Blind(
             "a frontend row is a view of a generated schema table, which only the static door is handed"
@@ -838,7 +888,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         Expect::Shifts(..) => {
             cmd.arg("shift").arg(&file);
         }
-        Expect::Value(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Facts(_) => unreachable!("returned above"),
     }
     let out = match output_within(&mut cmd) {
         Ok(o) => o,
@@ -912,7 +962,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 .collect();
             Obs::Shift { rung, holding }
         }
-        Expect::Value(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Facts(_) => unreachable!("returned above"),
     }
 }
 
@@ -1086,6 +1136,7 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Static | Ev::Cli,
         ) => true,
+        (Expect::Facts(_), Ev::Static) => true,
         _ => false,
     }
 }

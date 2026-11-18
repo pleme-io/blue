@@ -137,6 +137,9 @@ pub enum Expect {
     /// `shifts("annotated", ["loose"])`: the blueshift reading is this rung,
     /// and these declarations are what hold it back.
     Shifts(String, Vec<String>),
+    /// `facts(["f: last_use x (+ x 1)"])`: the ownership facts kuzushi reads
+    /// from the resolved tree, one line each, in order (docs/PURE-BLUE.md M1).
+    Facts(Vec<String>),
 }
 
 impl Expect {
@@ -149,6 +152,7 @@ impl Expect {
             Expect::Formats(_) => "formats",
             Expect::Fixes(_) => "fixes",
             Expect::Shifts(..) => "shifts",
+            Expect::Facts(_) => "facts",
         }
     }
 }
@@ -314,6 +318,13 @@ fn expect_of(s: &Sexp) -> Result<Expect, String> {
                 strings_of(holding).ok_or("shifts(RUNG, [NAME, …])")?,
             ),
             _ => return Err("shifts(\"rung\", [\"name\", …])".into()),
+        },
+        "facts" => match args {
+            [facts] => Expect::Facts(
+                strings_of(facts)
+                    .ok_or("facts([\"f: last_use x (+ x 1)\", …]) takes a list of facts")?,
+            ),
+            _ => return Err("facts([\"f: last_use x (+ x 1)\", …]) takes a list of facts".into()),
         },
         other => return Err(format!("`{other}` is not an expectation")),
     })

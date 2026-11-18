@@ -42,6 +42,7 @@ fn meets(expect: &Expect, obs: &Obs) -> Result<(), String> {
                 holding: h,
             },
         ) => rung == r && holding == h,
+        (Expect::Facts(want), Obs::Facts(got)) => want == got,
         _ => false,
     };
     if ok {
@@ -60,6 +61,7 @@ pub fn describe(expect: &Expect) -> String {
         Expect::Formats(t) => format!("formats {t:?}"),
         Expect::Fixes(t) => format!("fixes {t:?}"),
         Expect::Shifts(r, h) => format!("shifts {r} holding {h:?}"),
+        Expect::Facts(f) => format!("facts {f:?}"),
     }
 }
 

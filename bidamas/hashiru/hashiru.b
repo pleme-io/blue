@@ -1815,3 +1815,47 @@ test "keywords are static blocks by name, and a map is an association list"
   assert strings_in(read_forms("(f :a \"b\")")) == [:a, "b"]
   assert length(MAP_PROGRAMS) == 6
 end
+
+@doc """
+COND_PROGRAMS: programs with cond and case and the exit status each must give.
+
+    COND_PROGRAMS[0][1] #=> 20
+"""
+COND_PROGRAMS = [
+  ["(cond ((< 2 1) 10) ((< 1 2) 20) (else 30))", 20],
+  [
+    "(begin (define (grade n) (let ((case-subject n)) (cond ((equal? case-subject 1) 10) ((equal? case-subject 2) 20) (else 30)))) (+ (grade 2) (grade 7)))",
+    50
+  ],
+  [
+    "(begin (define (classify l) (cond ((equal? (length l) 0) 1) ((equal? (length l) 1) 2) (else 3))) (+ (classify (list)) (classify (list 5 6))))",
+    4
+  ]
+]
+
+test "every cond program gives its value and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "k.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_whole(form, :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+        write_bytes(path, compile_whole(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      COND_PROGRAMS
+    )
+  end
+end
+
+test "cond compiles to the compares and jumps of nested ifs"
+  insns = rc_whole(whole(read_forms(COND_PROGRAMS[0][0])[0]), :exit)
+  assert length(filter((i) -> i[:op] == "j", insns)) >= 2
+  assert length(COND_PROGRAMS) == 3
+end

@@ -69,6 +69,8 @@ def norm(form, n)
     no = anf_from(form[3], yes[1])
     rhs = [read_forms("if")[0], c[1], yes[0], no[0]]
     [append(c[0], [[v, rhs]]), v, no[1]]
+  elsif head_is?(form, "cond")
+    norm(cond_to_if(rest(form)), n)
   elsif head_is?(form, "let")
     norm_let(form[1], form[2], n)
   elsif head_is?(form, "lambda")
@@ -1185,4 +1187,32 @@ def has_label?(x, label)
   else
     retsu::find_first((c) -> has_label?(c, label), x) != nil
   end
+end
+
+@doc """
+cond_to_if: a cond's clauses as nested ifs: each (test expr) tests in order, an else clause is the last branch, and no clause matching answers nil.
+
+    cond_to_if(read_forms("((else 3))")[0]) #=> 3
+"""
+def cond_to_if(clauses)
+  if length(clauses) == 0
+    nil
+  else
+    c = first(clauses)
+    if symbol?(c[0]) and to_s(c[0]) == "else"
+      c[1]
+    else
+      [read_forms("if")[0], c[0], c[1], cond_to_if(rest(clauses))]
+    end
+  end
+end
+
+test "cond tests its clauses in order, else last, and nil when none matches"
+  run = (src) -> eval_anf(anf(read_forms(src)[0]), [])
+  assert run("(cond ((< 2 1) 10) ((< 1 2) 20) (else 30))") == 20
+  assert run("(cond ((< 2 1) 10) (else 30))") == 30
+  assert run("(cond ((< 2 1) 10))").nil?
+  assert run("(let ((case-subject 2)) (cond ((equal? case-subject 1) 10) ((equal? case-subject 2) 20) (else 30)))") ==
+    20
+  assert cond_to_if(read_forms("((a 1))")[0])[3].nil?
 end

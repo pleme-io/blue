@@ -582,6 +582,7 @@ let
             name = "repository-lock-fresh";
             bluefile = src + "/Bluefile";
             lock = src + "/Bluefile.lock";
+            inherit src bluePath;
           };
           reuse-ratchet = pkgs.runCommand "reuse-ratchet" { } ''
             BLUE_PATH=${bl.mkBluePath { inherit bidamas; }} ${blue}/bin/blue census --reuse ${src} > $out || { cat $out; exit 1; }

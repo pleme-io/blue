@@ -604,11 +604,17 @@ rec {
   # One Bluefile and its lock, confirmed: the lock must be blue's evaluation of
   # the Bluefile. For a project-level Bluefile (a repository's own build facts)
   # rather than a distribution of packages, which `mkLockCheck` covers.
-  mkBluefileCheck = { blue, bluefile, lock, name ? "bluefile-lock-fresh" }:
-    runCommand name { } ''
+  mkBluefileCheck = { blue, bluefile, lock, src ? null, bluePath ? null, name ? "bluefile-lock-fresh" }:
+    runCommand name
+      (
+        if src == null then { } else
+        { BLUE_PATH = if bluePath == null then "" else "${bluePath}"; }
+      )
+      ''
       mkdir project
       cp ${bluefile} project/Bluefile
       cp ${lock} project/Bluefile.lock
+      cp ${src}/*.b project/ || true
       ${blue}/bin/blue bluefile --confirm project/Bluefile
       touch $out
     '';

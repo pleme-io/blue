@@ -34,7 +34,7 @@ reg: the hardware number of a 64-bit register name, 0 for rax to 15 for r15.
 """
 def reg(name)
   i = index_of(REGS, name)
-  if i.nil? or i < 0
+  if i < 0
     raise(:unknown_register, "kikaigo: no register `#{name}`")
   else
     i
@@ -141,6 +141,41 @@ def encode(i)
     [195]
   elsif op == "syscall"
     [15, 5]
+  elsif op == "label"
+    []
+  elsif op == "push_rbp"
+    [85]
+  elsif op == "pop_rbp"
+    [93]
+  elsif op == "movzx"
+    [72, 15, 182, 192]
+  elsif op == "set"
+    [15, cond_row(i[:cond])[1], 192]
+  elsif op == "jmp"
+    append([233], le32(i[:rel] or 0))
+  elsif op == "j"
+    append([15, cond_row(i[:cond])[2]], le32(i[:rel] or 0))
+  elsif op == "imul"
+    d = reg(i[:dst])
+    s = reg(i[:src])
+    [rex(d, s), 15, 175, modrm(d, s)]
+  elsif op == "load" or op == "store"
+    r = if op == "load"
+      reg(i[:dst])
+    else
+      reg(i[:src])
+    end
+    code = if op == "load"
+      139
+    else
+      137
+    end
+    disp = check_imm(i[:disp])
+    if imm8?(disp)
+      [rex(r, 5), code, 64 + r % 8 * 8 + 5, byte8(disp)]
+    else
+      append([rex(r, 5), code, 128 + r % 8 * 8 + 5], le32(disp))
+    end
   elsif i[:imm] != nil
     d = reg(i[:dst])
     n = check_imm(i[:imm])
@@ -171,10 +206,87 @@ def text(i)
     "retq"
   elsif op == "syscall"
     "syscall"
+  elsif op == "push_rbp"
+    "pushq %rbp"
+  elsif op == "pop_rbp"
+    "popq %rbp"
+  elsif op == "movzx"
+    "movzbq %al, %rax"
+  elsif op == "set"
+    "set#{i[:cond]} %al"
+  elsif op == "imul"
+    "imulq %#{i[:src]}, %#{i[:dst]}"
+  elsif op == "load"
+    "movq #{to_s(i[:disp])}(%rbp), %#{i[:dst]}"
+  elsif op == "store"
+    "movq %#{i[:src]}, #{to_s(i[:disp])}(%rbp)"
   elsif i[:imm] != nil
     "#{op}q $#{to_s(i[:imm])}, %#{i[:dst]}"
   else
     "#{op}q %#{i[:src]}, %#{i[:dst]}"
+  end
+end
+
+@doc """
+CONDS: the condition codes: per code its setcc second byte and its jcc rel32 second byte.
+
+    CONDS[0][0] #=> "l"
+"""
+CONDS = [
+  ["l", 156, 140],
+  ["g", 159, 143],
+  ["e", 148, 132],
+  ["ne", 149, 133],
+  ["le", 158, 142],
+  ["ge", 157, 141]
+]
+
+@doc """
+cond_row: the condition table row of a condition code.
+
+    cond_row("e")[2] #=> 132
+"""
+def cond_row(name)
+  r = find_first((x) -> x[0] == name, CONDS)
+  if r.nil?
+    raise(:unknown_condition, "kikaigo: no condition `#{name}`")
+  else
+    r
+  end
+end
+
+@doc """
+link: a sequence with every jump's label resolved to a rel32 from the end of the jump to the label; every jump is the 32-bit form, so sizes are known before any target is.
+
+    link([{op: "jmp", label: "a"}, {op: "label", name: "a"}])[0][:rel] #=> 0
+"""
+def link(insns)
+  sizes = map((i) -> length(encode(i)), insns)
+  ends = reduce((acc, n) -> append(acc, [last_or0(acc) + n]), [], sizes)
+  at = (name) -> ends[index_of(map((i) -> i[:name], insns), name)]
+  map(
+    fn(k)
+      i = insns[k]
+      if i[:label] != nil
+        assoc(i, :rel, at(i[:label]) - ends[k])
+      else
+        i
+      end
+    end,
+    range(0, length(insns))
+  )
+end
+
+@doc """
+last_or0: the last element of a list of numbers, or 0 for none.
+
+    last_or0([]) #=> 0
+"""
+def last_or0(xs)
+  if length(xs) == 0
+    0
+  else
+    xs[length(xs) - 1]
   end
 end
 
@@ -184,7 +296,7 @@ assemble: the bytes of a sequence of instructions, in order.
     assemble([{op: "syscall"}, {op: "ret"}]) #=> [15, 5, 195]
 """
 def assemble(insns)
-  flat_map(insns, encode)
+  flat_map(link(insns), encode)
 end
 
 @doc """
@@ -203,7 +315,26 @@ def corpus()
     ops,
     (op) -> flat_map(REGS, (d) -> map((n) -> {op:, dst: d, imm: n}, imms))
   )
-  append(append(rr, ri), [{op: "ret"}, {op: "syscall"}])
+  disps = [-8, -128, -129, -2048, 8, 127]
+  mem = flat_map(
+    REGS,
+    fn(r)
+      flat_map(
+        disps,
+        (d) -> [{op: "load", dst: r, disp: d}, {op: "store", src: r, disp: d}]
+      )
+    end
+  )
+  mul = flat_map(REGS, (d) -> map((s) -> {op: "imul", dst: d, src: s}, REGS))
+  sets = map((c) -> {op: "set", cond: c[0]}, CONDS)
+  rest_ops = [
+    {op: "movzx"},
+    {op: "push_rbp"},
+    {op: "pop_rbp"},
+    {op: "ret"},
+    {op: "syscall"}
+  ]
+  append(*[rr, ri, mem, mul, sets, rest_ops])
 end
 
 test "golden encodings from llvm-mc 21.1.7"
@@ -261,6 +392,31 @@ test "an unknown register, an unknown op and a wide immediate are refused by nam
     :out_of_range
 end
 
+test "jumps resolve to their labels and conditions refuse a code they do not know"
+  linked = link(
+    [
+      {op: "j", cond: "e", label: "out"},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "label", name: "out"},
+      {op: "jmp", label: "top"},
+      {op: "label", name: "top"}
+    ]
+  )
+  assert linked[0][:rel] == 7
+  assert linked[3][:rel] == 0
+  assert assemble([{op: "jmp", label: "a"}, {op: "label", name: "a"}]) ==
+    [233, 0, 0, 0, 0]
+  assert length(CONDS) == 6
+  assert cond_row("l")[1] == 156
+  assert last_or0([3, 4]) == 4
+  k = begin
+    cond_row("zz")
+  rescue e
+    e.kind
+  end
+  assert k == :unknown_condition
+end
+
 test "the helpers are exercised by name"
   assert length(REGS) == 16
   assert length(ALU) == 4
@@ -273,5 +429,6 @@ test "the helpers are exercised by name"
   assert byte8(5) == 5
   assert check_imm(7) == 7
   assert assemble([{op: "ret"}]) == [195]
-  assert length(corpus) == 4 * 16 * 16 + 4 * 16 * 10 + 2
+  assert length(corpus) ==
+    4 * 16 * 16 + 4 * 16 * 10 + 16 * 6 * 2 + 16 * 16 + 6 + 5
 end

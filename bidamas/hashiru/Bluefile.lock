@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2e6fe816e4330fcd118d8500d8d621b6406a2d66ef5692839902505c447830b5",
+  "manifest": {
+    "schema": 1,
+    "name": "hashiru",
+    "version": "0.1.0",
+    "needs": {
+      "kaaneru": "^0.1.0",
+      "kikaigo": "^0.1.0",
+      "kuzushi": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "toolchain"
+  },
+  "sources": {}
+}

@@ -243,7 +243,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-76 packages, 6240 definitions, 2161 tests.
+77 packages, 6253 definitions, 2169 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -261,6 +261,7 @@ rendered:
 - [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.
 - [hadome](bidamas/CATALOG.md#hadome) (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
 - [happa](bidamas/CATALOG.md#happa) (葉っぱ) — a template's leaves: their declaration, split, graph, change, schedule and verdicts, as pure decisions.
+- [hashiru](bidamas/CATALOG.md#hashiru) (走る) — blue code that runs: kuzushi's A-normal form compiled to x86-64 instructions (kikaigo) inside a static executable (erufu), with no other language in the path (docs/PURE-BLUE.md B3).
 - [heni](bidamas/CATALOG.md#heni) (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
 - [henkan](bidamas/CATALOG.md#henkan) (変換) — a nanopass library: a compiler written as many small passes, each a rewrite between two declared languages.
 - [hikisuu](bidamas/CATALOG.md#hikisuu) (引数) — command-line arguments: one declared spec is parsed into a record, rendered as help, and answered as shell completion.

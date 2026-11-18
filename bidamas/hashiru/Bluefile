@@ -1,0 +1,7 @@
+package("hashiru", "0.1.0")
+tier(:toolchain)
+needs("kaaneru", "^0.1")
+needs("kikaigo", "^0.1")
+needs("kuzushi", "^0.1")
+needs("retsu", "^0.1")
+needs("shisutemu", "^0.1")

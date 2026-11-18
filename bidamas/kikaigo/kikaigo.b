@@ -158,6 +158,11 @@ def encode(i)
     else
       [65, 80 + r]
     end
+  elsif op == "cqo"
+    [72, 153]
+  elsif op == "idiv"
+    r = reg(i[:src])
+    [rex(0, r), 247, modrm(7, r)]
   elsif op == "shr1"
     r = reg(i[:dst])
     [rex(0, r), 209, modrm(5, r)]
@@ -295,6 +300,10 @@ def text(i)
     "sarq %#{i[:dst]}"
   elsif op == "shr1"
     "shrq %#{i[:dst]}"
+  elsif op == "cqo"
+    "cqto"
+  elsif op == "idiv"
+    "idivq %#{i[:src]}"
   elsif op == "load_byte"
     "movzbq (%#{i[:base]}), %#{i[:dst]}"
   elsif op == "store_byte"
@@ -489,7 +498,8 @@ def corpus()
         {op: "push", src: r},
         {op: "pop", dst: r},
         {op: "sar1", dst: r},
-        {op: "shr1", dst: r}
+        {op: "shr1", dst: r},
+        {op: "idiv", src: r}
       ]
     end
   )
@@ -509,6 +519,7 @@ def corpus()
     {op: "push_rbp"},
     {op: "pop_rbp"},
     {op: "call_r11"},
+    {op: "cqo"},
     {op: "ret"},
     {op: "syscall"}
   ]
@@ -669,10 +680,10 @@ test "the helpers are exercised by name"
       16 * 2 +
       7 * 3 * 2 +
       16 * 16 +
-      16 * 4 +
+      16 * 5 +
       12 * 8 +
       6 +
-      6
+      7
   assert encode({op: "push", src: "r12"}) == [65, 84]
   assert encode({op: "pop", dst: "rdi"}) == [95]
   assert encode({op: "sar1", dst: "rax"}) == [72, 209, 248]

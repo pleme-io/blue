@@ -799,6 +799,11 @@ def rc_op(slots, op, args)
     )
   elsif op == "concat"
     concat_code(slots, args)
+  elsif op == "to_s"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_to_s"}]
+    )
   elsif op == "cons"
     cons_code(
       tagged_atom(slots, args[0], "rcx"),
@@ -1162,7 +1167,8 @@ def rc_program(p, mode)
       RT_IS_ERROR,
       RT_PAYLOAD,
       RT_CONCAT,
-      RT_EQUAL
+      RT_EQUAL,
+      RT_TO_S
     ]
   )
 end
@@ -1453,7 +1459,8 @@ def rc_whole(w, mode)
     length(RT_IS_ERROR) -
     length(RT_PAYLOAD) -
     length(RT_CONCAT) -
-    length(RT_EQUAL)
+    length(RT_EQUAL) -
+    length(RT_TO_S)
   globals = reduce(
     fn(acc, g)
       c = rc_global(g, acc[1])
@@ -2357,4 +2364,129 @@ test "concat joins through rt_concat, and equality goes through rt_equal and dro
   assert RT_CONCAT[0] == {op: "label", name: "rt_concat"}
   assert RT_EQUAL[0] == {op: "label", name: "rt_equal"}
   assert length(CONCAT_PROGRAMS) == 8
+end
+
+@doc """
+RT_TO_S: the text of the value in rdi, answered in rax: an integer as its decimal digits in a new string, a string as itself (the reference the operation consumed is handed on).
+
+    RT_TO_S[0] #=> {op: "label", name: "rt_to_s"}
+"""
+RT_TO_S = append(
+  *[
+    [
+      {op: "label", name: "rt_to_s"},
+      {op: "mov", dst: "rax", src: "rdi"},
+      {op: "and", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_to_s_int"},
+      {op: "mov", dst: "rax", src: "rdi"},
+      {op: "ret"},
+      {op: "label", name: "rt_to_s_int"},
+      {op: "mov", dst: "rax", src: "rdi"},
+      {op: "sar1", dst: "rax"},
+      {op: "mov", dst: "r8", imm: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ge", label: "rt_to_s_pos"},
+      {op: "mov", dst: "r8", imm: 1},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "sub", dst: "rcx", src: "rax"},
+      {op: "mov", dst: "rax", src: "rcx"},
+      {op: "label", name: "rt_to_s_pos"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "mov", dst: "r11", src: "rsp"},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "label", name: "rt_to_s_digit"},
+      {op: "cqo"},
+      {op: "mov", dst: "rcx", imm: 10},
+      {op: "idiv", src: "rcx"},
+      {op: "add", dst: "rdx", imm: 48},
+      {op: "store_byte", src: "rdx", base: "r11"},
+      {op: "add", dst: "r11", imm: 1},
+      {op: "add", dst: "r9", imm: 1},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_to_s_digit"},
+      {op: "cmp", dst: "r8", imm: 0},
+      {op: "j", cond: "e", label: "rt_to_s_alloc"},
+      {op: "mov", dst: "rdx", imm: 45},
+      {op: "store_byte", src: "rdx", base: "r11"},
+      {op: "add", dst: "r11", imm: 1},
+      {op: "add", dst: "r9", imm: 1},
+      {op: "label", name: "rt_to_s_alloc"},
+      {op: "mov", dst: "rdi", src: "r9"},
+      {op: "add", dst: "rdi", imm: 7},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "add", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "store", src: "r9", base: "rax", disp: 24},
+      {op: "mov", dst: "rdx", src: "rax"},
+      {op: "add", dst: "rdx", imm: 32},
+      {op: "label", name: "rt_to_s_copy"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_to_s_done"},
+      {op: "sub", dst: "r11", imm: 1},
+      {op: "load_byte", dst: "rcx", base: "r11"},
+      {op: "store_byte", src: "rcx", base: "rdx"},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "jmp", label: "rt_to_s_copy"},
+      {op: "label", name: "rt_to_s_done"},
+      {op: "add", dst: "rsp", imm: 32},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+TO_S_PROGRAMS: programs that print numbers, with the exit status and output each must give.
+
+    TO_S_PROGRAMS[0][2] #=> "n=42\n"
+"""
+TO_S_PROGRAMS = [
+  ["(begin (print (concat \"n=\" (to_s 42) \"\\n\")) 0)", 0, unlines(["n=42"])],
+  ["(string_length (to_s -1234))", 5, ""],
+  ["(begin (print (to_s 0)) 0)", 0, "0"],
+  [
+    "(begin (define (fact n) (if (< n 2) 1 (* n (fact (- n 1))))) (print (concat \"10! = \" (to_s (fact 10)) \"\\n\")) 0)",
+    0,
+    unlines(["10! = 3628800"])
+  ],
+  [
+    "(begin (print (concat (to_s (reduce (lambda (a x) (+ a x)) 0 (list 1 2 3))) \"\\n\")) 0)",
+    0,
+    unlines(["6"])
+  ]
+]
+
+test "every number-printing program prints what it should and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "n.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_program(form, :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_program(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      TO_S_PROGRAMS
+    )
+  end
+end
+
+test "to_s calls the runtime, which divides by ten for each digit"
+  assert last(rc_op([], "to_s", [5])) == {op: "call_label", label: "rt_to_s"}
+  assert member?({op: "idiv", src: "rcx"}, RT_TO_S)
+  assert RT_TO_S[0] == {op: "label", name: "rt_to_s"}
+  assert length(TO_S_PROGRAMS) == 5
 end

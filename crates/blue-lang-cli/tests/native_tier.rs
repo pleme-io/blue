@@ -130,13 +130,17 @@ fn a_run_with_no_artifact_takes_no_profile_and_answers_as_before() {
 }
 
 fn library(root: &Path, hex: &str, body: &str) {
+    library_of(
+        root,
+        hex,
+        &format!("#[no_mangle]\npub extern \"C\" fn blue_def_entry(args: *const i64, len: usize, out: *mut i64) -> i32 {{\n    let _ = (args, len);\n    {body}\n}}\n"),
+    );
+}
+
+fn library_of(root: &Path, hex: &str, source: &str) {
     let dir = root.join("native").join("v1").join(hex);
     let src = dir.join("lib.rs");
-    std::fs::write(
-        &src,
-        format!("#[no_mangle]\npub extern \"C\" fn blue_def_entry(args: *const i64, len: usize, out: *mut i64) -> i32 {{\n    let _ = (args, len);\n    {body}\n}}\n"),
-    )
-    .expect("library source");
+    std::fs::write(&src, source).expect("library source");
     let built = Command::new("rustc")
         .args(["--edition", "2021", "--crate-type", "cdylib", "-o"])
         .arg(dir.join("def.so"))
@@ -288,6 +292,38 @@ fn a_loop_of_tail_calls_is_one_outermost_call_in_the_profile() {
         recorded.split_whitespace().nth(1),
         Some("2"),
         "two outermost calls, each a loop of tail calls: {recorded}"
+    );
+    let _ = std::fs::remove_dir_all(&f.dir);
+}
+
+#[test]
+fn a_str_crosses_the_library_seam_as_a_token_both_ways() {
+    let dir = std::env::temp_dir().join(format!("blue-native-tier-str-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch");
+    let program = dir.join("p.b");
+    std::fs::write(
+        &program,
+        "def shout(s: Str, n: Int) -> Str\n  \"#{s}!#{n}\"\nend\n\ndef main()\n  write_stdout(shout(\"h\u{e9}\", 3))\nend\n",
+    )
+    .expect("program");
+    let shared = dir.join("shared");
+    for (key, hex) in hashes(&program) {
+        if key == "%root/shout" {
+            artifact(&shared, &hex, 99);
+            library_of(
+                &shared,
+                &hex,
+                "#[no_mangle]\npub extern \"C\" fn blue_def_entry(_: *const i64, _: usize, _: *mut i64) -> i32 { 1 }\n\n#[no_mangle]\npub extern \"C\" fn blue_def_call(input: *const u8, len: usize, out: *mut u8, cap: usize, out_len: *mut usize) -> i32 {\n    let input = unsafe { std::slice::from_raw_parts(input, len) };\n    let answer: &[u8] = if input == b\"s68c3a9 i3\" { b\"s6e6174697665\" } else { b\"sff\" };\n    unsafe { out_len.write(answer.len()) };\n    if answer.len() > cap { return 3; }\n    unsafe { std::ptr::copy_nonoverlapping(answer.as_ptr(), out, answer.len()) };\n    0\n}\n",
+            );
+        }
+    }
+    let f = Fixture { dir, program };
+    assert_eq!(run(&f, Some("off")), "h\u{e9}!3");
+    assert_eq!(
+        run(&f, Some("on")),
+        "native",
+        "\"h\u{e9}\" and 3 reach the library as tokens, and the token it answers is a Str"
     );
     let _ = std::fs::remove_dir_all(&f.dir);
 }

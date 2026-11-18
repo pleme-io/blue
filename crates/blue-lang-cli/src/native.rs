@@ -141,6 +141,7 @@ enum Word {
     Int,
     Bool,
     Float,
+    Str,
 }
 
 /// What a definition takes and answers, as the tier converts it across the
@@ -163,6 +164,7 @@ impl Shape {
             "Int" => Some(Word::Int),
             "Bool" => Some(Word::Bool),
             "Float" => Some(Word::Float),
+            "Str" => Some(Word::Str),
             _ => None,
         };
         let params = items
@@ -184,12 +186,90 @@ impl Shape {
             (Value::Float(x), Word::Float) => Some(x.to_bits().cast_signed()),
             _ => None,
         };
+        if !self.in_words() {
+            return None;
+        }
         match self {
             Self::Untyped => args.iter().map(|a| take(a, Word::Int)).collect(),
             Self::Typed(ws, _) if ws.len() == args.len() => {
                 args.iter().zip(ws).map(|(a, w)| take(a, *w)).collect()
             }
             Self::Typed(..) => None,
+        }
+    }
+
+    /// Whether every argument and the answer fit one word each, so the word
+    /// seam carries the call; a Str needs the token seam.
+    fn in_words(&self) -> bool {
+        match self {
+            Self::Untyped => true,
+            Self::Typed(ws, r) => !ws.contains(&Word::Str) && *r != Word::Str,
+        }
+    }
+
+    /// Whether every word is an Int, so an executable takes bare decimals,
+    /// as executables built before tokens did.
+    fn plain(&self) -> bool {
+        match self {
+            Self::Untyped => true,
+            Self::Typed(ws, r) => ws.iter().chain([r]).all(|w| *w == Word::Int),
+        }
+    }
+
+    /// The arguments as value tokens (`native/seam/host_io.rs`, `decode`), or
+    /// `None` when one is not what the signature names.
+    fn tokens(&self, args: &[Value]) -> Option<Vec<String>> {
+        let ws: Vec<Word> = match self {
+            Self::Untyped => vec![Word::Int; args.len()],
+            Self::Typed(ws, _) if ws.len() == args.len() => ws.clone(),
+            Self::Typed(..) => return None,
+        };
+        args.iter()
+            .zip(ws)
+            .map(|(a, w)| match (a, w) {
+                (Value::Int(n), Word::Int) => Some(format!("i{n}")),
+                (Value::Bool(b), Word::Bool) => Some(format!("b{}", u8::from(*b))),
+                (Value::Float(x), Word::Float) => Some(format!("f{}", x.to_bits().cast_signed())),
+                (Value::Str(t), Word::Str) => {
+                    Some(t.bytes().fold(String::from("s"), |mut out, b| {
+                        out.push_str(&format!("{b:02x}"));
+                        out
+                    }))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The answer's token as the value the signature names, or `None` when it
+    /// is not one. A bare decimal is an Int, as executables built before
+    /// tokens answered.
+    fn from_token(&self, token: &str) -> Option<Value> {
+        let want = match self {
+            Self::Untyped => Word::Int,
+            Self::Typed(_, r) => *r,
+        };
+        let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
+        match (tag, want) {
+            (b'i', Word::Int) => rest.parse().ok().map(Value::Int),
+            (b'b', Word::Bool) => match rest {
+                "1" => Some(Value::Bool(true)),
+                "0" => Some(Value::Bool(false)),
+                _ => None,
+            },
+            (b'f', Word::Float) => rest
+                .parse::<i64>()
+                .ok()
+                .map(|b| Value::Float(f64::from_bits(b.cast_unsigned()))),
+            (b's', Word::Str) if rest.len() % 2 == 0 => {
+                let bytes = (0..rest.len())
+                    .step_by(2)
+                    .map(|i| u8::from_str_radix(rest.get(i..i + 2)?, 16).ok())
+                    .collect::<Option<Vec<u8>>>()?;
+                String::from_utf8(bytes).ok().map(|t| Value::Str(t.into()))
+            }
+            (_, Word::Int) => token.parse().ok().map(Value::Int),
+            _ => None,
         }
     }
 
@@ -545,11 +625,12 @@ pub(crate) fn ask_for_build(file: &std::path::Path, took: std::time::Duration) -
     asked
 }
 
-/// Run one artifact on Int arguments: its result, or `None` when it did not
-/// answer (a fault, an arity it refuses, an output that is not one Int).
-pub(crate) fn call(artifact: &std::path::Path, args: &[i64]) -> Option<i64> {
+/// Run one artifact on its arguments' text: the one line it answered, or
+/// `None` when it did not answer (a fault, arguments it refuses, an output
+/// that is not one line).
+fn answer(artifact: &std::path::Path, args: impl IntoIterator<Item = String>) -> Option<String> {
     let out = std::process::Command::new(artifact)
-        .args(args.iter().map(i64::to_string))
+        .args(args)
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .output()
@@ -559,7 +640,7 @@ pub(crate) fn call(artifact: &std::path::Path, args: &[i64]) -> Option<i64> {
     }
     let text = String::from_utf8(out.stdout).ok()?;
     let mut lines = text.lines();
-    let value = lines.next()?.trim().parse().ok()?;
+    let value = lines.next()?.trim().to_string();
     lines.next().is_none().then_some(value)
 }
 
@@ -577,15 +658,27 @@ impl CallObserver for Tier {
         }
         let target = self.target(call_)?;
         if self.answers && target.hot {
-            let answered = target
-                .shape
-                .words(args)
-                .and_then(|words| match target.library {
-                    Some(entry) => crate::dl::call(entry, &words),
-                    None => call(&target.artifact, &words),
-                });
-            if let Some(v) = answered {
-                return Some(target.shape.value(v));
+            let shape = &target.shape;
+            let answered = match target.library {
+                Some(entry) if shape.in_words() => shape
+                    .words(args)
+                    .and_then(|words| crate::dl::call(entry, &words))
+                    .map(|v| shape.value(v)),
+                Some(entry) => shape
+                    .tokens(args)
+                    .and_then(|t| crate::dl::call_tokens(entry, &t.join(" ")))
+                    .and_then(|token| shape.from_token(&token)),
+                None if shape.plain() => shape
+                    .words(args)
+                    .and_then(|words| answer(&target.artifact, words.iter().map(i64::to_string)))
+                    .and_then(|token| shape.from_token(&token)),
+                None => shape
+                    .tokens(args)
+                    .and_then(|t| answer(&target.artifact, t))
+                    .and_then(|token| shape.from_token(&token)),
+            };
+            if answered.is_some() {
+                return answered;
             }
         }
         if let Ok(mut t) = self.timing.lock() {
@@ -755,7 +848,28 @@ mod tests {
     }
 
     #[test]
-    fn an_artifact_that_does_not_answer_one_int_is_no_answer() {
-        assert_eq!(call(std::path::Path::new("/no/such/artifact"), &[1]), None);
+    fn an_artifact_that_does_not_answer_one_line_is_no_answer() {
+        assert_eq!(
+            answer(std::path::Path::new("/no/such/artifact"), ["1".to_string()]),
+            None
+        );
+    }
+
+    #[test]
+    fn a_str_crosses_the_seam_as_a_token_both_ways() {
+        let greet =
+            shape("(define-typed (%root/g (s Str) (n Int)) Str (concat s n))").expect("a shape");
+        assert!(!greet.in_words() && !greet.plain());
+        assert_eq!(greet.words(&[Value::Str("é".into()), Value::Int(2)]), None);
+        assert_eq!(
+            greet.tokens(&[Value::Str("é!".into()), Value::Int(2)]),
+            Some(vec!["sc3a921".to_string(), "i2".to_string()])
+        );
+        assert!(matches!(greet.from_token("sc3a921"), Some(Value::Str(t)) if &*t == "é!"));
+        assert!(greet.from_token("i2").is_none());
+        let n = shape("(define-typed (%root/n (x Int)) Int x)").expect("a shape");
+        assert!(n.plain());
+        assert!(matches!(n.from_token("42"), Some(Value::Int(42))));
+        assert!(matches!(n.from_token("i-7"), Some(Value::Int(-7))));
     }
 }

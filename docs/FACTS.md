@@ -187,7 +187,27 @@ Each wave lists defaults in the order their gain is known. Each default meets
     Int answered); `checks.native-defs` "a Float crosses the seam both ways"
     (`area`, `half`, `wide`; a swapped library proves the library answered);
     `spec/rows/check.b` `check.float_arithmetic`, `check.float_into_int`.
-  - Next: strings.
+  - ✅ Str, on the host board: a refcounted string (`kiban_heap::Str`), a
+    literal rendered through tatara-rust-ast's typed `Str` node (no source
+    text), `concat` and interpolation of a Str, an Int or a Bool written as
+    the interpreter writes them (`kiban_heap::Piece`), `length` in
+    characters, `==` by content; a Float in `concat` and an order on strings
+    stay refused. No word holds a string, so a definition that takes or
+    answers one crosses a second seam: value tokens (`i42`, `b1`, `f<bits>`,
+    `s<hex>`), through the library's `blue_def_call` or the executable's
+    arguments. An all-Int definition keeps the word seam and bare decimals,
+    so an artifact built before tokens still answers it; one of another
+    shape refuses tokens it cannot read, and the interpreter runs the call.
+    `score("key", 1_000_000, 0)`, a loop of small string steps, with no
+    flag: 0.93 s interpreted, 0.19 s native from the third run, the same
+    answer. Locks: `tests/native_tier.rs`
+    `a_str_crosses_the_library_seam_as_a_token_both_ways` (red with the
+    token's bytes dropped); native.rs `a_str_crosses_the_seam_as_a_token_both_ways`;
+    chuuzou's Str tests (what compiles, what is refused, the board without a
+    heap); `checks.native-defs` "a Str crosses the seam both ways" on Linux
+    (`shout`, `width`, `twice`; `bang`'s artifact swapped in proves the
+    artifact answered).
+  - Next: maps and lists across the seam.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

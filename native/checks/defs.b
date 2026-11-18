@@ -5,6 +5,9 @@ native/v1/<def_hash hex>/def) answers what `blue run` answers, and a run
 with BLUE_NATIVE=on answers a call from the artifact its def_hash names.
 """
 
+use("retsu", [:first])
+use("tesuto", [:literal])
+
 @doc """
 cases: The calls each definition of native/defs/base.b is held to.
 """
@@ -39,7 +42,7 @@ end
 
 def driver(work, name, args)
   file = path_join(work, "#{name}.b")
-  call = "#{name}(#{join(map(to_s, args), ", ")})"
+  call = "#{name}(#{join(map(literal, args), ", ")})"
   write_program(
     file,
     unlines(
@@ -71,7 +74,7 @@ test "every compiled definition answers what the interpreter answers", {
   differ = filter(
     fn(c)
       want = interpreted(work, first(c), second(c), [%w[BLUE_NATIVE off]])
-      want.nil? or want != native(first(c), second(c))
+      want.nil? or "i#{want}" != native(first(c), second(c))
     end,
     cases
   )
@@ -170,4 +173,41 @@ test "a Float crosses the seam both ways", {kind: :integration}
   ]
   assert interpreted(work, "area", [4.0], off) == unlines(["56.0"])
   assert interpreted(work, "area", [4.0], swapped) == unlines(["2.0"])
+end
+
+test "a Str crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-str")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [
+    ["shout", ["hé", 3]],
+    ["width", ["héllo"]],
+    ["width", [""]],
+    ["twice", ["ab"]]
+  ]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("twice"))
+  mkdir_p(shelf)
+  bang = path_join(root, "native", "v1", hex_of("bang"))
+  exec_capture("ln", "-s", path_join(bang, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(bang, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  assert interpreted(work, "twice", ["ab"], off) == unlines(["abab"])
+  assert interpreted(work, "twice", ["ab"], swapped) == unlines(["ab!"])
 end

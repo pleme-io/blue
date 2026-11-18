@@ -19,7 +19,9 @@
 extern crate alloc;
 
 use alloc::rc::Rc;
+use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Write;
 
 /// A refcounted list of board words.
 pub type List = Rc<Vec<i64>>;
@@ -167,5 +169,121 @@ impl Region {
     #[must_use]
     pub fn to_rc(&self, l: Span) -> List {
         Rc::new(self.cells[l.start..l.start + l.len].to_vec())
+    }
+}
+
+/// A refcounted string: immutable, so a copy is a count.
+pub type Str = Rc<str>;
+
+/// A string from its text.
+#[must_use]
+pub fn text(s: &str) -> Str {
+    Rc::from(s)
+}
+
+/// A value as `concat` and interpolation write it: a string as it is, an Int
+/// in decimal, a Bool as `true` or `false`, as the interpreter writes them.
+pub trait Piece {
+    fn piece(&self, out: &mut String);
+}
+
+impl Piece for Str {
+    fn piece(&self, out: &mut String) {
+        out.push_str(self);
+    }
+}
+
+impl Piece for i64 {
+    fn piece(&self, out: &mut String) {
+        let _ = write!(out, "{self}");
+    }
+}
+
+impl Piece for bool {
+    fn piece(&self, out: &mut String) {
+        out.push_str(if *self { "true" } else { "false" });
+    }
+}
+
+/// `concat(a, b)`: a new string, `a` then `b`.
+#[must_use]
+pub fn cat<A: Piece, B: Piece>(a: &A, b: &B) -> Str {
+    let mut out = String::new();
+    a.piece(&mut out);
+    b.piece(&mut out);
+    Rc::from(out)
+}
+
+/// `length(s)`: its characters, as the interpreter counts them.
+#[must_use]
+pub fn text_len(s: &Str) -> i64 {
+    i64::try_from(s.chars().count()).unwrap_or_else(|_| kiban_io::fault())
+}
+
+/// A value crossing the definition seam: what a definition that takes or
+/// answers a string is called with and answers.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Value {
+    Int(i64),
+    Bool(bool),
+    Float(f64),
+    Str(Str),
+}
+
+impl Value {
+    /// The Int this is, or a fault: an argument of another type is refused.
+    #[must_use]
+    pub fn int(&self) -> i64 {
+        match self {
+            Self::Int(n) => *n,
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// The Bool this is, or a fault.
+    #[must_use]
+    pub fn bool(&self) -> bool {
+        match self {
+            Self::Bool(b) => *b,
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// The Float this is, or a fault.
+    #[must_use]
+    pub fn float(&self) -> f64 {
+        match self {
+            Self::Float(x) => *x,
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// The string this is, or a fault.
+    #[must_use]
+    pub fn str(&self) -> Str {
+        match self {
+            Self::Str(s) => s.clone(),
+            _ => kiban_io::fault(),
+        }
+    }
+}
+
+/// The arguments of a valued call.
+pub type Values = [Value];
+
+/// The `i`th argument, or a fault.
+#[must_use]
+pub fn arg(args: &[Value], i: u32) -> &Value {
+    match args.get(i as usize) {
+        Some(v) => v,
+        None => kiban_io::fault(),
+    }
+}
+
+/// Exactly `n` arguments, or a fault, as the interpreter refuses a call of
+/// the wrong arity.
+pub fn need(args: &[Value], n: u32) {
+    if args.len() != n as usize {
+        kiban_io::fault()
     }
 }

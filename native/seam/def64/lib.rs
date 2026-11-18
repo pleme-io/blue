@@ -27,14 +27,9 @@ impl kiban_io::Io for Quiet {
     }
 }
 
-fn answer(args: Vec<i64>) -> Option<i64> {
+fn quietly<T: Send + 'static>(run: impl FnOnce() -> Option<T> + Send + 'static) -> Option<T> {
     static SILENT: std::sync::Once = std::sync::Once::new();
     SILENT.call_once(|| std::panic::set_hook(Box::new(|_| {})));
-    let run = move || {
-        let mut io = Quiet { printed: false };
-        let value = program::entry(&mut io, &kiban_io::Args(&args));
-        (!io.printed).then_some(value)
-    };
     if program::shallow() {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
             .ok()
@@ -42,6 +37,27 @@ fn answer(args: Vec<i64>) -> Option<i64> {
     } else {
         host_io::on_stack(run).flatten()
     }
+}
+
+fn answer(args: Vec<i64>) -> Option<i64> {
+    quietly(move || {
+        let mut io = Quiet { printed: false };
+        let value = program::entry(&mut io, &kiban_io::Args(&args));
+        (!io.printed).then_some(value)
+    })
+}
+
+fn answer_tokens(input: String) -> Option<String> {
+    quietly(move || {
+        let args = input
+            .split(' ')
+            .filter(|t| !t.is_empty())
+            .map(host_io::decode)
+            .collect::<Option<Vec<kiban_heap::Value>>>()?;
+        let mut io = Quiet { printed: false };
+        let value = program::call(&mut io, &args);
+        (!io.printed).then(|| host_io::encode(&value))
+    })
 }
 
 #[no_mangle]
@@ -58,4 +74,37 @@ pub extern "C" fn blue_def_entry(args: *const i64, len: usize, out: *mut i64) ->
         }
         None => 1,
     }
+}
+
+/// The definition on values of any type the seam carries: `input` is their
+/// tokens (`host_io::decode`) separated by spaces, and the answer's token is
+/// written to `out`, its length to `out_len`. Answers 0 with the result, 1
+/// when the definition faulted or printed or an argument is no token, 2 for
+/// a null pointer or input that is not UTF-8, and 3 when `cap` is too small,
+/// `out_len` then holding the length needed.
+#[no_mangle]
+#[allow(unsafe_code)]
+pub extern "C" fn blue_def_call(
+    input: *const u8,
+    len: usize,
+    out: *mut u8,
+    cap: usize,
+    out_len: *mut usize,
+) -> i32 {
+    if input.is_null() || out.is_null() || out_len.is_null() {
+        return 2;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(input, len) };
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return 2;
+    };
+    let Some(token) = answer_tokens(text.to_string()) else {
+        return 1;
+    };
+    unsafe { out_len.write(token.len()) };
+    if token.len() > cap {
+        return 3;
+    }
+    unsafe { std::ptr::copy_nonoverlapping(token.as_ptr(), out, token.len()) };
+    0
 }

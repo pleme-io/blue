@@ -45,3 +45,19 @@ end
 def wide(x: Float, n: Int) -> Bool
   x > n
 end
+
+def shout(s: Str, n: Int) -> Str
+  "#{s}!#{n}"
+end
+
+def width(s: Str) -> Int
+  length(s)
+end
+
+def twice(s: Str) -> Str
+  concat(s, s)
+end
+
+def bang(s: Str) -> Str
+  "#{s}!"
+end

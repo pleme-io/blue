@@ -2952,11 +2952,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794287911,
-        "narHash": "sha256-K5mz6aQsNQSBroopBhy3KLDWS95WYX+hKgKfv+7v+us=",
+        "lastModified": 1795002155,
+        "narHash": "sha256-Cs1GwV/4Ed+OIipjfMsIHoIRgex6MEtIXMNHneo3bvM=",
         "owner": "pleme-io",
         "repo": "tatara-rust-ast",
-        "rev": "8b65f72dede0945481d33377d1b8076fd56150b8",
+        "rev": "1435588295de034992a26ffc9c8b018a3b308510",
         "type": "github"
       },
       "original": {

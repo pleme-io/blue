@@ -5,6 +5,7 @@
 //! raised error.
 
 #[path = "../host_io.rs"]
+#[allow(dead_code)]
 mod host_io;
 
 fn main() {

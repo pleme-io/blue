@@ -32,6 +32,8 @@ i64 on the host board `host64`):
   x: Float, 2.5             f64 on the host board only, a literal as its exact
                             bits (kiban_io::float); an Int meeting a Float is
                             widened, `/` on Floats faults on a zero divisor
+  s: Str, "a"               kiban_heap::Str (Rc<str>) on the host board only;
+  concat, "#{x}", length    kiban_heap::cat of a Str, Int or Bool, text_len
   wrapping_add(a, b)        a.wrapping_add(b), on the 32-bit word only
   == != < <= > >= not and or  comparisons and logic
   if / begin                if / blocks; an `if` with no else where its value is dropped
@@ -463,6 +465,8 @@ def cz_sig_ty(n, records)
     :bool
   elsif s == "Float"
     :float
+  elsif s == "Str"
+    :str
   elsif s == "dyn"
     :dyn
   elsif s == "List"
@@ -471,7 +475,7 @@ def cz_sig_ty(n, records)
     r[:name]
   else
     cz_refuse(
-      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, a record its struct, dyn any record"
+      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, Str a refcounted string, a record its struct, dyn any record"
     )
   end
 end
@@ -492,6 +496,10 @@ def cz_rs_ty(ty, word)
     rs_ty("f64")
   elsif ty == :float
     cz_refuse("a Float has a native form on the 64-bit host only; a board has no floating point")
+  elsif ty == :str and word == 64
+    rs_ty("Str")
+  elsif ty == :str
+    cz_refuse("a Str has a native form on the 64-bit host only, where the heap is")
   elsif ty == :dyn
     rs_ty("Rec")
   elsif ty == :list
@@ -573,6 +581,8 @@ def cz_ty_text(t)
     "a Bool"
   elsif t == :float
     "a Float"
+  elsif t == :str
+    "a Str"
   elsif t == :dyn
     "any record"
   else
@@ -625,6 +635,8 @@ def cz_ty(n, ctx)
     :word
   elsif cz_float?(n)
     :float
+  elsif map?(n) and n[:str] != nil
+    :str
   elsif cz_sym?(n)
     cz_lookup(cz_sym(n), ctx[:types] or []) or :word
   elsif not list?(n)
@@ -637,6 +649,10 @@ def cz_ty(n, ctx)
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
   elsif h == "list" or h == "append"
     :list
+  elsif h == "concat"
+    :str
+  elsif h == "length"
+    :word
   elsif (cz_lookup(h, cz_arith) != nil or h == "/") and
       any?((a) -> cz_ty(a, ctx) == :float, rest(n))
     :float
@@ -933,6 +949,8 @@ def cz_expr(n, ctx)
     end
   elsif cz_float?(n) and ctx[:word] == 64
     rs_float(n[:flt])
+  elsif map?(n) and n[:str] != nil and ctx[:word] == 64
+    rs_call(%w[kiban_heap text], [{kind: "str", value: n[:str]}])
   elsif cz_float?(n)
     cz_refuse("a Float has a native form on the 64-bit host only; a board has no floating point")
   elsif list?(n) and count(n) > 0
@@ -1014,6 +1032,35 @@ def cz_float_arith(h, arith, args, ctx)
   end
 end
 
+@doc """
+cz_ref: `&n`, lowered: a borrow, so reading a string moves nothing.
+
+    cz_ref(3, {word: 64})[:kind] #=> "ref"
+"""
+def cz_ref(n, ctx)
+  {kind: "ref", mutable: false, expr: cz_expr(n, ctx)}
+end
+
+@doc """
+cz_concat: `concat(a, b)`, a new string: each side a Str, an Int or a Bool, written as
+the interpreter writes it (`kiban_heap::Piece`). A Float is refused: its
+shortest decimal form is not in the runtime yet.
+
+    cz_concat(cz_read("\"a\" 5"), {word: 64})[:func] #=> ["kiban_heap", "cat"]
+"""
+def cz_concat(args, ctx)
+  if count(args) != 2
+    cz_refuse("`concat` joins two values natively; interpolation lowers to that")
+  end
+  ok = (a) -> member?(cz_ty(a, ctx), %i[str word bool])
+  if not every?(ok, args)
+    cz_refuse(
+      "`concat` of #{cz_ty_text(cz_ty(first(filter((a) -> not ok(a), args)), ctx))} has no native form; a Str, an Int and a Bool do"
+    )
+  end
+  rs_call(%w[kiban_heap cat], map((a) -> cz_ref(a, ctx), args))
+end
+
 def cz_call(n, ctx)
   h = cz_head(n)
   args = rest(n)
@@ -1081,6 +1128,13 @@ def cz_call(n, ctx)
       cz_expr(first(args), ctx),
       rest(args)
     )
+  elsif h == "concat"
+    cz_concat(args, ctx)
+  elsif h == "length"
+    if count(args) != 1 or cz_ty(first(args), ctx) != :str
+      cz_refuse("`length` has a native form on a Str; a list's is count")
+    end
+    rs_call(%w[kiban_heap text_len], [cz_ref(first(args), ctx)])
   elsif h == "floor"
     cz_floor(args, ctx)
   elsif h == "/"
@@ -1700,7 +1754,7 @@ def cz_lead(forms, ctx)
         x = cz_sym(second(f))
         c = cz_scope([f], acc[:ctx])
         later = reduce((n, g) -> n + cz_uses(g, x), 0, drop(i + 1, forms))
-        shared = if cz_lookup(x, c[:types]) == :list and later > 1
+        shared = if member?(cz_lookup(x, c[:types]), %i[list str]) and later > 1
           append(c[:shared] or [], [x])
         else
           c[:shared] or []
@@ -1897,7 +1951,10 @@ def cz_fn(form, env)
   body = fourth(form)
   shared = map(
     first,
-    filter((t) -> second(t) == :list and cz_uses(body, first(t)) > 1, types)
+    filter(
+      (t) -> member?(second(t), %i[list str]) and cz_uses(body, first(t)) > 1,
+      types
+    )
   )
   rec = member?(name, env[:rec])
   depth = if rec
@@ -2450,6 +2507,12 @@ def cz_lower(forms, board)
     filter((f) -> cz_head(f) != "use", forms),
     %w[list append List]
   )
+  strings = cz_mentions?(forms, ["Str"])
+  if strings and not heap
+    cz_refuse(
+      "a Str needs a heap, and #{board[:name]} has none; strings compile for the host board"
+    )
+  end
   if lists and not heap
     cz_refuse(
       "a list needs a heap, and #{board[:name]} has none; lists compile for the host board"
@@ -2549,6 +2612,11 @@ def cz_lower(forms, board)
           (t) -> {kind: "use", item: {path: ["kiban_heap", t]}},
           %w[List Region Span]
         )
+      else
+        []
+      end,
+      if strings
+        [{kind: "use", item: {path: %w[kiban_heap Str]}}]
       else
         []
       end,
@@ -2941,9 +3009,9 @@ def cz_lower_def(forms, key)
     map((p) -> cz_sig_ty(second(p), []), rest(second(form))),
     [cz_sig_ty(third(form), [])]
   )
-  if not every?((t) -> member?(t, %i[word bool float]), types)
+  if not every?((t) -> member?(t, %i[word bool float str]), types)
     cz_refuse(
-      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool or a Float; the native tier's guard is one of those per argument"
+      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float or a Str; the native tier's guard is one of those per argument"
     )
   end
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
@@ -2967,26 +3035,97 @@ def cz_lower_def(forms, key)
       )
     )
   )
+  words = not member?(:str, types)
   entry = rs_fn(
     "pub",
     "entry",
     [{name: "args", ty: {ident: "Args", reference: {kind: "shared"}}}],
     rs_ty("i64"),
     rs_block(
+      if words
+        [
+          rs_semi(rs_method(rs_path("args"), "need", [rs_u32(n)])),
+          rs_tail(cz_seam_result(call, last(types)))
+        ]
+      else
+        [rs_tail(rs_call(%w[kiban_io fault], []))]
+      end
+    )
+  )
+  valued = rs_call(
+    [cz_fn_name(key)],
+    append(
+      lead,
+      map(
+        fn(i)
+          cz_value_arg(
+            rs_call(%w[kiban_heap arg], [rs_path("args"), rs_u32(i)]),
+            types[i]
+          )
+        end,
+        range(n)
+      )
+    )
+  )
+  call_fn = rs_fn(
+    "pub",
+    "call",
+    [{name: "args", ty: {ident: "Values", reference: {kind: "shared"}}}],
+    rs_ty("Value"),
+    rs_block(
       [
-        rs_semi(rs_method(rs_path("args"), "need", [rs_u32(n)])),
-        rs_tail(cz_seam_result(call, last(types)))
+        rs_semi(rs_call(%w[kiban_heap need], [rs_path("args"), rs_u32(n)])),
+        rs_tail(cz_value_result(valued, last(types)))
       ]
     )
   )
   {
     **file,
     items: append(
-      [{kind: "use", item: {path: %w[kiban_io Args]}}],
+      [
+        {kind: "use", item: {path: %w[kiban_io Args]}},
+        {kind: "use", item: {path: %w[kiban_heap Value]}},
+        {kind: "use", item: {path: %w[kiban_heap Values]}}
+      ],
       file[:items],
-      [entry, cz_shallow_fn(cz_recursive(fn_forms, fns) == [])]
+      [entry, call_fn, cz_shallow_fn(cz_recursive(fn_forms, fns) == [])]
     )
   }
+end
+
+@doc """
+cz_value_arg: One argument of the valued seam, a `kiban_heap::Value`, as the parameter of
+type `ty` takes it: the value's Int, Bool, Float or Str, any other a fault.
+
+    cz_value_arg(rs_path("a"), :str)[:method] #=> "str"
+"""
+def cz_value_arg(e, ty)
+  rs_method(
+    e,
+    cz_lookup(
+      ty,
+      [[:word, "int"], [:bool, "bool"], [:float, "float"], [:str, "str"]]
+    ),
+    []
+  )
+end
+
+@doc """
+cz_value_result: The entry's answer as a `kiban_heap::Value` of its type.
+
+    cz_value_result(rs_path("r"), :word)[:func] #=> ["Value", "Int"]
+"""
+def cz_value_result(e, ty)
+  rs_call(
+    [
+      "Value",
+      cz_lookup(
+        ty,
+        [[:word, "Int"], [:bool, "Bool"], [:float, "Float"], [:str, "Str"]]
+      )
+    ],
+    [e]
+  )
 end
 
 @doc """
@@ -3645,4 +3784,47 @@ test "a Float is refused where the interpreter would not answer one"
     "(define-typed (%root/f (x Float)) Int (floor (/ x 2)))",
     "%root/f"
   ) != nil
+end
+
+test "a Str definition compiles, its concat and length through the heap"
+  greet = "(define-typed (%root/greet (name Str) (n Int)) Str (concat (concat (concat (concat \"hi \" name) \" x\") n) (> n 2)))"
+  assert cz_def_native(greet, "%root/greet").nil?
+  assert cz_def_native(
+    "(define-typed (%root/w (s Str)) Int (length s))",
+    "%root/w"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/q (a Str) (b Str)) Bool (equal? a b))",
+    "%root/q"
+  ).nil?
+  assert cz_def_native(
+    "(define-typed (%root/t (a Str)) Str (concat a a))",
+    "%root/t"
+  ).nil?
+  lowered = cz_lower_def(cz_read(greet), "%root/greet")
+  call = find(
+    lowered[:items],
+    (i) -> i[:kind] == "fn" and i[:item][:sig][:name] == "call"
+  )
+  assert call != nil
+  assert cz_value_arg(rs_path("a"), :str) == rs_method(rs_path("a"), "str", [])
+  assert cz_value_result(rs_path("r"), :str)[:func] == %w[Value Str]
+  assert cz_ref(1, {word: 64})[:expr] == rs_word(1, 64)
+  assert cz_concat(cz_read("\"a\" 5"), {word: 64})[:func] == %w[kiban_heap cat]
+end
+
+test "a Str is refused where the runtime cannot answer it"
+  assert cz_def_native(
+    "(define-typed (%root/f (x Float)) Str (concat \"a\" x))",
+    "%root/f"
+  ) != nil
+  assert cz_def_native(
+    "(define-typed (%root/o (a Str) (b Str)) Bool (< a b))",
+    "%root/o"
+  ) != nil
+  assert (cz_lower(
+    cz_read("(define-typed (%root/s (a Str)) Str a)"),
+    kb_board("qemu-virt32")
+  ) rescue
+    :refused) == :refused
 end

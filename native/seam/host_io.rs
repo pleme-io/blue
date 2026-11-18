@@ -62,3 +62,47 @@ pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
         host.out.flush().is_ok() && answered
     }) == Some(true)
 }
+
+/// One value from its token on the seam: `i42`, `b1`, `f<the Float's bits
+/// as an Int>`, `s<the string's UTF-8 in hex>`, or a bare decimal Int, as
+/// artifacts built before tokens were called.
+pub fn decode(token: &str) -> Option<kiban_heap::Value> {
+    let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
+    Some(match tag {
+        b'i' => kiban_heap::Value::Int(rest.parse().ok()?),
+        b'b' => kiban_heap::Value::Bool(match rest {
+            "1" => true,
+            "0" => false,
+            _ => return None,
+        }),
+        b'f' => kiban_heap::Value::Float(f64::from_bits(rest.parse::<i64>().ok()?.cast_unsigned())),
+        b's' => {
+            if rest.len() % 2 != 0 {
+                return None;
+            }
+            let bytes = (0..rest.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(rest.get(i..i + 2)?, 16).ok())
+                .collect::<Option<Vec<u8>>>()?;
+            kiban_heap::Value::Str(kiban_heap::text(&String::from_utf8(bytes).ok()?))
+        }
+        _ => kiban_heap::Value::Int(token.parse().ok()?),
+    })
+}
+
+/// A value's token on the seam, as [`decode`] reads it.
+pub fn encode(v: &kiban_heap::Value) -> String {
+    match v {
+        kiban_heap::Value::Int(n) => format!("i{n}"),
+        kiban_heap::Value::Bool(b) => format!("b{}", u8::from(*b)),
+        kiban_heap::Value::Float(x) => format!("f{}", x.to_bits().cast_signed()),
+        kiban_heap::Value::Str(s) => {
+            let mut out = String::with_capacity(1 + 2 * s.len());
+            out.push('s');
+            for b in s.bytes() {
+                out.push_str(&format!("{b:02x}"));
+            }
+            out
+        }
+    }
+}

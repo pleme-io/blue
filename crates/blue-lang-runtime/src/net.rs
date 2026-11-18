@@ -14,6 +14,7 @@
 //! nats_unsubscribe(sub)                       → nil
 //! nats_close(conn)                            → nil
 //! http_request(method, url, headers, body, ms) → {status:, headers:, body:}
+//! http_pipe(method, url, headers, body_file, ms) → {status:, headers:, body_file:}
 //! tcp_connect_ms(host, port, ms)              → connect time in ms, or [:error, why, detail]
 //! tcp_listen(addr)                            → listener
 //! tcp_port(listener)                          → the bound port
@@ -44,6 +45,7 @@
 pub mod http;
 pub mod nats;
 pub mod pg;
+pub mod pipe;
 pub mod resp;
 pub mod serve;
 pub mod stream;
@@ -512,6 +514,34 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                     ),
                 ),
                 ("body", text(&resp.body)),
+            ]))
+        },
+    );
+
+    interp.register_fn(
+        "http_pipe",
+        Arity::Exact(5),
+        |args: &[Value], _h: &mut H, span| {
+            let method = arg_str(&args[0], "http_pipe", span)?.to_string();
+            let url = arg_str(&args[1], "http_pipe", span)?.to_string();
+            let headers = headers_arg(&args[2], "http_pipe", span)?;
+            let body_file = match &args[3] {
+                Value::Nil => None,
+                other => Some(std::path::PathBuf::from(
+                    arg_str(other, "http_pipe", span)?.as_ref(),
+                )),
+            };
+            let timeout = arg_ms(&args[4], "http_pipe", span, false)?;
+            let piped = pipe::pipe(&method, &url, &headers, body_file.as_deref(), timeout)
+                .map_err(|e| EvalError::native_fn("http_pipe", e.to_string(), span))?;
+            let body = match piped.body_file {
+                Some(path) => Value::Str(Arc::from(path.to_string_lossy().as_ref())),
+                None => Value::Nil,
+            };
+            Ok(record(vec![
+                ("status", Value::Int(i64::from(piped.status))),
+                ("headers", pairs(piped.headers)),
+                ("body_file", body),
             ]))
         },
     );

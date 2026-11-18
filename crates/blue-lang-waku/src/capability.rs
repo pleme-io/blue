@@ -277,6 +277,7 @@ const NETWORK_NAMES: &[&str] = &[
     "nats_close",
     "nats_inbox",
     "http_request",
+    "http_pipe",
     "tcp_connect_ms",
     "tcp_listen",
     "tcp_port",

@@ -97,11 +97,11 @@ fn is_token(s: &str) -> bool {
 
 const MANAGED: &[&str] = &["content-length", "transfer-encoding", "connection"];
 
-pub fn encode_request(
+pub fn encode_request_head(
     method: &str,
     target: &Target,
     headers: &[(String, String)],
-    body: Option<&[u8]>,
+    body_len: u64,
 ) -> Result<Vec<u8>, HttpError> {
     if !is_token(method) {
         return Err(HttpError::Request(format!("{method:?} is not a method")));
@@ -138,12 +138,21 @@ pub fn encode_request(
             head.push_str(&format!("Host: {host}:{}\r\n", target.port));
         }
     }
-    let body = body.unwrap_or_default();
-    if !body.is_empty() || matches!(method, "POST" | "PUT" | "PATCH") {
-        head.push_str(&format!("Content-Length: {}\r\n", body.len()));
+    if body_len > 0 || matches!(method, "POST" | "PUT" | "PATCH") {
+        head.push_str(&format!("Content-Length: {body_len}\r\n"));
     }
     head.push_str("Connection: close\r\n\r\n");
-    let mut out = head.into_bytes();
+    Ok(head.into_bytes())
+}
+
+pub fn encode_request(
+    method: &str,
+    target: &Target,
+    headers: &[(String, String)],
+    body: Option<&[u8]>,
+) -> Result<Vec<u8>, HttpError> {
+    let body = body.unwrap_or_default();
+    let mut out = encode_request_head(method, target, headers, body.len() as u64)?;
     out.extend_from_slice(body);
     Ok(out)
 }

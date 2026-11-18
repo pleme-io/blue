@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-408 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+409 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -460,6 +460,7 @@ Higher binding power binds tighter.
 | `http_listen` | `http_listen(addr[, opts])` | 1..2 | A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. opts: max_request (bytes, 1 MiB by default; past it the request is answered 413) and spool (a directory: each body is also written there, whole and byte for byte, named by the request's body_file, and removed once the request is answered). |
 | `http_listener_port` | `http_listener_port(listener)` | 1 | The TCP port the listener is bound to. |
 | `http_next_request` | `http_next_request(listener, timeout_ms)` | 2 | {method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond. |
+| `http_pipe` | `http_pipe(method, url, headers, body_file, timeout_ms)` | 5 | One HTTP/1.1 request whose body and reply are files, never values: body_file (a path, or nil) is streamed to the upstream, and the reply's body is spooled to a temp file: {status:, headers:, body_file:}, body_file nil for HEAD, 204 and 304. Hand body_file to http_respond's {file:} and remove it with rm_rf once answered. One deadline for the whole call, reset per chunk; a failed or truncated exchange raises and leaves no spool. |
 | `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. |
 | `http_respond` | `http_respond(request, status, headers, body)` | 4 | Answer a request from http_next_request once and close its connection; headers as for http_request, body nil, a string, or {file: path}, whose bytes are streamed as they are. A second answer raises. nil. |
 | `nats_close` | `nats_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |

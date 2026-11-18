@@ -142,6 +142,7 @@ enum Word {
     Bool,
     Float,
     Str,
+    List,
 }
 
 /// What a definition takes and answers, as the tier converts it across the
@@ -160,7 +161,11 @@ impl Shape {
         if items.first().and_then(Spanned::as_symbol) != Some("define-typed") {
             return Some(Self::Untyped);
         }
-        let word = |t: &Spanned| match t.as_symbol()? {
+        let word = |t: &Spanned| match t.as_symbol().or_else(|| match t.as_list()? {
+            [l, i] if l.as_symbol() == Some("List") && i.as_symbol() == Some("Int") => Some("List"),
+            _ => None,
+        })? {
+            "List" => Some(Word::List),
             "Int" => Some(Word::Int),
             "Bool" => Some(Word::Bool),
             "Float" => Some(Word::Float),
@@ -203,7 +208,10 @@ impl Shape {
     fn in_words(&self) -> bool {
         match self {
             Self::Untyped => true,
-            Self::Typed(ws, r) => !ws.contains(&Word::Str) && *r != Word::Str,
+            Self::Typed(ws, r) => ws
+                .iter()
+                .chain([r])
+                .all(|w| !matches!(w, Word::Str | Word::List)),
         }
     }
 
@@ -230,6 +238,14 @@ impl Shape {
                 (Value::Int(n), Word::Int) => Some(format!("i{n}")),
                 (Value::Bool(b), Word::Bool) => Some(format!("b{}", u8::from(*b))),
                 (Value::Float(x), Word::Float) => Some(format!("f{}", x.to_bits().cast_signed())),
+                (Value::List(xs), Word::List) => xs
+                    .iter()
+                    .map(|x| match x {
+                        Value::Int(n) => Some(n.to_string()),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<String>>>()
+                    .map(|ns| format!("l{}", ns.join(","))),
                 (Value::Str(t), Word::Str) => {
                     Some(t.bytes().fold(String::from("s"), |mut out, b| {
                         out.push_str(&format!("{b:02x}"));
@@ -268,6 +284,12 @@ impl Shape {
                     .collect::<Option<Vec<u8>>>()?;
                 String::from_utf8(bytes).ok().map(|t| Value::Str(t.into()))
             }
+            (b'l', Word::List) if rest.is_empty() => Some(Value::List(Default::default())),
+            (b'l', Word::List) => rest
+                .split(',')
+                .map(|n| n.parse().ok().map(Value::Int))
+                .collect::<Option<Vec<Value>>>()
+                .map(|xs| Value::List(std::sync::Arc::new(xs.into()))),
             (_, Word::Int) => token.parse().ok().map(Value::Int),
             _ => None,
         }
@@ -853,6 +875,24 @@ mod tests {
             answer(std::path::Path::new("/no/such/artifact"), ["1".to_string()]),
             None
         );
+    }
+
+    #[test]
+    fn a_list_of_ints_crosses_the_seam_as_a_token_both_ways() {
+        let sum = shape("(define-typed (%root/s (xs (List Int))) (List Int) xs)").expect("a shape");
+        assert_eq!(sum, Shape::Typed(vec![Word::List], Word::List));
+        assert!(!sum.in_words() && !sum.plain());
+        let xs = Value::List(std::sync::Arc::new(
+            vec![Value::Int(-1), Value::Int(20)].into(),
+        ));
+        assert_eq!(sum.tokens(&[xs]), Some(vec!["l-1,20".to_string()]));
+        let strs = Value::List(std::sync::Arc::new(vec![Value::Str("a".into())].into()));
+        assert_eq!(sum.tokens(&[strs]), None);
+        assert!(matches!(sum.from_token("l3,4"), Some(Value::List(l)) if l.len() == 2));
+        assert!(matches!(sum.from_token("l"), Some(Value::List(l)) if l.is_empty()));
+        assert!(sum.from_token("l3,x").is_none());
+        let bare = shape("(define-typed (%root/b (xs List)) Int 0)").expect("a shape");
+        assert_eq!(bare, Shape::Typed(vec![Word::List], Word::Int));
     }
 
     #[test]

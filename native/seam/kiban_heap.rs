@@ -228,6 +228,7 @@ pub enum Value {
     Bool(bool),
     Float(f64),
     Str(Str),
+    List(List),
 }
 
 impl Value {
@@ -254,6 +255,15 @@ impl Value {
     pub fn float(&self) -> f64 {
         match self {
             Self::Float(x) => *x,
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// The list of Ints this is, or a fault.
+    #[must_use]
+    pub fn list(&self) -> List {
+        match self {
+            Self::List(l) => l.clone(),
             _ => kiban_io::fault(),
         }
     }

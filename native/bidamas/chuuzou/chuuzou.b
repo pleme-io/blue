@@ -457,7 +457,14 @@ is that record, by its qualified name.
     cz_sig_ty({sym: "point"}, [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> "%root/point"
 """
 def cz_sig_ty(n, records)
-  s = cz_sym(n)
+  s = if list?(n) and
+      count(n) == 2 and
+      cz_sym(first(n)) == "List" and
+      cz_sym(second(n)) == "Int"
+    "List"
+  else
+    cz_sym(n)
+  end
   r = find(records, (x) -> cz_local(x[:name]) == s)
   if s == "Int"
     :word
@@ -3009,9 +3016,14 @@ def cz_lower_def(forms, key)
     map((p) -> cz_sig_ty(second(p), []), rest(second(form))),
     [cz_sig_ty(third(form), [])]
   )
-  if not every?((t) -> member?(t, %i[word bool float str]), types)
+  if not every?((t) -> cz_seam_kind(t) != nil, types)
     cz_refuse(
-      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float or a Str; the native tier's guard is one of those per argument"
+      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float, a Str or a list of Ints; the native tier's guard is one of those per argument"
+    )
+  end
+  if member?(:list, types) and cz_mentions?(forms, ["reclaim"])
+    cz_refuse(
+      "`#{cz_local(key)}` holds its lists in a region; a list crosses the seam refcounted"
     )
   end
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
@@ -3035,7 +3047,7 @@ def cz_lower_def(forms, key)
       )
     )
   )
-  words = not member?(:str, types)
+  words = every?((t) -> member?(t, %i[word bool float]), types)
   entry = rs_fn(
     "pub",
     "entry",
@@ -3100,14 +3112,7 @@ type `ty` takes it: the value's Int, Bool, Float or Str, any other a fault.
     cz_value_arg(rs_path("a"), :str)[:method] #=> "str"
 """
 def cz_value_arg(e, ty)
-  rs_method(
-    e,
-    cz_lookup(
-      ty,
-      [[:word, "int"], [:bool, "bool"], [:float, "float"], [:str, "str"]]
-    ),
-    []
-  )
+  rs_method(e, cz_seam_kind(ty)[:read], [])
 end
 
 @doc """
@@ -3116,15 +3121,27 @@ cz_value_result: The entry's answer as a `kiban_heap::Value` of its type.
     cz_value_result(rs_path("r"), :word)[:func] #=> ["Value", "Int"]
 """
 def cz_value_result(e, ty)
-  rs_call(
+  rs_call(["Value", cz_seam_kind(ty)[:variant]], [e])
+end
+
+@doc """
+cz_seam_kind: How a value of type `ty` crosses the valued seam: the `kiban_heap::Value`
+method that reads it and the variant that answers it, or nil when it does not
+cross.
+
+    cz_seam_kind(:list) #=> {ty: :list, read: "list", variant: "List"}
+    cz_seam_kind(:dyn) #=> nil
+"""
+def cz_seam_kind(ty)
+  find(
     [
-      "Value",
-      cz_lookup(
-        ty,
-        [[:word, "Int"], [:bool, "Bool"], [:float, "Float"], [:str, "Str"]]
-      )
+      {ty: :word, read: "int", variant: "Int"},
+      {ty: :bool, read: "bool", variant: "Bool"},
+      {ty: :float, read: "float", variant: "Float"},
+      {ty: :str, read: "str", variant: "Str"},
+      {ty: :list, read: "list", variant: "List"}
     ],
-    [e]
+    (k) -> k[:ty] == ty
   )
 end
 
@@ -3827,4 +3844,17 @@ test "a Str is refused where the runtime cannot answer it"
     kb_board("qemu-virt32")
   ) rescue
     :refused) == :refused
+end
+
+test "a list of Ints crosses the valued seam, refcounted only"
+  grown = "(define-typed (%root/g (xs (List Int)) (n Int)) (List Int) (append xs (list n)))"
+  assert cz_def_native(grown, "%root/g").nil?
+  assert cz_def_native(
+    "(define-typed (%root/c (xs List)) Int (count xs))",
+    "%root/c"
+  ).nil?
+  assert cz_seam_kind(:list)[:variant] == "List"
+  assert cz_seam_kind(:dyn).nil?
+  arena = "(define-typed (%root/a (xs (List Int))) Int (count xs)) (reclaim :arena \"a\")"
+  assert cz_def_native(arena, "%root/a") != nil
 end

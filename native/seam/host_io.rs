@@ -64,8 +64,9 @@ pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
 }
 
 /// One value from its token on the seam: `i42`, `b1`, `f<the Float's bits
-/// as an Int>`, `s<the string's UTF-8 in hex>`, or a bare decimal Int, as
-/// artifacts built before tokens were called.
+/// as an Int>`, `s<the string's UTF-8 in hex>`, `l1,2,3` (a list of Ints,
+/// `l` alone the empty one), or a bare decimal Int, as artifacts built
+/// before tokens were called.
 pub fn decode(token: &str) -> Option<kiban_heap::Value> {
     let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
     Some(match tag {
@@ -86,6 +87,12 @@ pub fn decode(token: &str) -> Option<kiban_heap::Value> {
                 .collect::<Option<Vec<u8>>>()?;
             kiban_heap::Value::Str(kiban_heap::text(&String::from_utf8(bytes).ok()?))
         }
+        b'l' if rest.is_empty() => kiban_heap::Value::List(kiban_heap::rc_of(Vec::new())),
+        b'l' => kiban_heap::Value::List(kiban_heap::rc_of(
+            rest.split(',')
+                .map(|n| n.parse().ok())
+                .collect::<Option<Vec<i64>>>()?,
+        )),
         _ => kiban_heap::Value::Int(token.parse().ok()?),
     })
 }
@@ -103,6 +110,10 @@ pub fn encode(v: &kiban_heap::Value) -> String {
                 out.push_str(&format!("{b:02x}"));
             }
             out
+        }
+        kiban_heap::Value::List(l) => {
+            let words: Vec<String> = l.iter().map(i64::to_string).collect();
+            format!("l{}", words.join(","))
         }
     }
 }

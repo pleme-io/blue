@@ -61,3 +61,15 @@ end
 def bang(s: Str) -> Str
   "#{s}!"
 end
+
+def grown(xs: List(Int), n: Int) -> List(Int)
+  append(xs, [n])
+end
+
+def doubled(xs: List(Int), n: Int) -> List(Int)
+  append(xs, [n, n])
+end
+
+def tally(xs: List(Int)) -> Int
+  count(xs)
+end

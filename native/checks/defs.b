@@ -211,3 +211,40 @@ test "a Str crosses the seam both ways", {kind: :integration}
   assert interpreted(work, "twice", ["ab"], off) == unlines(["abab"])
   assert interpreted(work, "twice", ["ab"], swapped) == unlines(["ab!"])
 end
+
+test "a list of Ints crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-list")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [
+    ["grown", [[1, -2], 3]],
+    ["grown", [[], 0]],
+    ["tally", [[5, 6, 7]]],
+    ["tally", [[]]]
+  ]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("grown"))
+  mkdir_p(shelf)
+  doubled = path_join(root, "native", "v1", hex_of("doubled"))
+  exec_capture("ln", "-s", path_join(doubled, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(doubled, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  assert interpreted(work, "grown", [[1], 2], off) == unlines(["[1, 2]"])
+  assert interpreted(work, "grown", [[1], 2], swapped) == unlines(["[1, 2, 2]"])
+end

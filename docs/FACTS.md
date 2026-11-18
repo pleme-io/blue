@@ -207,7 +207,21 @@ Each wave lists defaults in the order their gain is known. Each default meets
     heap); `checks.native-defs` "a Str crosses the seam both ways" on Linux
     (`shout`, `width`, `twice`; `bang`'s artifact swapped in proves the
     artifact answered).
-  - Next: maps and lists across the seam.
+  - ✅ A list of Ints across the seam: a definition that takes or answers
+    `List` or `List(Int)` crosses the valued seam, its list a token (`l1,2,3`,
+    `l` the empty one) read into a refcounted `kiban_heap::List`; a list
+    holding anything but Ints is not sent, and the interpreter runs the
+    call. A definition that holds its lists in a region (`reclaim(:arena,
+    …)`) is refused, since a region's list does not outlive its call. One
+    table (`cz_seam_kind`) names how each type crosses. `total(range(300_000),
+    0, 0)`, a loop over a list, with no flag: 0.22 s interpreted, 0.03 s
+    native from the third run, the same answer. Locks: native.rs
+    `a_list_of_ints_crosses_the_seam_as_a_token_both_ways`; chuuzou "a list
+    of Ints crosses the valued seam, refcounted only" (an arena definition
+    refused for its region); `checks.native-defs` "a list of Ints crosses
+    the seam both ways" on Linux (`grown`, `tally`; `doubled`'s artifact
+    swapped in proves the artifact answered).
+  - Next: maps and records across the seam.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

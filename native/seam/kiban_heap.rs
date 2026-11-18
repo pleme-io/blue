@@ -194,6 +194,48 @@ pub fn rc_member(l: &List, v: i64) -> bool {
     l.contains(&v)
 }
 
+/// A list only read at its front and passed on as its `rest` (W2.1): the
+/// list and where its front is, so `rest` moves the front and copies
+/// nothing.
+#[derive(Clone, Debug)]
+pub struct Queue {
+    l: List,
+    at: usize,
+}
+
+/// `l` as a queue whose front is its first word.
+#[must_use]
+pub fn queue_of(l: List) -> Queue {
+    Queue { l, at: 0 }
+}
+
+/// `first(q)`, or a fault when it is empty, as the interpreter raises.
+#[must_use]
+pub fn q_first(q: &Queue) -> i64 {
+    match q.l.get(q.at) {
+        Some(v) => *v,
+        None => kiban_io::fault(),
+    }
+}
+
+/// `rest(q)`: the front moved one on, or a fault when it is empty.
+#[must_use]
+pub fn q_rest(q: &Queue) -> Queue {
+    if q.at >= q.l.len() {
+        kiban_io::fault()
+    }
+    Queue {
+        l: q.l.clone(),
+        at: q.at + 1,
+    }
+}
+
+/// `count(q)`: the words from the front on.
+#[must_use]
+pub fn q_count(q: &Queue) -> i64 {
+    i64::try_from(q.l.len() - q.at).unwrap_or_else(|_| kiban_io::fault())
+}
+
 /// A refcounted string: immutable, so a copy is a count.
 pub type Str = Rc<str>;
 

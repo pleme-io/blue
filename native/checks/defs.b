@@ -306,3 +306,25 @@ test "a list only tested is a set, and answers as the list does", {
     "set_of"
   )
 end
+
+test "a list only popped is a queue, and answers as the list does", {
+  kind: :integration
+}
+  work = temp_dir("native-queue")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [["drain", [[4, -1, 9], 0]], ["drain", [[], 3]]]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  assert contains?(
+    read_file(path_join(root, "native", "v1", hex_of("drain"), "def.rs")),
+    "queue_of"
+  )
+end

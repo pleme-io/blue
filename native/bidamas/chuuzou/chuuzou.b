@@ -664,7 +664,7 @@ def cz_ty(n, ctx)
     cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
   elsif h == "begin"
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
-  elsif h == "list" or h == "append"
+  elsif h == "list" or h == "append" or h == "rest"
     :list
   elsif h == "concat"
     :str
@@ -1220,7 +1220,21 @@ def cz_call(n, ctx)
     )
   elsif h == "member?" and count(args) == 2
     cz_member(first(args), second(args), ctx)
-  elsif member?(h, %w[list append count nth first])
+  elsif member?(h, %w[first count rest]) and
+      count(args) == 1 and
+      cz_sym?(first(args)) and
+      member?(cz_sym(first(args)), ctx[:queues] or [])
+    rs_call(
+      ["kiban_heap", "q_#{h}"],
+      [
+        {
+          kind: "ref",
+          mutable: false,
+          expr: rs_path(cz_param_name(cz_sym(first(args))))
+        }
+      ]
+    )
+  elsif member?(h, %w[list append count nth first rest])
     cz_list_op(h, args, ctx)
   elsif h == "blue-field"
     cz_field(args, ctx)
@@ -1457,6 +1471,80 @@ def cz_tested_only?(n, p, name, i)
 end
 
 @doc """
+cz_queues: The list parameters of a tail-looping definition `name` that W2.1 holds as
+queues: each read only by `first` and `count` and passed to the definition's
+tail call, in its own place, as its `rest`. A queue is the list and where its
+front is, so each `rest` moves the front where the list would be copied.
+
+    cz_queues(first(cz_read("(if (equal? (count xs) 0) 0 (%root/f (rest xs) (first xs)))")), "%root/f", [["xs", :list], ["a", :word]]) #=> ["xs"]
+    cz_queues(first(cz_read("(if (equal? (count xs) 0) 0 (%root/f xs (first xs)))")), "%root/f", [["xs", :list], ["a", :word]]) #=> []
+"""
+def cz_queues(body, name, types)
+  params = map(first, types)
+  map(
+    first,
+    filter(
+      fn(t)
+        i = find(range(count(params)), (k) -> params[k] == first(t))
+        second(t) == :list and
+          cz_popped_only?(body, first(t), name, i) and
+          cz_pops?(body, first(t), name, i)
+      end,
+      types
+    )
+  )
+end
+
+@doc """
+cz_popped_only?: Whether every read of `p` in `n` is `first(p)`, `count(p)`, or
+`rest(p)` at place `i` of a call of `name`.
+
+    cz_popped_only?(first(cz_read("(first xs)")), "xs", "%root/f", 0) #=> true
+    cz_popped_only?(first(cz_read("(nth 2 xs)")), "xs", "%root/f", 0) #=> false
+"""
+def cz_popped_only?(n, p, name, i)
+  h = cz_head(n)
+  front = (x) -> list?(x) and count(x) == 2 and cz_sym(second(x)) == p
+  if cz_sym?(n)
+    cz_sym(n) != p
+  elsif not list?(n)
+    true
+  elsif member?(h, %w[first count]) and front(n)
+    true
+  elsif h == name
+    args = rest(n)
+    every?(
+      fn(k)
+        k == i and cz_head(args[k]) == "rest" and front(args[k]) or
+          cz_popped_only?(args[k], p, name, i)
+      end,
+      range(count(args))
+    )
+  else
+    every?((x) -> cz_popped_only?(x, p, name, i), n)
+  end
+end
+
+@doc """
+cz_pops?: Whether some call of `name` in `n` passes `rest(p)` at place `i`: a queue
+is worth holding only where the loop pops it.
+
+    cz_pops?(first(cz_read("(%root/f (rest xs))")), "xs", "%root/f", 0) #=> true
+"""
+def cz_pops?(n, p, name, i)
+  if not list?(n)
+    false
+  elsif cz_head(n) == name and
+      count(n) > i + 1 and
+      cz_head(n[i + 1]) == "rest" and
+      cz_sym(second(n[i + 1])) == p
+    true
+  else
+    any?((x) -> cz_pops?(x, p, name, i), n)
+  end
+end
+
+@doc """
 cz_list_op: A list word on a host with a heap: `[a, b]`, append, count, nth, first,
 each on the representation the current definition's strategy holds.
 
@@ -1526,6 +1614,8 @@ def cz_list_op(h, args, ctx)
         rest(args)
       )
     end
+  elsif h == "rest"
+    cz_refuse("rest copies the list natively, which a loop pays for at every step (4.8 s where the interpreter takes 0.46 s); it has a native form only where the loop pops the list as a queue")
   elsif h == "count"
     if arena
       rs_call(%w[Region count], [cz_borrowed(first(args), ctx)])
@@ -2115,7 +2205,15 @@ def cz_fn(form, env)
   else
     []
   end
-  ctx = {**ctx, sets:}
+  queues = if cz_tail_self?(body, name) and
+      strategy == :refcount and
+      not rec and
+      env[:heap]
+    cz_queues(body, name, types)
+  else
+    []
+  end
+  ctx = {**ctx, sets:, queues:}
   held = map(
     fn(p)
       {
@@ -2136,7 +2234,11 @@ def cz_fn(form, env)
           kind: "local",
           name: cz_param_name(p),
           mutable: true,
-          value: rs_path(cz_param_name(p))
+          value: if member?(p, queues)
+            rs_call(%w[kiban_heap queue_of], [rs_path(cz_param_name(p))])
+          else
+            rs_path(cz_param_name(p))
+          end
         }
       end,
       params
@@ -4110,4 +4212,30 @@ test "a list only tested in a tail loop is a set built once before the loop"
   assert cz_member(1, {sym: "xs"}, scan)[:func] == %w[kiban_heap rc_member]
   assert cz_member(1, {sym: "xs"}, {**scan, sets: ["xs"]})[:func] ==
     %w[kiban_heap set_has]
+end
+
+test "a list only popped in a tail loop is a queue whose rest moves its front"
+  drain = "(define-typed (%root/drain (xs (List Int)) (acc Int)) Int (if (equal? (count xs) 0) acc (%root/drain (rest xs) (+ acc (first xs)))))"
+  tree = json_stringify(cz_lower_def(cz_read(drain), "%root/drain"))
+  assert contains?(tree, "\"queue_of\"")
+  assert contains?(tree, "\"q_rest\"")
+  assert contains?(tree, "\"q_first\"")
+  kept = "(define-typed (%root/drain (xs (List Int)) (acc Int)) Int (if (equal? (count xs) 0) (nth 0 xs) (%root/drain (rest xs) (+ acc (first xs)))))"
+  assert contains?(cz_def_native(kept, "%root/drain"), "rest copies the list")
+  body = third(rest(first(cz_read(drain))))
+  assert cz_queues(body, "%root/drain", [["xs", :list], ["acc", :word]]) ==
+    ["xs"]
+  assert cz_popped_only?(first(cz_read("(count xs)")), "xs", "%root/drain", 0)
+  assert cz_pops?(
+    first(cz_read("(%root/drain (rest xs) 1)")),
+    "xs",
+    "%root/drain",
+    0
+  )
+  assert not cz_pops?(
+    first(cz_read("(%root/drain xs 1)")),
+    "xs",
+    "%root/drain",
+    0
+  )
 end

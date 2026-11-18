@@ -103,3 +103,11 @@ def hits(xs: List(Int), n: Int, acc: Int) -> Int
     )
   end
 end
+
+def drain(xs: List(Int), acc: Int) -> Int
+  if count(xs) == 0
+    acc
+  else
+    drain(rest(xs), acc + first(xs))
+  end
+end

@@ -281,7 +281,20 @@ Each wave lists defaults in the order their gain is known. Each default meets
     list read any other way stays a scan); `checks.native-defs` "a list only
     tested is a set, and answers as the list does" (the artifact holds the
     set and answers as the interpreter does).
-  - Next: a queue for a list only popped at the front.
+  - ✅ Queue: a list parameter of a tail-looping definition that is read only
+    by `first` and `count` and passed to its own tail call as its `rest`
+    (`cz_queues`, decided from the tree) is held as a queue
+    (`kiban_heap::Queue`, the list and where its front is), so each `rest`
+    moves the front where it would copy the list. Outside that fact `rest`
+    is refused natively: copying at every step took 4.8 s where the
+    interpreter takes 0.46 s, so it would have made a hot definition slower
+    by default; refused, the definition keeps the interpreter's speed.
+    300,000 pops (`drain`), with no flag: 0.46 s interpreted, 0.03 s native
+    from the third run, the same answer. Locks: chuuzou "a list only popped
+    in a tail loop is a queue whose rest moves its front" (red with the fact
+    off; a list read any other way is refused, naming the cost);
+    `checks.native-defs` "a list only popped is a queue, and answers as the
+    list does".
 - ✅ A string built by appends in a loop is built once (R13, `builder.rs`):
   `reduce((s, x) -> "#{s}…", init, xs)`, with `s` read nowhere else, becomes
   `init` as the first step converts it, then the `join` of each step's parts,

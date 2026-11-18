@@ -4355,13 +4355,10 @@ loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-develo
 
 ### Speed: blue decides, Rust carries
 
-Blue wins speed by doing less work, from what it knows. The five rules are in
-[PERFORMANCE.md](docs/PERFORMANCE.md) §3.0.1: measure the term before the lever
-(`blue run --timings`); levers are chosen by default, with a receipt and an off switch
-(`BLUE_MEMO`, `BLUE_DOOR=walker`, `BLUE_FUSE`, `BLUE_FOLD`, `BLUE_NATIVE`, each `=off`);
-defaults cascade per atom as Horn rules, and a new capability names the rule it adds
-([FACTS.md](docs/FACTS.md) §2); a cache is keyed by a fact that only grows; Rust is for
-the evaluator and its seams only.
+Blue wins speed by doing less work: measure first (`blue run --timings`); each lever
+is a default with a receipt and an off switch (`BLUE_MEMO`, `BLUE_FUSE`, `BLUE_FOLD`,
+`BLUE_NATIVE` `=off`, `BLUE_DOOR=walker`). Rules: [PERFORMANCE.md](docs/PERFORMANCE.md)
+§3.0.1, [FACTS.md](docs/FACTS.md) §2.
 
 ### One short way, built on the last
 

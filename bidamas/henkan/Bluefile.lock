@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5d043a3ce44ce7f655d27d84a0887fbba7da4a0d87cb7faa6a8d5de8b1f6df60",
+  "manifest": {
+    "schema": 1,
+    "name": "henkan",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "toolchain"
+  },
+  "sources": {}
+}

@@ -243,7 +243,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-73 packages, 6166 definitions, 2132 tests.
+74 packages, 6176 definitions, 2139 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -262,6 +262,7 @@ rendered:
 - [hadome](bidamas/CATALOG.md#hadome) (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
 - [happa](bidamas/CATALOG.md#happa) (葉っぱ) — a template's leaves: their declaration, split, graph, change, schedule and verdicts, as pure decisions.
 - [heni](bidamas/CATALOG.md#heni) (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
+- [henkan](bidamas/CATALOG.md#henkan) (変換) — a nanopass library: a compiler written as many small passes, each a rewrite between two declared languages.
 - [hikisuu](bidamas/CATALOG.md#hikisuu) (引数) — command-line arguments: one declared spec is parsed into a record, rendered as help, and answered as shell completion.
 - [hizuke](bidamas/CATALOG.md#hizuke) (日付) — the proleptic Gregorian calendar, as arithmetic.
 - [hon](bidamas/CATALOG.md#hon) (本) — a project's book: its pages, each of one Diátaxis kind, rendered into the files a reader or an agent opens.

@@ -29,6 +29,7 @@ blue-lang-fmt = { path = "../blue-lang-fmt" }
 # blueshift reading, the WASM surface's ABI and the package loader. Each is a
 # dev-dependency so the published harness gains nothing to run a spec row.
 blue-lang-check = { path = "../blue-lang-check" }
+blue-lang-host = { path = "../blue-lang-host" }
 blue-lang-lsp = { path = "../blue-lang-lsp" }
 blue-lang-pkg = { path = "../blue-lang-pkg", features = ["fixture"] }
 blue-lang-wasm = { path = "../blue-lang-wasm" }

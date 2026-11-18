@@ -91,6 +91,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | `formats("x = 1\n")` | the one formatting of `SRC` | static, cli |
 | `fixes("find([1], (x) -> x)\n")` | what `blue check --fix` leaves of `SRC`: its machine-applicable fixes applied, formatted | static, cli |
 | `shifts("annotated", ["loose"])` | the blueshift rung, and the declarations holding it back | static, cli |
+| `facts(["f: last_use x (+ x 1)"])` | the ownership facts kuzushi reads from the resolved tree, one line per fact, in order (docs/PURE-BLUE.md M1) | static |
 
 - `OPTION`s:
 

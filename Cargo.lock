@@ -637,6 +637,7 @@ version = "0.0.192"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-host",
  "blue-lang-lsp",
  "blue-lang-mondou",
  "blue-lang-pkg",

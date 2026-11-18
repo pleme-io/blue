@@ -9,5 +9,6 @@ legacy_packages(
 
 needs("baito", "^0.1")
 needs("kansuu", "^0.1")
+needs("kazu", "^0.1")
 needs("retsu", "^0.1")
 reach(%i[environment filesystem kernel_bpf process])

@@ -679,3 +679,92 @@ test "extreme_of keeps what pick keeps"
   farther = (a, b) -> max(abs(a), abs(b))
   assert extreme_of([4, -9, 2], farther) == 9
 end
+
+@doc """
+low_bits: a value's low `bits` bits, as an unsigned number; a width of 64 or more leaves it whole.
+
+    low_bits(-1, 8) #=> 255
+    low_bits(300, 8) #=> 44
+    low_bits(-1, 64) #=> -1
+"""
+def low_bits(n, bits)
+  if bits >= 64
+    n
+  else
+    bit_and(n, shift_left(1, bits) - 1)
+  end
+end
+
+@doc """
+as_signed: a value's low `bits` bits, read as a signed number of that width.
+
+    as_signed(255, 8) #=> -1
+    as_signed(127, 8) #=> 127
+    as_signed(4294967295, 32) #=> -1
+"""
+def as_signed(n, bits)
+  shift_right(shift_left(n, 64 - bits), 64 - bits)
+end
+
+@doc """
+unsigned_bounds: the [low, high] an unsigned integer of `bits` bits holds, nil for 64, which a blue integer cannot hold whole.
+
+    unsigned_bounds(8) #=> [0, 255]
+    unsigned_bounds(64).nil? #=> true
+"""
+def unsigned_bounds(bits)
+  if bits < 64
+    [0, shift_left(1, bits) - 1]
+  end
+end
+
+@doc """
+signed_bounds: the [low, high] a signed integer of `bits` bits holds.
+
+    signed_bounds(8)[1] #=> 127
+    signed_bounds(8)[0] == 0 - 128 #=> true
+"""
+def signed_bounds(bits)
+  if bits >= 64
+    [-9_223_372_036_854_775_807 - 1, 9_223_372_036_854_775_807]
+  else
+    top = shift_left(1, bits - 1)
+    [-top, top - 1]
+  end
+end
+
+@doc """
+fits: whether a value fits an integer of `bits` bits, signed or not: the check a u8..i64 annotation makes of a literal, as a word.
+
+    fits(255, false, 8) #=> true
+    fits(256, false, 8) #=> false
+    fits(-129, true, 8) #=> false
+"""
+def fits(n, signed, bits)
+  b = if signed
+    signed_bounds(bits)
+  else
+    unsigned_bounds(bits)
+  end
+  if b.nil?
+    n >= 0
+  else
+    n >= b[0] and n <= b[1]
+  end
+end
+
+test "width words agree at every edge of every width"
+  signed_edges = fn(w)
+    fits(signed_bounds(w)[0], true, w) and
+      (w == 64 or not fits(signed_bounds(w)[0] - 1, true, w)) and
+      as_signed(low_bits(-1, w), w) == -1
+  end
+  unsigned_edges = fn(w)
+    fits(unsigned_bounds(w)[1], false, w) and
+      not fits(unsigned_bounds(w)[1] + 1, false, w) and
+      low_bits(unsigned_bounds(w)[1] + 1, w) == 0
+  end
+  assert filter((w) -> not signed_edges(w), [8, 16, 32, 64]) == []
+  assert filter((w) -> not unsigned_edges(w), [8, 16, 32]) == []
+  assert not fits(-1, false, 64)
+end

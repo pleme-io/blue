@@ -13,6 +13,7 @@ use("baito", %i[align_up bytes_int int_bytes])
 use("jisho", [:update])
 use("kaaneru/btf")
 use("kansuu", [:iterate_while])
+use("kazu", %i[as_signed low_bits unsigned_bounds])
 use("retsu", %i[first flat_map index_of last repeat rest size zip])
 
 use("shisutemu", [:blue_exe])
@@ -1391,7 +1392,7 @@ low32: a value's low 32 bits, as an unsigned number.
     low32(-1) #=> 4294967295
 """
 def low32(v)
-  bit_and(v, mask32)
+  low_bits(v, 32)
 end
 
 @doc """
@@ -1400,7 +1401,7 @@ sign32: a value's low 32 bits, read as signed.
     sign32(4294967295) #=> -1
 """
 def sign32(v)
-  shift_right(shift_left(v, 32), 32)
+  as_signed(v, 32)
 end
 
 @doc """
@@ -1409,7 +1410,7 @@ sign_from: a value's low bits, read as signed.
     sign_from(255, 8) #=> -1
 """
 def sign_from(v, bits)
-  shift_right(shift_left(v, 64 - bits), 64 - bits)
+  as_signed(v, bits)
 end
 
 @doc """
@@ -4949,9 +4950,7 @@ unsigned_range: the range an unsigned integer of this many bytes has, nil for 8.
     unsigned_range(8).nil? #=> true
 """
 def unsigned_range(count)
-  if count < 8
-    [0, shift_left(1, count * 8) - 1]
-  end
+  unsigned_bounds(count * 8)
 end
 
 @doc """

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:44a50cac75d23dad4ccb6a0e96dab98ff217df8a8e0005dad4609a8cb6f4998f",
+  "bluefile_b3": "b3:d137c05b7536dbce48af0c53cb97dd0c2c214d08100fb876c7d9f67619213a78",
   "manifest": {
     "schema": 1,
     "name": "kaaneru",
@@ -9,6 +9,7 @@
       "baito": "^0.1.0",
       "jisho": "^0.1.0",
       "kansuu": "^0.1.0",
+      "kazu": "^0.1.0",
       "retsu": "^0.1.0",
       "shisutemu": "^0.1.0",
       "shuugou": "^0.1.0"

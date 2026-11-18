@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e39966c19e97a87d91f8aa8b778acb3dad231e1ff7fe15caf1ef5279aeef70c3",
+  "bluefile_b3": "b3:548b80116774de76727097e7eacacf7e065d8492107aeec44cd6092ada184b5e",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -131,6 +131,10 @@
         "inputs": [
           "eval"
         ],
+        "stage": "ci"
+      },
+      "mutation-census": {
+        "file": "gen/mutation-census.b",
         "stage": "ci"
       },
       "okite-laws": {

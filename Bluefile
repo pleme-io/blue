@@ -169,6 +169,11 @@ check("heni-mutations", "gen/heni-gate.b", {stage: :ci})
 # blue replaces its Rust layers with blue.
 check("purity-ledger", "gen/purity.b", {stage: :ci})
 
+# The rebind census (docs/PURE-BLUE.md L0): every set!, while and repeated
+# define in a block, per file, held by gen/mutation-census.baseline. A file may
+# lose rebinds and never gain one; typed cells (L1) are how they leave.
+check("mutation-census", "gen/mutation-census.b", {stage: :ci})
+
 # Tests live beside what they test (docs/TESTING.md): every bidama definition
 # is reached by a test in its package, or waived with a why and a date, or
 # held as recorded debt that may only shrink. `checks.test-beside` is every

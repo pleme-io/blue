@@ -71,6 +71,7 @@ const MIGRATE: &str = include_str!("../blue/migrate.b");
 
 const VERBS: &str = include_str!("../blue/verbs.b");
 const REUSE: &str = include_str!("../blue/reuse.b");
+const BOUNDS: &str = include_str!("../blue/bounds.b");
 
 const NATURALIZE: &str = include_str!("../blue/naturalize.b");
 mod config;
@@ -379,6 +380,16 @@ enum Cmd {
     /// TSV directory. The tool is the blue program
     /// `crates/blue-lang-cli/blue/verbs.b`, compiled into this binary.
     Verbs {
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// The execution bounds FILE's run measures to (W5.2 of docs/FACTS.md):
+    /// it runs once, counting steps and allocated bytes, and proposes
+    /// `bounds({steps:, alloc_bytes:})` at ten times each. `--accept` writes
+    /// the proposal into the project's Bluefile and locks it; nothing is
+    /// written without it. The tool is the blue program
+    /// `crates/blue-lang-cli/blue/bounds.b`, compiled into this binary.
+    Bounds {
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
@@ -1370,44 +1381,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             if json {
                 args.push("--json".into());
             }
-            blue_lang_runtime::sys::set_program_args(args);
-            let out = blue_lang_runtime::pipeline::run_in_surface(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(Path::new("crates/blue-lang-cli/blue/doc.b")),
-                    text: doc::PROGRAM,
-                },
-                blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-                None,
-            )?;
-            Ok(
-                if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
-                    ExitCode::FAILURE
-                } else {
-                    ExitCode::SUCCESS
-                },
-            )
+            embedded("crates/blue-lang-cli/blue/doc.b", doc::PROGRAM, args)
         }
 
-        Cmd::Verbs { args } => {
-            blue_lang_runtime::sys::set_program_args(args);
-            let out = blue_lang_runtime::pipeline::run_in_surface(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(Path::new("crates/blue-lang-cli/blue/verbs.b")),
-                    text: VERBS,
-                },
-                blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-                None,
-            )?;
-            Ok(
-                if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
-                    ExitCode::FAILURE
-                } else {
-                    ExitCode::SUCCESS
-                },
-            )
-        }
+        Cmd::Verbs { args } => embedded("crates/blue-lang-cli/blue/verbs.b", VERBS, args),
+        Cmd::Bounds { args } => embedded("crates/blue-lang-cli/blue/bounds.b", BOUNDS, args),
 
         Cmd::ExplainName { name, at } => {
             let (path, line) = at
@@ -1505,23 +1483,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 args.push("--receipt".to_string());
                 args.push(why);
             }
-            blue_lang_runtime::sys::set_program_args(args);
-            let out = blue_lang_runtime::pipeline::run_in_surface(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(Path::new("crates/blue-lang-cli/blue/reuse.b")),
-                    text: REUSE,
-                },
-                blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-                None,
-            )?;
-            Ok(
-                if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
-                    ExitCode::FAILURE
-                } else {
-                    ExitCode::SUCCESS
-                },
-            )
+            embedded("crates/blue-lang-cli/blue/reuse.b", REUSE, args)
         }
 
         Cmd::Census { root, findings, .. } => {
@@ -2722,4 +2684,26 @@ fn resolve_surface() -> Result<Option<blue_lang_syntax::yakugo::Yakugo>, String>
         }
     }
     Ok(None)
+}
+
+/// Run a blue program compiled into this binary, at `path` for its messages,
+/// on `args`: the exit fails when it answers `false`.
+fn embedded(path: &str, text: &str, args: Vec<String>) -> Result<ExitCode, CliError> {
+    blue_lang_runtime::sys::set_program_args(args);
+    let out = blue_lang_runtime::pipeline::run_in_surface(
+        blue_lang_runtime::uses::Entry {
+            path: Some(Path::new(path)),
+            text,
+        },
+        blue_lang_runtime::inputs::Inputs::new(),
+        &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
+        None,
+    )?;
+    Ok(
+        if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
+            ExitCode::FAILURE
+        } else {
+            ExitCode::SUCCESS
+        },
+    )
 }

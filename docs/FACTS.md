@@ -399,8 +399,23 @@ Each wave lists defaults in the order their gain is known. Each default meets
   (a name computed at run time), a refusal bigger than the fault. A
   project's lock already holds its run to the join of what its reached
   definitions name (`unit` floors, SAFETY.md §4).
-- A step and memory bound proposed from the profile ("this runs in 120 ms; hold
-  it to 10 s"), applied only when the author accepts it (C9).
+- ✅ A step and memory bound proposed from the profile ("this runs in 120 ms; hold
+  it to 10 s"), applied only when the author accepts it (C9). `blue bounds
+  FILE` runs the program once on the tree-walker, which counts every step,
+  reads the steps and the bytes it allocated from `--timings`, and proposes
+  `bounds({steps:, alloc_bytes:})` at ten times each, rounded up to a power
+  of ten (allocated bytes are a total, never less than the live bytes the
+  bound holds). `--accept` writes the line into the nearest Bluefile and
+  locks it; a Bluefile that already declares bounds is its author's, since a
+  proposal never widens one, and nothing is written without `--accept`. The
+  verb is blue (`crates/blue-lang-cli/blue/bounds.b`), run through one
+  `embedded` door the `doc`, `verbs` and `reuse` verbs now share where each
+  had its own copy. On `slow(3_000_000)`: 21,000,022 steps and 1,740,411,944
+  bytes, proposed `bounds({steps: 1_000_000_000, alloc_bytes: 100_000_000_000})`.
+  Lock: `tests/bounds.rs`
+  `a_measured_run_proposes_bounds_and_writes_them_only_when_accepted` (the
+  bounded program still runs; a second accept refused; red when a proposal
+  writes without `--accept`).
 - Run-time guards at the seams the checker could not close (R5's "guard kept"),
   emitted where a declared type meets undeclared code. Waits on the
   operator: today `half(4)`, `half(x: Float)` reached through an untyped

@@ -25,6 +25,7 @@ impl Verdict {
 fn meets(expect: &Expect, obs: &Obs) -> Result<(), String> {
     let ok = match (expect, obs) {
         (Expect::Value(want), Obs::Value(got)) => want == got,
+        (Expect::Leaks(n), Obs::Value(got)) => *got == format!("leaks {n}"),
         (Expect::Value(want), Obs::Abi(got)) => project(&Obs::Value(want.clone())) == Some(*got),
         (Expect::Fails(stage, needle), Obs::Failed { stage: s, message }) => {
             stage == s && message.contains(needle.as_str())
@@ -62,6 +63,7 @@ pub fn describe(expect: &Expect) -> String {
         Expect::Fixes(t) => format!("fixes {t:?}"),
         Expect::Shifts(r, h) => format!("shifts {r} holding {h:?}"),
         Expect::Facts(f) => format!("facts {f:?}"),
+        Expect::Leaks(n) => format!("leaks {n}"),
     }
 }
 
@@ -109,6 +111,7 @@ pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
             Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Default,
         ) => Some(Ev::Walker),
         (Expect::Value(_), Ev::Native) => Some(Ev::Walker),
+        (Expect::Leaks(_), Ev::Vm) => Some(Ev::Walker),
         (
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Cli,

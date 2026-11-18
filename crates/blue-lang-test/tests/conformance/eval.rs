@@ -263,6 +263,9 @@ fn runs(row: &Row) -> bool {
 }
 
 pub fn walker(env: &mut Env, row: &Row) -> Obs {
+    if let Expect::Leaks(_) = row.expect {
+        return leaks(env, row, walker);
+    }
     if !runs(row) {
         return Obs::Blind(format!(
             "a {} row is observed by the front end",
@@ -373,6 +376,9 @@ fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64, usize) {
 }
 
 pub fn vm(env: &mut Env, row: &Row) -> Obs {
+    if let Expect::Leaks(_) = row.expect {
+        return leaks(env, row, vm);
+    }
     if !runs(row) {
         return Obs::Blind(format!(
             "a {} row is observed by the front end",
@@ -846,6 +852,11 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
             "facts are observed in-process until `blue explain --memory` (M2)".into(),
         );
     }
+    if let Expect::Leaks(_) = row.expect {
+        return Obs::Blind(
+            "a run's allocations are counted in process, by the walker and VM columns".into(),
+        );
+    }
     if row.frontend.is_some() {
         return Obs::Blind(
             "a frontend row is a view of a generated schema table, which only the static door is handed"
@@ -888,7 +899,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         Expect::Shifts(..) => {
             cmd.arg("shift").arg(&file);
         }
-        Expect::Value(_) | Expect::Facts(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Facts(_) | Expect::Leaks(_) => unreachable!("returned above"),
     }
     let out = match output_within(&mut cmd) {
         Ok(o) => o,
@@ -962,7 +973,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 .collect();
             Obs::Shift { rung, holding }
         }
-        Expect::Value(_) | Expect::Facts(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Facts(_) | Expect::Leaks(_) => unreachable!("returned above"),
     }
 }
 
@@ -1127,6 +1138,7 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
     }
     match (&row.expect, ev) {
         (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo | Ev::Default) => true,
+        (Expect::Leaks(_), Ev::Walker | Ev::Vm) => true,
         (
             Expect::Fails(..),
             Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Component | Ev::Default,
@@ -1216,4 +1228,26 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
         },
         Err(crashed) => crashed,
     }
+}
+
+pub fn leaks(env: &mut Env, row: &Row, run: fn(&mut Env, &Row) -> Obs) -> Obs {
+    let probe = Row {
+        expect: Expect::Value(String::new()),
+        ..row.clone()
+    };
+    let first = run(env, &probe);
+    if !matches!(first, Obs::Value(_)) {
+        return first;
+    }
+    drop(first);
+    let Some(before) = blue_lang_runtime::alloc::allocations() else {
+        return Obs::Blind("this binary does not count allocations".into());
+    };
+    for _ in 0..3 {
+        drop(run(env, &probe));
+    }
+    let Some(after) = blue_lang_runtime::alloc::allocations() else {
+        return Obs::Blind("this binary does not count allocations".into());
+    };
+    Obs::Value(format!("leaks {}", after.since(before).retained() / 3))
 }

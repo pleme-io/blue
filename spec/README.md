@@ -92,6 +92,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | `fixes("find([1], (x) -> x)\n")` | what `blue check --fix` leaves of `SRC`: its machine-applicable fixes applied, formatted | static, cli |
 | `shifts("annotated", ["loose"])` | the blueshift rung, and the declarations holding it back | static, cli |
 | `facts(["f: last_use x (+ x 1)"])` | the ownership facts kuzushi reads from the resolved tree, one line per fact, in order (docs/PURE-BLUE.md M1) | static |
+| `leaks(0)` | the bytes one run of `SRC` leaves live, read from the counting allocator: one warm-up run, then the mean of three (docs/PURE-BLUE.md C2, I3) | walker, vm |
 
 - `OPTION`s:
 

@@ -172,6 +172,14 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
 - **Change.** Expectation kinds `leaks(0)` and `closes_at(...)` in `rows.rs`, on walker and VM.
 - **First commit.** `leaks(0)` over `retained()`, with one row.
 - **Exit.** I2, I3, I4 per runtime.
+- **First slice landed.** `leaks(N)` on the walker and the VM, three rows in
+  `spec/rows/memory.b` at `leaks(0)`.
+- **Measured (2026-11-18), the next slice's input.** `leaks` run over the first 190 value
+  rows on the walker: 177 leave 0 bytes. Eleven `dispatch.*` rows leave about 11 KB per run,
+  `fn.memoize` 14.8 KB and `host.temp_dir` 562 bytes. Whether that is a cache on the
+  harness's shared `Env` or a leak in the evaluator is not yet known. The sweep stalled on a
+  host row that reads stdin. So the I3 gate must skip such rows, and it must run in a release
+  build: a debug sweep took about 2 hours for 190 rows.
 
 ### C3 — benchmarks
 

@@ -717,7 +717,9 @@ tagged_atom: the instructions that put an atom's runtime value in a register: an
     tagged_atom([], 20, "rax") #=> [{op: "mov", dst: "rax", imm: 41}]
 """
 def tagged_atom(slots, a, r)
-  if string?(a)
+  if keyword?(a)
+    [{op: "lea_label", dst: r, label: kw_label(a)}]
+  elsif string?(a)
     [{op: "lea_label", dst: r, label: str_label(a)}]
   elsif symbol?(a)
     [{op: "load", dst: r, disp: slot(slots, to_s(a))}]
@@ -786,6 +788,18 @@ def rc_op(slots, op, args)
     part_code(slots, args[0], 24)
   elsif op == "rest"
     part_code(slots, args[0], 32)
+  elsif op == "hash-map"
+    map_code(slots, args)
+  elsif op == "assoc"
+    append(
+      [{op: "push", src: "rbx"}],
+      append(
+        tagged_atom(slots, args[0], "rbx"),
+        append(entry_code(slots, args[1], args[2]), [{op: "pop", dst: "rbx"}])
+      )
+    )
+  elsif op == "get"
+    get_code(slots, args[0], args[1])
   elsif op == "string_length"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1062,7 +1076,8 @@ def rc_program(p, mode)
       RT_ALLOC,
       RT_DUP,
       RT_DROP,
-      RT_LENGTH
+      RT_LENGTH,
+      RT_GET
     ]
   )
 end
@@ -1348,7 +1363,8 @@ def rc_whole(w, mode)
     length(RT_ALLOC) -
     length(RT_DUP) -
     length(RT_DROP) -
-    length(RT_LENGTH)
+    length(RT_LENGTH) -
+    length(RT_GET)
   globals = reduce(
     fn(acc, g)
       c = rc_global(g, acc[1])
@@ -1362,7 +1378,7 @@ def rc_whole(w, mode)
       take_n(base, start),
       globals[0],
       drop_n(base, start),
-      string_data(
+      static_data(
         append(
           literals_in(w[:main]),
           flat_map(append(w[:fns], w[:globals]), (f) -> literals_in(f[:body]))
@@ -1460,7 +1476,7 @@ strings_in: every distinct string literal anywhere in a tree, in first-seen orde
     strings_in(["a", ["b", "a"], 3]) #=> ["a", "b"]
 """
 def strings_in(x)
-  if string?(x)
+  if string?(x) or keyword?(x)
     [x]
   elsif list?(x)
     reduce(
@@ -1603,4 +1619,199 @@ def literals_in(term)
     end
     strings_in([here, literals_in(term[2])])
   end
+end
+
+@doc """
+kw_label: the label of a keyword's static block, from its name, so every use of one keyword is one block and keywords compare by identity.
+
+    kw_label(:ab) #=> "kw_6162"
+"""
+def kw_label(k)
+  "kw_#{hex_encode(replace(to_s(k), ":", ""))}"
+end
+
+@doc """
+keyword_block: the bytes of a keyword's static block: kind 2, an immortal count, size 3; a keyword carries nothing but its identity.
+
+    length(keyword_block) #=> 24
+"""
+def keyword_block()
+  append(*[le64(2), le64(IMMORTAL), le64(3)])
+end
+
+@doc """
+static_data: the data section: each string literal's block and each keyword's block, under its label.
+
+    static_data([:a])[0] #=> {op: "label", name: "kw_61"}
+"""
+def static_data(values)
+  flat_map(
+    values,
+    fn(v)
+      if keyword?(v)
+        [{op: "label", name: kw_label(v)}, {op: "bytes", bytes: keyword_block}]
+      else
+        [
+          {op: "label", name: str_label(v)},
+          {op: "bytes", bytes: string_block(v)}
+        ]
+      end
+    end
+  )
+end
+
+@doc """
+entry_code: put a new entry (key . value) in front of the map held in rbx, answering the new map in rax and leaving it in rbx; the key, the value and the map move into it.
+
+    entry_code([], :a, 1)[0] #=> {op: "push", src: "rbx"}
+"""
+def entry_code(slots, k, v)
+  append(
+    *[
+      [{op: "push", src: "rbx"}],
+      cons_code(tagged_atom(slots, k, "rcx"), tagged_atom(slots, v, "rbx")),
+      [
+        {op: "pop", dst: "rbx"},
+        {op: "push", src: "rax"},
+        {op: "mov", dst: "rdi", imm: 5},
+        {op: "call_label", label: "rt_alloc"},
+        {op: "store", src: "rbx", base: "rax", disp: 32},
+        {op: "pop", dst: "rcx"},
+        {op: "store", src: "rcx", base: "rax", disp: 24},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rax", disp: 0},
+        {op: "mov", dst: "rbx", src: "rax"}
+      ]
+    ]
+  )
+end
+
+@doc """
+map_code: a map from key and value atoms, built from its last pair to its first, an association list of (key . value) cells; the empty map is 0.
+
+    map_code([], [])[1] #=> {op: "mov", dst: "rbx", imm: 0}
+"""
+def map_code(slots, args)
+  pairs = map(
+    (k) -> [args[2 * k], args[2 * k + 1]],
+    range(0, floor(length(args) / 2))
+  )
+  append(
+    *[
+      [{op: "push", src: "rbx"}, {op: "mov", dst: "rbx", imm: 0}],
+      flat_map(reverse(pairs), (p) -> entry_code(slots, p[0], p[1])),
+      [{op: "mov", dst: "rax", src: "rbx"}, {op: "pop", dst: "rbx"}]
+    ]
+  )
+end
+
+@doc """
+get_code: the value a map holds for a key, or nil: the answer gets its own reference, then the map and the key, which the operation consumed, are dropped.
+
+    last(get_code([], 1, :a)) #=> {op: "pop", dst: "rax"}
+"""
+def get_code(slots, m, k)
+  append(
+    *[
+      tagged_atom(slots, m, "rdi"),
+      tagged_atom(slots, k, "rsi"),
+      [
+        {op: "push", src: "rdi"},
+        {op: "push", src: "rsi"},
+        {op: "call_label", label: "rt_get"},
+        {op: "push", src: "rax"},
+        {op: "mov", dst: "rdi", src: "rax"},
+        {op: "call_label", label: "rt_dup"},
+        {op: "pop", dst: "rax"},
+        {op: "pop", dst: "rsi"},
+        {op: "pop", dst: "rdi"},
+        {op: "push", src: "rax"},
+        {op: "push", src: "rsi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rdi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rax"}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_GET: the value the map in rdi holds for the key in rsi, compared by identity, or nil (0); the map is only read.
+
+    RT_GET[0] #=> {op: "label", name: "rt_get"}
+"""
+RT_GET = [
+  {op: "label", name: "rt_get"},
+  {op: "mov", dst: "rdx", src: "rdi"},
+  {op: "label", name: "rt_get_loop"},
+  {op: "cmp", dst: "rdx", imm: 0},
+  {op: "j", cond: "e", label: "rt_get_none"},
+  {op: "load", dst: "rax", base: "rdx", disp: 24},
+  {op: "load", dst: "rcx", base: "rax", disp: 24},
+  {op: "cmp", dst: "rcx", src: "rsi"},
+  {op: "j", cond: "e", label: "rt_get_hit"},
+  {op: "load", dst: "rdx", base: "rdx", disp: 32},
+  {op: "jmp", label: "rt_get_loop"},
+  {op: "label", name: "rt_get_hit"},
+  {op: "load", dst: "rax", base: "rax", disp: 32},
+  {op: "ret"},
+  {op: "label", name: "rt_get_none"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "ret"}
+]
+
+@doc """
+MAP_PROGRAMS: programs over maps and keywords and the exit status each must give.
+
+    MAP_PROGRAMS[0][1] #=> 2
+"""
+MAP_PROGRAMS = [
+  ["(get (hash-map :a 1 :b 2) :b)", 2],
+  ["(let ((m (hash-map :x 40))) (+ (get m :x) (get (assoc m :y 2) :y)))", 42],
+  ["(get (hash-map :a 1) :z)", 0],
+  [
+    "(let ((m (hash-map :k 5))) (let ((f (lambda (key) (get m key)))) (* (f :k) 2)))",
+    10
+  ],
+  ["(let ((m (assoc (hash-map :a 1) :a 9))) (get m :a))", 9],
+  [
+    "(begin (define (pick m) (+ (get m :p) (get m :q))) (pick (hash-map :p 30 :q 12)))",
+    42
+  ]
+]
+
+test "every map program gives its value and frees every block on x86-64 Linux", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "m.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_whole(form, :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+        write_bytes(path, compile_whole(form, :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      MAP_PROGRAMS
+    )
+  end
+end
+
+test "keywords are static blocks by name, and a map is an association list"
+  assert kw_label(:p) == "kw_70"
+  assert slice(keyword_block, 0, 8) == le64(2)
+  assert static_data([:a, "x"])[2] == {op: "label", name: "str_78"}
+  assert tagged_atom([], :a, "rsi") ==
+    [{op: "lea_label", dst: "rsi", label: "kw_61"}]
+  assert map_code([], [])[0] == {op: "push", src: "rbx"}
+  assert member?({op: "call_label", label: "rt_get"}, get_code([], 1, :a))
+  assert entry_code([], :a, 1)[0] == {op: "push", src: "rbx"}
+  assert RT_GET[0] == {op: "label", name: "rt_get"}
+  assert strings_in(read_forms("(f :a \"b\")")) == [:a, "b"]
+  assert length(MAP_PROGRAMS) == 6
 end

@@ -115,6 +115,7 @@ it; `blue explain --list` lists them.
 | B0098 | raw-environment-read | error | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name |
 | B0099 | undeclared-access | error | the program of a `service(...)` row runs under the `access` that row declares, never the default |
 | B0100 | exclusive-waivers | error | a form never waives both codes of a ratified exclusive relation: one of the two covers nothing |
+| B0101 | undeclared-suspension | error | in a restricted file, a definition that can reach a suspension point is declared with `suspends(f)` |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives

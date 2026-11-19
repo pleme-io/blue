@@ -435,3 +435,42 @@ row(
   ),
   value("[:timeout, 500]")
 )
+
+row(
+  "processes.colour.undeclared",
+  join_lines(
+    [
+      "definput(\"schema\", \"b3:abc\")",
+      "",
+      "def pause(ms: Int) -> Int",
+      "  sleep_for(ms)",
+      "  ms",
+      "end"
+    ]
+  ),
+  diagnoses(["B0101"]),
+  covers("rule:B0101")
+)
+
+row(
+  "processes.colour.declared",
+  join_lines(
+    [
+      "definput(\"schema\", \"b3:abc\")",
+      "",
+      "def pause(ms: Int) -> Int",
+      "  sleep_for(ms)",
+      "  ms",
+      "end",
+      "",
+      "suspends(pause)"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
+  "processes.colour.inferred_below_restricted",
+  join_lines(["def pause(ms)", "  sleep_for(ms)", "  ms", "end"]),
+  diagnoses([])
+)

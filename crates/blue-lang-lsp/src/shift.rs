@@ -35,65 +35,7 @@
 
 use crate::analysis::Range;
 
-/// A named position on the loose→locked continuum.
-///
-/// Ordinal: `Dynamic < Annotated < Checked < Restricted`. Comparable so a
-/// document's rung is the *lowest* of its declarations — a single unannotated
-/// function means the document as a whole is not checked, which is the honest
-/// reading and the one an author needs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Rung {
-    /// No annotations. Blue's default, and blue's fastest — the checker visits
-    /// nothing. Not a deficiency.
-    Dynamic = 0,
-    /// Some declarations carry types; others do not. The mixed state, where
-    /// seams exist.
-    Annotated = 1,
-    /// Every declaration is annotated, so the type walk covers the whole file.
-    Checked = 2,
-    /// Checked, *and* the macro phase's reach is restricted to declared,
-    /// content-addressed inputs — a capability shift, not just a type shift.
-    Restricted = 3,
-}
-
-impl Rung {
-    /// The word an editor shows.
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        match self {
-            Rung::Dynamic => "dynamic",
-            Rung::Annotated => "annotated",
-            Rung::Checked => "checked",
-            Rung::Restricted => "restricted",
-        }
-    }
-
-    /// What being here actually means, in one line, for a hover or status bar.
-    #[must_use]
-    pub fn meaning(self) -> &'static str {
-        match self {
-            Rung::Dynamic => "no annotations — no analysis runs, and nothing is checked",
-            Rung::Annotated => "some declarations are typed; untyped ones are unchecked",
-            Rung::Checked => "every declaration is typed, so the whole file is checked",
-            Rung::Restricted => {
-                "typed, and the macro phase may read only declared content-addressed inputs"
-            }
-        }
-    }
-
-    /// The mark rendered as a progress ramp — the same four Frost cells the
-    /// wordmark uses, filled to this rung. The identity and the reading are the
-    /// same object, which is the point of having a mark that means something.
-    #[must_use]
-    pub fn ramp(self) -> String {
-        let filled = self as usize + 1;
-        let mut out = String::with_capacity(4);
-        for i in 0..4 {
-            out.push(if i < filled { '█' } else { '░' });
-        }
-        out
-    }
-}
+pub use blue_lang_runtime::shift::Rung;
 
 /// What kind of thing caused a shift.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -254,7 +196,7 @@ pub fn shift_of_tree(src: &str, forms: Option<&[blue_lang_syntax::Spanned]>) -> 
     }
 
     for form in forms {
-        let Some((name, typed)) = declaration_of(form) else {
+        let Some((name, typed)) = blue_lang_runtime::shift::declaration_of(form) else {
             continue;
         };
         out.total_declarations += 1;
@@ -294,44 +236,12 @@ pub fn shift_of_tree(src: &str, forms: Option<&[blue_lang_syntax::Spanned]>) -> 
         });
     }
 
-    out.rung = rung_for(&out, !inputs.is_empty());
+    out.rung = blue_lang_runtime::shift::rung_for(
+        out.total_declarations,
+        out.typed_declarations,
+        !inputs.is_empty(),
+    );
     out
-}
-
-/// The document's rung.
-///
-/// The LOWEST position its declarations justify: one unannotated function means
-/// the file is not `Checked`, because the checker genuinely did not check it.
-/// Taking the maximum would let a single annotated helper report a file as
-/// checked, which is the reading an author would most regret trusting.
-fn rung_for(s: &Shift, has_capability: bool) -> Option<Rung> {
-    if s.total_declarations == 0 {
-        return None;
-    }
-    if s.typed_declarations == 0 {
-        return Some(Rung::Dynamic);
-    }
-    if s.typed_declarations < s.total_declarations {
-        return Some(Rung::Annotated);
-    }
-    Some(if has_capability {
-        Rung::Restricted
-    } else {
-        Rung::Checked
-    })
-}
-
-/// `(name, is_typed)` for a declaration form.
-fn declaration_of(form: &blue_lang_syntax::Spanned) -> Option<(String, bool)> {
-    let items = form.as_list()?;
-    let typed = match items.first()?.as_symbol()? {
-        "define" => false,
-        "define-typed" => true,
-        _ => return None,
-    };
-    // Both spell the signature as a list whose head is the name.
-    let name = items.get(1)?.as_list()?.first()?.as_symbol()?;
-    Some((name.to_string(), typed))
 }
 
 #[cfg(test)]

@@ -2093,6 +2093,26 @@ Keep the waiver of the code the form owes and delete the other. The pairs
 are listed by `blue obligations list`; a pair configured off in the registry
 is not refused.",
     }
+    B0101 {
+        slug: "undeclared-suspension",
+        severity: Error,
+        fix: None,
+        law: "in a restricted file, a definition that can reach a suspension point is declared with `suspends(f)`",
+        witness: "definput(\"schema\", \"b3:abc\")\n\ndef pause(ms: Int) -> Int\n  sleep_for(ms)\n  ms\nend\n",
+        waivable: true,
+        explanation: "\
+A suspension point is a word a process may park in: `receive`, `sleep_for`,
+`sleep_until`, `net_wait`. A definition that reaches one, directly or through
+what it calls, gives up its scheduler there, so its latency and its order
+against other processes are not its own (A-colour of docs/ASYNC.md).
+
+Below `restricted` blue infers this and asks nothing. A restricted file
+(every definition typed, and an input declared with `definput`) makes each
+such definition visible: write `suspends(name)` after it. The finding names
+the chain to the word. Reach is read from names, so a definition that only
+hands a function naming `receive` to `spawn` counts too; declare it, or
+`# waive B0101: reason` above it.",
+    }
 }
 
 impl Code {

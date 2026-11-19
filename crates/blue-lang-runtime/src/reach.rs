@@ -245,6 +245,10 @@ fn special(form: SpecialForm, name: &str) -> Result<(), Volatility> {
 /// The word that declares a definition volatile.
 pub const DECLARE: &str = "volatile";
 
+/// The word that declares a definition may suspend (A-colour of
+/// docs/ASYNC.md).
+pub const DECLARE_SUSPENDS: &str = "suspends";
+
 /// Heads the evaluator never sees as calls: declarations the stages before
 /// it consume.
 const STRUCTURAL: &[&str] = &["define-typed", "defmacro", "deftest", "use"];
@@ -254,6 +258,7 @@ struct Own {
     host: HostReach,
     first: Option<Volatility>,
     calls_value: bool,
+    suspends: Option<String>,
 }
 
 impl Own {
@@ -262,6 +267,7 @@ impl Own {
             host: HostReach::new(),
             first: None,
             calls_value: false,
+            suspends: None,
         }
     }
 }
@@ -365,26 +371,67 @@ pub fn form_reach(erased: &[Spanned], hashes: &DefHashes) -> Vec<FormReach> {
 /// top-level form.
 #[must_use]
 pub fn host_reach(erased: &[Spanned], hashes: &DefHashes) -> Vec<HostReach> {
+    chained(
+        hashes,
+        walk(erased, hashes).0.into_iter().map(|o| o.host).collect(),
+    )
+}
+
+/// Each definition of `hashes`, in the same order, that can reach a
+/// suspension point (`blue_lang_proc::node::SUSPENDING`), with one chain to
+/// it: the definitions it goes through, then the word. `erased` as for
+/// [`host_reach`]. Tier-honest: it reads names, so a definition that names
+/// `receive` only inside a function it hands to `spawn` counts too.
+#[must_use]
+pub fn suspension_reach(erased: &[Spanned], hashes: &DefHashes) -> Vec<Option<Vec<String>>> {
+    let own = walk(erased, hashes)
+        .0
+        .into_iter()
+        .map(|o| o.suspends.map(|w| ((), vec![w])).into_iter().collect())
+        .collect();
+    chained(hashes, own)
+        .into_iter()
+        .map(|mut m: BTreeMap<(), Vec<String>>| m.remove(&()))
+        .collect()
+}
+
+/// The keys `suspends(key)` declares in `erased`.
+#[must_use]
+pub fn declared_suspending(erased: &[Spanned], hashes: &DefHashes) -> BTreeSet<String> {
+    let keys: BTreeSet<&str> = hashes.keys().collect();
+    let mut out = BTreeSet::new();
+    for form in erased {
+        declarations(form, DECLARE_SUSPENDS, &keys, &mut out);
+    }
+    out
+}
+
+/// `own` joined over the call graph of `hashes` until nothing changes: each
+/// definition gains every key a definition it calls reaches, with the callee
+/// put in front of its chain.
+fn chained<K: Ord + Clone>(
+    hashes: &DefHashes,
+    mut out: Vec<BTreeMap<K, Vec<String>>>,
+) -> Vec<BTreeMap<K, Vec<String>>> {
     let defs = hashes.defs();
-    let mut out: Vec<HostReach> = walk(erased, hashes).0.into_iter().map(|o| o.host).collect();
     loop {
         let mut changed = false;
         for (d, def) in defs.iter().enumerate() {
-            let mut found: Vec<(Capability, Vec<String>)> = Vec::new();
+            let mut found: Vec<(K, Vec<String>)> = Vec::new();
             for &c in &def.calls {
                 if c == d {
                     continue;
                 }
-                for (cap, chain) in &out[c] {
-                    if !out[d].contains_key(cap) && !found.iter().any(|(f, _)| f == cap) {
+                for (k, chain) in &out[c] {
+                    if !out[d].contains_key(k) && !found.iter().any(|(f, _)| f == k) {
                         let mut via = vec![defs[c].key.clone()];
                         via.extend(chain.iter().cloned());
-                        found.push((*cap, via));
+                        found.push((k.clone(), via));
                     }
                 }
             }
-            for (cap, via) in found {
-                out[d].insert(cap, via);
+            for (k, via) in found {
+                out[d].insert(k, via);
                 changed = true;
             }
         }
@@ -404,7 +451,7 @@ pub fn reach_program(erased: &[Spanned], hashes: &DefHashes) -> Vec<Reach> {
     let (own, assigned) = walk(erased, hashes);
     let mut declared: BTreeSet<String> = BTreeSet::new();
     for form in erased {
-        declarations(form, &keys, &mut declared);
+        declarations(form, DECLARE, &keys, &mut declared);
     }
     let mut out: Vec<Reach> = own
         .into_iter()
@@ -526,20 +573,40 @@ pub fn first_order_callback<'a>(
     Some(names)
 }
 
-/// Every key a `volatile(key)` call in `form` names.
-fn declarations(form: &Spanned, keys: &BTreeSet<&str>, out: &mut BTreeSet<String>) {
+/// Every key a `word(key)` call in `form` names.
+fn declarations(form: &Spanned, word: &str, keys: &BTreeSet<&str>, out: &mut BTreeSet<String>) {
     let Some(items) = form.as_list() else {
         return;
     };
     if let [head, target] = items {
-        if head.as_symbol() == Some(DECLARE) {
-            if let Some(k) = target.as_symbol().filter(|k| keys.contains(k)) {
+        if head.as_symbol() == Some(word) {
+            if let Some(k) = declared_key(target).filter(|k| keys.contains(k)) {
                 out.insert(k.to_string());
             }
         }
     }
     for i in items {
-        declarations(i, keys, out);
+        declarations(i, word, keys, out);
+    }
+}
+
+/// The key a declaration's argument names: `f`, or `fn() f end` for an `f`
+/// with no parameters, which is called where its name is written bare.
+fn declared_key(target: &Spanned) -> Option<&str> {
+    if let Some(k) = target.as_symbol() {
+        return Some(k);
+    }
+    match target.as_list()? {
+        [lambda, params, body] if lambda.as_symbol() == Some("lambda") => {
+            if !params.as_list().is_some_and(<[Spanned]>::is_empty) {
+                return None;
+            }
+            match body.as_list()? {
+                [call] => call.as_symbol(),
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }
 
@@ -610,6 +677,9 @@ impl Pass<'_> {
         }
         if self.bound(name) || self.keys.contains(name) {
             return;
+        }
+        if self.own.suspends.is_none() && blue_lang_proc::node::SUSPENDING.contains(&name) {
+            self.own.suspends = Some(name.to_string());
         }
         if let Err(v) = builtin(name) {
             self.note(v);
@@ -706,6 +776,51 @@ mod tests {
             .zip(reach)
             .map(|(d, r)| (crate::observe::display_key(&d.key), r))
             .collect()
+    }
+
+    fn suspending(src: &str) -> (HashMap<String, Option<Vec<String>>>, BTreeSet<String>) {
+        let checked = crate::pipeline::check_entry(
+            crate::uses::Entry::anonymous(src),
+            &crate::uses::NoLoader,
+            None,
+            crate::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        let lowered = crate::pipeline::lower(&checked.program, &checked.names);
+        let hashes = hash_program(&lowered);
+        let erased = crate::erase_types(&lowered);
+        let shown = |k: &String| crate::observe::display_key(k);
+        let chains = hashes
+            .defs()
+            .iter()
+            .zip(suspension_reach(&erased, &hashes))
+            .map(|(d, c)| (shown(&d.key), c.map(|c| c.iter().map(shown).collect())))
+            .collect();
+        let declared = declared_suspending(&erased, &hashes)
+            .iter()
+            .map(shown)
+            .collect();
+        (chains, declared)
+    }
+
+    #[test]
+    fn a_definition_that_reaches_a_park_word_suspends_and_so_does_every_caller() {
+        let src = "def wait()\n  receive(:_, 10, nil)\nend\n\ndef outer()\n  wait()\nend\n\ndef nap(ms)\n  sleep_for(ms)\nend\n\ndef clean(x)\n  x + 1\nend\n\nsuspends(fn() outer end)\n";
+        let (r, declared) = suspending(src);
+        assert_eq!(r["wait"], Some(vec!["receive".to_string()]));
+        assert_eq!(
+            r["outer"],
+            Some(vec!["wait".to_string(), "receive".to_string()])
+        );
+        assert_eq!(r["nap"], Some(vec!["sleep_for".to_string()]));
+        assert_eq!(r["clean"], None);
+        assert_eq!(declared, BTreeSet::from(["outer".to_string()]));
+    }
+
+    #[test]
+    fn a_local_named_like_a_park_word_does_not_suspend() {
+        let src = "def f(receive)\n  receive + 1\nend\n";
+        assert_eq!(suspending(src).0["f"], None);
     }
 
     fn pure(src: &str, name: &str) -> bool {

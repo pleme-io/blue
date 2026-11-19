@@ -1363,6 +1363,15 @@ fn check_stage_in(
             }
         }
     }
+    if outcome.ok() && entry_is_restricted(program) {
+        let lowered = match &cached {
+            Some(c) => std::borrow::Cow::Borrowed(c.lowered.as_slice()),
+            None => std::borrow::Cow::Owned(lower(program, &table)),
+        };
+        outcome
+            .diagnostics
+            .extend(colour_diagnostics(program, &lowered));
+    }
     let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers
         .into_iter()
         .partition(|w| w.code == blue_lang_check::Code::B0070);
@@ -1429,6 +1438,65 @@ fn check_stage_in(
         .diagnostics
         .sort_by_key(|d| (d.top_level, d.span.start, d.code));
     (outcome, table, cached)
+}
+
+fn entry_is_restricted(program: &crate::uses::ResolvedProgram) -> bool {
+    let entry: Vec<tatara_lisp::Spanned> = program
+        .forms()
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| program.owner_of(*i) == Some(crate::uses::ResolvedProgram::ENTRY))
+        .map(|(_, f)| f.clone())
+        .collect();
+    crate::shift::rung_of(&entry) == Some(crate::shift::Rung::Restricted)
+}
+
+/// B0101 over a restricted entry file (A-colour of docs/ASYNC.md): each of its
+/// definitions that can reach a suspension point and is not declared with
+/// `suspends(f)`, with the chain to the word. `lowered` is what [`lower`]
+/// returns for `program`.
+fn colour_diagnostics(
+    program: &crate::uses::ResolvedProgram,
+    lowered: &[tatara_lisp::Spanned],
+) -> Vec<blue_lang_check::Diagnostic> {
+    use blue_lang_check::{Code, Diagnostic};
+    let erased = crate::erase::unfused(lowered);
+    let hashes = crate::def_hash::hash_program(lowered);
+    let declared = crate::reach::declared_suspending(&erased, &hashes);
+    hashes
+        .defs()
+        .iter()
+        .zip(crate::reach::suspension_reach(&erased, &hashes))
+        .filter_map(|(d, chain)| {
+            let chain = chain?;
+            if declared.contains(&d.key)
+                || program.owner_of(d.top_level) != Some(crate::uses::ResolvedProgram::ENTRY)
+            {
+                return None;
+            }
+            let form = program.forms().get(d.top_level)?;
+            let at = form
+                .as_list()
+                .and_then(blue_lang_syntax::scope::defined_name_node)
+                .map_or(form.span, |n| n.span);
+            let name = crate::observe::display_key(&d.key);
+            let via: Vec<String> = chain
+                .iter()
+                .map(|k| crate::observe::display_key(k))
+                .collect();
+            Some(
+                Diagnostic::new(
+                    Code::B0101,
+                    format!("`{name}` can suspend: it reaches {}", via.join(" → ")),
+                    at,
+                )
+                .at_top_level(d.top_level)
+                .with_help(format!(
+                    "declare it: `suspends({name})` after the definition"
+                )),
+            )
+        })
+        .collect()
 }
 
 fn entry_shapes_of(

@@ -149,6 +149,10 @@ pub const PROCESS_WORDS: &[&str] = &[
 
 pub const CARRIED_WORDS: &[&str] = &["evict", "accept"];
 
+/// The words a process may park in: its suspension points (docs/ASYNC.md).
+/// A definition that reaches one suspends.
+pub const SUSPENDING: &[&str] = &["receive", "sleep_for", "sleep_until", "net_wait"];
+
 pub const NODE_HOST_WORDS: &[&str] = &["net_wait"];
 
 pub const EVICTED: &str = "evicted";

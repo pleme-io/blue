@@ -88,6 +88,7 @@ pub mod record;
 pub mod scratch;
 pub mod session;
 pub mod shape;
+pub mod shift;
 pub mod spread;
 pub mod stdlib;
 #[cfg(feature = "storage-append")]

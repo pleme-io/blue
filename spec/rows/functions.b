@@ -583,6 +583,15 @@ row(
 row("fn.volatile.not_a_function", "volatile(3)", fails(:check, "B0062"))
 
 row(
+  "fn.suspends",
+  join_lines(["def f(x)", "  x * 2", "end", "suspends(f)", "f(3)"]),
+  value("6"),
+  covers("builtin:suspends")
+)
+
+row("fn.suspends.not_a_function", "suspends(3)", fails(:check, "B0062"))
+
+row(
   "fn.volatile.not_a_function_at_run_time",
   join_lines(["xs = [3]", "volatile(first(xs))"]),
   fails(:eval, "expected function")

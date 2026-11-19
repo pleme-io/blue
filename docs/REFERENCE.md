@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-410 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+411 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -294,6 +294,7 @@ Higher binding power binds tighter.
 | `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
 | `remove` | `remove(f, xs)` | 2 | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
 | `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). Also defined by `umu` (`umu::some`): a file that lists it gets that one. |
+| `suspends` | `suspends(f)` | 1 | Declares that f may suspend: it reaches receive, sleep_for, sleep_until or net_wait, directly or through what it calls. A restricted file must declare each definition that does (A-colour, B0101); one with no parameters is declared as suspends(fn() f end). Nil; raises unless f is a function. |
 | `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
 | `visit` | `visit(f, x)` | 2 | f(x). |
 | `volatile` | `volatile(f)` | 1 | Declares that f must run on every call: neither f nor any definition reaching it is answered from the call memo. Nil; raises unless f is a function. |
@@ -818,3 +819,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0098` | raw-environment-read | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name | refused |
 | `B0099` | undeclared-access | the program of a `service(...)` row runs under the `access` that row declares, never the default | refused |
 | `B0100` | exclusive-waivers | a form never waives both codes of a ratified exclusive relation: one of the two covers nothing | refused |
+| `B0101` | undeclared-suspension | in a restricted file, a definition that can reach a suspension point is declared with `suspends(f)` | refused |

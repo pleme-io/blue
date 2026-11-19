@@ -2075,3 +2075,236 @@ test "get_if keeps the value only when pred holds"
   assert get_if(doc, "f", integer?, 0) == 0
   assert get_if(doc, "z", (v) -> not v.nil?, 7) == 7
 end
+
+@doc """
+read: A JSON text as blue values, in the shapes `json_parse` gives, read by blue
+itself (R6a of docs/PURE-BLUE.md): an object as a list of [key, value] pairs (an
+empty one as the empty map), an array as a list, null as nil, a number with a
+fraction or an exponent as a Float and any other as an Int.
+
+    read("{\"a\": [1, 2.5, null, true]}") #=> [["a", [1, 2.5, nil, true]]]
+    read("[]") #=> []
+"""
+def read(text)
+  got = json_value(skip_ws(chars(text)))
+  if not empty?(skip_ws(got[1]))
+    raise(:json, "deeta::read: trailing characters after the value")
+  end
+  got[0]
+end
+
+def skip_ws(cs)
+  if not empty?(cs) and member?(first(cs), [" ", line_break, "\t", "\r"])
+    skip_ws(rest(cs))
+  else
+    cs
+  end
+end
+
+def json_value(cs)
+  if empty?(cs)
+    raise(:json, "deeta::read: EOF while parsing a value")
+  end
+  c = first(cs)
+  if c == "{"
+    json_object(skip_ws(rest(cs)), [])
+  elsif c == "["
+    json_array(skip_ws(rest(cs)), [])
+  elsif c == "\""
+    json_string(rest(cs), [])
+  elsif c == "t"
+    [true, json_word(cs, "true")]
+  elsif c == "f"
+    [false, json_word(cs, "false")]
+  elsif c == "n"
+    [nil, json_word(cs, "null")]
+  else
+    json_number(cs, [])
+  end
+end
+
+def json_word(cs, word)
+  json_word_from(cs, chars(word), word)
+end
+
+def json_word_from(cs, want, word)
+  if empty?(want)
+    cs
+  elsif empty?(cs) or first(cs) != first(want)
+    raise(:json, "deeta::read: expected #{word}")
+  else
+    json_word_from(rest(cs), rest(want), word)
+  end
+end
+
+def json_object(cs, acc)
+  if acc == [] and not empty?(cs) and first(cs) == "}"
+    [{}, rest(cs)]
+  elsif empty?(cs) or first(cs) != "\""
+    raise(:json, "deeta::read: expected a string key")
+  else
+    key = json_string(rest(cs), [])
+    after = skip_ws(key[1])
+    if empty?(after) or first(after) != ":"
+      raise(:json, "deeta::read: expected : after a key")
+    end
+    value = json_value(skip_ws(rest(after)))
+    more = skip_ws(value[1])
+    pairs = cons([key[0], value[0]], acc)
+    if not empty?(more) and first(more) == ","
+      json_object(skip_ws(rest(more)), pairs)
+    elsif not empty?(more) and first(more) == "}"
+      [object_pairs(pairs), rest(more)]
+    else
+      raise(:json, "deeta::read: expected , or } in an object")
+    end
+  end
+end
+
+@doc """
+object_pairs: An object's pairs as `json_parse` gives them, from the pairs read latest
+first: one per key, the last a key took, ordered by key.
+
+    object_pairs([["a", 2], ["b", 1], ["a", 1]]) #=> [["a", 2], ["b", 1]]
+"""
+def object_pairs(latest_first)
+  sort_keyed((p) -> p[0], last_of_each(latest_first, [], []))
+end
+
+def last_of_each(pairs, seen, kept)
+  if empty?(pairs)
+    kept
+  elsif member?(first(pairs)[0], seen)
+    last_of_each(rest(pairs), seen, kept)
+  else
+    last_of_each(
+      rest(pairs),
+      cons(first(pairs)[0], seen),
+      cons(first(pairs), kept)
+    )
+  end
+end
+
+def json_array(cs, acc)
+  if acc == [] and not empty?(cs) and first(cs) == "]"
+    [[], rest(cs)]
+  else
+    value = json_value(cs)
+    more = skip_ws(value[1])
+    items = cons(value[0], acc)
+    if not empty?(more) and first(more) == ","
+      json_array(skip_ws(rest(more)), items)
+    elsif not empty?(more) and first(more) == "]"
+      [reverse(items), rest(more)]
+    else
+      raise(:json, "deeta::read: expected , or ] in an array")
+    end
+  end
+end
+
+def json_string(cs, acc)
+  if empty?(cs)
+    raise(:json, "deeta::read: EOF while parsing a string")
+  end
+  c = first(cs)
+  if c == "\""
+    [join(reverse(acc), ""), rest(cs)]
+  elsif c == "\\"
+    json_escape(rest(cs), acc)
+  else
+    json_string(rest(cs), cons(c, acc))
+  end
+end
+
+def json_escape(cs, acc)
+  if empty?(cs)
+    raise(:json, "deeta::read: EOF in an escape")
+  end
+  c = first(cs)
+  simple = {
+    "\"" => "\"",
+    "\\" => "\\",
+    "/" => "/",
+    "b" => "\u{8}",
+    "f" => "\u{c}",
+    "n" => line_break,
+    "r" => "\r",
+    "t" => "\t"
+  }
+  if c == "u"
+    unit = hex4(rest(cs))
+    json_unit(unit[0], unit[1], acc)
+  elsif get(simple, c) != nil
+    json_string(rest(cs), cons(get(simple, c), acc))
+  else
+    raise(:json, "deeta::read: unknown escape \\#{c}")
+  end
+end
+
+def json_unit(code, cs, acc)
+  if code >= 55296 and
+      code <= 56319 and
+      length(cs) >= 6 and
+      first(cs) == "\\" and
+      first(rest(cs)) == "u"
+    low = hex4(drop(2, cs))
+    joined = 65536 + (code - 55296) * 1024 + (low[0] - 56320)
+    json_string(low[1], cons(code_point_text(joined), acc))
+  else
+    json_string(cs, cons(code_point_text(code), acc))
+  end
+end
+
+def hex4(cs)
+  digits = join(
+    [first(cs), first(rest(cs)), first(drop(2, cs)), first(drop(3, cs))],
+    ""
+  )
+  v = radix_value(digits, 16)
+  if v.nil?
+    raise(:json, "deeta::read: \\u#{digits} is not four hex digits")
+  end
+  [v, drop(4, cs)]
+end
+
+def json_number(cs, acc)
+  if not empty?(cs) and member?(first(cs), chars("-+0123456789.eE"))
+    json_number(rest(cs), cons(first(cs), acc))
+  else
+    text = join(reverse(acc), "")
+    if text == ""
+      raise(:json, "deeta::read: expected a value")
+    end
+    floating = any?((c) -> member?(c, %w[. e E]), acc)
+    [
+      if floating
+        to_float(text)
+      else
+        to_int(text)
+      end,
+      cs
+    ]
+  end
+end
+
+test "read gives the values json_parse gives, on every JSON shape", {
+  kind: :unit
+}
+  samples = [
+    "42",
+    "-2e3",
+    "1.5",
+    "true",
+    "null",
+    "\"x\\ny\\u00e9\\ud83d\\ude00\\t\\\"\\/\"",
+    "[]",
+    "{}",
+    "[[], {}, [1, [2]]]",
+    "{\"a\": 1, \"b\": [1.5, -2e3, null, true, false], \"c\": {\"d\": \"e\"}}",
+    "  [ 1 , 2 ]  "
+  ]
+  assert filter((t) -> read(t) != json_parse(t), samples) == []
+  assert (read("{") rescue :refused) == :refused
+  assert (read("[1, 2") rescue :refused) == :refused
+  assert (read("[1] x") rescue :refused) == :refused
+end

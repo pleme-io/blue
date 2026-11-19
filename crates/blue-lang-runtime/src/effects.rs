@@ -31,6 +31,9 @@ pub struct Site {
     pub resource: Option<String>,
     /// An HTTP request's method, when its argument is a literal.
     pub method: Option<String>,
+    /// For a call to a definition of the program, the access of everything
+    /// it reaches (E4): a read when every site it makes reads.
+    pub summary: Option<Access>,
     pub at: Span,
     pub depends_on: BTreeSet<usize>,
     pub deferred: bool,
@@ -73,8 +76,17 @@ impl Graph {
 /// capability it reaches (`reach::host_reach`).
 #[must_use]
 pub fn graph(form: &Spanned, effectful: &BTreeMap<String, Capability>) -> Graph {
+    graph_with(form, effectful, &BTreeMap::new())
+}
+
+fn graph_with(
+    form: &Spanned,
+    effectful: &BTreeMap<String, Capability>,
+    summaries: &BTreeMap<String, Access>,
+) -> Graph {
     let mut walk = Walk {
         effectful,
+        summaries,
         frames: vec![BTreeMap::new()],
         sites: Vec::new(),
         control: Vec::new(),
@@ -96,18 +108,44 @@ pub fn graphs(erased: &[Spanned], hashes: &crate::def_hash::DefHashes) -> Vec<(S
         .zip(&reaches)
         .filter_map(|(d, r)| Some((d.key.clone(), *r.keys().next()?)))
         .collect();
+    let mut summaries: BTreeMap<String, Access> = BTreeMap::new();
+    loop {
+        let mut changed = false;
+        for d in hashes.defs() {
+            let Some(form) = erased.get(d.top_level) else {
+                continue;
+            };
+            if !effectful.contains_key(&d.key) {
+                continue;
+            }
+            let g = graph_with(form, &effectful, &summaries);
+            let now = if g.sites.iter().all(|s| access(s) == Access::Read) {
+                Access::Read
+            } else {
+                Access::Ordered
+            };
+            if summaries.get(&d.key) != Some(&now) {
+                summaries.insert(d.key.clone(), now);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
     hashes
         .defs()
         .iter()
         .filter_map(|d| {
             let form = erased.get(d.top_level)?;
-            Some((d.key.clone(), graph(form, &effectful)))
+            Some((d.key.clone(), graph_with(form, &effectful, &summaries)))
         })
         .collect()
 }
 
 struct Walk<'a> {
     effectful: &'a BTreeMap<String, Capability>,
+    summaries: &'a BTreeMap<String, Access>,
     frames: Vec<BTreeMap<String, BTreeSet<usize>>>,
     sites: Vec<Site>,
     control: Vec<BTreeSet<usize>>,
@@ -249,11 +287,16 @@ impl Walk<'_> {
         let method = (word == "http_request")
             .then(|| args.first().and_then(string_of).map(str::to_string))
             .flatten();
+        let summary = self
+            .effectful
+            .contains_key(word)
+            .then(|| self.summaries.get(word).copied().unwrap_or(Access::Ordered));
         self.sites.push(Site {
             word: word.to_string(),
             capability,
             resource,
             method,
+            summary,
             at: form.span,
             depends_on,
             deferred: self.deferred > 0,
@@ -381,6 +424,9 @@ pub const WRITES: &[&str] = &[
 /// word as [`READS`] and [`WRITES`] say, else ordered.
 #[must_use]
 pub fn access(site: &Site) -> Access {
+    if let Some(summary) = site.summary {
+        return summary;
+    }
     if site.word == "http_request" {
         return match &site.method {
             Some(m) if SAFE_METHODS.contains(&m.as_str()) => Access::Read,
@@ -428,12 +474,78 @@ pub const BATCH: &str = "http_batch";
 /// it is. With how many runs it batched.
 #[must_use]
 pub fn batch(forms: Vec<Spanned>) -> (Vec<Spanned>, usize) {
+    let helpers: BTreeMap<String, Helper> = forms.iter().filter_map(helper_of).collect();
     let mut runs = 0;
     let out = forms
         .iter()
-        .map(|f| batch_in(f, &mut Vec::new(), &mut runs))
+        .map(|f| batch_in(f, &helpers, &mut Vec::new(), &mut runs))
         .collect();
     (out, runs)
+}
+
+/// A request helper (E4): a definition whose whole body is one
+/// `http_request` with a safe literal method, and its parameters.
+#[derive(Clone)]
+struct Helper {
+    params: Vec<String>,
+    args: Vec<Spanned>,
+}
+
+fn helper_of(form: &Spanned) -> Option<(String, Helper)> {
+    let items = form.as_list()?;
+    let [define, signature, body] = items else {
+        return None;
+    };
+    if define.as_symbol()? != "define" {
+        return None;
+    }
+    let sig = signature.as_list()?;
+    let (name, params) = sig.split_first()?;
+    let params: Vec<String> = params
+        .iter()
+        .map(|p| p.as_symbol().map(str::to_string))
+        .collect::<Option<_>>()?;
+    let call = match body.as_list()? {
+        [begin, only] if begin.as_symbol() == Some("begin") => only,
+        _ => body,
+    };
+    let args = safe_request(call)?;
+    Some((
+        name.as_symbol()?.to_string(),
+        Helper {
+            params,
+            args: args.to_vec(),
+        },
+    ))
+}
+
+/// The five arguments of `(http_request m u h b t)` with a safe literal method.
+fn safe_request(call: &Spanned) -> Option<&[Spanned]> {
+    let items = call.as_list()?;
+    let (head, args) = items.split_first()?;
+    if head.as_symbol()? != "http_request" || args.len() != 5 {
+        return None;
+    }
+    let method = string_of(&args[0])?;
+    SAFE_METHODS
+        .contains(&method.to_ascii_uppercase().as_str())
+        .then_some(args)
+}
+
+fn substitute(form: &Spanned, with: &BTreeMap<&str, &Spanned>) -> Spanned {
+    if let Some(name) = form.as_symbol() {
+        if let Some(arg) = with.get(name) {
+            return (*arg).clone();
+        }
+        return form.clone();
+    }
+    match form.as_list() {
+        Some(items) => list_at(
+            form.span,
+            items.iter().map(|i| substitute(i, with)).collect(),
+        ),
+        None => form.clone(),
+    }
 }
 
 fn sym_at(span: Span, name: &str) -> Spanned {
@@ -486,9 +598,14 @@ fn names(form: &Spanned, out: &mut Vec<String>) {
     }
 }
 
-/// `(define name (http_request m u h b t))` with a safe literal method: the
-/// name and the five arguments.
-fn read_binding(form: &Spanned) -> Option<(&str, &[Spanned])> {
+/// `(define name (http_request m u h b t))` with a safe literal method, or
+/// `(define name (helper a…))` for a request helper called with literals and
+/// plain names, so substituting them evaluates nothing twice: the name and
+/// the request's five arguments.
+fn read_binding<'f>(
+    form: &'f Spanned,
+    helpers: &BTreeMap<String, Helper>,
+) -> Option<(&'f str, Vec<Spanned>)> {
     let items = form.as_list()?;
     let [define, name, value] = items else {
         return None;
@@ -496,45 +613,68 @@ fn read_binding(form: &Spanned) -> Option<(&str, &[Spanned])> {
     if define.as_symbol()? != "define" {
         return None;
     }
+    let name = name.as_symbol()?;
+    if let Some(args) = safe_request(value) {
+        return Some((name, args.to_vec()));
+    }
     let call = value.as_list()?;
-    let (head, args) = call.split_first()?;
-    if head.as_symbol()? != "http_request" || args.len() != 5 {
+    let (head, given) = call.split_first()?;
+    let helper = helpers.get(head.as_symbol()?)?;
+    if given.len() != helper.params.len() || !given.iter().all(|g| g.as_list().is_none()) {
         return None;
     }
-    let method = string_of(&args[0])?;
-    SAFE_METHODS
-        .contains(&method.to_ascii_uppercase().as_str())
-        .then_some((name.as_symbol()?, args))
+    let with: BTreeMap<&str, &Spanned> = helper
+        .params
+        .iter()
+        .map(String::as_str)
+        .zip(given)
+        .collect();
+    Some((
+        name,
+        helper.args.iter().map(|a| substitute(a, &with)).collect(),
+    ))
 }
 
-fn batch_in(form: &Spanned, bound: &mut Vec<String>, runs: &mut usize) -> Spanned {
+fn batch_in(
+    form: &Spanned,
+    helpers: &BTreeMap<String, Helper>,
+    bound: &mut Vec<String>,
+    runs: &mut usize,
+) -> Spanned {
     let Some(items) = form.as_list() else {
         return form.clone();
     };
     let added = binders(form);
     let depth = bound.len();
     bound.extend(added);
-    let mut out: Vec<Spanned> = items.iter().map(|i| batch_in(i, bound, runs)).collect();
+    let mut out: Vec<Spanned> = items
+        .iter()
+        .map(|i| batch_in(i, helpers, bound, runs))
+        .collect();
     let is_body = items.first().and_then(Spanned::as_symbol) == Some("begin");
     if is_body && !bound.iter().any(|b| b == "http_request") {
-        out = batch_body(out, runs);
+        out = batch_body(out, helpers, runs);
     }
     bound.truncate(depth);
     Spanned::new(form.span, tatara_lisp::SpannedForm::List(out))
 }
 
-fn batch_body(items: Vec<Spanned>, runs: &mut usize) -> Vec<Spanned> {
+fn batch_body(
+    items: Vec<Spanned>,
+    helpers: &BTreeMap<String, Helper>,
+    runs: &mut usize,
+) -> Vec<Spanned> {
     let mut out = Vec::with_capacity(items.len());
     let mut i = 0;
     while i < items.len() {
         let mut j = i;
         let mut run_names: Vec<&str> = Vec::new();
         while j < items.len() {
-            let Some((name, args)) = read_binding(&items[j]) else {
+            let Some((name, args)) = read_binding(&items[j], helpers) else {
                 break;
             };
             let mut used = Vec::new();
-            for a in args {
+            for a in &args {
                 names(a, &mut used);
             }
             if run_names.contains(&name) || used.iter().any(|u| run_names.contains(&u.as_str())) {
@@ -549,7 +689,7 @@ fn batch_body(items: Vec<Spanned>, runs: &mut usize) -> Vec<Spanned> {
             *runs += 1;
             let requests: Vec<Spanned> = items[i..j]
                 .iter()
-                .filter_map(|f| read_binding(f).map(|(_, args)| args.to_vec()))
+                .filter_map(|f| read_binding(f, helpers).map(|(_, args)| args))
                 .map(|args| {
                     let mut l = vec![sym_at(span, "list")];
                     l.extend(args);
@@ -669,6 +809,11 @@ mod tests {
         assert!(twice.sites.iter().all(|s| s.resource.is_none()));
         assert_eq!(twice.sites[0].capability, Capability::Clock);
         assert!(twice.independent(0, 1));
+        assert_eq!(
+            access(&twice.sites[0]),
+            Access::Ordered,
+            "a helper that reads the clock"
+        );
     }
 
     #[test]
@@ -756,6 +901,46 @@ mod tests {
             tree.contains("(define c (http_request"),
             "c reads a's answer: {tree}"
         );
+    }
+
+    #[test]
+    fn calls_to_a_request_helper_join_a_batch_with_their_arguments_put_in_place() {
+        let src = "def user(id)\n  http_request(\"GET\", \"http://e.test/u/#{id}\", nil, nil, nil)\nend\n\ndef two(a_id)\n  a = user(a_id)\n  b = user(7)\n  c = user(a.status)\n  [a, b, c]\nend\n";
+        let (tree, runs) = batched(src);
+        assert_eq!(runs, 1, "{tree}");
+        assert!(tree.contains("(define b (nth 1 %batch0))"), "{tree}");
+        assert!(
+            tree.contains("a_id"),
+            "the argument is put in place: {tree}"
+        );
+        assert!(
+            !tree.contains("(define c (nth"),
+            "a call with a computed argument is not: {tree}"
+        );
+    }
+
+    #[test]
+    fn a_helper_that_only_reads_is_a_read_and_one_that_reads_the_clock_is_ordered() {
+        let src = "def load(p)\n  read_file(p)\nend\n\ndef stamp()\n  now_ms\nend\n\ndef both()\n  a = load(\"/a\")\n  b = load(\"/b\")\n  c = stamp\n  [a, b, c]\nend\n";
+        let checked = crate::pipeline::check_entry(
+            crate::uses::Entry::anonymous(src),
+            &crate::uses::NoLoader,
+            None,
+            crate::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        let lowered = crate::pipeline::lower(&checked.program, &checked.names);
+        let hashes = crate::def_hash::hash_program(&lowered);
+        let all = graphs(&crate::erase::unfused(&lowered), &hashes);
+        let g = &all
+            .iter()
+            .find(|(k, _)| k.ends_with("both"))
+            .expect("both")
+            .1;
+        assert_eq!(access(&g.sites[0]), Access::Read);
+        assert!(commute(&g.sites[0], &g.sites[1]));
+        assert_eq!(access(&g.sites[2]), Access::Ordered);
+        assert!(!commute(&g.sites[0], &g.sites[2]));
     }
 
     #[test]

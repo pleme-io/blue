@@ -103,3 +103,24 @@ fn rule_r18_sends_two_independent_reads_at_once_and_its_switch_sends_them_in_tur
         "BLUE_BATCH=off sends one, then the other"
     );
 }
+
+#[test]
+fn reads_behind_a_request_helper_are_sent_at_once_too() {
+    let held = holding_server();
+    let dir = std::env::temp_dir().join(format!("blue-batch-helper-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("helper.b");
+    std::fs::write(
+        &file,
+        format!(
+            "def page(name)\n  http_request(\"GET\", \"http://127.0.0.1:{}/#{{name}}\", nil, nil, 5000)\nend\n\ndef two()\n  a = page(\"a\")\n  b = page(\"b\")\n  [a.status, b.status]\nend\n\ndef main()\n  write_stdout(to_s(two))\nend\n",
+            held.port
+        ),
+    )
+    .expect("write");
+    let (answer, timings) = ran(&file, &[]);
+    assert_eq!(answer, "[200, 200]");
+    assert!(batched(&timings), "{timings}");
+    assert_eq!(held.most.load(Ordering::SeqCst), 2);
+}

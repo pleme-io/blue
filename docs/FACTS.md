@@ -399,7 +399,7 @@ Each wave lists defaults in the order their gain is known. Each default meets
   R18 (E3) turns a run of independent GET-family requests into one
   `http_batch`, the answers bound in order. Two GETs to a server that holds
   each 300 ms are held open at once, and in turn under `BLUE_BATCH=off`, with
-  the same answers. Next: E4, reads behind a helper definition.
+  the same answers. Reads behind a request helper are batched too (E4).
   [ENGINES.md](ENGINES.md) §1 has each phase and its lock.
 - ✅ An idempotent effect retried on a transient failure, with the retry named in
   the receipt (rule R15). An `http_request` whose method is GET, HEAD or

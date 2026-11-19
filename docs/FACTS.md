@@ -270,7 +270,21 @@ Each wave lists defaults in the order their gain is known. Each default meets
     artifact answered), its 11 tests passing on macOS. Found by that check
     and fixed: a generated crate is `no_std`, so the empty field list is
     `kiban_heap::no_fields`, not `Vec::new`.
-  - Next: maps, and records holding a list.
+  - ✅ A record that holds a list of Ints across the seam: a `List(Int)`
+    field is the refcounted list a list argument is, so such a record is
+    cloned, not copied, by the same rule as a Str (`cz_holds_counted?`, which
+    `cz_holds_str?` became; `cz_field_kind` reads a field's declared type,
+    `(List Int)` among them). It crosses inside the `R` token as the list's
+    own token; since a list's token holds commas, `R` separates its fields
+    with `;` (`Rl1,-2;i3`). The host's list token is one pair of words
+    (`list_token`, `list_of`) where two copies were. Locks: native.rs
+    `a_record_that_holds_a_list_carries_the_list_s_own_token_between_semicolons`
+    (fields out of order and a list of Floats refused); chuuzou 138 tests
+    ("a record that holds a list of Ints is cloned, not copied, …");
+    `checks.native-defs` "a record that holds a list of Ints crosses the
+    seam both ways" (`pushed`, `tallied`; `pushed_twice`'s artifact swapped
+    in proves the artifact answered), its 12 tests passing on macOS.
+  - Next: maps.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

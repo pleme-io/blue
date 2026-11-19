@@ -139,3 +139,17 @@ end
 def relabeled(t: tag, s: Str) -> tag
   tag(**t, label: "#{t.label}#{s}")
 end
+
+record bag(xs: List(Int), n: Int)
+
+def pushed(b: bag, x: Int) -> bag
+  bag(**b, xs: append(b.xs, [x]))
+end
+
+def pushed_twice(b: bag, x: Int) -> bag
+  bag(**b, xs: append(b.xs, [x, x]))
+end
+
+def tallied(b: bag) -> bag
+  bag(**b, n: count(b.xs))
+end

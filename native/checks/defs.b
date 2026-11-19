@@ -14,6 +14,8 @@ record gauge(on: Bool, w: Float, n: Int)
 
 record tag(label: Str, n: Int)
 
+record bag(xs: List(Int), n: Int)
+
 @doc """
 cases: The calls each definition of native/defs/base.b is held to.
 """
@@ -408,4 +410,41 @@ test "a record that holds a Str crosses the seam both ways", {
     unlines(["tag({label: \"é, a\", n: 7})"])
   assert interpreted(work, "bumped", [t, 4], swapped) ==
     unlines(["tag({label: \"é, a\", n: -1})"])
+end
+
+test "a record that holds a list of Ints crosses the seam both ways", {
+  kind: :integration
+}
+  work = temp_dir("native-bag")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [["pushed", [bag([1, -2], 0), 5]], ["tallied", [bag([], 9)]]]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("pushed"))
+  mkdir_p(shelf)
+  other = path_join(root, "native", "v1", hex_of("pushed_twice"))
+  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(other, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  b = bag([1], 0)
+  assert interpreted(work, "pushed", [b, 5], off) ==
+    unlines(["bag({n: 0, xs: [1, 5]})"])
+  assert interpreted(work, "pushed", [b, 5], swapped) ==
+    unlines(["bag({n: 0, xs: [1, 5, 5]})"])
 end

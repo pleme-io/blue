@@ -546,21 +546,19 @@ end
 @doc """
 cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares,
 with the type each field holds: an Int or untyped field the board word, a Bool
-a bool, a Float an f64, a Str a refcounted string.
+a bool, a Float an f64, a Str a refcounted string, a list of Ints a refcounted
+list.
 
     cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"], types: [:word, :word]}
 """
 def cz_record_of(form)
-  kinds = [["Int", :word], ["Bool", :bool], ["Float", :float], ["Str", :str]]
   pairs = map(
     fn(k)
-      if list?(k) and
-          count(k) == 2 and
-          cz_lookup(cz_sym(second(k)), kinds) != nil
-        [first(k)[:kw], cz_lookup(cz_sym(second(k)), kinds)]
+      if list?(k) and count(k) == 2 and cz_field_kind(second(k)) != nil
+        [first(k)[:kw], cz_field_kind(second(k))]
       elsif list?(k)
         cz_refuse(
-          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record's fields are Int, Bool, Float, Str or untyped"
+          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record's fields are Int, Bool, Float, Str, a list of Ints or untyped"
         )
       else
         [k[:kw], :word]
@@ -574,6 +572,32 @@ def cz_record_of(form)
     fields: map(first, pairs),
     types: map(second, pairs)
   }
+end
+
+@doc """
+cz_field_kind: The native type a record field's declared type `t` is, or nil for one
+a native record does not hold.
+
+    cz_field_kind(first(cz_read("Float"))) #=> :float
+    cz_field_kind(first(cz_read("(List Int)"))) #=> :list
+    cz_field_kind(first(cz_read("(List Str)"))) #=> nil
+"""
+def cz_field_kind(t)
+  kinds = [
+    ["Int", :word],
+    ["Bool", :bool],
+    ["Float", :float],
+    ["Str", :str],
+    ["List", :list]
+  ]
+  if cz_sym?(t)
+    cz_lookup(cz_sym(t), kinds)
+  elsif list?(t) and
+      count(t) == 2 and
+      cz_sym(first(t)) == "List" and
+      cz_sym(second(t)) == "Int"
+    :list
+  end
 end
 
 @doc """
@@ -716,19 +740,20 @@ def cz_ty(n, ctx)
 end
 
 @doc """
-cz_holds_str?: Whether the record `rec` holds a Str, so its struct is cloned, not
-copied.
+cz_holds_counted?: Whether the record `rec` holds a refcounted value, a Str or a list,
+so its struct is cloned, not copied.
 
-    cz_holds_str?({fields: ["n"], types: [:str]}) #=> true
-    cz_holds_str?({fields: ["x"]}) #=> false
+    cz_holds_counted?({fields: ["n"], types: [:str]}) #=> true
+    cz_holds_counted?({fields: ["xs"], types: [:list]}) #=> true
+    cz_holds_counted?({fields: ["x"]}) #=> false
 """
-def cz_holds_str?(rec)
-  member?(:str, rec[:types] or [])
+def cz_holds_counted?(rec)
+  any?((t) -> member?(t, %i[str list]), rec[:types] or [])
 end
 
 @doc """
 cz_counted?: Whether a value of type `ty` is refcounted, so a second use takes a
-clone (a count, not a copy): a list, a Str, a record that holds a Str, and any
+clone (a count, not a copy): a list, a Str, a record that holds either, and any
 record when one of `records` does.
 
     cz_counted?(:list, []) #=> true
@@ -740,9 +765,9 @@ def cz_counted?(ty, records)
   if member?(ty, %i[list str])
     true
   elsif ty == :dyn
-    any?(cz_holds_str?, records)
+    any?(cz_holds_counted?, records)
   elsif string?(ty)
-    any?((r) -> r[:name] == ty and cz_holds_str?(r), records)
+    any?((r) -> r[:name] == ty and cz_holds_counted?(r), records)
   else
     false
   end
@@ -2772,14 +2797,14 @@ records, `Rec`: one variant per record, each holding only that record.
 def cz_record_items(records, word)
   copied = %w[Clone Copy PartialEq]
   cloned = %w[Clone PartialEq]
-  derives = if any?(cz_holds_str?, records)
+  derives = if any?(cz_holds_counted?, records)
     cloned
   else
     copied
   end
   structs = map(
     fn(r)
-      own = if cz_holds_str?(r)
+      own = if cz_holds_counted?(r)
         cloned
       else
         copied
@@ -3460,7 +3485,7 @@ def cz_value_arg(e, ty, records)
   rec = find(records, (r) -> r[:name] == ty)
   if rec.nil?
     rs_method(e, cz_seam_kind(ty)[:read], [])
-  elsif cz_holds_str?(rec)
+  elsif cz_holds_counted?(rec)
     {
       kind: "block",
       block: rs_block(
@@ -3539,7 +3564,7 @@ def cz_value_result(e, ty, records)
   rec = find(records, (r) -> r[:name] == ty)
   if rec.nil?
     rs_call(["Value", cz_seam_kind(ty)[:variant]], [e])
-  elsif cz_holds_str?(rec)
+  elsif cz_holds_counted?(rec)
     values = reduce(
       fn(acc, f)
         rs_call(
@@ -4353,7 +4378,7 @@ test "a record of Ints crosses the valued seam as its fields"
   shift = "(define-typed (%root/s (p pt) (d Int)) pt (%root/pt (blue-kwargs (blue-splice p) (hash-map :x (+ (blue-field p :x) d)))))"
   assert cz_def_native(concat(rec, shift), "%root/s").nil?
   assert cz_def_native(
-    "(blue-record %root/q %root/q? (:x (List Int))) (define-typed (%root/f (p q)) Int 0)",
+    "(blue-record %root/q %root/q? (:x (List Str))) (define-typed (%root/f (p q)) Int 0)",
     "%root/f"
   ) != nil
   assert get(
@@ -4449,7 +4474,7 @@ test "a record of Bools and Floats holds each field in its own native form"
   out = cz_value_result(rs_path("r"), "%root/g", [g])
   assert contains?(to_s(out), "float_word")
   assert cz_def_native(
-    "(blue-record %root/q %root/q? (:x (List Int))) (define-typed (%root/f (p q)) Int 0)",
+    "(blue-record %root/q %root/q? (:x (List Str))) (define-typed (%root/f (p q)) Int 0)",
     "%root/f"
   ) != nil
 end
@@ -4460,7 +4485,7 @@ test "a record that holds a Str is cloned, not copied, and crosses the seam as i
   assert cz_def_native(concat(rec, bump), "%root/b").nil?
   t = cz_record_of(first(cz_read(rec)))
   assert t[:types] == %i[str word]
-  assert cz_holds_str?(t)
+  assert cz_holds_counted?(t)
   assert cz_field_ty(t, "label") == :str
   ctx = {types: [%w[a %root/t]], records: [t], params: ["a"]}
   assert cz_field_read_ty([{sym: "a"}, {kw: "label"}], ctx) == :str
@@ -4480,7 +4505,21 @@ test "a record that holds a Str is cloned, not copied, and crosses the seam as i
   out = cz_value_result(rs_path("r"), "%root/t", [t])
   assert last(out[:block][:stmts])[:expr][:func] == %w[Value Fields]
   assert cz_def_native(
-    "(blue-record %root/q %root/q? (:x (List Int))) (define-typed (%root/f (p q)) Int 0)",
+    "(blue-record %root/q %root/q? (:x (List Str))) (define-typed (%root/f (p q)) Int 0)",
     "%root/f"
   ) != nil
+end
+
+test "a record that holds a list of Ints is cloned, not copied, and its list crosses the seam"
+  rec = "(blue-record %root/b %root/b? (:xs (List Int)) (:n Int)) "
+  grow = "(define-typed (%root/g (b b) (x Int)) b (%root/b (blue-kwargs (blue-splice b) (hash-map :xs (append (blue-field b :xs) (list x))))))"
+  assert cz_def_native(concat(rec, grow), "%root/g").nil?
+  b = cz_record_of(first(cz_read(rec)))
+  assert b[:types] == %i[list word]
+  assert cz_holds_counted?(b)
+  assert cz_field_kind(first(cz_read("(List Int)"))) == :list
+  assert first(cz_record_items([b], 64))[:derives] == %w[Clone PartialEq]
+  arg = cz_value_arg(rs_path("a"), "%root/b", [b])
+  xs = first(last(arg[:block][:stmts])[:expr][:fields])[:value]
+  assert xs[:method] == "list"
 end

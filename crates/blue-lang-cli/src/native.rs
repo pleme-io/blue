@@ -158,31 +158,42 @@ struct Fields {
 }
 
 impl Fields {
-    /// Whether a field holds a Str, so the token carries each field as its
-    /// own token (`R`) rather than as a word (`r`).
+    /// Whether a field holds a Str or a list, so the token carries each field
+    /// as its own token (`R`, `;` between them) rather than as a word (`r`).
     fn counted(&self) -> bool {
-        self.kinds.contains(&Kind::Str)
+        self.kinds
+            .iter()
+            .any(|k| matches!(k, Kind::Str | Kind::List))
     }
 }
 
-/// What one field of a record the seam carries holds: a word, or a Str.
+/// What one field of a record the seam carries holds: a word, a Str, or a
+/// list of Ints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Int,
     Bool,
     Float,
     Str,
+    List,
 }
 
 impl Kind {
     fn of(ty: Option<&Spanned>) -> Option<Self> {
-        match ty.map(Spanned::as_symbol) {
-            None => Some(Self::Int),
-            Some(Some("Int")) => Some(Self::Int),
-            Some(Some("Bool")) => Some(Self::Bool),
-            Some(Some("Float")) => Some(Self::Float),
-            Some(Some("Str")) => Some(Self::Str),
-            Some(_) => None,
+        let Some(ty) = ty else {
+            return Some(Self::Int);
+        };
+        if let Some([l, i]) = ty.as_list() {
+            return (l.as_symbol() == Some("List") && i.as_symbol() == Some("Int"))
+                .then_some(Self::List);
+        }
+        match ty.as_symbol()? {
+            "Int" => Some(Self::Int),
+            "Bool" => Some(Self::Bool),
+            "Float" => Some(Self::Float),
+            "Str" => Some(Self::Str),
+            "List" => Some(Self::List),
+            _ => None,
         }
     }
 
@@ -200,14 +211,16 @@ impl Kind {
             Self::Int => Some(Value::Int(w)),
             Self::Bool => Some(Value::Bool(w != 0)),
             Self::Float => Some(Value::Float(f64::from_bits(w.cast_unsigned()))),
-            Self::Str => None,
+            Self::Str | Self::List => None,
         }
     }
 
-    /// The field's own token, as a record that holds a Str carries each.
+    /// The field's own token, as a record that holds a Str or a list carries
+    /// each.
     fn token(self, v: &Value) -> Option<String> {
         match (self, v) {
             (Self::Str, Value::Str(t)) => Some(str_token(t)),
+            (Self::List, Value::List(xs)) => list_token(xs.iter()),
             (Self::Int, _) => self.word(v).map(|w| format!("i{w}")),
             (Self::Bool, _) => self.word(v).map(|w| format!("b{w}")),
             (Self::Float, _) => self.word(v).map(|w| format!("f{w}")),
@@ -219,12 +232,33 @@ impl Kind {
         let (tag, rest) = (t.as_bytes().first()?, t.get(1..)?);
         match (self, tag) {
             (Self::Str, b's') => str_of(rest),
+            (Self::List, b'l') => list_of(rest),
             (Self::Int, b'i') | (Self::Bool, b'b') | (Self::Float, b'f') => {
                 rest.parse().ok().and_then(|w| self.value(w))
             }
             _ => None,
         }
     }
+}
+
+fn list_token<'a>(xs: impl IntoIterator<Item = &'a Value>) -> Option<String> {
+    xs.into_iter()
+        .map(|x| match x {
+            Value::Int(n) => Some(n.to_string()),
+            _ => None,
+        })
+        .collect::<Option<Vec<String>>>()
+        .map(|ns| format!("l{}", ns.join(",")))
+}
+
+fn list_of(rest: &str) -> Option<Value> {
+    if rest.is_empty() {
+        return Some(Value::List(Default::default()));
+    }
+    rest.split(',')
+        .map(|n| n.parse().ok().map(Value::Int))
+        .collect::<Option<Vec<Value>>>()
+        .map(|xs| Value::List(std::sync::Arc::new(xs.into())))
 }
 
 fn str_token(t: &str) -> String {
@@ -365,14 +399,7 @@ impl Shape {
                 (Value::Int(n), Word::Int) => Some(format!("i{n}")),
                 (Value::Bool(b), Word::Bool) => Some(format!("b{}", u8::from(*b))),
                 (Value::Float(x), Word::Float) => Some(format!("f{}", x.to_bits().cast_signed())),
-                (Value::List(xs), Word::List) => xs
-                    .iter()
-                    .map(|x| match x {
-                        Value::Int(n) => Some(n.to_string()),
-                        _ => None,
-                    })
-                    .collect::<Option<Vec<String>>>()
-                    .map(|ns| format!("l{}", ns.join(","))),
+                (Value::List(xs), Word::List) => list_token(xs.iter()),
                 (v, Word::Record(f)) => {
                     let Value::Map(m) = v else { return None };
                     (blue_lang_runtime::record::name_of(v)?
@@ -392,7 +419,13 @@ impl Shape {
                             }
                         })
                         .collect::<Option<Vec<String>>>()
-                        .map(|xs| format!("{}{}", if counted { 'R' } else { 'r' }, xs.join(",")))
+                        .map(|xs| {
+                            if counted {
+                                format!("R{}", xs.join(";"))
+                            } else {
+                                format!("r{}", xs.join(","))
+                            }
+                        })
                 }
                 (Value::Str(t), Word::Str) => Some(str_token(t)),
                 _ => None,
@@ -425,7 +458,7 @@ impl Shape {
                 let values = if rest.is_empty() {
                     Vec::new()
                 } else {
-                    rest.split(',')
+                    rest.split(';')
                         .zip(&f.kinds)
                         .map(|(t, k)| k.of_token(t))
                         .collect::<Option<Vec<Value>>>()?
@@ -434,12 +467,7 @@ impl Shape {
                 let names: Vec<&str> = f.names.iter().map(String::as_str).collect();
                 blue_lang_runtime::record::value_of(&f.key, &names, values)
             }
-            (b'l', Word::List) if rest.is_empty() => Some(Value::List(Default::default())),
-            (b'l', Word::List) => rest
-                .split(',')
-                .map(|n| n.parse().ok().map(Value::Int))
-                .collect::<Option<Vec<Value>>>()
-                .map(|xs| Value::List(std::sync::Arc::new(xs.into()))),
+            (b'l', Word::List) => list_of(rest),
             (b'r', Word::Record(f)) if !f.counted() => {
                 let values = if rest.is_empty() {
                     Vec::new()
@@ -1095,7 +1123,7 @@ mod tests {
         assert_eq!(shift.tokens(&[other, Value::Int(5)]), None);
         assert_eq!(
             shape(
-                "(blue-record %root/pt %root/pt? (:y (List Int))) (define-typed (%root/s (p pt)) Int 0)"
+                "(blue-record %root/pt %root/pt? (:y (List Str))) (define-typed (%root/s (p pt)) Int 0)"
             ),
             None
         );
@@ -1115,13 +1143,43 @@ mod tests {
         .expect("a record");
         assert_eq!(
             named.tokens(std::slice::from_ref(&t)),
-            Some(vec!["Rsc3a92c31,i3".to_string()])
+            Some(vec!["Rsc3a92c31;i3".to_string()])
         );
-        let back = named.from_token("Rsc3a92c31,i3").expect("a record");
+        let back = named.from_token("Rsc3a92c31;i3").expect("a record");
         assert!(blue_lang_runtime::stdlib::blue_equal(&back, &t));
         assert!(named.from_token("rsc3a92c31,3").is_none());
-        assert!(named.from_token("Ri3,sc3a9").is_none());
+        assert!(named.from_token("Ri3;sc3a9").is_none());
         assert!(named.from_token("Rsc3a9").is_none());
+    }
+
+    #[test]
+    fn a_record_that_holds_a_list_carries_the_list_s_own_token_between_semicolons() {
+        let held = shape(
+            "(blue-record %root/bag %root/bag? (:xs (List Int)) (:n Int)) (define-typed (%root/k (b bag)) bag b)",
+        )
+        .expect("a shape");
+        let xs = Value::List(std::sync::Arc::new(
+            vec![Value::Int(1), Value::Int(-2)].into(),
+        ));
+        let b =
+            blue_lang_runtime::record::value_of("%root/bag", &["xs", "n"], vec![xs, Value::Int(3)])
+                .expect("a record");
+        assert_eq!(
+            held.tokens(std::slice::from_ref(&b)),
+            Some(vec!["Rl1,-2;i3".to_string()])
+        );
+        let back = held.from_token("Rl1,-2;i3").expect("a record");
+        assert!(blue_lang_runtime::stdlib::blue_equal(&back, &b));
+        assert!(held.from_token("Rl;i3").is_some());
+        assert!(held.from_token("Ri3;l1").is_none());
+        let floats = Value::List(std::sync::Arc::new(vec![Value::Float(1.0)].into()));
+        let bad = blue_lang_runtime::record::value_of(
+            "%root/bag",
+            &["xs", "n"],
+            vec![floats, Value::Int(3)],
+        )
+        .expect("a record");
+        assert_eq!(held.tokens(&[bad]), None);
     }
 
     #[test]

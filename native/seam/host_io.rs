@@ -66,7 +66,8 @@ pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
 /// One value from its token on the seam: `i42`, `b1`, `f<the Float's bits
 /// as an Int>`, `s<the string's UTF-8 in hex>`, `l1,2,3` (a list of Ints,
 /// `l` alone the empty one), `r1,2` (a record's fields in declared order),
-/// `Ri1,s68` (a record that holds a string: each field its own token), or a
+/// `Ri1;s68;l1,2` (a record that holds a string or a list: each field its
+/// own token, `;` between them, since a list's token holds commas), or a
 /// bare decimal Int, as artifacts built before tokens were called.
 pub fn decode(token: &str) -> Option<kiban_heap::Value> {
     let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
@@ -92,9 +93,9 @@ pub fn decode(token: &str) -> Option<kiban_heap::Value> {
         b'r' => kiban_heap::Value::Record(words(rest)?),
         b'R' if rest.is_empty() => kiban_heap::Value::Fields(Vec::new()),
         b'R' => kiban_heap::Value::Fields(
-            rest.split(',')
+            rest.split(';')
                 .map(|t| match t.as_bytes().first()? {
-                    b'i' | b'b' | b'f' | b's' => decode(t),
+                    b'i' | b'b' | b'f' | b's' | b'l' => decode(t),
                     _ => None,
                 })
                 .collect::<Option<Vec<kiban_heap::Value>>>()?,
@@ -120,7 +121,7 @@ pub fn encode(v: &kiban_heap::Value) -> String {
         kiban_heap::Value::List(l) => format!("l{}", joined(l)),
         kiban_heap::Value::Record(l) => format!("r{}", joined(l)),
         kiban_heap::Value::Fields(vs) => {
-            format!("R{}", vs.iter().map(encode).collect::<Vec<String>>().join(","))
+            format!("R{}", vs.iter().map(encode).collect::<Vec<String>>().join(";"))
         }
     }
 }

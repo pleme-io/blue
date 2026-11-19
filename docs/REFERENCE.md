@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-411 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+412 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -289,6 +289,7 @@ Higher binding power binds tighter.
 | `juxt` | `juxt(fs...)` | 0+ | The function x -> [f(x), g(x), …]. Also defined by `kansuu` (`kansuu::juxt`): a file that lists it gets that one. |
 | `map` | `map(f, xs, more...)` | 2+ | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. Also defined by `umu` (`umu::map`): a file that lists it gets that one. |
 | `memoize` | `memoize(f)` | 1 | f, remembering each argument's answer. |
+| `par_map` | `par_map(f, xs)` | 2 | map(f, xs), on the project's schedulers when the work pays: the first call, timed, prices the rest, and the rest runs apart when it saves more than twice what a worker costs to start. f must only compute; it and each element travel as a spawned process's do, the slices are joined in order, so the answer is map's. A callback or element that cannot travel, or a worker that raises, maps on this thread, which raises the error map raises. blue run --timings counts each parallel map. |
 | `partial` | `partial(f, args...)` | 1+ | f with its first arguments fixed: partial(f, 1)(2) is f(1, 2). |
 | `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
 | `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |

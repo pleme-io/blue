@@ -16,7 +16,7 @@ record rule(id, needs, when, lever, receipt, switch, state, locks)
 @doc """
 rules: every rule of the default cascade, in the order of its id.
 
-    size(rules) #=> 16
+    size(rules) #=> 17
 """
 def rules()
   [
@@ -179,6 +179,16 @@ def rules()
       "BLUE_TIMEOUT=fixed",
       :shipped,
       "tests/net.rs"
+    ),
+    rule(
+      "R17",
+      %i[first_order_callback many_schedulers],
+      "a map whose callback only computes, in a project that declares more than one scheduler",
+      "the map is par_map: the first call prices the rest, which runs on the schedulers when it saves more than twice a worker's start",
+      "--timings counts each parallel map (parallel)",
+      "BLUE_PARMAP=off",
+      :shipped,
+      "tests/schedulers.rs"
     )
   ]
 end
@@ -233,13 +243,13 @@ end
 
 test "every rule has a distinct id in order, and a state blue knows"
   ids = map((r) -> r.id, rules)
-  assert ids == map((n) -> "R#{n}", range(1, 17))
+  assert ids == map((n) -> "R#{n}", range(1, 18))
   assert every?((r) -> member?(r.state, %i[shipped folded refused]), rules)
 end
 
 test "a rule with a switch names a BLUE variable and the value that turns it off"
   switched = filter((r) -> r.switch != "none", rules)
-  assert size(switched) == 11
+  assert size(switched) == 12
   assert every?(
     (r) -> starts_with?(r.switch, "BLUE_") and contains?(r.switch, "="),
     switched
@@ -247,7 +257,7 @@ test "a rule with a switch names a BLUE variable and the value that turns it off
 end
 
 test "the rules that are not shipped are R6, folded into R7, and R11, refused"
-  assert size(shipped) == 14
+  assert size(shipped) == 15
   assert not member?("R6", shipped)
   assert not member?("R11", shipped)
   assert named("R6").state == :folded

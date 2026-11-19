@@ -592,6 +592,15 @@ row(
 row("fn.suspends.not_a_function", "suspends(3)", fails(:check, "B0062"))
 
 row(
+  "fn.par_map",
+  "par_map((x) -> x * x, [1, 2, 3, 4])",
+  value("[1, 4, 9, 16]"),
+  covers("builtin:par_map")
+)
+
+row("fn.par_map.empty", "par_map((x) -> x, [])", value("[]"))
+
+row(
   "fn.volatile.not_a_function_at_run_time",
   join_lines(["xs = [3]", "volatile(first(xs))"]),
   fails(:eval, "expected function")

@@ -23,4 +23,9 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
         &["nil_timeout", "measured_host"],
         "BLUE_TIMEOUT=fixed",
     ),
+    (
+        "R17",
+        &["first_order_callback", "many_schedulers"],
+        "BLUE_PARMAP=off",
+    ),
 ];

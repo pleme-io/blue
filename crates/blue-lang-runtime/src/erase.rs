@@ -73,7 +73,7 @@ pub fn erase_types(forms: &[Spanned]) -> Vec<Spanned> {
 #[must_use]
 pub fn erase_fused(forms: &[Spanned]) -> crate::fuse::Fused {
     let erased = unfused(forms);
-    if crate::fuse::enabled() {
+    let mut fused = if crate::fuse::enabled() {
         crate::fuse::fuse(erased, forms)
     } else {
         crate::fuse::Fused {
@@ -81,7 +81,11 @@ pub fn erase_fused(forms: &[Spanned]) -> crate::fuse::Fused {
             chains: Vec::new(),
             sites: Vec::new(),
         }
+    };
+    if crate::parallel::spreads() {
+        fused.forms = crate::fuse::spread(std::mem::take(&mut fused.forms), forms).0;
     }
+    fused
 }
 
 /// [`erase_types`] with no chain fused: the program exactly as written,

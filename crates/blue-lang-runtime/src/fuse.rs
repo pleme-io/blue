@@ -190,6 +190,67 @@ pub fn fuse(erased: Vec<Spanned>, defined: &[Spanned]) -> Fused {
     }
 }
 
+/// Rule R17: each `(map f xs)` of `erased` whose callback only computes, by
+/// the test fusion applies to a stage, renamed `(par_map f xs)`; with how
+/// many it renamed. `defined` as for [`fuse`]. Only a map: a callback another
+/// stage runs keeps its order, since the stage may stop early.
+#[must_use]
+pub fn spread(erased: Vec<Spanned>, defined: &[Spanned]) -> (Vec<Spanned>, usize) {
+    let globals: BTreeSet<&str> = defined
+        .iter()
+        .filter_map(crate::def_hash::defined)
+        .map(|(k, _)| k)
+        .collect();
+    let mut sites = Sites {
+        globals: &globals,
+        frames: Vec::new(),
+        found: HashMap::new(),
+    };
+    for form in &erased {
+        blue_lang_syntax::scope::walk_top(form, &mut sites);
+    }
+    let purity = Purity {
+        defined,
+        erased: &erased,
+        keys: &globals,
+        first_order: OnceLock::new(),
+    };
+    let mut spread = 0;
+    let forms = erased
+        .iter()
+        .map(|f| spread_in(f, &sites.found, &purity, &mut spread))
+        .collect();
+    (forms, spread)
+}
+
+fn spread_in(
+    form: &Spanned,
+    found: &HashMap<*const Spanned, BTreeSet<String>>,
+    purity: &Purity<'_>,
+    spread: &mut usize,
+) -> Spanned {
+    let SpannedForm::List(items) = &form.form else {
+        return form.clone();
+    };
+    let mut out: Vec<Spanned> = items
+        .iter()
+        .map(|i| spread_in(i, found, purity, spread))
+        .collect();
+    let is_map = matches!(items.as_slice(), [head, _, _] if head.as_symbol() == Some("map"));
+    if is_map {
+        if let Some(locals) = found.get(&std::ptr::from_ref(form)) {
+            if purity.callback(&items[1], 1, locals) {
+                out[0] = Spanned::new(
+                    items[0].span,
+                    SpannedForm::Atom(Atom::Symbol(crate::parallel::WORD.into())),
+                );
+                *spread += 1;
+            }
+        }
+    }
+    Spanned::new(form.span, SpannedForm::List(out))
+}
+
 fn stage(name: &str, args: usize) -> Option<&'static Stage> {
     STAGES.iter().find(|s| s.word == name && s.arity == args)
 }

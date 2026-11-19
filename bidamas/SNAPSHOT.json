@@ -1,4 +1,4 @@
-{"blind":[],"definitions":6457,"format":"arika/1","leaves":6457,"repo":"blue","shape_root":"b3:213d2c6bfb6159f681ab3d95f812ac5a81a3829a9e4f37777ddbebc4b07d462c","shapes":6191,"snapshot_root":"b3:02a9cd752029b2d083b88f25dd1e3fb7c01d45267d0dc12d1640b0f7310eaa14","units":[
+{"blind":[],"definitions":6457,"format":"arika/1","leaves":6457,"repo":"blue","shape_root":"b3:8ad7afd0b140309df4301cd18b5b4eff0f71c343bd30a7644045e81edceeb024","shapes":6191,"snapshot_root":"b3:cf2ccf50e891c23bf9b2184ac243a29291dbe2e71d4fee782971e6c5327cae66","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:adb2601e123c3a75bb85b128ee2b8a4ae32f17b3091b5b5df1525ef0135e7de4"},
 {"leaves":23,"package":"baito","unit_root":"b3:92add2513d2ac3dbeef2644d0e2775272359a5490d54fceff6188a2b20052f45"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:7df9cbe6fbc51af2e59b6b5d48ce37dd5848ab4b5d535f6c0da01d0f20b63ca3"},
@@ -53,7 +53,7 @@
 {"leaves":4,"package":"keiyu","unit_root":"b3:076c8c4bf5205f43c4e3a14622ca85e4301167a9808eae8839340488485c7a69"},
 {"leaves":70,"package":"khipu","unit_root":"b3:112ab6f9a67e7f3faf7f22f42fc83b656c977847544281902ffa1287d7eb6629"},
 {"leaves":21,"package":"kikaigo","unit_root":"b3:fe26d2642b37b95e92151ee66f5ce0c64fb6173c2d506f552ca92e3343ec3b1d"},
-{"leaves":6,"package":"kitei","unit_root":"b3:fea95a79b32c2350f85ee9a81e7d725b1062b7cd35e8780ca223940cff9a7995"},
+{"leaves":6,"package":"kitei","unit_root":"b3:703dce3dd57a3d6e6f0547ff9a41d09d942741df13f5b30a214cc3ebfc8c15ec"},
 {"leaves":96,"package":"kiwari","unit_root":"b3:e447fa87c92c72cbf0f61bdf2584d65e6c83894978eceaf2742921af1d5d3814"},
 {"leaves":35,"package":"kodou","unit_root":"b3:4c074d41024ef62994ba666a48255203ab926c5693152ff9ba3941653cfebf83"},
 {"leaves":54,"package":"koubou/kakou","unit_root":"b3:912ea50ef92ca49e7ef41955a2c8fd996157c8841ff76be7096b8e8e0178c9b4"},
@@ -80,7 +80,7 @@
 {"leaves":1,"package":"okite/rung/deep/floor","unit_root":"b3:25d1aa22746f8551fd632337eac0edf7ccef3102ffce9e2b67c0478ec428ecc2"},
 {"leaves":107,"package":"ongaku","unit_root":"b3:f97838f8a6836398216f72bce45a44e5fbe01aae086d6f0d0da1262fdfd9d686"},
 {"leaves":32,"package":"ran","unit_root":"b3:8b0afefec24d3f9df14474fff51e62f9c67864eb38e81a3cf9c446f5c32e9a50"},
-{"leaves":58,"package":"retsu","unit_root":"b3:7478613194b0db3c49675b99064aa308f1080b4f01a876b7bf50bcf24253d944"},
+{"leaves":58,"package":"retsu","unit_root":"b3:c2256fd988f57483eff4fa7dc2bf04b3dc4af630b5a70c29058362a12a72980e"},
 {"leaves":33,"package":"ronri","unit_root":"b3:ba9e0e005651e96fd39f79949e10ea33f94f1dd13def1d2dfc04d8b9e121b22b"},
 {"leaves":43,"package":"sabi","unit_root":"b3:5f25c9de017bc6a4e215fa09554c5db05c855ab5574702635c1cfbf2e7da82fd"},
 {"leaves":5,"package":"saishikou","unit_root":"b3:6eb2cf2d9a42eef028b4a2f4fe9797f61a1e1fbf1f2f333c86dae60a2bfe5fae"},

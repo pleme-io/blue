@@ -76,6 +76,7 @@ pub mod messages;
 pub mod net;
 pub mod nix;
 pub mod observe;
+pub mod parallel;
 pub mod paths;
 pub mod pipeline;
 pub mod project_rules;
@@ -638,7 +639,7 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
 
 /// A fresh interpreter for a child process: the hostless base, forked. The
 /// node adds its child words to it.
-fn child_interpreter() -> Interpreter<()> {
+pub(crate) fn child_interpreter() -> Interpreter<()> {
     let base = if blue_lang_proc::node::schedulers() > 1 {
         None
     } else {

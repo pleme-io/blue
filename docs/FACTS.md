@@ -372,12 +372,25 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 ### W4: concurrency from facts
 
-- `map` over a pure callback on a large list runs in parallel, the size from the
-  profile. More than one core is now there: a project's `schedulers(n)`
-  runs its processes' slices at once (ASYNC A6, first slice, built
-  2026-11-19 on the operator's call). Next: a pure `map` on a list the
-  profile shows large, split across processes when the project declares
-  more than one scheduler, the answer joined in order.
+- ✅ `map` over a pure callback on a large list runs in parallel, the size
+  from what the run measures (rule R17). In a project that declares
+  `schedulers(n)` with n above 1 (ASYNC A6), erasure renames each `map`
+  whose callback only computes, by the test fusion applies, to `par_map`.
+  `par_map` times its first call on the caller's thread; the rest runs on
+  n workers when the time they save is more than twice what a worker costs
+  to start (one interpreter, built once and timed). The callback and the
+  elements travel as a spawned process's do (`proc::code::function_code`,
+  `copy_data`), each worker maps one slice on an interpreter of its own, and
+  the slices are joined in order, so the answer is map's. A callback or
+  element that cannot travel, or a worker that raises, maps on the caller's
+  thread, which raises map's own error. `--timings` counts each parallel map
+  (`parallel`); `BLUE_PARMAP=off` turns it off; `par_map` is also a word a
+  program can call. Eight 400,000-step calls: 0.67 s on one scheduler,
+  0.30 s on four, the same answer. Locks: `tests/schedulers.rs`
+  `par_map_runs_apart_on_a_project_s_schedulers_and_answers_as_map_does`
+  and `rule_r17_runs_a_map_whose_callback_only_computes_apart_and_its_switch_keeps_it_home`
+  (a callback that writes keeps its order); `parallel::tests` for the
+  decision.
 - Independent effects batched: calls the effect graph shows to be independent
   share one round trip. Waits on an effect graph, which no part of blue
   builds yet: reach says which capabilities a definition names, not which of

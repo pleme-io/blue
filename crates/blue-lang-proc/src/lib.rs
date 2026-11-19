@@ -62,6 +62,7 @@ pub mod group;
 pub mod image;
 pub mod mailbox;
 pub mod node;
+pub mod parallel;
 pub mod pattern;
 pub mod readiness;
 pub mod receipt;

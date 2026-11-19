@@ -975,6 +975,39 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    interp.register_higher_order_fn(
+        "par_map",
+        Arity::Exact(2),
+        |a: &[Value], host: &mut H, caller: &tatara_lisp_eval::ffi::Caller<H>, s| {
+            let xs = match &a[1] {
+                Value::List(xs) => xs.to_vec(),
+                Value::Nil => Vec::new(),
+                other => {
+                    return Err(EvalError::type_mismatch("a list", other.type_name(), s));
+                }
+            };
+            let Some((head, tail)) = xs.split_first() else {
+                return Ok(Value::Nil);
+            };
+            let started = std::time::Instant::now();
+            let mut out = vec![caller.apply_value(&a[0], vec![head.clone()], host, s)?];
+            let workers = crate::parallel::workers(started.elapsed(), tail.len());
+            if workers > 1 {
+                if let Ok(rest) =
+                    blue_lang_proc::parallel::map(&a[0], tail, workers, &crate::child_interpreter)
+                {
+                    crate::timings::count("parallel", 1);
+                    out.extend(rest);
+                    return Ok(list(out));
+                }
+            }
+            for x in tail {
+                out.push(caller.apply_value(&a[0], vec![x.clone()], host, s)?);
+            }
+            Ok(list(out))
+        },
+    );
+
     interp.register_fn(
         "error_message",
         Arity::Exact(1),

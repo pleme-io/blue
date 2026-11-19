@@ -820,4 +820,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0098` | raw-environment-read | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name | refused |
 | `B0099` | undeclared-access | the program of a `service(...)` row runs under the `access` that row declares, never the default | refused |
 | `B0100` | exclusive-waivers | a form never waives both codes of a ratified exclusive relation: one of the two covers nothing | refused |
-| `B0101` | undeclared-suspension | in a restricted file, a definition that can reach a suspension point is declared with `suspends(f)` | refused |
+| `B0101` | undeclared-suspension | in a restricted file, a definition that can reach a suspension point is declared with `suspends(f)` | autofix |

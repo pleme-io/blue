@@ -2096,7 +2096,7 @@ is not refused.",
     B0101 {
         slug: "undeclared-suspension",
         severity: Error,
-        fix: None,
+        fix: Machine,
         law: "in a restricted file, a definition that can reach a suspension point is declared with `suspends(f)`",
         witness: "definput(\"schema\", \"b3:abc\")\n\ndef pause(ms: Int) -> Int\n  sleep_for(ms)\n  ms\nend\n",
         waivable: true,
@@ -2111,7 +2111,9 @@ Below `restricted` blue infers this and asks nothing. A restricted file
 such definition visible: write `suspends(name)` after it. The finding names
 the chain to the word. Reach is read from names, so a definition that only
 hands a function naming `receive` to `spawn` counts too; declare it, or
-`# waive B0101: reason` above it.",
+`# waive B0101: reason` above it. `blue check --fix` writes the declaration
+after each definition it names; it returns nil and changes nothing a program
+does.",
     }
 }
 

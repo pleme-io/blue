@@ -1440,6 +1440,15 @@ fn check_stage_in(
     (outcome, table, cached)
 }
 
+/// Whether `form` defines a function with no parameters, whose bare name is a
+/// call.
+fn nullary(form: &tatara_lisp::Spanned) -> bool {
+    form.as_list()
+        .and_then(|items| items.get(1))
+        .and_then(tatara_lisp::Spanned::as_list)
+        .is_some_and(|signature| signature.len() == 1)
+}
+
 fn entry_is_restricted(program: &crate::uses::ResolvedProgram) -> bool {
     let entry: Vec<tatara_lisp::Spanned> = program
         .forms()
@@ -1484,6 +1493,15 @@ fn colour_diagnostics(
                 .iter()
                 .map(|k| crate::observe::display_key(k))
                 .collect();
+            let declaration = if nullary(form) {
+                format!("suspends(fn() {name} end)")
+            } else {
+                format!("suspends({name})")
+            };
+            let end = tatara_lisp::Span {
+                start: form.span.end,
+                end: form.span.end,
+            };
             Some(
                 Diagnostic::new(
                     Code::B0101,
@@ -1491,9 +1509,16 @@ fn colour_diagnostics(
                     at,
                 )
                 .at_top_level(d.top_level)
-                .with_help(format!(
-                    "declare it: `suspends({name})` after the definition"
-                )),
+                .with_help(format!("declare it: `{declaration}` after the definition"))
+                .with_fix(blue_lang_check::Fix {
+                    message: format!("declare `{declaration}`"),
+                    edits: vec![blue_lang_check::Edit {
+                        span: end,
+                        original: String::new(),
+                        replacement: format!("\n\n{declaration}"),
+                    }],
+                    applicability: blue_lang_check::Applicability::MachineApplicable,
+                }),
             )
         })
         .collect()

@@ -68,7 +68,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/ci.b` | `checks.workflows` |
 | `blue test kernel/x86_llvm.b` | `checks.x86-isa-llvm` |
 
-Generated files, never edited by hand: the 37 paths `Bluefile.lock` names under `catalog` and each `generated` entry's `output`.
+Generated files, never edited by hand: the 38 paths `Bluefile.lock` names under `catalog` and each `generated` entry's `output`.
 
 ## Writing blue programs
 

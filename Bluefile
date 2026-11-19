@@ -205,3 +205,5 @@ check("consumers", "gen/consumers.b", ["gen/consumers.json"], {stage: :ci})
 # eval/score.b. The check holds every reference at ten of ten and breaks one to
 # prove the scorer can say no.
 check("model-eval", "eval/score_test.b", ["eval"], {stage: :ci})
+
+generate("hannou-hooks", "bidamas/hannou/gen/hooks.yaml", "gen/hannou.b", ["bidamas"])

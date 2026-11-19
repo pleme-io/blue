@@ -69,6 +69,7 @@ use("gamen")
 use("gitto")
 use("gurafu")
 use("hadome")
+use("hannou")
 use("happa")
 use("hashiru")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
@@ -220,6 +221,7 @@ test "every bidama in the distribution answers through this one import"
     "entry",
     "k"
   ) == 5
+  assert hannou::render([]) == unlines(["hooks: {}"])
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
   assert todokede::jitaku::to_json([]) == "{\"enable\":true}"
   assert todokede::kinko::interval_s("families", 16) == 2765

@@ -1,0 +1,10 @@
+hooks:
+  Stop:
+    - action: "react"
+      enabled: false
+      minTurnSecs: 90
+      reaction: "sound"
+  UserPromptSubmit:
+    - action: "react"
+      enabled: false
+      reaction: "mark"

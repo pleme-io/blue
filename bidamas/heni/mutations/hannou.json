@@ -1,0 +1,92 @@
+[
+  {
+    "name": "a mark reaction is placed on Stop",
+    "file": "hannou.b",
+    "find": "  if kind == :mark\n    \"UserPromptSubmit\"",
+    "replace": "  if kind == :sound\n    \"UserPromptSubmit\""
+  },
+  {
+    "name": "a mark reaction may carry a sound",
+    "file": "hannou.b",
+    "find": "k == :mark and not r[:sound].nil?,",
+    "replace": "false,"
+  },
+  {
+    "name": "a mark reaction may carry minTurnSecs",
+    "file": "hannou.b",
+    "find": "k == :mark and not t.nil?,",
+    "replace": "false,"
+  },
+  {
+    "name": "zero seconds is a positive integer",
+    "file": "hannou.b",
+    "find": "integer?(t) and t > 0",
+    "replace": "integer?(t) and t >= 0"
+  },
+  {
+    "name": "a fractional threshold is an integer",
+    "file": "hannou.b",
+    "find": "integer?(t) and t > 0",
+    "replace": "t > 0"
+  },
+  {
+    "name": "a name declared twice is accepted",
+    "file": "hannou.b",
+    "find": "> 1, keys)",
+    "replace": "> 2, keys)"
+  },
+  {
+    "name": "a name is unique across events",
+    "file": "hannou.b",
+    "find": "\"#{r[:name]}/#{r[:event]}\"",
+    "replace": "r[:name]"
+  },
+  {
+    "name": "every entry renders enabled",
+    "file": "hannou.b",
+    "find": "enabled: r[:enabled]}",
+    "replace": "enabled: true}"
+  },
+  {
+    "name": "entries keep declaration order",
+    "file": "hannou.b",
+    "find": "sort_keyed((r) -> r[:name], filter((r) -> r[:event] == e, rs))",
+    "replace": "filter((r) -> r[:event] == e, rs)"
+  },
+  {
+    "name": "render skips validation",
+    "file": "hannou.b",
+    "find": "  enforce(rs, [validate])\n",
+    "replace": "  nil\n"
+  },
+  {
+    "name": "a sound reaction may sit on UserPromptSubmit",
+    "file": "hannou.b",
+    "find": "known_kind and known_event and r[:event] != home_event(k),",
+    "replace": "known_kind and known_event and k == :mark and r[:event] != home_event(k),"
+  },
+  {
+    "name": "the sound file is dropped",
+    "file": "hannou.b",
+    "find": "    assoc(base, :sound, r[:sound])",
+    "replace": "    base"
+  },
+  {
+    "name": "the threshold is dropped",
+    "file": "hannou.b",
+    "find": "    assoc(with_sound, :minTurnSecs, r[:min_turn_secs])",
+    "replace": "    with_sound"
+  },
+  {
+    "name": "a non-boolean flag is accepted",
+    "file": "hannou.b",
+    "find": "r[:enabled] != true and r[:enabled] != false,",
+    "replace": "false,"
+  },
+  {
+    "name": "an unknown event is accepted",
+    "file": "hannou.b",
+    "find": "    [\n      not known_event,",
+    "replace": "    [\n      false,"
+  }
+]

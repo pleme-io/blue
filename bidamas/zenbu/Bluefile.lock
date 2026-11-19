@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:5a6a39a1b5ec248ee42da6643c22aa8a9c20dce1ae96c926de4b37f3ef2d387a",
+  "bluefile_b3": "b3:57dd13ab3eb006c199c4b3cc4a83335b88ebed1b7886c3e744696a628e830aaa",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -21,6 +21,7 @@
       "gitto": "^0.1.0",
       "gurafu": "^0.1.0",
       "hadome": "^0.1.0",
+      "hannou": "^0.1.0",
       "happa": "^0.1.0",
       "hashiru": "^0.1.0",
       "heni": "^0.1.0",

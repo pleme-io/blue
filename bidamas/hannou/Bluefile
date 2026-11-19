@@ -1,0 +1,5 @@
+package("hannou", "0.1.0")
+tier(:toolchain)
+needs("deeta", "^0.1")
+needs("kyohi", "^0.1")
+needs("retsu", "^0.1")

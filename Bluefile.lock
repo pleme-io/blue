@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:df1e30f19812ff4a5dab5c6e97f929fe1edbadf0f57c255aab67f3c818257291",
+  "bluefile_b3": "b3:e29e78d9b876407dddf5af9c96e91efa2dbbfbbcab3f7d8a4fc275aa10842b14",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -306,6 +306,13 @@
         "program": "gen/gitattributes.b",
         "inputs": [
           "Bluefile.lock"
+        ]
+      },
+      "hannou-hooks": {
+        "output": "bidamas/hannou/gen/hooks.yaml",
+        "program": "gen/hannou.b",
+        "inputs": [
+          "bidamas"
         ]
       },
       "kernel-matrix": {

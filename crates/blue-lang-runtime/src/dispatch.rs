@@ -171,6 +171,13 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
     };
     let reg: Shared = Arc::new(Mutex::new(inherited.unwrap_or_default()));
     interp.define_global(STATE, Value::Foreign(reg.clone()));
+    let owned = Arc::downgrade(&reg);
+    interp.on_release(move || {
+        if let Some(reg) = owned.upgrade() {
+            let mut held = reg.lock().unwrap_or_else(|p| p.into_inner());
+            held.handlers.clear();
+        }
+    });
 
     let r = reg.clone();
     interp.register_fn(

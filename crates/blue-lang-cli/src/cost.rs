@@ -154,6 +154,13 @@ fn parse(text: &str) -> Option<Table> {
     })
 }
 
+/// The table this binary's cache holds, never measured here: what a run
+/// prices by (rule R19).
+pub(crate) fn cached() -> Option<Table> {
+    let text = std::fs::read_to_string(cache_file()?).ok()?;
+    parse(&text)
+}
+
 /// The table for this binary: read from the cache, else measured and kept.
 pub(crate) fn table() -> Table {
     let file = cache_file();

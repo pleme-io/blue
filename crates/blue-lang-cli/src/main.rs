@@ -1033,6 +1033,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // the LSP, a Bluefile — runs under the configured bounds.
     blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
     blue_lang_runtime::wire::set_flash_rate(cfg.flash_bytes_per_second);
+    if let Some(table) = cost::cached() {
+        blue_lang_runtime::cost::install(table);
+    }
     install_check_cache(matches!(
         &cli.cmd,
         Cmd::Check { no_cache: true, .. } | Cmd::Test { no_cache: true, .. }

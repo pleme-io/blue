@@ -1,6 +1,9 @@
 //! Equality saturation over blue's erased trees: S2 of docs/ENGINES.md.
 //!
-//! The typed surface blue reaches `egg` through (Willsey et al., POPL 2021);
+//! The typed surface blue reaches `egg` 0.9.5 through (Willsey et al., POPL
+//! 2021), pinned: 0.10 and later time each run with `quanta`, whose clock
+//! calibration costs about 200 ms once per process, a price every `blue run`
+//! that saturates would pay;
 //! nothing else in blue names `egg`. An erased tree goes in as a
 //! [`RecExpr`] over `egg`'s [`SymbolLang`], rules saturate it within
 //! [`Limits`], and a cost function picks the form that comes out.

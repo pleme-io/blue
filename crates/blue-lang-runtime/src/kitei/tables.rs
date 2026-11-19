@@ -33,4 +33,9 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
         &["independent_reads", "commuting_effects"],
         "BLUE_BATCH=off",
     ),
+    (
+        "R19",
+        &["measured_costs", "stage_call"],
+        "BLUE_SATURATE=off",
+    ),
 ];

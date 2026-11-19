@@ -153,6 +153,21 @@ pub fn calibrate(measure: &dyn Fn(&str, usize) -> Option<Price>, alloc_weight: f
     }
 }
 
+static INSTALLED: std::sync::OnceLock<Table> = std::sync::OnceLock::new();
+
+/// Make `table` the one this process prices by; only the first call counts.
+/// The `blue` binary installs the table its cache holds, and never measures
+/// one during a run.
+pub fn install(table: Table) {
+    let _ = INSTALLED.set(table);
+}
+
+/// The table [`install`] set, or `None` when no table was measured.
+#[must_use]
+pub fn installed() -> Option<&'static Table> {
+    INSTALLED.get()
+}
+
 /// One step: what a name the table does not price costs per call.
 const UNPRICED: Price = Price {
     steps: 1.0,

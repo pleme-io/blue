@@ -365,11 +365,13 @@ Each wave lists defaults in the order their gain is known. Each default meets
     (a poisoned kept literal is what the second fold writes; red when the
     fold runs the call again). `BLUE_FOLD=off` and `BLUE_CHECK_CACHE=off` turn
     it off.
-  - Next: a search over equivalent forms, the expensive optimization this
-    row names. Waits on the forms to search: blue has rewrite rules
-    (fusion, the fold, the builder) but no equality saturation over them,
-    and a search needs a cost model the profile does not yet give per form.
-    The plan for both, phases S1 to S4, is [ENGINES.md](ENGINES.md) §2.
+  - ✅ A search over equivalent forms (rule R19): blue's rewrites are rules
+    over one e-graph per stage call (`blue-lang-saturate`, over `egg`),
+    saturated within a budget and extracted by a measured cost model (S1,
+    `blue cost`), the decision kept by the call and recalled; fusion is
+    its first rule, and saturation gives the tree fusion gives on every
+    chain the parity gate holds. Erasure: 0.67 ms to decide, 0.16 ms
+    recalled. [ENGINES.md](ENGINES.md) §2 has each phase and its lock.
 
 ### W4: concurrency from facts
 

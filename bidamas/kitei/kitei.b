@@ -16,7 +16,7 @@ record rule(id, needs, when, lever, receipt, switch, state, locks)
 @doc """
 rules: every rule of the default cascade, in the order of its id.
 
-    size(rules) #=> 18
+    size(rules) #=> 19
 """
 def rules()
   [
@@ -199,6 +199,16 @@ def rules()
       "BLUE_BATCH=off",
       :shipped,
       "tests/batch.rs"
+    ),
+    rule(
+      "R19",
+      %i[measured_costs stage_call],
+      "a call headed by map, filter or reduce that no local binds, in a binary whose cost table is measured",
+      "it is saturated over blue's rules and replaced by the cheapest form the table prices, the written one on a tie; the choice is kept by the call and recalled",
+      "--timings counts each call it changed (saturated) and names each chain fused",
+      "BLUE_SATURATE=off",
+      :shipped,
+      "tests/saturate.rs"
     )
   ]
 end
@@ -253,13 +263,13 @@ end
 
 test "every rule has a distinct id in order, and a state blue knows"
   ids = map((r) -> r.id, rules)
-  assert ids == map((n) -> "R#{n}", range(1, 19))
+  assert ids == map((n) -> "R#{n}", range(1, 20))
   assert every?((r) -> member?(r.state, %i[shipped folded refused]), rules)
 end
 
 test "a rule with a switch names a BLUE variable and the value that turns it off"
   switched = filter((r) -> r.switch != "none", rules)
-  assert size(switched) == 13
+  assert size(switched) == 14
   assert every?(
     (r) -> starts_with?(r.switch, "BLUE_") and contains?(r.switch, "="),
     switched
@@ -267,7 +277,7 @@ test "a rule with a switch names a BLUE variable and the value that turns it off
 end
 
 test "the rules that are not shipped are R6, folded into R7, and R11, refused"
-  assert size(shipped) == 16
+  assert size(shipped) == 17
   assert not member?("R6", shipped)
   assert not member?("R11", shipped)
   assert named("R6").state == :folded

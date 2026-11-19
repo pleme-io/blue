@@ -45,6 +45,7 @@ pub enum Pass {
     Names,
     Rule,
     Fold,
+    Saturate,
 }
 
 impl Pass {
@@ -55,6 +56,7 @@ impl Pass {
             Self::Names => "names",
             Self::Rule => "rule",
             Self::Fold => "fold",
+            Self::Saturate => "saturate",
         }
     }
 }

@@ -23,26 +23,33 @@ use crate::cost::{self, Table};
 
 const FUSED: &str = "%fused:";
 
-/// The fused trees a set of rules made, by number.
+/// The fused trees a set of rules made, by number, and the number each
+/// matched tree was given: a rule that fires again on a tree it has seen
+/// gives the leaf it gave before, so the graph saturates.
 #[derive(Clone, Default)]
-pub struct Held(Arc<Mutex<Vec<Spanned>>>);
+pub struct Held(Arc<Mutex<(Vec<Spanned>, BTreeMap<String, usize>)>>);
 
 impl Held {
-    fn keep(&self, form: Spanned) -> usize {
-        let mut held = self
-            .0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        held.push(form);
-        held.len() - 1
-    }
-
-    fn get(&self, n: usize) -> Option<Spanned> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, (Vec<Spanned>, BTreeMap<String, usize>)> {
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(n)
-            .cloned()
+    }
+
+    fn seen(&self, matched: &str) -> Option<usize> {
+        self.lock().1.get(matched).copied()
+    }
+
+    fn keep(&self, matched: String, form: Spanned) -> usize {
+        let mut held = self.lock();
+        held.0.push(form);
+        let n = held.0.len() - 1;
+        held.1.insert(matched, n);
+        n
+    }
+
+    fn get(&self, n: usize) -> Option<Spanned> {
+        self.lock().0.get(n).cloned()
     }
 }
 
@@ -67,12 +74,16 @@ pub fn rules(defined: &Arc<Vec<Spanned>>, held: &Held) -> Vec<Rule> {
         let defined = Arc::clone(defined);
         let held = held.clone();
         form_rule(name, pattern, move |form: &Spanned| {
+            let matched = form.to_sexp().to_string();
+            if let Some(n) = held.seen(&matched) {
+                return Some(leaf(&format!("{FUSED}{n}")));
+            }
             let fused = crate::fuse::fuse(vec![form.clone()], &defined);
             if fused.chains.is_empty() {
                 return None;
             }
             let tree = fused.forms.into_iter().next()?;
-            Some(leaf(&format!("{FUSED}{}", held.keep(tree))))
+            Some(leaf(&format!("{FUSED}{}", held.keep(matched, tree))))
         })
         .ok()
     })
@@ -145,6 +156,156 @@ pub fn cheapest(
     (expand(out, &held), before, after)
 }
 
+/// The words a stage call is headed by: what R19 saturates.
+const STAGE_WORDS: [&str; 3] = ["map", "filter", "reduce"];
+
+/// Whether rule R19 runs: a measured cost table is installed
+/// ([`cost::installed`]), `BLUE_SATURATE=off` is not set, and no command
+/// holds the rewrites off.
+#[must_use]
+pub fn enabled() -> bool {
+    cost::installed().is_some() && !crate::fuse::held_off() && !crate::kitei::switched_off("R19")
+}
+
+/// What rule R19 did to a program: the forms, and the chains it fused.
+pub struct Saturated {
+    pub forms: Vec<Spanned>,
+    pub chains: Vec<String>,
+}
+
+/// Rule R19 (S4 of docs/ENGINES.md): each outermost call headed by a stage
+/// word that no local binds is saturated within the default limits and
+/// replaced by the cheapest form under `table`, the written one on a tie.
+/// Only that call is rebuilt, so the rest of the definition keeps its
+/// positions, and a fused call is fusion's own tree, with fusion's. The
+/// choice is kept in the check cache by the call's text and recalled after,
+/// so a call is saturated once per build: a fused one is fused again, which
+/// is cheap, a kept one is left.
+#[must_use]
+pub fn program(erased: Vec<Spanned>, defined: &[Spanned], table: &Table) -> Saturated {
+    let defined = Arc::new(defined.to_vec());
+    let cache = crate::check_cache::installed();
+    let mut chains = Vec::new();
+    let forms = erased
+        .iter()
+        .map(|f| {
+            let mut walk = Walk {
+                defined: &defined,
+                table,
+                cache: cache.as_ref(),
+                bound: Vec::new(),
+                chains: &mut chains,
+            };
+            walk.form(f)
+        })
+        .collect();
+    if let Some(cache) = &cache {
+        cache.flush();
+    }
+    Saturated { forms, chains }
+}
+
+struct Walk<'a, 'c> {
+    defined: &'a Arc<Vec<Spanned>>,
+    table: &'a Table,
+    cache: Option<&'a crate::check_cache::CheckCache<'c>>,
+    bound: Vec<String>,
+    chains: &'a mut Vec<String>,
+}
+
+impl Walk<'_, '_> {
+    fn form(&mut self, form: &Spanned) -> Spanned {
+        let Some(items) = form.as_list() else {
+            return form.clone();
+        };
+        let head = items.first().and_then(Spanned::as_symbol);
+        if let Some(word) = head {
+            if STAGE_WORDS.contains(&word) && !self.bound.iter().any(|b| b == word) {
+                return self.stage(form);
+            }
+        }
+        let depth = self.bound.len();
+        self.bound.extend(binders(form));
+        let out: Vec<Spanned> = items.iter().map(|i| self.form(i)).collect();
+        self.bound.truncate(depth);
+        Spanned::new(form.span, SpannedForm::List(out))
+    }
+
+    fn stage(&mut self, form: &Spanned) -> Spanned {
+        let text = form.to_sexp().to_string();
+        let remembered = self.cache.map(|c| {
+            let entry = c.key(crate::check_cache::Pass::Saturate, &[text.as_bytes()]);
+            let bucket = crate::def_hash::DefHash(crate::check_cache::digest(&[b"saturate"]));
+            (c, bucket, entry)
+        });
+        let fuse_it = |s: &mut Self| {
+            let fused = crate::fuse::fuse(vec![form.clone()], s.defined);
+            s.chains.extend(fused.chains);
+            fused
+                .forms
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| form.clone())
+        };
+        if let Some((cache, bucket, entry)) = &remembered {
+            if let Some(kept) = cache.get(crate::check_cache::Pass::Saturate, bucket, entry) {
+                return if kept == b"fused" {
+                    fuse_it(self)
+                } else {
+                    form.clone()
+                };
+            }
+        }
+        let (out, before, after) = cheapest(form, self.defined, self.table, Limits::default());
+        let fused = after < before;
+        if let Some((cache, bucket, entry)) = remembered {
+            let decision: &[u8] = if fused { b"fused" } else { b"kept" };
+            cache.put(&bucket, entry, decision.to_vec());
+        }
+        if fused {
+            crate::timings::count("saturated", 1);
+            fuse_it(self)
+        } else {
+            let _ = out;
+            form.clone()
+        }
+    }
+}
+
+fn binders(form: &Spanned) -> Vec<String> {
+    let Some(items) = form.as_list() else {
+        return Vec::new();
+    };
+    let names = |l: Option<&Spanned>, skip: usize| -> Vec<String> {
+        l.and_then(Spanned::as_list)
+            .map(|ps| {
+                ps.iter()
+                    .skip(skip)
+                    .filter_map(|p| p.as_symbol().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    match items.first().and_then(Spanned::as_symbol) {
+        Some("lambda") => names(items.get(1), 0),
+        Some("define") => match items.get(1) {
+            Some(t) if t.as_list().is_some() => names(Some(t), 1),
+            Some(t) => t.as_symbol().map(str::to_string).into_iter().collect(),
+            None => Vec::new(),
+        },
+        Some("let") => items
+            .get(1)
+            .and_then(Spanned::as_list)
+            .map(|bs| {
+                bs.iter()
+                    .filter_map(|b| b.as_list()?.first()?.as_symbol().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
 /// A table with no measured word: every node a step, an allocation a step.
 #[must_use]
 pub fn unmeasured() -> Table {
@@ -211,6 +372,28 @@ mod tests {
             let (fusion, saturation) = parity(src);
             assert_eq!(saturation, fusion, "{src}");
         }
+    }
+
+    #[test]
+    fn a_rule_that_fires_again_on_a_tree_it_has_seen_lets_the_graph_saturate() {
+        let (erased, lowered) =
+            program("def f(xs)\n  reduce((a, x) -> a + x, 0, map((x) -> x * 3, xs))\nend\n");
+        let held = Held::default();
+        let rules = rules(&Arc::new(lowered), &held);
+        let form = &erased[erased.len() - 1];
+        let started = std::time::Instant::now();
+        let _ = blue_lang_saturate::cheapest(
+            form,
+            &rules,
+            Limits::default(),
+            node_price(&measured_like(), 1000.0, &held),
+        );
+        assert!(
+            started.elapsed() < Limits::default().time / 2,
+            "saturation ran to its time limit: {:?}",
+            started.elapsed()
+        );
+        assert_eq!(held.lock().0.len(), 1, "one fused tree, made once");
     }
 
     #[test]

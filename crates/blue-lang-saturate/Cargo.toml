@@ -10,7 +10,7 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-egg = "0.11"
+egg = "=0.9.5"
 tatara-lisp = { workspace = true }
 
 [dev-dependencies]

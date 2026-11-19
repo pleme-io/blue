@@ -980,7 +980,23 @@ def rc_op(slots, op, args)
         {op: "lea_label", dst: "rdx", label: kw_label(:stdout)},
         {op: "lea_label", dst: "rcx", label: kw_label(:stderr)},
         {op: "mov", dst: "r8", imm: 0},
+        {op: "mov", dst: "r9", imm: 0},
         {op: "call_label", label: "rt_exec_capture"}
+      ]
+    )
+  elsif op == "exec_with_stdin"
+    append(
+      *[
+        list_code(slots, rest(args)),
+        [{op: "mov", dst: "rdi", src: "rax"}],
+        tagged_atom(slots, args[0], "r9"),
+        [
+          {op: "mov", dst: "r8", imm: 0},
+          {op: "lea_label", dst: "rsi", label: kw_label(:status)},
+          {op: "lea_label", dst: "rdx", label: kw_label(:stdout)},
+          {op: "lea_label", dst: "rcx", label: kw_label(:stderr)},
+          {op: "call_label", label: "rt_exec_capture"}
+        ]
       ]
     )
   elsif op == "exec_with_env"
@@ -990,6 +1006,7 @@ def rc_op(slots, op, args)
         [{op: "mov", dst: "rdi", src: "rax"}],
         tagged_atom(slots, args[0], "r8"),
         [
+          {op: "mov", dst: "r9", imm: 0},
           {op: "lea_label", dst: "rsi", label: kw_label(:status)},
           {op: "lea_label", dst: "rdx", label: kw_label(:stdout)},
           {op: "lea_label", dst: "rcx", label: kw_label(:stderr)},
@@ -3928,18 +3945,18 @@ def split_fds(at, r, w)
 end
 
 @doc """
-poll_word: the instructions that write one pollfd at rbp+slot for the descriptor at rbp+fd, waiting to read (POLLIN): a closed stream holds -1, which poll ignores.
+poll_word: the instructions that write one pollfd at rbp+slot for the descriptor at rbp+fd, waiting for events (1, POLLIN, to read; 4, POLLOUT, to write): a closed stream holds -1, which poll ignores.
 
-    last(poll_word(-96, -184)) #=> {op: "store", src: "rax", base: "rbp", disp: -184}
+    last(poll_word(-96, -184, 1)) #=> {op: "store", src: "rax", base: "rbp", disp: -184}
 """
-def poll_word(fd, slot)
+def poll_word(fd, slot, events)
   [
     {op: "load", dst: "rax", base: "rbp", disp: fd},
     {op: "cmp", dst: "rax", imm: 0},
     {op: "j", cond: "ge", label: "rt_xc_fd#{to_s(-slot)}"},
     {op: "movabs", dst: "rax", imm: 4_294_967_295},
     {op: "label", name: "rt_xc_fd#{to_s(-slot)}"},
-    {op: "movabs", dst: "rcx", imm: 4_294_967_296},
+    {op: "movabs", dst: "rcx", imm: events * 4_294_967_296},
     {op: "add", dst: "rax", src: "rcx"},
     {op: "store", src: "rax", base: "rbp", disp: slot}
   ]
@@ -3983,6 +4000,115 @@ def drain_ready(slot, fd, buf, len)
         {op: "sub", dst: "rcx", imm: 1},
         {op: "store", src: "rcx", base: "rbp", disp: -192},
         {op: "label", name: "#{tag}_skip"}
+      ]
+    ]
+  )
+end
+
+@doc """
+sigpipe_to: the instructions that set what SIGPIPE does (rt_sigaction, 13) to handler: 1 ignores it, so writing to a pipe whose reader has gone answers an error instead of ending the program; 0 restores the default, which a child sets before it runs its command. The sigaction it passes is at rbp-472.
+
+    sigpipe_to(1)[0] #=> {op: "mov", dst: "rcx", imm: 1}
+"""
+def sigpipe_to(handler)
+  [
+    {op: "mov", dst: "rcx", imm: handler},
+    {op: "store", src: "rcx", base: "rbp", disp: -472},
+    {op: "mov", dst: "rcx", imm: 0},
+    {op: "store", src: "rcx", base: "rbp", disp: -464},
+    {op: "store", src: "rcx", base: "rbp", disp: -456},
+    {op: "store", src: "rcx", base: "rbp", disp: -448},
+    {op: "mov", dst: "rdi", imm: 13},
+    {op: "mov", dst: "rsi", src: "rbp"},
+    {op: "add", dst: "rsi", imm: -472},
+    {op: "mov", dst: "rdx", imm: 0},
+    {op: "mov", dst: "r10", imm: 8},
+    {op: "mov", dst: "rax", imm: 13},
+    {op: "syscall"}
+  ]
+end
+
+@doc """
+stdin_pipe: the instructions that, when an input string is at rbp-328, make the pipe the child reads it from (read end at rbp-344, write end at rbp-352, bytes written so far at rbp-360); with no input both ends are -1 and the child keeps the program's stdin.
+
+    stdin_pipe[0] #=> {op: "mov", dst: "rcx", imm: -1}
+"""
+def stdin_pipe()
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: -1},
+        {op: "store", src: "rcx", base: "rbp", disp: -344},
+        {op: "store", src: "rcx", base: "rbp", disp: -352},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -360},
+        {op: "load", dst: "rcx", base: "rbp", disp: -328},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "rt_xc_no_input"},
+        {op: "mov", dst: "rdi", src: "rbp"},
+        {op: "add", dst: "rdi", imm: -336},
+        {op: "mov", dst: "rax", imm: 22},
+        {op: "syscall"}
+      ],
+      split_fds(-336, -344, -352),
+      [{op: "label", name: "rt_xc_no_input"}]
+    ]
+  )
+end
+
+@doc """
+PIPE_BUF: the bytes a pipe that poll reports writable is sure to take without blocking (Linux's PIPE_BUF), so one write of at most this much never waits on a reader that is itself waiting to be read.
+
+    PIPE_BUF #=> 4096
+"""
+PIPE_BUF = 4096
+
+@doc """
+feed_ready: the instructions that, when the pollfd at rbp+slot shows the child's stdin ready, write the next part of the input at rbp-328 to it, at most PIPE_BUF bytes so the write cannot block, and close it once all is written or a write fails (the child has gone).
+
+    length(feed_ready(-416)) > 48 #=> true
+"""
+def feed_ready(slot)
+  append(
+    *[
+      [{op: "load", dst: "rax", base: "rbp", disp: slot}],
+      map((k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
+      [
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "rt_xc_feed_skip"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -352},
+        {op: "cmp", dst: "rdi", imm: 0},
+        {op: "j", cond: "l", label: "rt_xc_feed_skip"},
+        {op: "load", dst: "rsi", base: "rbp", disp: -328},
+        {op: "load", dst: "rdx", base: "rsi", disp: 24},
+        {op: "load", dst: "rcx", base: "rbp", disp: -360},
+        {op: "cmp", dst: "rcx", src: "rdx"},
+        {op: "j", cond: "ge", label: "rt_xc_feed_close"},
+        {op: "add", dst: "rsi", imm: 32},
+        {op: "add", dst: "rsi", src: "rcx"},
+        {op: "sub", dst: "rdx", src: "rcx"},
+        {op: "cmp", dst: "rdx", imm: PIPE_BUF},
+        {op: "j", cond: "le", label: "rt_xc_feed_write"},
+        {op: "mov", dst: "rdx", imm: PIPE_BUF},
+        {op: "label", name: "rt_xc_feed_write"},
+        {op: "mov", dst: "rax", imm: 1},
+        {op: "syscall"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "le", label: "rt_xc_feed_close"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -360},
+        {op: "add", dst: "rcx", src: "rax"},
+        {op: "store", src: "rcx", base: "rbp", disp: -360},
+        {op: "load", dst: "rsi", base: "rbp", disp: -328},
+        {op: "load", dst: "rdx", base: "rsi", disp: 24},
+        {op: "cmp", dst: "rcx", src: "rdx"},
+        {op: "j", cond: "l", label: "rt_xc_feed_skip"},
+        {op: "label", name: "rt_xc_feed_close"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -352},
+        {op: "mov", dst: "rax", imm: 3},
+        {op: "syscall"},
+        {op: "mov", dst: "rcx", imm: -1},
+        {op: "store", src: "rcx", base: "rbp", disp: -352},
+        {op: "label", name: "rt_xc_feed_skip"}
       ]
     ]
   )
@@ -4059,14 +4185,16 @@ RT_EXEC_CAPTURE = append(
       {op: "label", name: "rt_exec_capture"},
       {op: "push_rbp"},
       {op: "mov", dst: "rbp", src: "rsp"},
-      {op: "sub", dst: "rsp", imm: 320},
+      {op: "sub", dst: "rsp", imm: 480},
       {op: "store", src: "rdi", base: "rbp", disp: -8},
       {op: "store", src: "rsi", base: "rbp", disp: -56},
       {op: "store", src: "rdx", base: "rbp", disp: -64},
       {op: "store", src: "rcx", base: "rbp", disp: -72},
-      {op: "store", src: "r8", base: "rbp", disp: -264}
+      {op: "store", src: "r8", base: "rbp", disp: -264},
+      {op: "store", src: "r9", base: "rbp", disp: -328}
     ],
     argv_on_stack("rt_xc"),
+    sigpipe_to(1),
     [
       {op: "mov", dst: "rdi", src: "rbp"},
       {op: "add", dst: "rdi", imm: -80},
@@ -4079,6 +4207,7 @@ RT_EXEC_CAPTURE = append(
     ],
     split_fds(-80, -96, -104),
     split_fds(-88, -112, -120),
+    stdin_pipe,
     envp_with(-264, -272, "rt_xc_env"),
     flat_map(
       [-128, -144],
@@ -4110,8 +4239,29 @@ RT_EXEC_CAPTURE = append(
       {op: "load", dst: "rdi", base: "rbp", disp: -120},
       {op: "mov", dst: "rsi", imm: 2},
       {op: "mov", dst: "rax", imm: 33},
-      {op: "syscall"}
+      {op: "syscall"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -344},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "l", label: "rt_xc_no_stdin"},
+      {op: "mov", dst: "rsi", imm: 0},
+      {op: "mov", dst: "rax", imm: 33},
+      {op: "syscall"},
+      {op: "label", name: "rt_xc_no_stdin"}
     ],
+    flat_map(
+      [-352, -344, -96, -112],
+      fn(slot)
+        [
+          {op: "load", dst: "rdi", base: "rbp", disp: slot},
+          {op: "cmp", dst: "rdi", imm: 0},
+          {op: "j", cond: "l", label: "rt_xc_child_close#{to_s(-slot)}"},
+          {op: "mov", dst: "rax", imm: 3},
+          {op: "syscall"},
+          {op: "label", name: "rt_xc_child_close#{to_s(-slot)}"}
+        ]
+      end
+    ),
+    sigpipe_to(0),
     exec_child("rt_xc", -272),
     [
       {op: "label", name: "rt_xc_parent"},
@@ -4122,6 +4272,12 @@ RT_EXEC_CAPTURE = append(
       {op: "load", dst: "rdi", base: "rbp", disp: -120},
       {op: "mov", dst: "rax", imm: 3},
       {op: "syscall"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -344},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "l", label: "rt_xc_in_closed"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "label", name: "rt_xc_in_closed"},
       {op: "mov", dst: "rcx", imm: 2},
       {op: "store", src: "rcx", base: "rbp", disp: -192},
       {op: "label", name: "rt_xc_poll"},
@@ -4129,21 +4285,29 @@ RT_EXEC_CAPTURE = append(
       {op: "cmp", dst: "rcx", imm: 0},
       {op: "j", cond: "e", label: "rt_xc_read"}
     ],
-    poll_word(-96, -184),
-    poll_word(-112, -176),
+    poll_word(-96, -432, 1),
+    poll_word(-112, -424, 1),
+    poll_word(-352, -416, 4),
     [
       {op: "mov", dst: "rdi", src: "rbp"},
-      {op: "add", dst: "rdi", imm: -184},
-      {op: "mov", dst: "rsi", imm: 2},
+      {op: "add", dst: "rdi", imm: -432},
+      {op: "mov", dst: "rsi", imm: 3},
       {op: "mov", dst: "rdx", imm: -1},
       {op: "mov", dst: "rax", imm: 7},
       {op: "syscall"}
     ],
-    drain_ready(-184, -96, -128, -136),
-    drain_ready(-176, -112, -144, -152),
+    drain_ready(-432, -96, -128, -136),
+    drain_ready(-424, -112, -144, -152),
+    feed_ready(-416),
     [
       {op: "jmp", label: "rt_xc_poll"},
       {op: "label", name: "rt_xc_read"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -352},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "l", label: "rt_xc_in_done"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "label", name: "rt_xc_in_done"},
       {op: "mov", dst: "rcx", imm: 0},
       {op: "store", src: "rcx", base: "rbp", disp: -168},
       {op: "load", dst: "rdi", base: "rbp", disp: -160},
@@ -4188,6 +4352,8 @@ RT_EXEC_CAPTURE = append(
       {op: "load", dst: "rdi", base: "rbp", disp: -8},
       {op: "call_label", label: "rt_drop"},
       {op: "load", dst: "rdi", base: "rbp", disp: -264},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -328},
       {op: "call_label", label: "rt_drop"},
       {op: "load", dst: "rax", base: "rbp", disp: -240},
       {op: "mov", dst: "rsp", src: "rbp"},
@@ -4252,7 +4418,7 @@ test "exec_capture pipes, polls, waits and builds its answer from cells"
   assert member?({op: "mov", dst: "rax", imm: 7}, RT_EXEC_CAPTURE)
   assert CAPTURE_KEYWORDS == for_each
   assert length(split_fds(-80, -96, -104)) > 32
-  assert last(poll_word(-96, -184))[:disp] == -184
+  assert last(poll_word(-96, -184, 1))[:disp] == -184
   assert length(drain_ready(-184, -96, -128, -136)) > 48
   assert last(string_from_buffer(-128, -136, -248, "t"))[:disp] == -248
   assert last(cell(-56, 0, -208))[:disp] == -208
@@ -4333,4 +4499,65 @@ test "exec_with_env passes its list to rt_exec_capture, which builds the environ
   assert envp_with(-264, -272, "t")[0] ==
     {op: "load", dst: "r9", base: "rbp", disp: -264}
   assert member?({op: "mov", dst: "rcx", imm: 61}, envp_with(-264, -272, "t"))
+end
+
+@doc """
+stdin_programs: programs over exec_with_stdin, with the exit status and output each must give: the input echoed by cat, an input larger than a pipe holds echoed whole while it is still being written, and a child that exits without reading.
+
+    length(stdin_programs) #=> 3
+"""
+def stdin_programs()
+  [
+    [
+      "(let ((r (exec_with_stdin \"hello\\n\" \"cat\"))) (begin (write_stdout (first (rest (first (rest r))))) (first (rest (first r)))))",
+      0,
+      unlines(["hello"])
+    ],
+    [
+      "(begin (define (rep n s) (if (equal? n 0) s (rep (- n 1) (concat s s)))) (let ((r (exec_with_stdin (rep 17 \"ab\") \"cat\"))) (if (equal? (string_length (first (rest (first (rest r))))) 262144) 0 1)))",
+      0,
+      ""
+    ],
+    [
+      "(first (rest (first (exec_with_stdin \"x\" \"sh\" \"-c\" \"exit 3\"))))",
+      3,
+      ""
+    ]
+  ]
+end
+
+test "exec_with_stdin feeds a command its input natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-stdin"), "stdin.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      stdin_programs
+    )
+  end
+end
+
+test "exec_with_stdin passes its input to rt_exec_capture, which pipes it in as the child reads"
+  assert last(rc_op(["s"], "exec_with_stdin", [read_forms("s")[0], "c"])) ==
+    {op: "call_label", label: "rt_exec_capture"}
+  assert sigpipe_to(1)[0] == {op: "mov", dst: "rcx", imm: 1}
+  assert stdin_pipe[0] == {op: "mov", dst: "rcx", imm: -1}
+  assert length(feed_ready(-416)) > 48
+  assert member?({op: "mov", dst: "rdx", imm: PIPE_BUF}, feed_ready(-416))
+  assert member?(
+    {op: "movabs", dst: "rcx", imm: 17_179_869_184},
+    poll_word(-352, -416, 4)
+  )
+  assert member?({op: "mov", dst: "rax", imm: 13}, RT_EXEC_CAPTURE)
 end

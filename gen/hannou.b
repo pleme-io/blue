@@ -8,7 +8,7 @@ def main()
   write_file(out, hannou::render(hannou::long_turn_sound))
 end
 
-test "the rendered hooks read back as the entries guardrail's hook action reads", {
+test "the rendered hooks read back as guardrail's hook entries", {
   kind: :rendering
 }
   t = parse(hannou::render(hannou::long_turn_sound), :yaml)

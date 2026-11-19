@@ -8,7 +8,7 @@ def main()
   write_file(out, hannou::render_json(hannou::long_turn_sound))
 end
 
-test "the rendered JSON reads back as the table guardrail's hook action reads", {
+test "the rendered JSON reads back as guardrail's hook table", {
   kind: :rendering
 }
   t = parse(hannou::render_json(hannou::long_turn_sound), :json)

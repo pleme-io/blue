@@ -963,6 +963,14 @@ def rc_op(slots, op, args)
     )
   elsif member?(op, CLOCK_WORDS)
     clock_code(slots, op, args)
+  elsif op == "exec_check"
+    append(
+      list_code(slots, args),
+      [
+        {op: "mov", dst: "rdi", src: "rax"},
+        {op: "call_label", label: "rt_exec_check"}
+      ]
+    )
   elsif op == "self_exe"
     [{op: "call_label", label: "rt_self_exe"}]
   elsif op == "write_bytes"
@@ -1258,8 +1266,9 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 8}
       ],
+      save_envp,
       main[0],
       fns[0],
       runtime
@@ -1536,6 +1545,32 @@ def rc_global(g, n)
 end
 
 @doc """
+ENVP_AT: where the program keeps its environment pointer, as an offset from r14: the word after the free-list table.
+
+    ENVP_AT #=> 512
+"""
+ENVP_AT = FREE_CLASSES * 8
+
+@doc """
+save_envp: the instructions that keep the environment the kernel passed at entry (envp, after argc, argv and its ending nil on the entry stack, rbp + 24 + 8 * argc once the frame is pushed) at r14 + ENVP_AT, for a child process to inherit.
+
+    last(save_envp)[:disp] #=> ENVP_AT
+"""
+def save_envp()
+  append(
+    *[
+      [{op: "load", dst: "rcx", base: "rbp", disp: 8}],
+      times8("rcx"),
+      [
+        {op: "add", dst: "rcx", src: "rbp"},
+        {op: "add", dst: "rcx", imm: 24},
+        {op: "store", src: "rcx", base: "r14", disp: ENVP_AT}
+      ]
+    ]
+  )
+end
+
+@doc """
 runtime: every runtime routine a reference-counted program carries, in order. rc_program places it after the program and rc_whole takes it back off to put the global functions before it, so both read this one list: a routine added here is never cut in half by one of them counting a shorter list.
 
     runtime[0] #=> {op: "label", name: "rt_alloc"}
@@ -1555,7 +1590,8 @@ def runtime()
       RT_TO_S,
       RT_READ_FILE,
       RT_WRITE_BYTES,
-      RT_SELF_EXE
+      RT_SELF_EXE,
+      RT_EXEC_CHECK
     ]
   )
 end
@@ -3373,4 +3409,172 @@ test "self_exe builds /proc/self/exe on the stack and readlinks it"
     {op: "call_label", label: "rt_self_exe"}
   stand_ins = [{op: "label", name: "rt_alloc"}, {op: "ret"}]
   assert length(assemble(append(RT_SELF_EXE, stand_ins))) > 0
+end
+
+@doc """
+RT_EXEC_CHECK: exec_check natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed; the command runs with no shell and the program's own environment, its output passing through, and its exit status is answered in rax. The child runs /usr/bin/env with the command first, so the command is found on PATH as the reference finds it; argv and each argument, NUL-ended, are built on the stack. A command that cannot run exits 127 (env's own refusal), as a shell reports it.
+
+    RT_EXEC_CHECK[0] #=> {op: "label", name: "rt_exec_check"}
+"""
+RT_EXEC_CHECK = append(
+  *[
+    [
+      {op: "label", name: "rt_exec_check"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 64},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "r10", imm: 0},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "mov", dst: "rdx", src: "rdi"},
+      {op: "label", name: "rt_ex_size"},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "e", label: "rt_ex_sized"},
+      {op: "load", dst: "r8", base: "rdx", disp: 24},
+      {op: "load", dst: "r9", base: "r8", disp: 24},
+      {op: "add", dst: "rcx", src: "r9"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "load", dst: "rdx", base: "rdx", disp: 32},
+      {op: "jmp", label: "rt_ex_size"},
+      {op: "label", name: "rt_ex_sized"},
+      {op: "mov", dst: "r9", src: "r10"},
+      {op: "add", dst: "r9", imm: 2}
+    ],
+    times8("r9"),
+    [
+      {op: "store", src: "r9", base: "rbp", disp: -16},
+      {op: "add", dst: "rcx", src: "r9"},
+      {op: "add", dst: "rcx", imm: 31},
+      {op: "and", dst: "rcx", imm: -16},
+      {op: "sub", dst: "rsp", src: "rcx"},
+      {op: "mov", dst: "r11", src: "rsp"},
+      {op: "store", src: "r11", base: "rbp", disp: -24},
+      {op: "add", dst: "r11", src: "r9"},
+      {op: "store", src: "r11", base: "rbp", disp: -32},
+      {op: "movabs", dst: "rcx", imm: text_word("/usr/bin")},
+      {op: "store", src: "rcx", base: "r11", disp: 0},
+      {op: "movabs", dst: "rcx", imm: text_word("/env")},
+      {op: "store", src: "rcx", base: "r11", disp: 8},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "store", src: "r11", base: "rax", disp: 0},
+      {op: "add", dst: "rax", imm: 8},
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "add", dst: "r11", imm: 16},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "label", name: "rt_ex_arg"},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "e", label: "rt_ex_argv_done"},
+      {op: "store", src: "rdx", base: "rbp", disp: -48},
+      {op: "load", dst: "rax", base: "rbp", disp: -40},
+      {op: "store", src: "r11", base: "rax", disp: 0},
+      {op: "add", dst: "rax", imm: 8},
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "load", dst: "r8", base: "rdx", disp: 24},
+      {op: "load", dst: "r9", base: "r8", disp: 24},
+      {op: "mov", dst: "rdx", src: "r8"},
+      {op: "add", dst: "rdx", imm: 32}
+    ],
+    copy_bytes("r9", "rt_ex_copy"),
+    [
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store_byte", src: "rcx", base: "r11"},
+      {op: "add", dst: "r11", imm: 1},
+      {op: "load", dst: "rdx", base: "rbp", disp: -48},
+      {op: "load", dst: "rdx", base: "rdx", disp: 32},
+      {op: "jmp", label: "rt_ex_arg"},
+      {op: "label", name: "rt_ex_argv_done"},
+      {op: "load", dst: "rax", base: "rbp", disp: -40},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "mov", dst: "rax", imm: 57},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_ex_parent"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -32},
+      {op: "load", dst: "rsi", base: "rbp", disp: -24},
+      {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
+      {op: "mov", dst: "rax", imm: 59},
+      {op: "syscall"},
+      {op: "mov", dst: "rdi", imm: 127},
+      {op: "mov", dst: "rax", imm: 60},
+      {op: "syscall"},
+      {op: "label", name: "rt_ex_parent"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -56},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -56},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "r10", imm: 0},
+      {op: "mov", dst: "rax", imm: 61},
+      {op: "syscall"},
+      {op: "load", dst: "rax", base: "rbp", disp: -56},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "shr1", dst: "rax"},
+      {op: "and", dst: "rax", imm: 255},
+      {op: "add", dst: "rax", src: "rax"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rbp", disp: -56},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -56},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+exec_programs: programs over exec_check, with the exit status and output each must give: a command found on PATH whose status and output pass through, a failing one, and one that does not exist (127).
+
+    length(exec_programs) #=> 3
+"""
+def exec_programs()
+  [
+    ["(exec_check \"echo\" \"hi\" \"there\")", 0, unlines(["hi there"])],
+    ["(exec_check \"sh\" \"-c\" \"exit 3\")", 3, ""],
+    ["(exec_check \"no-such-command-here\")", 127, ""]
+  ]
+end
+
+test "exec_check runs a command on PATH and answers its status natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-exec"), "exec.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+      end,
+      exec_programs
+    )
+  end
+end
+
+test "exec_check forks, runs /usr/bin/env with the inherited environment and waits"
+  assert member?({op: "mov", dst: "rax", imm: 57}, RT_EXEC_CHECK)
+  assert member?({op: "mov", dst: "rax", imm: 59}, RT_EXEC_CHECK)
+  assert member?({op: "mov", dst: "rax", imm: 61}, RT_EXEC_CHECK)
+  assert member?(
+    {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
+    RT_EXEC_CHECK
+  )
+  assert last(save_envp)[:disp] == ENVP_AT
+  assert last(rc_op([], "exec_check", ["c"])) ==
+    {op: "call_label", label: "rt_exec_check"}
+  stand_ins = [{op: "label", name: "rt_drop"}, {op: "ret"}]
+  assert length(assemble(append(RT_EXEC_CHECK, stand_ins))) > 0
 end

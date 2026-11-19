@@ -58,8 +58,21 @@ const CHECK: usize = 16;
 /// An entry's fixed part: its key and its cost.
 const FIXED: usize = 32 + 8;
 
-/// The default bound on the whole store, every identity together.
+/// The default bound on the whole store, every identity together, and the
+/// floor of the bound rule R21 sizes from the load.
 pub const DEFAULT_MAX_BYTES: u64 = 256 << 20;
+
+/// How recent a use counts toward the load rule R21 measures.
+pub const RECENT: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Rule R21: the bound a store with the declared bound `max` holds when the
+/// files used within [`RECENT`] total `recent` bytes: twice that working set,
+/// so eviction never removes what the last day read, at least `max` and at
+/// most sixteen times it.
+#[must_use]
+pub fn sized_bound(max: u64, recent: u64) -> u64 {
+    recent.saturating_mul(2).clamp(max, max.saturating_mul(16))
+}
 
 /// Which evaluator computed an entry. Entries are read only by the same one.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -773,14 +786,22 @@ impl Store {
 
     /// Hold the whole store (every identity under the root) under its bound,
     /// removing the least recently used files first, down to three quarters
-    /// of it. Answers the files removed.
+    /// of it. The bound is sized from the measured load (rule R21,
+    /// [`sized_bound`]); `BLUE_CACHE=fixed` holds it to the one the store was
+    /// opened with. Answers the files removed.
     ///
     /// # Errors
     ///
     /// The root cannot be listed.
     pub fn evict(&self) -> std::io::Result<usize> {
+        self.evict_sized(!blue_lang_runtime::kitei::switched_off("R21"))
+    }
+
+    fn evict_sized(&self, sized: bool) -> std::io::Result<usize> {
+        let now = SystemTime::now();
         let mut files = Vec::new();
         let mut total = 0u64;
+        let mut recent = 0u64;
         for identity in std::fs::read_dir(&self.root)?.flatten() {
             let Ok(entries) = std::fs::read_dir(identity.path()) else {
                 continue;
@@ -792,14 +813,22 @@ impl Store {
                 }
                 total += meta.len();
                 let used = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+                if now.duration_since(used).is_ok_and(|age| age < RECENT) {
+                    recent += meta.len();
+                }
                 files.push((used, meta.len(), e.path()));
             }
         }
-        if total <= self.max_bytes {
+        let bound = if sized {
+            sized_bound(self.max_bytes, recent)
+        } else {
+            self.max_bytes
+        };
+        if total <= bound {
             return Ok(0);
         }
         files.sort();
-        let target = self.max_bytes / 4 * 3;
+        let target = bound / 4 * 3;
         let mut removed = 0;
         for (_, len, path) in files {
             if total <= target {
@@ -1050,6 +1079,46 @@ mod tests {
             "the oldest unread file goes"
         );
         assert!(store.path(&DefHash([39; 32])).exists(), "the newest stays");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_bound_is_twice_the_day_s_working_set_between_the_declared_bound_and_sixteen_times_it() {
+        assert_eq!(sized_bound(100, 0), 100);
+        assert_eq!(sized_bound(100, 50), 100);
+        assert_eq!(sized_bound(100, 70), 140);
+        assert_eq!(sized_bound(100, 800), 1600);
+        assert_eq!(sized_bound(100, 801), 1600);
+        assert_eq!(sized_bound(u64::MAX, u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn rule_r21_keeps_a_working_set_used_today_that_a_fixed_bound_evicts() {
+        let root = temp("evict-load");
+        let id = Identity::from_parts(&[b"a"]);
+        let store = Store::open(&root, id, 16 << 10).expect("opens");
+        let value = vec![0u8; 800];
+        for n in 0..40u8 {
+            store
+                .append(&DefHash([n; 32]), &[entry(n, &value)])
+                .expect("writes");
+        }
+        let on_disk = |s: &Store| -> u64 {
+            std::fs::read_dir(s.dir())
+                .expect("lists")
+                .flatten()
+                .map(|e| e.metadata().map_or(0, |m| m.len()))
+                .sum()
+        };
+        let held = on_disk(&store);
+        assert!(held > 16 << 10, "{held}");
+        assert_eq!(store.evict_sized(true).expect("evicts"), 0);
+        assert_eq!(on_disk(&store), held, "the day's working set is kept");
+        assert!(store.evict_sized(false).expect("evicts") > 0);
+        assert!(
+            on_disk(&store) <= 16 << 10,
+            "BLUE_CACHE=fixed holds the declared bound"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

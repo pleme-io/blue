@@ -480,7 +480,17 @@ Each wave lists defaults in the order their gain is known. Each default meets
     `rule_r20_sizes_the_pool_from_the_measured_load_and_its_switch_takes_every_scheduler`
     (red when the pool is fixed); `parallel::tests` for the rule, and that a
     sized pool runs apart exactly when the fixed one does and is never larger.
-  - Next: cache sizes from measured load.
+  - ✅ Cache sizes (rule R21): the check, memo and test stores take their
+    bound from the load they serve. On eviction, a store sums the bytes of
+    its files used within the last day (a read marks a file used) and holds
+    twice that working set, at least its declared bound (256 MiB) and at most
+    sixteen times it, so eviction never removes what the last day read; the
+    least recently used still go first, down to three quarters of the bound.
+    `BLUE_CACHE=fixed` holds the declared bound. Forty entries used today,
+    about 38 KiB, in a store declared at 16 KiB: all kept, where the fixed
+    bound evicts them to 16 KiB. Locks: the store's
+    `rule_r21_keeps_a_working_set_used_today_that_a_fixed_bound_evicts` (red
+    when the bound ignores the load) and its `sized_bound` table.
 - ✅ Behaviour per placement (a phone, a wasm component, a node) chosen from the
   placement fact, never from a flag the author must know. Every placement
   difference blue makes is read from the build target, and each is locked:

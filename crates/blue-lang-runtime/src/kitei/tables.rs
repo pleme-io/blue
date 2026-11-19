@@ -39,4 +39,5 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
         "BLUE_SATURATE=off",
     ),
     ("R20", &["runs_apart", "measured_load"], "BLUE_POOL=fixed"),
+    ("R21", &["evicting", "measured_load"], "BLUE_CACHE=fixed"),
 ];

@@ -16,7 +16,7 @@ record rule(id, needs, when, lever, receipt, switch, state, locks)
 @doc """
 rules: every rule of the default cascade, in the order of its id.
 
-    size(rules) #=> 20
+    size(rules) #=> 21
 """
 def rules()
   [
@@ -219,6 +219,16 @@ def rules()
       "BLUE_POOL=fixed",
       :shipped,
       "tests/schedulers.rs"
+    ),
+    rule(
+      "R21",
+      %i[evicting measured_load],
+      "a check, memo or test store that evicts, its files dated by their last use",
+      "its bound is twice the bytes its files used within the last day, at least the declared bound and at most sixteen times it",
+      "none: the store keeps what it holds",
+      "BLUE_CACHE=fixed",
+      :shipped,
+      "blue-lang-mondou store tests"
     )
   ]
 end
@@ -273,13 +283,13 @@ end
 
 test "every rule has a distinct id in order, and a state blue knows"
   ids = map((r) -> r.id, rules)
-  assert ids == map((n) -> "R#{n}", range(1, 21))
+  assert ids == map((n) -> "R#{n}", range(1, 22))
   assert every?((r) -> member?(r.state, %i[shipped folded refused]), rules)
 end
 
 test "a rule with a switch names a BLUE variable and the value that turns it off"
   switched = filter((r) -> r.switch != "none", rules)
-  assert size(switched) == 15
+  assert size(switched) == 16
   assert every?(
     (r) -> starts_with?(r.switch, "BLUE_") and contains?(r.switch, "="),
     switched
@@ -287,7 +297,7 @@ test "a rule with a switch names a BLUE variable and the value that turns it off
 end
 
 test "the rules that are not shipped are R6, folded into R7, and R11, refused"
-  assert size(shipped) == 18
+  assert size(shipped) == 19
   assert not member?("R6", shipped)
   assert not member?("R11", shipped)
   assert named("R6").state == :folded

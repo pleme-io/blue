@@ -101,6 +101,7 @@ def unknown_flag(words)
             --no-regen
             --no-prose
             --no-batch
+            --direct
             --compose-in-place
           ]
         ) and
@@ -109,6 +110,65 @@ def unknown_flag(words)
     end,
     words
   )
+end
+
+@doc """
+direct_next: What a direct land does after a push to main failed, from the push's
+output and whether it left tracked files changed: retry when main moved first
+(another pusher won the race), commit the regenerated files the pre-push gate
+wrote and retry, or stop when a gate is red for any other reason, since a retry
+cannot fix it.
+
+    direct_next(" ! [remote rejected] HEAD -> main (cannot lock ref)", false) #=> :retry
+    direct_next(" ! [rejected] HEAD -> main (fetch first)", false) #=> :retry
+    direct_next("prepush: 1 red: regen .", true) #=> :commit_regen
+    direct_next("prepush: 1 red: cargo fmt", false) #=> :stop
+"""
+def direct_next(text, dirty)
+  if contains?(text, "rejected")
+    :retry
+  elsif dirty
+    :commit_regen
+  else
+    :stop
+  end
+end
+
+@doc """
+direct_land: Land HEAD on main directly, for while another agent pushes main
+directly and the queue's turns keep being reset: rebase onto main, push through the
+pre-push gates, and on a failure do what direct_next says, up to `tries` times.
+"""
+def direct_land(tries)
+  if tries == 0
+    tell("main kept moving under the push; land again")
+    exit_with(1)
+  end
+  fetch_main
+  rebased = git_at(".", %w[rebase origin/main])
+  if status_of(rebased) != 0
+    git_at(".", %w[rebase --abort])
+    tell("the rebase onto main conflicts; resolve it, then land again")
+    exit_with(1)
+  end
+  pushed = git_at(".", %w[push origin HEAD:main])
+  if status_of(pushed) == 0
+    say("on main: #{trim(ask(%w[rev-parse --short HEAD]))}")
+    exit_with(0)
+  end
+  said = "#{stdout_of(pushed)}#{stderr_of(pushed)}"
+  dirty = trim(ask(%w[status --porcelain --untracked-files=no])) != ""
+  next = direct_next(said, dirty)
+  if next == :stop
+    tell(said)
+    exit_with(1)
+  elsif next == :commit_regen
+    git_at(".", %w[commit -qam regen])
+    say("committed the pre-push gate's regenerated files; pushing again")
+  else
+    say("main moved first; rebasing and pushing again")
+  end
+  direct_land(tries - 1)
 end
 
 @doc """
@@ -3045,13 +3105,16 @@ def main()
   unknown = unknown_flag(argv)
   if not unknown.nil?
     tell(
-      "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --no-batch, --compose-in-place, --requeue=N and --queue-minutes=N"
+      "#{unknown} is no flag; land takes --dry, --watch, --proven, --direct, --no-queue, --no-regen, --no-prose, --no-batch, --compose-in-place, --requeue=N and --queue-minutes=N"
     )
     exit_with(2)
   end
   if ask(%w[status --porcelain --untracked-files=no]) != ""
     tell("tracked files differ from HEAD; commit them, since CI checks the commit")
     exit_with(1)
+  end
+  if member?("--direct", argv)
+    direct_land(8)
   end
   left = requeue_of(argv)
   minutes = count_flag(argv, "--queue-minutes=", 240)

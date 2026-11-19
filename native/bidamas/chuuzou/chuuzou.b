@@ -544,26 +544,53 @@ def cz_struct_name(qualified)
 end
 
 @doc """
-cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares.
+cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares,
+with the type each field holds: an Int or untyped field the board word, a Bool
+a bool, a Float an f64.
 
-    cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"]}
+    cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"], types: [:word, :word]}
 """
 def cz_record_of(form)
-  fields = map(
+  kinds = [["Int", :word], ["Bool", :bool], ["Float", :float]]
+  pairs = map(
     fn(k)
-      if list?(k) and count(k) == 2 and cz_sym(second(k)) == "Int"
-        first(k)[:kw]
+      if list?(k) and
+          count(k) == 2 and
+          cz_lookup(cz_sym(second(k)), kinds) != nil
+        [first(k)[:kw], cz_lookup(cz_sym(second(k)), kinds)]
       elsif list?(k)
         cz_refuse(
-          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record holds board words, so its fields are Int or untyped"
+          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record holds values it copies, so its fields are Int, Bool, Float or untyped"
         )
       else
-        k[:kw]
+        [k[:kw], :word]
       end
     end,
     drop(3, form)
   )
-  {name: cz_sym(second(form)), pred: cz_sym(third(form)), fields:}
+  {
+    name: cz_sym(second(form)),
+    pred: cz_sym(third(form)),
+    fields: map(first, pairs),
+    types: map(second, pairs)
+  }
+end
+
+@doc """
+cz_field_ty: The type the field `f` of the record `rec` holds: the board word for a
+record declared without its types.
+
+    cz_field_ty({fields: ["x", "y"], types: [:word, :float]}, "y") #=> :float
+    cz_field_ty({fields: ["x"]}, "x") #=> :word
+"""
+def cz_field_ty(rec, f)
+  types = rec[:types]
+  if types.nil?
+    :word
+  else
+    fs = rec[:fields]
+    cz_lookup(f, map((i) -> [fs[i], types[i]], range(count(fs)))) or :word
+  end
 end
 
 @doc """
@@ -675,12 +702,48 @@ def cz_ty(n, ctx)
   elsif (cz_lookup(h, cz_arith) != nil or h == "/") and
       any?((a) -> cz_ty(a, ctx) == :float, rest(n))
     :float
+  elsif h == "blue-field"
+    cz_field_read_ty(rest(n), ctx)
   elsif cz_record_named(ctx, h) != nil
     h
   elsif cz_record_tested(ctx, h) != nil
     :bool
   elsif cz_lookup(h, ctx[:sigs] or []) != nil
     cz_lookup(h, ctx[:sigs])[:ret]
+  else
+    :word
+  end
+end
+
+@doc """
+cz_field_read_ty: The type `x.f` holds: the field's type in the record `x` is, or,
+for any record, the type every record holding `f` gives it; records that
+disagree are refused, since one read answers one type.
+
+    cz_field_read_ty([{sym: "a"}, {kw: "x"}], {types: [["a", "%root/p"]], records: [{name: "%root/p", fields: ["x"], types: [:float]}]}) #=> :float
+"""
+def cz_field_read_ty(args, ctx)
+  t = cz_ty(first(args), ctx)
+  f = second(args)[:kw]
+  if string?(t) and cz_record_named(ctx, t) != nil
+    cz_field_ty(cz_record_named(ctx, t), f)
+  elsif t == :dyn
+    tys = distinct(
+      map(
+        (r) -> cz_field_ty(r, f),
+        filter((r) -> member?(f, r[:fields]), ctx[:records] or [])
+      )
+    )
+    if count(tys) > 1
+      cz_refuse(
+        "the records holding `#{f}` give it different types; read it from a record known here"
+      )
+    end
+    if empty?(tys)
+      :word
+    else
+      first(tys)
+    end
   else
     :word
   end
@@ -898,7 +961,7 @@ def cz_construct(rec, args, ctx)
             field: cz_checked_ident(f, "a field")
           }
         else
-          cz_as(v, :word, ctx)
+          cz_as(v, cz_field_ty(rec, f), ctx)
         end
       end,
       fields
@@ -925,7 +988,7 @@ def cz_construct(rec, args, ctx)
           if v.nil?
             cz_refuse("#{cz_ty_text(rec[:name])} is missing its field `#{f}`")
           end
-          cz_as(v, :word, ctx)
+          cz_as(v, cz_field_ty(rec, f), ctx)
         end,
         fields
       )
@@ -935,7 +998,12 @@ def cz_construct(rec, args, ctx)
       "#{cz_ty_text(rec[:name])} takes #{count(fields)} fields, given #{count(args)}"
     )
   else
-    lit(map((a) -> cz_as(a, :word, ctx), args))
+    lit(
+      map(
+        (i) -> cz_as(args[i], cz_field_ty(rec, fields[i]), ctx),
+        range(count(args))
+      )
+    )
   end
 end
 
@@ -2661,7 +2729,7 @@ def cz_nonneg_from(held, fn_forms, fns, top, env)
 end
 
 @doc """
-cz_record_items: A struct per record, its fields board words, and, when there are
+cz_record_items: A struct per record, each field its type's native form, and, when there are
 records, `Rec`: one variant per record, each holding only that record.
 
     map((i) -> i[:kind], cz_record_items([{name: "%root/p", pred: "%root/p?", fields: ["x"]}], 64)) #=> ["struct", "enum"]
@@ -2677,7 +2745,10 @@ def cz_record_items(records, word)
         derives:,
         fields: map(
           fn(f)
-            {name: cz_checked_ident(f, "a field"), ty: rs_ty(cz_word_ty(word))}
+            {
+              name: cz_checked_ident(f, "a field"),
+              ty: cz_rs_ty(cz_field_ty(r, f), word)
+            }
           end,
           r[:fields]
         )
@@ -3358,12 +3429,15 @@ def cz_value_arg(e, ty, records)
                 fn(i)
                   {
                     name: cz_checked_ident(rec[:fields][i], "a field"),
-                    value: rs_call(
-                      %w[kiban_heap rc_nth],
-                      [
-                        {kind: "ref", mutable: false, expr: rs_path("l")},
-                        rs_word(i, 64)
-                      ]
+                    value: cz_seam_arg(
+                      rs_call(
+                        %w[kiban_heap rc_nth],
+                        [
+                          {kind: "ref", mutable: false, expr: rs_path("l")},
+                          rs_word(i, 64)
+                        ]
+                      ),
+                      cz_field_ty(rec, rec[:fields][i])
                     )
                   }
                 end,
@@ -3394,11 +3468,14 @@ def cz_value_result(e, ty, records)
           %w[kiban_heap rc_push],
           [
             acc,
-            {
-              kind: "field",
-              base: rs_path("r"),
-              field: cz_checked_ident(f, "a field")
-            }
+            cz_seam_result(
+              {
+                kind: "field",
+                base: rs_path("r"),
+                field: cz_checked_ident(f, "a field")
+              },
+              cz_field_ty(rec, f)
+            )
           ]
         )
       end,
@@ -4238,4 +4315,31 @@ test "a list only popped in a tail loop is a queue whose rest moves its front"
     "%root/drain",
     0
   )
+end
+
+test "a record of Bools and Floats holds each field in its own native form"
+  rec = "(blue-record %root/g %root/g? (:on Bool) (:w Float) :n) "
+  weigh = "(define-typed (%root/w (g g) (d Float)) g (%root/g (blue-kwargs (blue-splice g) (hash-map :w (+ (blue-field g :w) d)))))"
+  assert cz_def_native(concat(rec, weigh), "%root/w").nil?
+  flip = "(define-typed (%root/f (g g)) g (%root/g (blue-kwargs (blue-splice g) (hash-map :on (not (blue-field g :on))))))"
+  assert cz_def_native(concat(rec, flip), "%root/f").nil?
+  wrong = "(define-typed (%root/x (g g)) g (%root/g (blue-kwargs (blue-splice g) (hash-map :w 1))))"
+  assert cz_def_native(concat(rec, wrong), "%root/x") != nil
+  g = cz_record_of(first(cz_read(rec)))
+  assert g[:types] == %i[bool float word]
+  fields = first(cz_record_items([g], 64))[:fields]
+  assert map((f) -> f[:ty], fields) ==
+    [rs_ty("bool"), rs_ty("f64"), rs_ty("i64")]
+  ctx = {types: [%w[a %root/g]], records: [g], params: ["a"]}
+  assert cz_ty(first(cz_read("(blue-field a :w)")), ctx) == :float
+  assert cz_ty(first(cz_read("(blue-field a :on)")), ctx) == :bool
+  arg = cz_value_arg(rs_path("a"), "%root/g", [g])
+  w = second(last(arg[:block][:stmts])[:expr][:fields])[:value]
+  assert w[:func] == %w[kiban_io float]
+  out = cz_value_result(rs_path("r"), "%root/g", [g])
+  assert contains?(to_s(out), "float_word")
+  assert cz_def_native(
+    "(blue-record %root/q %root/q? (:x Str)) (define-typed (%root/f (p q)) Int 0)",
+    "%root/f"
+  ) != nil
 end

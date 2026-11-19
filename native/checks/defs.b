@@ -10,6 +10,8 @@ use("tesuto", [:literal])
 
 record pt(x: Int, y: Int)
 
+record gauge(on: Bool, w: Float, n: Int)
+
 @doc """
 cases: The calls each definition of native/defs/base.b is held to.
 """
@@ -327,4 +329,44 @@ test "a list only popped is a queue, and answers as the list does", {
     read_file(path_join(root, "native", "v1", hex_of("drain"), "def.rs")),
     "queue_of"
   )
+end
+
+test "a record of Bools and Floats crosses the seam both ways", {
+  kind: :integration
+}
+  work = temp_dir("native-gauge")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [
+    ["weighed", [gauge(true, 1.5, 3), 0.25]],
+    ["switched", [gauge(false, -2.0, 7)]]
+  ]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("weighed"))
+  mkdir_p(shelf)
+  other = path_join(root, "native", "v1", hex_of("lightened"))
+  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(other, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  g = gauge(true, 1.5, 3)
+  assert interpreted(work, "weighed", [g, 0.25], off) ==
+    unlines(["gauge({n: 3, on: true, w: 1.75})"])
+  assert interpreted(work, "weighed", [g, 0.25], swapped) ==
+    unlines(["gauge({n: 3, on: true, w: 1.25})"])
 end

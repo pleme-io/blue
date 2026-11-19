@@ -146,12 +146,52 @@ enum Word {
     Record(Arc<Fields>),
 }
 
-/// A record whose every field holds an Int (or is untyped, so it may): its
-/// key and its fields in declared order, the order its token lists them.
+/// A record whose every field holds an Int, a Bool or a Float (an untyped
+/// field an Int): its
+/// key, its fields in declared order (the order its token lists them), and
+/// the kind each field holds.
 #[derive(Debug, PartialEq, Eq)]
 struct Fields {
     key: String,
     names: Vec<String>,
+    kinds: Vec<Kind>,
+}
+
+/// What one field of a record the seam carries holds: one word each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Int,
+    Bool,
+    Float,
+}
+
+impl Kind {
+    fn of(ty: Option<&Spanned>) -> Option<Self> {
+        match ty.map(Spanned::as_symbol) {
+            None => Some(Self::Int),
+            Some(Some("Int")) => Some(Self::Int),
+            Some(Some("Bool")) => Some(Self::Bool),
+            Some(Some("Float")) => Some(Self::Float),
+            Some(_) => None,
+        }
+    }
+
+    fn word(self, v: &Value) -> Option<i64> {
+        match (self, v) {
+            (Self::Int, Value::Int(n)) => Some(*n),
+            (Self::Bool, Value::Bool(b)) => Some(i64::from(*b)),
+            (Self::Float, Value::Float(x)) => Some(x.to_bits().cast_signed()),
+            _ => None,
+        }
+    }
+
+    fn value(self, w: i64) -> Value {
+        match self {
+            Self::Int => Value::Int(w),
+            Self::Bool => Value::Bool(w != 0),
+            Self::Float => Value::Float(f64::from_bits(w.cast_unsigned())),
+        }
+    }
 }
 
 /// The records of `forms` whose fields the seam carries, by the name a
@@ -160,17 +200,18 @@ fn records(forms: &[Spanned]) -> HashMap<String, Arc<Fields>> {
     forms
         .iter()
         .filter_map(blue_lang_syntax::record::record_parts)
-        .filter(|r| {
-            r.fields
-                .iter()
-                .all(|f| f.ty.is_none_or(|t| t.as_symbol() == Some("Int")))
-        })
         .filter_map(|r| {
             let key = r.name.as_symbol()?.to_string();
+            let kinds = r
+                .fields
+                .iter()
+                .map(|f| Kind::of(f.ty))
+                .collect::<Option<Vec<Kind>>>()?;
             Some((
                 blue_lang_runtime::record::name_of_key(&key),
                 Arc::new(Fields {
                     names: r.field_names().iter().map(ToString::to_string).collect(),
+                    kinds,
                     key,
                 }),
             ))
@@ -288,11 +329,11 @@ impl Shape {
                     .then_some(())?;
                     f.names
                         .iter()
-                        .map(|n| {
-                            match m.get(&tatara_lisp_eval::MapKey::Keyword(Arc::from(n.as_str()))) {
-                                Some(Value::Int(x)) => Some(x.to_string()),
-                                _ => None,
-                            }
+                        .zip(&f.kinds)
+                        .map(|(n, k)| {
+                            m.get(&tatara_lisp_eval::MapKey::Keyword(Arc::from(n.as_str())))
+                                .and_then(|v| k.word(v))
+                                .map(|w| w.to_string())
                         })
                         .collect::<Option<Vec<String>>>()
                         .map(|xs| format!("r{}", xs.join(",")))
@@ -346,9 +387,11 @@ impl Shape {
                     Vec::new()
                 } else {
                     rest.split(',')
-                        .map(|n| n.parse().ok().map(Value::Int))
+                        .zip(&f.kinds)
+                        .map(|(n, k)| n.parse().ok().map(|w| k.value(w)))
                         .collect::<Option<Vec<Value>>>()?
                 };
+                (values.len() == f.kinds.len()).then_some(())?;
                 let names: Vec<&str> = f.names.iter().map(String::as_str).collect();
                 blue_lang_runtime::record::value_of(&f.key, &names, values)
             }
@@ -998,6 +1041,35 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn a_record_of_bools_and_floats_crosses_the_seam_as_each_field_s_word() {
+        let keep = shape(
+            "(blue-record %root/m %root/m? (:on Bool) (:w Float) :n) (define-typed (%root/k (r m)) m r)",
+        )
+        .expect("a shape");
+        let r = blue_lang_runtime::record::value_of(
+            "%root/m",
+            &["on", "w", "n"],
+            vec![Value::Bool(true), Value::Float(1.5), Value::Int(3)],
+        )
+        .expect("a record");
+        let bits = 1.5f64.to_bits().cast_signed();
+        assert_eq!(
+            keep.tokens(std::slice::from_ref(&r)),
+            Some(vec![format!("r1,{bits},3")])
+        );
+        let back = keep.from_token(&format!("r1,{bits},3")).expect("a record");
+        assert!(blue_lang_runtime::stdlib::blue_equal(&back, &r));
+        assert!(keep.from_token("r1,2").is_none());
+        let wrong = blue_lang_runtime::record::value_of(
+            "%root/m",
+            &["on", "w", "n"],
+            vec![Value::Int(1), Value::Float(1.5), Value::Int(3)],
+        )
+        .expect("a record");
+        assert_eq!(keep.tokens(&[wrong]), None);
     }
 
     #[test]

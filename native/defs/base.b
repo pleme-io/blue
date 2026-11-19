@@ -111,3 +111,17 @@ def drain(xs: List(Int), acc: Int) -> Int
     drain(rest(xs), acc + first(xs))
   end
 end
+
+record gauge(on: Bool, w: Float, n: Int)
+
+def weighed(g: gauge, d: Float) -> gauge
+  gauge(**g, w: g.w + d)
+end
+
+def switched(g: gauge) -> gauge
+  gauge(**g, on: not g.on)
+end
+
+def lightened(g: gauge, d: Float) -> gauge
+  gauge(**g, w: g.w - d)
+end

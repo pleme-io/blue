@@ -238,7 +238,24 @@ Each wave lists defaults in the order their gain is known. Each default meets
     record of Ints crosses the valued seam as its fields"; `checks.native-defs`
     "a record of Ints crosses the seam both ways" (`shifted`, `spread`;
     `lifted`'s artifact swapped in proves the artifact answered).
-  - Next: maps, and records holding other types.
+  - ✅ A record of Bools and Floats across the seam: a record field typed
+    Bool or Float is held in its own native form, a `bool` or an `f64` in
+    the record's struct (chuuzou's `cz_record_of` keeps each field's type,
+    `cz_field_ty` reads it for a field read, a construction and the struct),
+    and crosses the seam as one word, a Bool 1 or 0 and a Float its bits, as
+    an argument of those types does (`cz_seam_arg`, `cz_seam_result`; the
+    host's `native::Kind`). A field read from any record (`Rec`) whose
+    holders give it different types is refused. Locks: native.rs
+    `a_record_of_bools_and_floats_crosses_the_seam_as_each_field_s_word` (a
+    short token and an Int where the Bool belongs refused); chuuzou "a record
+    of Bools and Floats holds each field in its own native form" (a Float
+    field given an Int refused); `checks.native-defs` "a record of Bools and
+    Floats crosses the seam both ways" (`weighed`, `switched`; `lightened`'s
+    artifact swapped in proves the artifact answered), its 10 tests passing
+    on macOS against artifacts the builder made.
+  - Next: maps, and records holding a Str or a list (a record that holds a
+    refcounted value is cloned, not copied, which chuuzou's records are
+    today).
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

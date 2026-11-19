@@ -963,6 +963,8 @@ def rc_op(slots, op, args)
     )
   elsif member?(op, CLOCK_WORDS)
     clock_code(slots, op, args)
+  elsif op == "self_exe"
+    [{op: "call_label", label: "rt_self_exe"}]
   elsif op == "write_bytes"
     append(
       append(
@@ -1552,7 +1554,8 @@ def runtime()
       RT_EQUAL,
       RT_TO_S,
       RT_READ_FILE,
-      RT_WRITE_BYTES
+      RT_WRITE_BYTES,
+      RT_SELF_EXE
     ]
   )
 end
@@ -3281,4 +3284,90 @@ test "every clock word has native code that assembles, and sleep pauses by nanos
   assert length(assemble(clock_code([], "elapsed_since", [1]))) > 0
   assert length(assemble(clock_code([], "sleep", [1]))) > 0
   assert last(rc_op([], "now", [])) == {op: "add", dst: "rax", imm: 1}
+end
+
+@doc """
+text_word: up to eight bytes of text as the little-endian word that holds them, zero-padded: what a store of one register writes as those bytes.
+
+    text_word("ab") #=> 25185
+"""
+def text_word(text)
+  reduce((acc, b) -> acc * 256 + b, 0, reverse(text_bytes(text)))
+end
+
+@doc """
+RT_SELF_EXE: self_exe natively (R4 of docs/PURE-BLUE.md): the path of the running executable, read from /proc/self/exe (readlink, 89), a path built on the stack from two words (text_word), into a stack buffer of 4096 bytes and copied into a new string answered in rax.
+
+    RT_SELF_EXE[0] #=> {op: "label", name: "rt_self_exe"}
+"""
+RT_SELF_EXE = append(
+  *[
+    [
+      {op: "label", name: "rt_self_exe"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 4128},
+      {op: "mov", dst: "r11", src: "rsp"},
+      {op: "movabs", dst: "rcx", imm: text_word("/proc/se")},
+      {op: "store", src: "rcx", base: "r11", disp: 4096},
+      {op: "movabs", dst: "rcx", imm: text_word("lf/exe")},
+      {op: "store", src: "rcx", base: "r11", disp: 4104},
+      {op: "mov", dst: "rdi", src: "r11"},
+      {op: "add", dst: "rdi", imm: 4096},
+      {op: "mov", dst: "rsi", src: "rsp"},
+      {op: "mov", dst: "rdx", imm: 4096},
+      {op: "mov", dst: "rax", imm: 89},
+      {op: "syscall"},
+      {op: "store", src: "rax", base: "rbp", disp: -8},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "add", dst: "rdi", imm: 7},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "shr1", dst: "rdi"},
+      {op: "add", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "load", dst: "r8", base: "rbp", disp: -8},
+      {op: "store", src: "r8", base: "rax", disp: 24},
+      {op: "mov", dst: "r11", src: "rax"},
+      {op: "add", dst: "r11", imm: 32},
+      {op: "mov", dst: "rdx", src: "rsp"},
+      {op: "store", src: "rax", base: "rbp", disp: -16}
+    ],
+    copy_bytes("r8", "rt_self_exe_copy"),
+    [
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+test "self_exe reads the running executable's path natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-self"), "self.out")
+    form = read_forms("(begin (write_stdout (self_exe)) 0)")[0]
+    write_bytes(path, compile_whole(form, :exit))
+    exec_capture("chmod", "+x", path)
+    r = exec_capture(path)
+    assert status_of(r) == 0
+    assert stdout_of(r) == path
+    write_bytes(path, compile_whole(form, :leaks))
+    exec_capture("chmod", "+x", path)
+    assert status_of(exec_capture(path)) == 0
+  end
+end
+
+test "self_exe builds /proc/self/exe on the stack and readlinks it"
+  assert text_word("ab") == 25185
+  assert member?({op: "mov", dst: "rax", imm: 89}, RT_SELF_EXE)
+  assert last(rc_op([], "self_exe", [])) ==
+    {op: "call_label", label: "rt_self_exe"}
+  stand_ins = [{op: "label", name: "rt_alloc"}, {op: "ret"}]
+  assert length(assemble(append(RT_SELF_EXE, stand_ins))) > 0
 end

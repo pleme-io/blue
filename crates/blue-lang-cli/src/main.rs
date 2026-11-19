@@ -75,6 +75,7 @@ const BOUNDS: &str = include_str!("../blue/bounds.b");
 
 const NATURALIZE: &str = include_str!("../blue/naturalize.b");
 mod config;
+mod cost;
 mod crash;
 mod debug;
 mod defaults;
@@ -383,6 +384,11 @@ enum Cmd {
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Each definition of FILE with its predicted price, in steps and
+    /// allocations, its lists taken to hold 1000 elements (S1 of
+    /// docs/ENGINES.md). The price table is measured once per binary from
+    /// probe programs and kept in the cache.
+    Cost { file: PathBuf },
     /// The execution bounds FILE's run measures to (W5.2 of docs/FACTS.md):
     /// it runs once, counting steps and allocated bytes, and proposes
     /// `bounds({steps:, alloc_bytes:})` at ten times each. `--accept` writes
@@ -1391,6 +1397,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Verbs { args } => embedded("verbs.b", VERBS, args),
         Cmd::Bounds { args } => embedded("bounds.b", BOUNDS, args),
+
+        Cmd::Cost { file } => {
+            let src = std::fs::read_to_string(&file)
+                .map_err(|e| CliError::Pkg(format!("{}: {e}", file.display())))?;
+            print!("{}", cost::report(&file, &src)?);
+            Ok(ExitCode::SUCCESS)
+        }
 
         Cmd::ExplainName { name, at } => {
             let (path, line) = at

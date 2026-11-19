@@ -45,6 +45,7 @@ pub mod bundle;
 pub mod cell;
 pub mod check_cache;
 pub mod collection;
+pub mod cost;
 pub mod crypto;
 pub mod def_hash;
 pub mod defaults;

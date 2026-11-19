@@ -199,6 +199,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue naturalize TARGET DIR` | Scaffold DIR as a bidama ported from Rust: a stub per drivable `pub fn` of TARGET, the rows the original returns (recorded by compiling a harness against it), and a test per word that is red until the stub's body agrees with every row. |
 | `blue doc [NAME]` | What NAME is: its signature, doc line, namespace, tier and an example, for a builtin, `pkg::name`, or a bare name across the builtins and every bidama on BLUE_PATH; a bidama's name lists the package. |
 | `blue verbs ARGS...` | The verb graph (`bidamas/mokuroku/graph`): `import` region or merged TSVs into its row files, `export` them back to TSV (the only writer of TSV), `check` its gates against the recorded baseline, `findings` of a TSV directory. |
+| `blue cost FILE` | Each definition of FILE with its predicted price, in steps and allocations, its lists taken to hold 1000 elements (S1 of docs/ENGINES.md). |
 | `blue bounds ARGS...` | The execution bounds FILE's run measures to (W5.2 of docs/FACTS.md): it runs once, counting steps and allocated bytes, and proposes `bounds({steps:, alloc_bytes:})` at ten times each. |
 | `blue explain-name NAME AT` | How a bare NAME resolves at FILE:LINE: every tier of the resolution order, what each holds, and which wins. |
 | `blue census [ROOT]` | Count, over every `.b` file under ROOT, each finding of every rule still being ratcheted in, and fail unless each count equals its registry row's `ratchet`. |
@@ -266,7 +267,7 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 98: 43 fix themselves, 8 suggest a fix |
 | Bluefile words | 33 |
-| Commands | 66 |
+| Commands | 67 |
 
 ## The standard library
 

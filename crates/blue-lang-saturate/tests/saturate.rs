@@ -1,4 +1,4 @@
-use blue_lang_saturate::{cheapest, equivalent, from_expr, rule, size, to_expr, Limits};
+use blue_lang_saturate::{cheapest, equivalent, form_rule, from_expr, rule, size, to_expr, Limits};
 use tatara_lisp::Spanned;
 
 fn tree(src: &str) -> Spanned {
@@ -65,4 +65,18 @@ fn the_cheapest_form_comes_back_and_a_form_with_nothing_cheaper_stays_as_written
     assert!(same(&kept, &t));
     assert_eq!(a, b);
     assert_eq!(size(&t), 2);
+}
+
+#[test]
+fn a_form_rule_rewrites_what_its_pattern_matches_through_a_transform() {
+    let rules = vec![form_rule("twice", "(twice ?x)", |form: &Spanned| {
+        let items = form.as_list()?;
+        let x = items.get(1)?.clone();
+        Some(tree(&format!("{} + {}", x.to_sexp(), x.to_sexp())))
+    })
+    .expect("rule")];
+    assert_eq!(
+        equivalent(&tree("twice(n)"), &tree("n + n"), &rules, Limits::default()),
+        Some(true)
+    );
 }

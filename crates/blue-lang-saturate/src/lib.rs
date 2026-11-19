@@ -14,7 +14,8 @@
 //! what comes back carries synthetic spans.
 
 use egg::{
-    AstSize, CostFunction, Extractor, Id, Language, Pattern, RecExpr, Rewrite, Runner, SymbolLang,
+    Applier, AstSize, CostFunction, EGraph, Extractor, Id, Language, Pattern, PatternAst, RecExpr,
+    Rewrite, Runner, Subst, Symbol, SymbolLang,
 };
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
 
@@ -200,6 +201,52 @@ pub fn rule(name: &str, lhs: &str, rhs: &str) -> Result<Rule, String> {
     let l: Pattern<SymbolLang> = lhs.parse().map_err(|e| format!("{name}: {e}"))?;
     let r: Pattern<SymbolLang> = rhs.parse().map_err(|e| format!("{name}: {e}"))?;
     Rewrite::new(name, l, r)
+}
+
+/// A rewrite a pattern cannot write, such as one that builds a function:
+/// each class `pattern` matches has its smallest member decoded and handed
+/// to `transform`, and what comes back joins the class.
+struct Transformed<F> {
+    transform: F,
+}
+
+impl<F> Applier<SymbolLang, ()> for Transformed<F>
+where
+    F: Fn(&Spanned) -> Option<Spanned> + Send + Sync + 'static,
+{
+    fn apply_one(
+        &self,
+        egraph: &mut EGraph<SymbolLang, ()>,
+        eclass: Id,
+        _subst: &Subst,
+        _searcher_ast: Option<&PatternAst<SymbolLang>>,
+        _rule_name: Symbol,
+    ) -> Vec<Id> {
+        let (_, smallest) = Extractor::new(egraph, AstSize).find_best(eclass);
+        let Some(out) = from_expr(&smallest).and_then(|form| (self.transform)(&form)) else {
+            return Vec::new();
+        };
+        let added = egraph.add_expr(&to_expr(&out));
+        if egraph.union(eclass, added) {
+            vec![added]
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+/// A rule whose right side is `transform`, run on each tree `pattern`
+/// matches; `None` from it adds nothing.
+///
+/// # Errors
+///
+/// A pattern that does not parse.
+pub fn form_rule<F>(name: &str, pattern: &str, transform: F) -> Result<Rule, String>
+where
+    F: Fn(&Spanned) -> Option<Spanned> + Send + Sync + 'static,
+{
+    let l: Pattern<SymbolLang> = pattern.parse().map_err(|e| format!("{name}: {e}"))?;
+    Rewrite::new(name, l, Transformed { transform })
 }
 
 fn runner(

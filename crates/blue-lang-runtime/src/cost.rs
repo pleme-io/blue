@@ -11,7 +11,8 @@
 //!
 //! Tier-honest: a name the table does not price costs one step per call, a
 //! call to a definition costs its own body once, recursion or not, and an
-//! `if` costs its test and both branches, an upper bound. The gate is
+//! `if` costs its test and both branches, an upper bound. A `try` costs its
+//! body: its `catch` runs only when the body raises. The gate is
 //! that the model orders equivalent forms as they measure
 //! (`tests/cost.rs`).
 
@@ -169,7 +170,10 @@ pub fn estimate(form: &Spanned, table: &Table, n: f64) -> Price {
         return Price::default();
     };
     match head.as_symbol() {
-        Some("lambda" | "quote") => Price::default(),
+        Some("lambda" | "quote" | "catch") => Price::default(),
+        Some("try") => args
+            .first()
+            .map_or_else(Price::default, |body| estimate(body, table, n)),
         Some("define" | "let" | "if" | "begin" | "do") => args
             .iter()
             .fold(Price::default(), |p, a| p.plus(estimate(a, table, n))),
@@ -273,6 +277,23 @@ mod tests {
         assert!((map.element.steps - 3.0).abs() < 1e-9);
         assert!((map.element.allocs - 2.0).abs() < 1e-9);
         assert!(map.call.allocs.abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_try_costs_its_body_and_not_the_fallback_it_holds() {
+        let body = estimate(&erased("map((x) -> x, xs)"), &table(), 10.0);
+        let held = Spanned::new(
+            tatara_lisp::Span::synthetic(),
+            tatara_lisp::SpannedForm::List(vec![
+                Spanned::new(
+                    tatara_lisp::Span::synthetic(),
+                    tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol("try".into())),
+                ),
+                erased("map((x) -> x, xs)"),
+                erased("catch(e, map((x) -> x, map((x) -> x, xs)))"),
+            ]),
+        );
+        assert_eq!(estimate(&held, &table(), 10.0), body);
     }
 
     #[test]

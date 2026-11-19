@@ -207,3 +207,4 @@ check("consumers", "gen/consumers.b", ["gen/consumers.json"], {stage: :ci})
 check("model-eval", "eval/score_test.b", ["eval"], {stage: :ci})
 
 generate("hannou-hooks", "bidamas/hannou/gen/hooks.yaml", "gen/hannou.b", ["bidamas"])
+generate("hannou-hooks-json", "bidamas/hannou/gen/hooks.json", "gen/hannou-json.b", ["bidamas"])

@@ -88,5 +88,11 @@
     "file": "hannou.b",
     "find": "    [\n      not known_event,",
     "replace": "    [\n      false,"
+  },
+  {
+    "name": "the JSON renders as YAML",
+    "file": "hannou.b",
+    "find": "  pretty(render_data(rs))\n",
+    "replace": "  yaml(render_data(rs))\n"
   }
 ]

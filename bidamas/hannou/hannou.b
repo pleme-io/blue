@@ -4,7 +4,7 @@ hannou (反応) — a turn's reactions, declared once and rendered as the `hooks
     render_data([]) #=> {hooks: {}}
 """
 
-use("deeta", [:yaml])
+use("deeta", %i[parse pretty yaml])
 use("kyohi", %i[enforce kinds refusal])
 use("retsu", %i[count_where flat_map is_empty size])
 
@@ -171,6 +171,15 @@ def render(rs)
   yaml(render_data(rs))
 end
 
+@doc """
+render_json: the same `hooks` table as JSON, for a reader that has no YAML parser, such as Nix's `builtins.fromJSON`.
+
+    render_json([]) #=> "{\n  \"hooks\": {}\n}\n"
+"""
+def render_json(rs)
+  pretty(render_data(rs))
+end
+
 test "nothing declared renders an empty table and validates clean"
   assert render([]) == unlines(["hooks: {}"])
   assert validate([]) == []
@@ -288,4 +297,33 @@ end
 test "rendering an invalid declaration raises one refusal naming the fault"
   r = reaction("m", "Stop", :mark, nil, nil, false)
   assert kyohi::raised(() -> render([r])) == :refused
+end
+
+test "the JSON reads back as the YAML does, and the default is exact"
+  assert parse(render_json(long_turn_sound), :json) ==
+    parse(render(long_turn_sound), :yaml)
+  assert render_json(long_turn_sound) ==
+    unlines(
+      [
+        "{",
+        "  \"hooks\": {",
+        "    \"Stop\": [",
+        "      {",
+        "        \"action\": \"react\",",
+        "        \"enabled\": false,",
+        "        \"minTurnSecs\": 90,",
+        "        \"reaction\": \"sound\"",
+        "      }",
+        "    ],",
+        "    \"UserPromptSubmit\": [",
+        "      {",
+        "        \"action\": \"react\",",
+        "        \"enabled\": false,",
+        "        \"reaction\": \"mark\"",
+        "      }",
+        "    ]",
+        "  }",
+        "}"
+      ]
+    )
 end

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e29e78d9b876407dddf5af9c96e91efa2dbbfbbcab3f7d8a4fc275aa10842b14",
+  "bluefile_b3": "b3:ab350efd8a304fba97f7540dc1d48173fee1c5082b3d76d85fd3efbe435155e4",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -311,6 +311,13 @@
       "hannou-hooks": {
         "output": "bidamas/hannou/gen/hooks.yaml",
         "program": "gen/hannou.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
+      "hannou-hooks-json": {
+        "output": "bidamas/hannou/gen/hooks.json",
+        "program": "gen/hannou-json.b",
         "inputs": [
           "bidamas"
         ]

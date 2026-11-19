@@ -1628,11 +1628,12 @@ up its place loudly rather than hold the turn or land without one.
     blind_hold(0, 300_000, 20, 60) #=> {sleep: 300, give_up: false}
     blind_hold(0, 1_000_000, 20, 60) #=> {sleep: 600, give_up: false}
     blind_hold(0, 1_200_001, 20, 60) #=> {sleep: 600, give_up: true}
+    to_s(blind_hold(0, 300_500, 20, 60)[:sleep]) #=> "300"
 """
 def blind_hold(since, now, limit, poll)
   blind = now - since
   {
-    sleep: min(600, kazu::max(poll, blind / 1000)),
+    sleep: min(600, kazu::max(poll, floor(blind / 1000))),
     give_up: blind > limit * 60000
   }
 end

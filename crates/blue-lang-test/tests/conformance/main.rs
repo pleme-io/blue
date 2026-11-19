@@ -92,6 +92,7 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Component => eval::component(env, row, n),
         Ev::Default => eval::default_path(env, row, n),
         Ev::Native => eval::native(env, row, n),
+        Ev::Scheduled => eval::scheduled(env, row, n),
     }));
     run.unwrap_or_else(|_| {
         Obs::Crashed(format!(

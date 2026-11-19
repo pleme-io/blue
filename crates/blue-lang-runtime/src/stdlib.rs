@@ -983,7 +983,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                 Value::List(xs) => xs.to_vec(),
                 Value::Nil => Vec::new(),
                 other => {
-                    return Err(EvalError::type_mismatch("a list", other.type_name(), s));
+                    return Err(EvalError::type_mismatch("list", other.type_name(), s));
                 }
             };
             let Some((head, tail)) = xs.split_first() else {
@@ -998,13 +998,13 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                 {
                     crate::timings::count("parallel", 1);
                     out.extend(rest);
-                    return Ok(list(out));
+                    return Ok(Value::list(out));
                 }
             }
             for x in tail {
                 out.push(caller.apply_value(&a[0], vec![x.clone()], host, s)?);
             }
-            Ok(list(out))
+            Ok(Value::list(out))
         },
     );
 

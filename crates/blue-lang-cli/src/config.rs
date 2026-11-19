@@ -1,4 +1,4 @@
-//! blue's typed configuration surface — [`shikumi::TieredConfig`], seven fields.
+//! blue's typed configuration surface — [`shikumi::TieredConfig`], eight fields.
 //!
 //! ```text
 //! blue config bare        # zero-opinion floor
@@ -18,7 +18,7 @@
 //! do exactly that, so preferences do not go in this file.
 //!
 //! Each field also had to already have a **shipped, overridable default in
-//! code**. All seven do, and the `prescribed_default()` below returns those
+//! code**. All eight do, and the `prescribed_default()` below returns those
 //! constants *by name* rather than copying their values — so the config cannot
 //! drift from what the code actually does.
 //!
@@ -68,10 +68,17 @@
 //!   Bluefile; 1 GiB by default). Both pass the admission rule: a program under either returns
 //!   what it always did, and one past it is refused with `memory-exhausted`.
 //!
+//! * **Schedulers** — `schedulers`, the threads `blue run` runs a program's
+//!   `:normal` processes on when its project declares none (A6 of
+//!   docs/ASYNC.md); a project's `schedulers(n)` wins. 1 by default, the
+//!   node's own thread. It passes the admission rule as a resource, not a
+//!   preference: a program's answers are the same on any count (A-parity),
+//!   except where it declares a race.
+//!
 //! # Tier honesty
 //!
-//! The seven-field surface is **only-mitigated** against an eighth knob creeping
-//! in — `the_surface_is_exactly_seven_knobs` is an exhaustive destructure, so
+//! The eight-field surface is **only-mitigated** against a ninth knob creeping
+//! in — `the_surface_is_exactly_eight_knobs` is an exhaustive destructure, so
 //! adding a field is an `E0027` compile error in the test binary rather than
 //! something structurally unrepresentable. It forces acknowledgement, not
 //! justification.
@@ -155,6 +162,10 @@ pub struct BlueConfig {
     pub guest_max_alloc_bytes: Option<u64>,
 
     pub flash_bytes_per_second: u64,
+
+    /// Threads `blue run` runs a program's `:normal` processes on when its
+    /// project declares no `schedulers(n)`; at least 1, the default.
+    pub schedulers: usize,
 }
 
 impl BlueConfig {
@@ -187,6 +198,7 @@ impl TieredConfig for BlueConfig {
             max_alloc_bytes: Some(0),
             guest_max_alloc_bytes: Some(0),
             flash_bytes_per_second: 0,
+            schedulers: 1,
         }
     }
 
@@ -204,6 +216,7 @@ impl TieredConfig for BlueConfig {
             guest_max_alloc_bytes: blue_lang_runtime::ExecutionBounds::DEFAULT
                 .guest_max_alloc_bytes,
             flash_bytes_per_second: blue_lang_runtime::wire::DEFAULT_FLASH_RATE,
+            schedulers: blue_lang_proc::node::DEFAULT_SCHEDULERS,
         }
     }
 }
@@ -247,7 +260,7 @@ fn tier_from_env() -> ConfigTier {
 mod tests {
     use super::*;
 
-    /// The gate on "exactly seven knobs".
+    /// The gate on "exactly eight knobs".
     ///
     /// An exhaustive destructure: an eighth field makes this `E0027 pattern does
     /// not mention field`, so the test binary stops compiling and `cargo test`
@@ -262,7 +275,7 @@ mod tests {
     /// unrepresentable. Whoever updates the pattern has to have read the rule
     /// in this module's docs, which is the whole mechanism.
     #[test]
-    fn the_surface_is_exactly_seven_knobs() {
+    fn the_surface_is_exactly_eight_knobs() {
         let BlueConfig {
             solver_max_steps: _,
             max_expr_depth: _,
@@ -271,6 +284,7 @@ mod tests {
             max_alloc_bytes: _,
             guest_max_alloc_bytes: _,
             flash_bytes_per_second: _,
+            schedulers: _,
         } = BlueConfig::prescribed_default();
     }
 
@@ -291,6 +305,7 @@ mod tests {
             b.flash_bytes_per_second, 0,
             "the floor sends no Flash frame"
         );
+        assert_eq!(b.schedulers, 1, "the floor runs on the node's own thread");
     }
 
     /// The prescribed tier IS the shipped constants — not a copy of them.
@@ -337,6 +352,8 @@ mod tests {
             d.flash_bytes_per_second, 16_384,
             "the shipped value, pinned"
         );
+        assert_eq!(d.schedulers, blue_lang_proc::node::DEFAULT_SCHEDULERS);
+        assert_eq!(d.schedulers, 1, "the shipped value, pinned");
     }
 
     #[test]
@@ -391,7 +408,7 @@ mod tests {
             .keys()
             .cloned()
             .collect();
-        assert_eq!(keys.len(), 7, "seven knobs, per this module's docs");
+        assert_eq!(keys.len(), 8, "eight knobs, per this module's docs");
 
         let flake =
             std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../flake.nix"))
@@ -483,7 +500,8 @@ mod tests {
                 "max_steps",
                 "max_alloc_bytes",
                 "guest_max_alloc_bytes",
-                "flash_bytes_per_second"
+                "flash_bytes_per_second",
+                "schedulers"
             ]
         );
 
@@ -511,7 +529,8 @@ mod tests {
                 d.max_steps.map(|n| n as i64),
                 d.max_alloc_bytes.map(|n| n as i64),
                 d.guest_max_alloc_bytes.map(|n| n as i64),
-                Some(d.flash_bytes_per_second as i64)
+                Some(d.flash_bytes_per_second as i64),
+                Some(d.schedulers as i64)
             ],
             "blue.b must state the shipped defaults"
         );

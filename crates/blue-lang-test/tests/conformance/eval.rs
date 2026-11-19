@@ -762,6 +762,30 @@ fn needs_the_step_bound(row: &Row) -> bool {
 /// The `default` column: `blue run` as a user runs it, with no bounds file, so
 /// every default that stands down under a step bound is on.
 pub fn default_path(env: &mut Env, row: &Row, n: usize) -> Obs {
+    run_as_a_user(env, row, n, "default", "")
+}
+
+/// The words through which a scheduler count reaches a program: a process,
+/// and a `map` that rule R17 may run apart.
+const SCHEDULED_WORDS: &[&str] = &["spawn", "supervisor", "map"];
+
+/// Whether a scheduler count can reach `row`'s program.
+pub fn schedules(row: &Row) -> bool {
+    SCHEDULED_WORDS.iter().any(|w| row.src.contains(w))
+}
+
+/// The `scheduled` column: the `default` column on four schedulers.
+pub fn scheduled(env: &mut Env, row: &Row, n: usize) -> Obs {
+    if !schedules(row) {
+        return Obs::Blind(
+            "the program starts no process and maps nothing, so no scheduler count reaches it"
+                .into(),
+        );
+    }
+    run_as_a_user(env, row, n, "scheduled", "schedulers: 4\n")
+}
+
+fn run_as_a_user(env: &mut Env, row: &Row, n: usize, column: &str, config_text: &str) -> Obs {
     let Some(bin) = env.cli.clone() else {
         return Obs::Blind("no `blue` binary: set BLUE_BIN".into());
     };
@@ -784,12 +808,12 @@ pub fn default_path(env: &mut Env, row: &Row, n: usize) -> Obs {
             "`{word}` reads the node clock or a declared input: the in-process columns run a virtual clock and supply no input, `blue run` the real clock and refuses an input with no bytes"
         ));
     }
-    let file = env.scratch.join(format!("default-row-{n}.b"));
+    let file = env.scratch.join(format!("{column}-row-{n}.b"));
     if let Err(e) = std::fs::write(&file, &row.src) {
         return Obs::Blind(format!("cannot write {}: {e}", file.display()));
     }
-    let config = env.scratch.join("default-config.yaml");
-    if let Err(e) = std::fs::write(&config, "") {
+    let config = env.scratch.join(format!("{column}-config.yaml"));
+    if let Err(e) = std::fs::write(&config, config_text) {
         return Obs::Blind(format!("cannot write {}: {e}", config.display()));
     }
     let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
@@ -797,7 +821,10 @@ pub fn default_path(env: &mut Env, row: &Row, n: usize) -> Obs {
     cmd.env("BLUE_PATH", &blue_path)
         .env("RUST_BACKTRACE", "0")
         .env("BLUE_CONFIG", &config)
-        .env("XDG_CACHE_HOME", env.scratch.join("default-cache"))
+        .env(
+            "XDG_CACHE_HOME",
+            env.scratch.join(format!("{column}-cache")),
+        )
         .env_remove("BLUE_TIER")
         .env_remove("BLUE_MEMO")
         .env_remove("BLUE_FOLD")
@@ -1136,14 +1163,27 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
     if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
         return ev == Ev::Static;
     }
+    if ev == Ev::Scheduled && !schedules(row) {
+        return false;
+    }
     match (&row.expect, ev) {
-        (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo | Ev::Default) => true,
+        (
+            Expect::Value(_),
+            Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo | Ev::Default | Ev::Scheduled,
+        ) => true,
         (Expect::Leaks(_), Ev::Walker | Ev::Vm) => true,
         (
             Expect::Fails(..),
-            Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Component | Ev::Default,
+            Ev::Walker
+            | Ev::Vm
+            | Ev::Wasm
+            | Ev::Cli
+            | Ev::Memo
+            | Ev::Component
+            | Ev::Default
+            | Ev::Scheduled,
         ) => true,
-        (Expect::Prints(_), Ev::Cli | Ev::Component | Ev::Default) => true,
+        (Expect::Prints(_), Ev::Cli | Ev::Component | Ev::Default | Ev::Scheduled) => true,
         (
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Static | Ev::Cli,

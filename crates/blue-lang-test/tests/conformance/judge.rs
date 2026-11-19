@@ -108,7 +108,7 @@ pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
     match (&row.expect, ev) {
         (
             Expect::Value(_) | Expect::Fails(..),
-            Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Default,
+            Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Default | Ev::Scheduled,
         ) => Some(Ev::Walker),
         (Expect::Value(_), Ev::Native) => Some(Ev::Walker),
         (Expect::Leaks(_), Ev::Vm) => Some(Ev::Walker),
@@ -117,7 +117,7 @@ pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
             Ev::Cli,
         ) => Some(Ev::Static),
         (Expect::Prints(_) | Expect::Fails(..), Ev::Component) => Some(Ev::Cli),
-        (Expect::Prints(_), Ev::Default) => Some(Ev::Cli),
+        (Expect::Prints(_), Ev::Default | Ev::Scheduled) => Some(Ev::Cli),
         _ => None,
     }
 }

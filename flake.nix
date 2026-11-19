@@ -158,6 +158,17 @@
           burst is refused.
         '';
       };
+      schedulers = {
+        yaml = "schedulers";
+        default = 1;
+        type = types.ints.between 1 1024;
+        description = ''
+          Threads `blue run` runs a program's processes on when its project
+          declares no `schedulers(n)`; the project's declaration wins. A
+          program's answers are the same on any count, except where it
+          declares a race.
+        '';
+      };
     };
 
     boundOptions = lib.mapAttrs (_: b: mkOption { inherit (b) type default description; }) bounds;
@@ -322,7 +333,10 @@
       #   - flash rate — `flash_bytes_per_second`, the rate the host holds one
       #     wire's Flash channel to.
       #
-      # What is left are seven BOUNDS, each with a shipped overridable default in
+      #   - schedulers — the threads `blue run` runs processes on when the
+      #     project declares none.
+      #
+      # What is left are eight BOUNDS and resources, each with a shipped overridable default in
       # code. Raising either changes no program's meaning — only whether a
       # pathological input is refused — so exposing them cannot freeze a design
       # guess as a public interface, which was the whole objection.

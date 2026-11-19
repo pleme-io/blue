@@ -54,10 +54,15 @@ pub enum Ev {
     /// that stand down under a step bound run (docs/FACTS.md C2).
     Default,
     Native,
+    /// The `default` column on four schedulers (`schedulers: 4` in its
+    /// BlueConfig): A-parity of docs/ASYNC.md, a program's answers equal at
+    /// one scheduler and at n. Only rows a scheduler count can reach, ones
+    /// that start a process or map, are run; the rest are blind.
+    Scheduled,
 }
 
 impl Ev {
-    pub const ALL: [Ev; 9] = [
+    pub const ALL: [Ev; 10] = [
         Ev::Walker,
         Ev::Vm,
         Ev::Wasm,
@@ -67,6 +72,7 @@ impl Ev {
         Ev::Component,
         Ev::Default,
         Ev::Native,
+        Ev::Scheduled,
     ];
 
     pub fn name(self) -> &'static str {
@@ -80,6 +86,7 @@ impl Ev {
             Ev::Component => "component",
             Ev::Default => "default",
             Ev::Native => "native",
+            Ev::Scheduled => "scheduled",
         }
     }
 

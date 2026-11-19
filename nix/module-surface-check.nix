@@ -126,6 +126,7 @@ let
     max_alloc_bytes = null;
     guest_max_alloc_bytes = 1073741824;
     flash_bytes_per_second = 16384;
+    schedulers = 1;
   };
 
   evaluates = [

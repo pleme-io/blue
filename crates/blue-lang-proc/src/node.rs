@@ -195,10 +195,13 @@ pub fn set_journal_bound(bound: usize) {
 
 static SCHEDULERS: OnceLock<usize> = OnceLock::new();
 
+/// The scheduler count when nothing declares one: the node's own thread.
+pub const DEFAULT_SCHEDULERS: usize = 1;
+
 /// How many threads run this process's nodes' `:normal` processes (A6 of
-/// docs/ASYNC.md, `schedulers(n)`); `1`, the default, keeps them all on the
-/// node's thread, where the interleaving is replayable. Only the first call
-/// counts, like [`set_journal_bound`].
+/// docs/ASYNC.md, `schedulers(n)`); [`DEFAULT_SCHEDULERS`] keeps them all on
+/// the node's thread, where the interleaving is replayable. Only the first
+/// call counts, like [`set_journal_bound`].
 pub fn set_schedulers(n: usize) {
     let _ = SCHEDULERS.set(n.max(1));
 }
@@ -206,7 +209,7 @@ pub fn set_schedulers(n: usize) {
 /// How many schedulers [`set_schedulers`] named, `1` when it was never called.
 #[must_use]
 pub fn schedulers() -> usize {
-    SCHEDULERS.get().copied().unwrap_or(1)
+    SCHEDULERS.get().copied().unwrap_or(DEFAULT_SCHEDULERS)
 }
 
 /// How a node reads time.
@@ -375,7 +378,7 @@ impl NodeConfig {
             count_steps: false,
             idle_lane: IdleLane::default(),
             fd_of: None,
-            schedulers: SCHEDULERS.get().copied().unwrap_or(1),
+            schedulers: schedulers(),
         }
     }
 

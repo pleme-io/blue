@@ -18,4 +18,9 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
         &["idempotent_method", "transient_failure"],
         "BLUE_RETRY=off",
     ),
+    (
+        "R16",
+        &["nil_timeout", "measured_host"],
+        "BLUE_TIMEOUT=fixed",
+    ),
 ];

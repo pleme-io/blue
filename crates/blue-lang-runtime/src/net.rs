@@ -476,6 +476,57 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
     );
 }
 
+/// The timeout of a request to a host this process has not measured, or of
+/// every request under `BLUE_TIMEOUT=fixed` (rule R16).
+const UNMEASURED: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The least a measured timeout is, so one fast answer never makes the next
+/// request's deadline too tight to cross a busy network.
+const MEASURED_FLOOR: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// How many times the slowest answer a host gave its measured timeout is.
+const MEASURED_TIMES: u32 = 10;
+
+/// The slowest answer each host has given this process, by `host:port`.
+static SLOWEST: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, std::time::Duration>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+/// The `host:port` of an http(s) url, the key its latency is kept under.
+fn host_of(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    rest.split(['/', '?', '#'])
+        .next()
+        .unwrap_or(rest)
+        .to_string()
+}
+
+/// The timeout of a request whose `timeout_ms` is nil (rule R16): ten times
+/// the slowest answer its host has given this process, at least
+/// [`MEASURED_FLOOR`], or [`UNMEASURED`] for a host it has not heard from.
+/// `BLUE_TIMEOUT=fixed`, the switch the `kitei` registry names, keeps every
+/// such request at [`UNMEASURED`].
+fn measured_timeout(url: &str) -> std::time::Duration {
+    if crate::kitei::switched_off("R16") {
+        return UNMEASURED;
+    }
+    SLOWEST
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&host_of(url)).copied())
+        .map_or(UNMEASURED, |slowest| {
+            (slowest * MEASURED_TIMES).max(MEASURED_FLOOR)
+        })
+}
+
+/// Record that `url`'s host answered in `took`.
+fn answered_in(url: &str, took: std::time::Duration) {
+    if let Ok(mut m) = SLOWEST.lock() {
+        let slowest = m.entry(host_of(url)).or_default();
+        *slowest = (*slowest).max(took);
+    }
+}
+
 /// The requests HTTP defines as idempotent and safe to send again (RFC 9110
 /// §9.2.2): GET, HEAD and OPTIONS. PUT and DELETE are idempotent too, but a
 /// retry of one whose first try reached the server repeats its effect.
@@ -529,7 +580,11 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                 Value::Nil => None,
                 other => Some(arg_str(other, "http_request", span)?),
             };
-            let timeout = arg_ms(&args[4], "http_request", span, false)?;
+            let timeout = match &args[4] {
+                Value::Nil => measured_timeout(&url),
+                given => arg_ms(given, "http_request", span, false)?,
+            };
+            let started = std::time::Instant::now();
             let resp = retried(&method, timeout, |left| {
                 http::request(
                     &method,
@@ -540,6 +595,7 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                 )
             })
             .map_err(|e| EvalError::native_fn("http_request", e.to_string(), span))?;
+            answered_in(&url, started.elapsed());
             Ok(record(vec![
                 ("status", Value::Int(i64::from(resp.status))),
                 (

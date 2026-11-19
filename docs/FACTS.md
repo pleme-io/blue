@@ -427,6 +427,16 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 - Timeouts, cache sizes and pool sizes from measured latency and load, each a
   typed default with its switch.
+  - ✅ Timeouts (rule R16): an `http_request` whose `timeout_ms` is nil takes
+    ten times the slowest answer its host has given this process, at least
+    1 s, or 30 s for a host not yet heard from; a given timeout is kept as
+    given, and a nil timeout raised before, so no working program changes.
+    `BLUE_TIMEOUT=fixed` keeps every nil timeout at 30 s. A host that
+    answered at once and then hangs: the next nil-timeout request times out
+    within 1 s where a fixed 30 s would wait. Lock: `tests/net.rs`
+    `a_nil_timeout_is_measured_from_how_fast_the_host_answered_before` (red
+    when nothing is measured).
+  - Next: cache and pool sizes from measured load.
 - Behaviour per placement (a phone, a wasm component, a node) chosen from the
   placement fact, never from a flag the author must know.
 

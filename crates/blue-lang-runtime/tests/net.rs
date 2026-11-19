@@ -575,3 +575,24 @@ fn a_request_that_is_not_idempotent_is_sent_once() {
         .expect("wake");
     server.join().expect("server");
 }
+
+#[test]
+fn a_nil_timeout_is_measured_from_how_fast_the_host_answered_before() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut fast, _) = listener.accept().expect("accept");
+        read_request(&mut fast);
+        fast.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            .expect("respond");
+        drop(fast);
+        let (silent, _) = listener.accept().expect("accept");
+        std::thread::sleep(Duration::from_millis(3000));
+        drop(silent);
+    });
+    let v = run(&format!(
+        "url = \"http://127.0.0.1:{port}/\"\nfirst = http_request(\"GET\", url, nil, nil, nil)\nt0 = now_ms\nsecond = http_request(\"GET\", url, nil, nil, nil) rescue :timed_out\n[get(first, :status), second, now_ms - t0 < 2500]"
+    ));
+    server.join().expect("server");
+    assert_eq!(strs(&v), ["200", "Keyword(:timed_out)", "Bool(true)"]);
+}

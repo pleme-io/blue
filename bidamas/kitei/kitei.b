@@ -16,7 +16,7 @@ record rule(id, needs, when, lever, receipt, switch, state, locks)
 @doc """
 rules: every rule of the default cascade, in the order of its id.
 
-    size(rules) #=> 15
+    size(rules) #=> 16
 """
 def rules()
   [
@@ -169,6 +169,16 @@ def rules()
       "BLUE_RETRY=off",
       :shipped,
       "tests/net.rs"
+    ),
+    rule(
+      "R16",
+      %i[nil_timeout measured_host],
+      "an http_request whose timeout_ms is nil, to a host this process has heard from",
+      "its timeout is ten times the slowest answer that host gave, at least 1 s; 30 s for a host not yet heard from",
+      "none: the timeout is the request's own",
+      "BLUE_TIMEOUT=fixed",
+      :shipped,
+      "tests/net.rs"
     )
   ]
 end
@@ -223,13 +233,13 @@ end
 
 test "every rule has a distinct id in order, and a state blue knows"
   ids = map((r) -> r.id, rules)
-  assert ids == map((n) -> "R#{n}", range(1, 16))
+  assert ids == map((n) -> "R#{n}", range(1, 17))
   assert every?((r) -> member?(r.state, %i[shipped folded refused]), rules)
 end
 
 test "a rule with a switch names a BLUE variable and the value that turns it off"
   switched = filter((r) -> r.switch != "none", rules)
-  assert size(switched) == 10
+  assert size(switched) == 11
   assert every?(
     (r) -> starts_with?(r.switch, "BLUE_") and contains?(r.switch, "="),
     switched
@@ -237,7 +247,7 @@ test "a rule with a switch names a BLUE variable and the value that turns it off
 end
 
 test "the rules that are not shipped are R6, folded into R7, and R11, refused"
-  assert size(shipped) == 13
+  assert size(shipped) == 14
   assert not member?("R6", shipped)
   assert not member?("R11", shipped)
   assert named("R6").state == :folded

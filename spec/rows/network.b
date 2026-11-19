@@ -316,3 +316,18 @@ row(
   host(),
   pending("G22", "component")
 )
+
+row(
+  "network.http_batch.empty",
+  "http_batch([])",
+  value("[]"),
+  covers("builtin:http_batch"),
+  host()
+)
+
+row(
+  "network.http_batch.https_refused",
+  "http_batch([[\"GET\", \"https://127.0.0.1:1/\", nil, nil, 500]])",
+  fails(:eval, "http_batch"),
+  host()
+)

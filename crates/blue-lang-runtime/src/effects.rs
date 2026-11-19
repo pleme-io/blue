@@ -408,6 +408,196 @@ pub fn commute(a: &Site, b: &Site) -> bool {
     }
 }
 
+/// Whether rule R18 batches reads: `BLUE_BATCH=off` is not set and no
+/// command holds the rewrites off ([`crate::fuse::hold_off`]).
+#[must_use]
+pub fn batches() -> bool {
+    !crate::fuse::held_off() && !crate::kitei::switched_off("R18")
+}
+
+/// The word a batch of reads is sent through.
+pub const BATCH: &str = "http_batch";
+
+/// Rule R18 (E3 of docs/ENGINES.md): in every body, each run of two or more
+/// local bindings one after another, each bound to an `http_request` whose
+/// method is a literal in [`SAFE_METHODS`] and whose arguments name none of
+/// the run's earlier bindings, becomes one binding to [`BATCH`] of their
+/// requests and one binding per answer, in order. Two such reads are
+/// independent sites (E1) that commute (E2), so sending them at once leaves
+/// the answers they had. A body that binds `http_request` itself is left as
+/// it is. With how many runs it batched.
+#[must_use]
+pub fn batch(forms: Vec<Spanned>) -> (Vec<Spanned>, usize) {
+    let mut runs = 0;
+    let out = forms
+        .iter()
+        .map(|f| batch_in(f, &mut Vec::new(), &mut runs))
+        .collect();
+    (out, runs)
+}
+
+fn sym_at(span: Span, name: &str) -> Spanned {
+    Spanned::new(
+        span,
+        tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(name.into())),
+    )
+}
+
+fn list_at(span: Span, items: Vec<Spanned>) -> Spanned {
+    Spanned::new(span, tatara_lisp::SpannedForm::List(items))
+}
+
+fn binders(form: &Spanned) -> Vec<String> {
+    let Some(items) = form.as_list() else {
+        return Vec::new();
+    };
+    match items.first().and_then(Spanned::as_symbol) {
+        Some("lambda") => items
+            .get(1)
+            .and_then(Spanned::as_list)
+            .map(|ps| {
+                ps.iter()
+                    .filter_map(|p| p.as_symbol().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        Some("define") => match items.get(1) {
+            Some(target) => match target.as_list() {
+                Some(sig) => sig
+                    .iter()
+                    .skip(1)
+                    .filter_map(|p| p.as_symbol().map(str::to_string))
+                    .collect(),
+                None => target.as_symbol().map(str::to_string).into_iter().collect(),
+            },
+            None => Vec::new(),
+        },
+        _ => Vec::new(),
+    }
+}
+
+fn names(form: &Spanned, out: &mut Vec<String>) {
+    if let Some(s) = form.as_symbol() {
+        out.push(s.to_string());
+    } else if let Some(items) = form.as_list() {
+        for i in items {
+            names(i, out);
+        }
+    }
+}
+
+/// `(define name (http_request m u h b t))` with a safe literal method: the
+/// name and the five arguments.
+fn read_binding(form: &Spanned) -> Option<(&str, &[Spanned])> {
+    let items = form.as_list()?;
+    let [define, name, value] = items else {
+        return None;
+    };
+    if define.as_symbol()? != "define" {
+        return None;
+    }
+    let call = value.as_list()?;
+    let (head, args) = call.split_first()?;
+    if head.as_symbol()? != "http_request" || args.len() != 5 {
+        return None;
+    }
+    let method = string_of(&args[0])?;
+    SAFE_METHODS
+        .contains(&method.to_ascii_uppercase().as_str())
+        .then_some((name.as_symbol()?, args))
+}
+
+fn batch_in(form: &Spanned, bound: &mut Vec<String>, runs: &mut usize) -> Spanned {
+    let Some(items) = form.as_list() else {
+        return form.clone();
+    };
+    let added = binders(form);
+    let depth = bound.len();
+    bound.extend(added);
+    let mut out: Vec<Spanned> = items.iter().map(|i| batch_in(i, bound, runs)).collect();
+    let is_body = items.first().and_then(Spanned::as_symbol) == Some("begin");
+    if is_body && !bound.iter().any(|b| b == "http_request") {
+        out = batch_body(out, runs);
+    }
+    bound.truncate(depth);
+    Spanned::new(form.span, tatara_lisp::SpannedForm::List(out))
+}
+
+fn batch_body(items: Vec<Spanned>, runs: &mut usize) -> Vec<Spanned> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut i = 0;
+    while i < items.len() {
+        let mut j = i;
+        let mut run_names: Vec<&str> = Vec::new();
+        while j < items.len() {
+            let Some((name, args)) = read_binding(&items[j]) else {
+                break;
+            };
+            let mut used = Vec::new();
+            for a in args {
+                names(a, &mut used);
+            }
+            if run_names.contains(&name) || used.iter().any(|u| run_names.contains(&u.as_str())) {
+                break;
+            }
+            run_names.push(name);
+            j += 1;
+        }
+        if j - i >= 2 {
+            let span = items[i].span;
+            let batch_name = format!("%batch{}", *runs);
+            *runs += 1;
+            let requests: Vec<Spanned> = items[i..j]
+                .iter()
+                .filter_map(|f| read_binding(f).map(|(_, args)| args.to_vec()))
+                .map(|args| {
+                    let mut l = vec![sym_at(span, "list")];
+                    l.extend(args);
+                    list_at(span, l)
+                })
+                .collect();
+            let mut listed = vec![sym_at(span, "list")];
+            listed.extend(requests);
+            out.push(list_at(
+                span,
+                vec![
+                    sym_at(span, "define"),
+                    sym_at(span, &batch_name),
+                    list_at(span, vec![sym_at(span, BATCH), list_at(span, listed)]),
+                ],
+            ));
+            for (k, name) in run_names.iter().enumerate() {
+                let at = items[i + k].span;
+                out.push(list_at(
+                    at,
+                    vec![
+                        sym_at(at, "define"),
+                        sym_at(at, name),
+                        list_at(
+                            at,
+                            vec![
+                                sym_at(at, "nth"),
+                                Spanned::new(
+                                    at,
+                                    tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Int(
+                                        i64::try_from(k).unwrap_or(0),
+                                    )),
+                                ),
+                                sym_at(at, &batch_name),
+                            ],
+                        ),
+                    ],
+                ));
+            }
+            i = j;
+        } else {
+            out.push(items[i].clone());
+            i += 1;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -530,6 +720,50 @@ mod tests {
         for w in READS {
             assert!(!WRITES.contains(w), "{w} is both");
         }
+    }
+
+    fn batched(src: &str) -> (String, usize) {
+        let checked = crate::pipeline::check_entry(
+            crate::uses::Entry::anonymous(src),
+            &crate::uses::NoLoader,
+            None,
+            crate::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        let lowered = crate::pipeline::lower(&checked.program, &checked.names);
+        let (forms, runs) = batch(crate::erase::unfused(&lowered));
+        (
+            forms
+                .iter()
+                .map(|f| f.to_sexp().to_string())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            runs,
+        )
+    }
+
+    #[test]
+    fn two_reads_one_after_another_become_one_batch_and_a_read_of_an_answer_ends_the_run() {
+        let (tree, runs) = batched(FETCH);
+        assert_eq!(runs, 1, "{tree}");
+        assert!(
+            tree.contains("(http_batch (list (list \"GET\" \"http://example.test/a\""),
+            "{tree}"
+        );
+        assert!(tree.contains("(define a (nth 0 %batch0))"), "{tree}");
+        assert!(tree.contains("(define b (nth 1 %batch0))"), "{tree}");
+        assert!(
+            tree.contains("(define c (http_request"),
+            "c reads a's answer: {tree}"
+        );
+    }
+
+    #[test]
+    fn a_post_a_lone_read_and_a_shadowed_word_are_left_as_written() {
+        let post = "def p()\n  a = http_request(\"POST\", \"http://e.test/a\", nil, nil, nil)\n  b = http_request(\"GET\", \"http://e.test/b\", nil, nil, nil)\n  [a, b]\nend\n";
+        assert_eq!(batched(post).1, 0);
+        let shadowed = "def s(http_request)\n  a = http_request(\"GET\", \"http://e.test/a\", nil, nil, nil)\n  b = http_request(\"GET\", \"http://e.test/b\", nil, nil, nil)\n  [a, b]\nend\n";
+        assert_eq!(batched(shadowed).1, 0);
     }
 
     #[test]

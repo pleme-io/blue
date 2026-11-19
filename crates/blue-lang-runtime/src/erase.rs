@@ -85,6 +85,9 @@ pub fn erase_fused(forms: &[Spanned]) -> crate::fuse::Fused {
     if crate::parallel::spreads() {
         fused.forms = crate::fuse::spread(std::mem::take(&mut fused.forms), forms).0;
     }
+    if crate::effects::batches() {
+        fused.forms = crate::effects::batch(std::mem::take(&mut fused.forms)).0;
+    }
     fused
 }
 

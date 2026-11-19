@@ -28,4 +28,9 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
         &["first_order_callback", "many_schedulers"],
         "BLUE_PARMAP=off",
     ),
+    (
+        "R18",
+        &["independent_reads", "commuting_effects"],
+        "BLUE_BATCH=off",
+    ),
 ];

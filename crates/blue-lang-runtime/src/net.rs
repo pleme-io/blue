@@ -566,52 +566,130 @@ fn retried<T>(
     }
 }
 
+/// One HTTP request's arguments, read on the caller's thread so it can be
+/// sent from another.
+struct Request {
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    body: Option<String>,
+    timeout: std::time::Duration,
+}
+
+impl Request {
+    fn of(args: &[Value], fname: &'static str, span: Span) -> Result<Request, EvalError> {
+        let method = arg_str(&args[0], fname, span)?.to_string();
+        let url = arg_str(&args[1], fname, span)?.to_string();
+        let headers = headers_arg(&args[2], fname, span)?;
+        let body = match &args[3] {
+            Value::Nil => None,
+            other => Some(arg_str(other, fname, span)?.to_string()),
+        };
+        let timeout = match &args[4] {
+            Value::Nil => measured_timeout(&url),
+            given => arg_ms(given, fname, span, false)?,
+        };
+        Ok(Request {
+            method,
+            url,
+            headers,
+            body,
+            timeout,
+        })
+    }
+
+    fn send(&self) -> Result<http::Response, String> {
+        let started = std::time::Instant::now();
+        let resp = retried(&self.method, self.timeout, |left| {
+            http::request(
+                &self.method,
+                &self.url,
+                &self.headers,
+                self.body.as_deref().map(str::as_bytes),
+                left,
+            )
+        })
+        .map_err(|e| e.to_string())?;
+        answered_in(&self.url, started.elapsed());
+        Ok(resp)
+    }
+}
+
+fn answer(resp: http::Response) -> Value {
+    record(vec![
+        ("status", Value::Int(i64::from(resp.status))),
+        (
+            "headers",
+            Value::list(
+                resp.headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        Value::list(vec![Value::Str(Arc::from(k)), Value::Str(Arc::from(v))])
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        ),
+        ("body", text(&resp.body)),
+    ])
+}
+
 fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "http_request",
         Arity::Exact(5),
         |args: &[Value], _h: &mut H, span| {
-            let method = arg_str(&args[0], "http_request", span)?;
-            let url = arg_str(&args[1], "http_request", span)?;
-            let headers = headers_arg(&args[2], "http_request", span)?;
-            let body = match &args[3] {
-                Value::Nil => None,
-                other => Some(arg_str(other, "http_request", span)?),
+            let req = Request::of(args, "http_request", span)?;
+            req.send()
+                .map(answer)
+                .map_err(|e| EvalError::native_fn("http_request", e, span))
+        },
+    );
+
+    interp.register_fn(
+        "http_batch",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let rows = match &args[0] {
+                Value::List(rows) => rows.to_vec(),
+                Value::Nil => Vec::new(),
+                other => {
+                    return Err(EvalError::type_mismatch("list", other.type_name(), span));
+                }
             };
-            let timeout = match &args[4] {
-                Value::Nil => measured_timeout(&url),
-                given => arg_ms(given, "http_request", span, false)?,
-            };
-            let started = std::time::Instant::now();
-            let resp = retried(&method, timeout, |left| {
-                http::request(
-                    &method,
-                    &url,
-                    &headers,
-                    body.as_deref().map(str::as_bytes),
-                    left,
-                )
-            })
-            .map_err(|e| EvalError::native_fn("http_request", e.to_string(), span))?;
-            answered_in(&url, started.elapsed());
-            Ok(record(vec![
-                ("status", Value::Int(i64::from(resp.status))),
-                (
-                    "headers",
-                    Value::list(
-                        resp.headers
-                            .into_iter()
-                            .map(|(k, v)| {
-                                Value::list(vec![
-                                    Value::Str(Arc::from(k)),
-                                    Value::Str(Arc::from(v)),
-                                ])
-                            })
-                            .collect::<Vec<_>>(),
-                    ),
-                ),
-                ("body", text(&resp.body)),
-            ]))
+            let reqs = rows
+                .iter()
+                .map(|row| match row {
+                    Value::List(r) if r.len() == 5 => Request::of(&r.to_vec(), "http_batch", span),
+                    other => Err(EvalError::native_fn(
+                        "http_batch",
+                        format!(
+                            "each request is [method, url, headers, body, timeout_ms], got {}",
+                            other.type_name()
+                        ),
+                        span,
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let sent: Vec<Result<http::Response, String>> = std::thread::scope(|scope| {
+                let running: Vec<_> = reqs.iter().map(|r| scope.spawn(|| r.send())).collect();
+                running
+                    .into_iter()
+                    .map(|t| {
+                        t.join()
+                            .unwrap_or_else(|_| Err("the request's thread died".into()))
+                    })
+                    .collect()
+            });
+            if sent.len() > 1 {
+                crate::timings::count("batched", 1);
+            }
+            let mut out = Vec::with_capacity(sent.len());
+            for r in sent {
+                out.push(answer(
+                    r.map_err(|e| EvalError::native_fn("http_batch", e, span))?,
+                ));
+            }
+            Ok(Value::list(out))
         },
     );
 

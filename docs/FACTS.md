@@ -392,11 +392,15 @@ Each wave lists defaults in the order their gain is known. Each default meets
   and `rule_r17_runs_a_map_whose_callback_only_computes_apart_and_its_switch_keeps_it_home`
   (a callback that writes keeps its order); `parallel::tests` for the
   decision.
-- Independent effects batched: calls the effect graph shows to be independent
-  share one round trip. Waits on an effect graph, which no part of blue
-  builds yet: reach says which capabilities a definition names, not which of
-  its calls depend on another's answer. The plan for that graph, phases E1 to E4, is
-  [ENGINES.md](ENGINES.md) §1.
+- ✅ Independent effects batched (rule R18): reads the effect graph shows to
+  be independent and to commute are sent at once. The graph (E1) records
+  each host call with its resource and the calls it depends on; the
+  commutation table (E2) names each host word a read, a write or ordered;
+  R18 (E3) turns a run of independent GET-family requests into one
+  `http_batch`, the answers bound in order. Two GETs to a server that holds
+  each 300 ms are held open at once, and in turn under `BLUE_BATCH=off`, with
+  the same answers. Next: E4, reads behind a helper definition.
+  [ENGINES.md](ENGINES.md) §1 has each phase and its lock.
 - ✅ An idempotent effect retried on a transient failure, with the retry named in
   the receipt (rule R15). An `http_request` whose method is GET, HEAD or
   OPTIONS, idempotent by RFC 9110, that fails before an answer because the

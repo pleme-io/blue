@@ -81,7 +81,7 @@ thread_local! {
 /// them: the lists erasure indexed ([`crate::member_index`]), the
 /// string-append loops it built once ([`crate::builder`]), and the
 /// idempotent requests retried after a transient failure ([`crate::net`]).
-pub const COUNTED_ROWS: [&str; 4] = ["indexed", "built", "retried", "parallel"];
+pub const COUNTED_ROWS: [&str; 5] = ["indexed", "built", "retried", "parallel", "batched"];
 
 /// Add `n` to the counted row `row` of this thread's report, when it
 /// records; a name that is no row is ignored.

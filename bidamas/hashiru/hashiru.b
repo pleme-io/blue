@@ -979,7 +979,22 @@ def rc_op(slots, op, args)
         {op: "lea_label", dst: "rsi", label: kw_label(:status)},
         {op: "lea_label", dst: "rdx", label: kw_label(:stdout)},
         {op: "lea_label", dst: "rcx", label: kw_label(:stderr)},
+        {op: "mov", dst: "r8", imm: 0},
         {op: "call_label", label: "rt_exec_capture"}
+      ]
+    )
+  elsif op == "exec_with_env"
+    append(
+      *[
+        list_code(slots, rest(args)),
+        [{op: "mov", dst: "rdi", src: "rax"}],
+        tagged_atom(slots, args[0], "r8"),
+        [
+          {op: "lea_label", dst: "rsi", label: kw_label(:status)},
+          {op: "lea_label", dst: "rdx", label: kw_label(:stdout)},
+          {op: "lea_label", dst: "rcx", label: kw_label(:stderr)},
+          {op: "call_label", label: "rt_exec_capture"}
+        ]
       ]
     )
   elsif op == "self_exe"
@@ -3505,6 +3520,165 @@ def argv_on_stack(tag)
 end
 
 @doc """
+envp_with: the instructions that set the environment a child runs with, at rbp+out: the program's own (r14 + ENVP_AT) when the list at rbp+extra is empty, else a new one on the stack holding each [name, value] of that list as name=value, then every inherited entry whose name the list does not set, so a listed name replaces the inherited one as the reference does. rbp-280 to rbp-312 are its scratch; labels are named from tag.
+
+    envp_with(-264, -272, "t")[0] #=> {op: "load", dst: "r9", base: "rbp", disp: -264}
+"""
+def envp_with(extra, out, tag)
+  append(
+    *[
+      [
+        {op: "load", dst: "r9", base: "rbp", disp: extra},
+        {op: "cmp", dst: "r9", imm: 0},
+        {op: "j", cond: "ne", label: "#{tag}_build"},
+        {op: "load", dst: "rcx", base: "r14", disp: ENVP_AT},
+        {op: "store", src: "rcx", base: "rbp", disp: out},
+        {op: "jmp", label: "#{tag}_done"},
+        {op: "label", name: "#{tag}_build"},
+        {op: "load", dst: "r10", base: "r14", disp: ENVP_AT},
+        {op: "mov", dst: "rax", imm: 0},
+        {op: "label", name: "#{tag}_base"},
+        {op: "load", dst: "rcx", base: "r10", disp: 0},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_based"},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "add", dst: "r10", imm: 8},
+        {op: "jmp", label: "#{tag}_base"},
+        {op: "label", name: "#{tag}_based"},
+        {op: "mov", dst: "r8", imm: 0},
+        {op: "mov", dst: "r11", imm: 0},
+        {op: "mov", dst: "rdx", src: "r9"},
+        {op: "label", name: "#{tag}_size"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_sized"},
+        {op: "load", dst: "rcx", base: "rdx", disp: 24},
+        {op: "load", dst: "rsi", base: "rcx", disp: 24},
+        {op: "load", dst: "rsi", base: "rsi", disp: 24},
+        {op: "add", dst: "r11", src: "rsi"},
+        {op: "load", dst: "rcx", base: "rcx", disp: 32},
+        {op: "load", dst: "rcx", base: "rcx", disp: 24},
+        {op: "load", dst: "rcx", base: "rcx", disp: 24},
+        {op: "add", dst: "r11", src: "rcx"},
+        {op: "add", dst: "r11", imm: 2},
+        {op: "add", dst: "r8", imm: 1},
+        {op: "load", dst: "rdx", base: "rdx", disp: 32},
+        {op: "jmp", label: "#{tag}_size"},
+        {op: "label", name: "#{tag}_sized"},
+        {op: "mov", dst: "rcx", src: "rax"},
+        {op: "add", dst: "rcx", src: "r8"},
+        {op: "add", dst: "rcx", imm: 1}
+      ],
+      times8("rcx"),
+      [
+        {op: "mov", dst: "rsi", src: "rcx"},
+        {op: "add", dst: "rsi", src: "r11"},
+        {op: "add", dst: "rsi", imm: 15},
+        {op: "and", dst: "rsi", imm: -16},
+        {op: "sub", dst: "rsp", src: "rsi"},
+        {op: "mov", dst: "r10", src: "rsp"},
+        {op: "store", src: "r10", base: "rbp", disp: out},
+        {op: "store", src: "r10", base: "rbp", disp: -288},
+        {op: "mov", dst: "rsi", src: "rsp"},
+        {op: "add", dst: "rsi", src: "rcx"},
+        {op: "store", src: "rsi", base: "rbp", disp: -296},
+        {op: "load", dst: "rdx", base: "rbp", disp: extra},
+        {op: "label", name: "#{tag}_pair"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_paired"},
+        {op: "store", src: "rdx", base: "rbp", disp: -280},
+        {op: "load", dst: "r10", base: "rbp", disp: -288},
+        {op: "load", dst: "r11", base: "rbp", disp: -296},
+        {op: "store", src: "r11", base: "r10", disp: 0},
+        {op: "add", dst: "r10", imm: 8},
+        {op: "store", src: "r10", base: "rbp", disp: -288},
+        {op: "load", dst: "rcx", base: "rdx", disp: 24},
+        {op: "store", src: "rcx", base: "rbp", disp: -304},
+        {op: "load", dst: "rsi", base: "rcx", disp: 24},
+        {op: "load", dst: "r8", base: "rsi", disp: 24},
+        {op: "mov", dst: "rdx", src: "rsi"},
+        {op: "add", dst: "rdx", imm: 32}
+      ],
+      copy_bytes("r8", "#{tag}_name"),
+      [
+        {op: "mov", dst: "rcx", imm: 61},
+        {op: "store_byte", src: "rcx", base: "r11"},
+        {op: "add", dst: "r11", imm: 1},
+        {op: "load", dst: "rcx", base: "rbp", disp: -304},
+        {op: "load", dst: "rcx", base: "rcx", disp: 32},
+        {op: "load", dst: "rsi", base: "rcx", disp: 24},
+        {op: "load", dst: "r8", base: "rsi", disp: 24},
+        {op: "mov", dst: "rdx", src: "rsi"},
+        {op: "add", dst: "rdx", imm: 32}
+      ],
+      copy_bytes("r8", "#{tag}_value"),
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store_byte", src: "rcx", base: "r11"},
+        {op: "add", dst: "r11", imm: 1},
+        {op: "store", src: "r11", base: "rbp", disp: -296},
+        {op: "load", dst: "rdx", base: "rbp", disp: -280},
+        {op: "load", dst: "rdx", base: "rdx", disp: 32},
+        {op: "jmp", label: "#{tag}_pair"},
+        {op: "label", name: "#{tag}_paired"},
+        {op: "load", dst: "rsi", base: "r14", disp: ENVP_AT},
+        {op: "store", src: "rsi", base: "rbp", disp: -312},
+        {op: "label", name: "#{tag}_copy"},
+        {op: "load", dst: "rsi", base: "rbp", disp: -312},
+        {op: "load", dst: "rcx", base: "rsi", disp: 0},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_finish"},
+        {op: "load", dst: "rdx", base: "rbp", disp: extra},
+        {op: "label", name: "#{tag}_shadow"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_keep"},
+        {op: "load", dst: "r8", base: "rdx", disp: 24},
+        {op: "load", dst: "r8", base: "r8", disp: 24},
+        {op: "load", dst: "r9", base: "r8", disp: 24},
+        {op: "add", dst: "r8", imm: 32},
+        {op: "mov", dst: "r11", imm: 0},
+        {op: "label", name: "#{tag}_byte"},
+        {op: "cmp", dst: "r11", src: "r9"},
+        {op: "j", cond: "e", label: "#{tag}_named"},
+        {op: "mov", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", src: "r11"},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "mov", dst: "r10", src: "r8"},
+        {op: "add", dst: "r10", src: "r11"},
+        {op: "load_byte", dst: "r10", base: "r10"},
+        {op: "cmp", dst: "rax", src: "r10"},
+        {op: "j", cond: "ne", label: "#{tag}_other"},
+        {op: "add", dst: "r11", imm: 1},
+        {op: "jmp", label: "#{tag}_byte"},
+        {op: "label", name: "#{tag}_named"},
+        {op: "mov", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", src: "r9"},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "cmp", dst: "rax", imm: 61},
+        {op: "j", cond: "e", label: "#{tag}_skip"},
+        {op: "label", name: "#{tag}_other"},
+        {op: "load", dst: "rdx", base: "rdx", disp: 32},
+        {op: "jmp", label: "#{tag}_shadow"},
+        {op: "label", name: "#{tag}_keep"},
+        {op: "load", dst: "r10", base: "rbp", disp: -288},
+        {op: "store", src: "rcx", base: "r10", disp: 0},
+        {op: "add", dst: "r10", imm: 8},
+        {op: "store", src: "r10", base: "rbp", disp: -288},
+        {op: "label", name: "#{tag}_skip"},
+        {op: "load", dst: "rsi", base: "rbp", disp: -312},
+        {op: "add", dst: "rsi", imm: 8},
+        {op: "store", src: "rsi", base: "rbp", disp: -312},
+        {op: "jmp", label: "#{tag}_copy"},
+        {op: "label", name: "#{tag}_finish"},
+        {op: "load", dst: "r10", base: "rbp", disp: -288},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "r10", disp: 0},
+        {op: "label", name: "#{tag}_done"}
+      ]
+    ]
+  )
+end
+
+@doc """
 PATH_PREFIX_MASK: the low five bytes of a word, the length of "PATH=", for finding the PATH entry of an environment by comparing one word.
 
     PATH_PREFIX_MASK #=> 1_099_511_627_775
@@ -3512,14 +3686,14 @@ PATH_PREFIX_MASK: the low five bytes of a word, the length of "PATH=", for findi
 PATH_PREFIX_MASK = 1_099_511_627_775
 
 @doc """
-exec_child: the child's half of running a command, after the fork: argv is at rbp-24 and the environment at r14 + ENVP_AT. A command holding a slash is run as given; any other is tried as dir/command for each directory of the environment's PATH, in order, as a shell finds it. A command that runs nowhere exits 127.
+exec_child: the child's half of running a command, after the fork: argv is at rbp-24 and the environment it runs with at rbp+envp. A command holding a slash is run as given; any other is tried as dir/command for each directory of the environment's PATH, in order, as a shell finds it. A command that runs nowhere exits 127.
 
-    exec_child("t")[0] #=> {op: "load", dst: "r9", base: "rbp", disp: -24}
+    exec_child("t", -64)[0] #=> {op: "load", dst: "r9", base: "rbp", disp: -24}
 """
-def exec_child(tag)
+def exec_child(tag, envp)
   execve = [
     {op: "load", dst: "rsi", base: "rbp", disp: -24},
-    {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
+    {op: "load", dst: "rdx", base: "rbp", disp: envp},
     {op: "mov", dst: "rax", imm: 59},
     {op: "syscall"}
   ]
@@ -3544,7 +3718,7 @@ def exec_child(tag)
       [
         {op: "jmp", label: "#{tag}_fail"},
         {op: "label", name: "#{tag}_search"},
-        {op: "load", dst: "r10", base: "r14", disp: ENVP_AT},
+        {op: "load", dst: "r10", base: "rbp", disp: envp},
         {op: "label", name: "#{tag}_env"},
         {op: "load", dst: "r8", base: "r10", disp: 0},
         {op: "cmp", dst: "r8", imm: 0},
@@ -3629,7 +3803,11 @@ RT_EXEC_CHECK = append(
       {op: "cmp", dst: "rax", imm: 0},
       {op: "j", cond: "ne", label: "rt_ex_parent"}
     ],
-    exec_child("rt_ex"),
+    [
+      {op: "load", dst: "rcx", base: "r14", disp: ENVP_AT},
+      {op: "store", src: "rcx", base: "rbp", disp: -64}
+    ],
+    exec_child("rt_ex", -64),
     [
       {op: "label", name: "rt_ex_parent"},
       {op: "mov", dst: "rcx", imm: 0},
@@ -3701,7 +3879,7 @@ test "exec_check forks, finds the command on PATH in the inherited environment a
   assert member?({op: "mov", dst: "rax", imm: 59}, RT_EXEC_CHECK)
   assert member?({op: "mov", dst: "rax", imm: 61}, RT_EXEC_CHECK)
   assert member?(
-    {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
+    {op: "load", dst: "rcx", base: "r14", disp: ENVP_AT},
     RT_EXEC_CHECK
   )
   assert last(save_envp)[:disp] == ENVP_AT
@@ -3885,7 +4063,8 @@ RT_EXEC_CAPTURE = append(
       {op: "store", src: "rdi", base: "rbp", disp: -8},
       {op: "store", src: "rsi", base: "rbp", disp: -56},
       {op: "store", src: "rdx", base: "rbp", disp: -64},
-      {op: "store", src: "rcx", base: "rbp", disp: -72}
+      {op: "store", src: "rcx", base: "rbp", disp: -72},
+      {op: "store", src: "r8", base: "rbp", disp: -264}
     ],
     argv_on_stack("rt_xc"),
     [
@@ -3900,6 +4079,7 @@ RT_EXEC_CAPTURE = append(
     ],
     split_fds(-80, -96, -104),
     split_fds(-88, -112, -120),
+    envp_with(-264, -272, "rt_xc_env"),
     flat_map(
       [-128, -144],
       fn(slot)
@@ -3932,7 +4112,7 @@ RT_EXEC_CAPTURE = append(
       {op: "mov", dst: "rax", imm: 33},
       {op: "syscall"}
     ],
-    exec_child("rt_xc"),
+    exec_child("rt_xc", -272),
     [
       {op: "label", name: "rt_xc_parent"},
       {op: "store", src: "rax", base: "rbp", disp: -160},
@@ -4006,6 +4186,8 @@ RT_EXEC_CAPTURE = append(
     cell(-232, -240, -240),
     [
       {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -264},
       {op: "call_label", label: "rt_drop"},
       {op: "load", dst: "rax", base: "rbp", disp: -240},
       {op: "mov", dst: "rsp", src: "rbp"},
@@ -4093,8 +4275,62 @@ test "the clock and process helpers each do their one part"
   assert PATH_PREFIX_MASK == 1_099_511_627_775
   assert member?(
     {op: "movabs", dst: "rcx", imm: PATH_PREFIX_MASK},
-    exec_child("t")
+    exec_child("t", -64)
   )
-  assert last(exec_child("t")) == {op: "syscall"}
+  assert last(exec_child("t", -64)) == {op: "syscall"}
   assert CAPTURE_BYTES == 268_435_456
+end
+
+@doc """
+env_programs: programs over exec_with_env, with the exit status and output each must give: an extra variable the command sees, one that wins over the same name inherited, and the inherited PATH still found.
+
+    length(env_programs) #=> 2
+"""
+def env_programs()
+  [
+    [
+      "(let ((r (exec_with_env (list (list \"BLUE_X\" \"hello\")) \"sh\" \"-c\" \"echo $BLUE_X\"))) (begin (write_stdout (first (rest (first (rest r))))) (first (rest (first r)))))",
+      0,
+      unlines(["hello"])
+    ],
+    [
+      "(let ((r (exec_with_env (list (list \"HOME\" \"/nowhere\") (list \"B\" \"2\")) \"sh\" \"-c\" \"echo $HOME $B; exit 5\"))) (begin (write_stdout (first (rest (first (rest r))))) (first (rest (first r)))))",
+      5,
+      unlines(["/nowhere 2"])
+    ]
+  ]
+end
+
+test "exec_with_env runs a command with extra variables natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-env"), "env.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      env_programs
+    )
+  end
+end
+
+test "exec_with_env passes its list to rt_exec_capture, which builds the environment from it"
+  assert last(rc_op(["e"], "exec_with_env", [read_forms("e")[0], "c"])) ==
+    {op: "call_label", label: "rt_exec_capture"}
+  assert member?(
+    {op: "mov", dst: "r8", imm: 0},
+    rc_op([], "exec_capture", ["c"])
+  )
+  assert envp_with(-264, -272, "t")[0] ==
+    {op: "load", dst: "r9", base: "rbp", disp: -264}
+  assert member?({op: "mov", dst: "rcx", imm: 61}, envp_with(-264, -272, "t"))
 end

@@ -462,6 +462,8 @@ def cz_sig_ty(n, records)
       cz_sym(first(n)) == "List" and
       cz_sym(second(n)) == "Int"
     "List"
+  elsif list?(n) and count(n) == 3 and map(cz_sym, n) == %w[Map Str Int]
+    "Map(Str, Int)"
   else
     cz_sym(n)
   end
@@ -478,11 +480,13 @@ def cz_sig_ty(n, records)
     :dyn
   elsif s == "List"
     :list
+  elsif s == "Map(Str, Int)"
+    :map
   elsif r != nil
     r[:name]
   else
     cz_refuse(
-      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, Str a refcounted string, a record its struct, dyn any record"
+      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, Str a refcounted string, Map(Str, Int) a refcounted map, a record its struct, dyn any record"
     )
   end
 end
@@ -511,6 +515,10 @@ def cz_rs_ty(ty, word)
     rs_ty("Rec")
   elsif ty == :list
     rs_ty("List")
+  elsif ty == :map and word == 64
+    rs_ty("Map")
+  elsif ty == :map
+    cz_refuse("a map has a native form on the 64-bit host only, where the heap is")
   elsif ty == :span
     rs_ty("Span")
   else
@@ -717,6 +725,8 @@ def cz_ty(n, ctx)
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
   elsif h == "list" or h == "append" or h == "rest"
     :list
+  elsif h == "assoc" or h == "hash-map"
+    :map
   elsif h == "concat"
     :str
   elsif h == "member?"
@@ -753,7 +763,7 @@ end
 
 @doc """
 cz_counted?: Whether a value of type `ty` is refcounted, so a second use takes a
-clone (a count, not a copy): a list, a Str, a record that holds either, and any
+clone (a count, not a copy): a list, a Str, a map, a record that holds a Str or a list, and any
 record when one of `records` does.
 
     cz_counted?(:list, []) #=> true
@@ -762,7 +772,7 @@ record when one of `records` does.
     cz_counted?(:dyn, [{name: "%root/q", fields: ["x"], types: [:word]}]) #=> false
 """
 def cz_counted?(ty, records)
-  if member?(ty, %i[list str])
+  if member?(ty, %i[list str map])
     true
   elsif ty == :dyn
     any?(cz_holds_counted?, records)
@@ -1206,6 +1216,62 @@ def cz_concat(args, ctx)
   rs_call(%w[kiban_heap cat], map((a) -> cz_ref(a, ctx), args))
 end
 
+@doc """
+cz_map_op?: Whether the call `h(args…)` is an operation on a map of strings to Ints:
+`{}`, `assoc`, `get` or `count` whose map is one.
+
+    cz_map_op?("hash-map", [], {}) #=> true
+    cz_map_op?("get", [{sym: "m"}, {sym: "k"}], {types: [["m", :map]]}) #=> true
+    cz_map_op?("count", [{sym: "xs"}], {types: [["xs", :list]]}) #=> false
+"""
+def cz_map_op?(h, args, ctx)
+  if h == "hash-map"
+    empty?(args)
+  elsif h == "assoc"
+    count(args) == 3 and cz_ty(first(args), ctx) == :map
+  elsif h == "get"
+    count(args) == 2 and cz_ty(first(args), ctx) == :map
+  elsif h == "count"
+    count(args) == 1 and cz_ty(first(args), ctx) == :map
+  else
+    false
+  end
+end
+
+@doc """
+cz_map_op: A map operation, lowered to the heap's: `{}` the empty map, `assoc` a
+put (in place when nothing else holds the map), `get` the word at a key (a
+fault when absent, so the interpreter answers the call with nil), `count` its
+entries.
+
+    cz_map_op("hash-map", [], {})[:func] #=> ["kiban_heap", "map_empty"]
+"""
+def cz_map_op(h, args, ctx)
+  borrowed = (e) -> {kind: "ref", mutable: false, expr: e}
+  if h == "hash-map"
+    rs_call(%w[kiban_heap map_empty], [])
+  elsif h == "assoc"
+    rs_call(
+      %w[kiban_heap map_put],
+      [
+        cz_as(first(args), :map, ctx),
+        cz_as(second(args), :str, ctx),
+        cz_as(third(args), :word, ctx)
+      ]
+    )
+  elsif h == "get"
+    rs_call(
+      %w[kiban_heap map_get],
+      [
+        borrowed(cz_as(first(args), :map, ctx)),
+        borrowed(cz_as(second(args), :str, ctx))
+      ]
+    )
+  else
+    rs_call(%w[kiban_heap map_count], [borrowed(cz_as(first(args), :map, ctx))])
+  end
+end
+
 def cz_call(n, ctx)
   h = cz_head(n)
   args = rest(n)
@@ -1346,6 +1412,8 @@ def cz_call(n, ctx)
     )
   elsif h == "member?" and count(args) == 2
     cz_member(first(args), second(args), ctx)
+  elsif cz_map_op?(h, args, ctx)
+    cz_map_op(h, args, ctx)
   elsif member?(h, %w[first count rest]) and
       count(args) == 1 and
       cz_sym?(first(args)) and
@@ -2882,6 +2950,12 @@ def cz_lower(forms, board)
     %w[list append List]
   )
   strings = cz_mentions?(forms, ["Str"])
+  maps = cz_mentions?(forms, ["Map"])
+  if maps and not heap
+    cz_refuse(
+      "a map needs a heap, and #{board[:name]} has none; maps compile for the host board"
+    )
+  end
   if strings and not heap
     cz_refuse(
       "a Str needs a heap, and #{board[:name]} has none; strings compile for the host board"
@@ -2991,6 +3065,11 @@ def cz_lower(forms, board)
       end,
       if strings
         [{kind: "use", item: {path: %w[kiban_heap Str]}}]
+      else
+        []
+      end,
+      if maps
+        [{kind: "use", item: {path: %w[kiban_heap Map]}}]
       else
         []
       end,
@@ -3652,7 +3731,8 @@ def cz_seam_kind(ty)
       {ty: :bool, read: "bool", variant: "Bool"},
       {ty: :float, read: "float", variant: "Float"},
       {ty: :str, read: "str", variant: "Str"},
-      {ty: :list, read: "list", variant: "List"}
+      {ty: :list, read: "list", variant: "List"},
+      {ty: :map, read: "map", variant: "Map"}
     ],
     (k) -> k[:ty] == ty
   )
@@ -4522,4 +4602,24 @@ test "a record that holds a list of Ints is cloned, not copied, and its list cro
   arg = cz_value_arg(rs_path("a"), "%root/b", [b])
   xs = first(last(arg[:block][:stmts])[:expr][:fields])[:value]
   assert xs[:method] == "list"
+end
+
+test "a map of Strs to Ints is a refcounted map: assoc puts, get reads, count counts"
+  put = "(define-typed (%root/p (m (Map Str Int)) (k Str) (v Int)) (Map Str Int) (assoc m k v))"
+  assert cz_def_native(put, "%root/p").nil?
+  at = "(define-typed (%root/a (m (Map Str Int)) (k Str)) Int (+ (get m k) (count m)))"
+  assert cz_def_native(at, "%root/a").nil?
+  fresh = "(define-typed (%root/f (k Str)) (Map Str Int) (assoc (hash-map) k 1))"
+  assert cz_def_native(fresh, "%root/f").nil?
+  floats = "(define-typed (%root/g (m (Map Str Float))) Int 0)"
+  assert cz_def_native(floats, "%root/g") != nil
+  assert cz_sig_ty(first(cz_read("(Map Str Int)")), []) == :map
+  assert cz_rs_ty(:map, 64) == rs_ty("Map")
+  assert cz_counted?(:map, [])
+  assert cz_seam_kind(:map)[:variant] == "Map"
+  ctx = {types: [["m", :map], ["k", :str]], params: %w[m k], word: 64}
+  assert cz_map_op?("assoc", cz_read("m k 1"), ctx)
+  got = cz_map_op("get", cz_read("m k"), ctx)
+  assert got[:func] == %w[kiban_heap map_get]
+  assert cz_ty(first(cz_read("(assoc m k 1)")), ctx) == :map
 end

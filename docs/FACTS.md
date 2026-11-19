@@ -284,7 +284,24 @@ Each wave lists defaults in the order their gain is known. Each default meets
     `checks.native-defs` "a record that holds a list of Ints crosses the
     seam both ways" (`pushed`, `tallied`; `pushed_twice`'s artifact swapped
     in proves the artifact answered), its 12 tests passing on macOS.
-  - Next: maps.
+  - ✅ A map of Strs to Ints: `Map(Str, Int)` is a refcounted map in
+    native code (`kiban_heap::Map`, ordered by key), counted as a list is
+    (a second use takes a clone). `{}` is the empty map, `assoc` a put (in
+    place when nothing else holds the map), `count` its entries, and `get`
+    the word at a key; an absent key is a fault, so the interpreter answers
+    that call with nil, as it does any call an artifact does not answer
+    (`cz_map_op`). It crosses the seam as `m` and its entries, each key's
+    UTF-8 in hex, `=`, its Int (`m6162=3,63=-1`; `m` alone the empty map); a
+    map with any other key or value, a record among them, is not sent.
+    Locks: native.rs `a_map_of_strs_to_ints_crosses_the_seam_as_its_entries`
+    (a keyword key refused, a malformed entry refused); chuuzou 141 tests ("a
+    map of Strs to Ints is a refcounted map: …", `Map(Str, Float)` refused);
+    `checks.native-defs` "a map of Strs to Ints crosses the seam both ways"
+    (`put_word` on a map and on `{}`, `looked_up` of a present key and of an
+    absent one; `put_double`'s artifact swapped in proves the artifact
+    answered), its 13 tests passing on macOS. Found by that check and fixed:
+    the generated crate imports `kiban_heap::Map` when a program names a map.
+  - Next: records in lists, then closures.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

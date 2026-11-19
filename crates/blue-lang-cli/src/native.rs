@@ -144,6 +144,7 @@ enum Word {
     Str,
     List,
     Record(Arc<Fields>),
+    Map,
 }
 
 /// A record whose every field holds an Int, a Bool or a Float (an untyped
@@ -322,9 +323,17 @@ impl Shape {
         }
         let word = |t: &Spanned| match t.as_symbol().or_else(|| match t.as_list()? {
             [l, i] if l.as_symbol() == Some("List") && i.as_symbol() == Some("Int") => Some("List"),
+            [m, k, v]
+                if m.as_symbol() == Some("Map")
+                    && k.as_symbol() == Some("Str")
+                    && v.as_symbol() == Some("Int") =>
+            {
+                Some("Map(Str, Int)")
+            }
             _ => None,
         })? {
             "List" => Some(Word::List),
+            "Map(Str, Int)" => Some(Word::Map),
             "Int" => Some(Word::Int),
             "Bool" => Some(Word::Bool),
             "Float" => Some(Word::Float),
@@ -372,7 +381,7 @@ impl Shape {
             Self::Typed(ws, r) => ws
                 .iter()
                 .chain([r])
-                .all(|w| !matches!(w, Word::Str | Word::List | Word::Record(_))),
+                .all(|w| !matches!(w, Word::Str | Word::List | Word::Record(_) | Word::Map)),
         }
     }
 
@@ -400,6 +409,19 @@ impl Shape {
                 (Value::Bool(b), Word::Bool) => Some(format!("b{}", u8::from(*b))),
                 (Value::Float(x), Word::Float) => Some(format!("f{}", x.to_bits().cast_signed())),
                 (Value::List(xs), Word::List) => list_token(xs.iter()),
+                (v @ Value::Map(m), Word::Map)
+                    if blue_lang_runtime::record::name_of(v).is_none() =>
+                {
+                    m.iter()
+                        .map(|(k, v)| match (k, v) {
+                            (tatara_lisp_eval::MapKey::Str(k), Value::Int(n)) => {
+                                Some(format!("{}={n}", str_token(k).get(1..)?))
+                            }
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<String>>>()
+                        .map(|es| format!("m{}", es.join(",")))
+                }
                 (v, Word::Record(f)) => {
                     let Value::Map(m) = v else { return None };
                     (blue_lang_runtime::record::name_of(v)?
@@ -468,6 +490,22 @@ impl Shape {
                 blue_lang_runtime::record::value_of(&f.key, &names, values)
             }
             (b'l', Word::List) => list_of(rest),
+            (b'm', Word::Map) => {
+                let mut m = tatara_lisp_eval::Map::new();
+                if !rest.is_empty() {
+                    for entry in rest.split(',') {
+                        let (k, n) = entry.split_once('=')?;
+                        let Value::Str(k) = str_of(k)? else {
+                            return None;
+                        };
+                        m.insert(
+                            tatara_lisp_eval::MapKey::Str(k),
+                            Value::Int(n.parse().ok()?),
+                        );
+                    }
+                }
+                Some(Value::Map(Arc::new(m)))
+            }
             (b'r', Word::Record(f)) if !f.counted() => {
                 let values = if rest.is_empty() {
                     Vec::new()
@@ -1209,6 +1247,31 @@ mod tests {
         )
         .expect("a record");
         assert_eq!(keep.tokens(&[wrong]), None);
+    }
+
+    #[test]
+    fn a_map_of_strs_to_ints_crosses_the_seam_as_its_entries() {
+        let put = shape("(define-typed (%root/p (m (Map Str Int)) (k Str)) (Map Str Int) m)")
+            .expect("a shape");
+        assert!(!put.in_words() && !put.plain());
+        let mut entries = tatara_lisp_eval::Map::new();
+        entries.insert(tatara_lisp_eval::MapKey::Str("é".into()), Value::Int(3));
+        entries.insert(tatara_lisp_eval::MapKey::Str("".into()), Value::Int(-1));
+        let m = Value::Map(Arc::new(entries));
+        let tokens = put
+            .tokens(&[m.clone(), Value::Str("a".into())])
+            .expect("tokens");
+        assert_eq!(tokens[1], "s61");
+        let back = put.from_token(&tokens[0]).expect("a map");
+        assert!(blue_lang_runtime::stdlib::blue_equal(&back, &m));
+        assert!(matches!(put.from_token("m"), Some(Value::Map(e)) if e.is_empty()));
+        assert!(put.from_token("m61").is_none());
+        let mut keyed = tatara_lisp_eval::Map::new();
+        keyed.insert(tatara_lisp_eval::MapKey::Keyword("a".into()), Value::Int(1));
+        assert_eq!(
+            put.tokens(&[Value::Map(Arc::new(keyed)), Value::Str("a".into())]),
+            None
+        );
     }
 
     #[test]

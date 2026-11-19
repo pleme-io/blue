@@ -448,3 +448,43 @@ test "a record that holds a list of Ints crosses the seam both ways", {
   assert interpreted(work, "pushed", [b, 5], swapped) ==
     unlines(["bag({n: 0, xs: [1, 5, 5]})"])
 end
+
+test "a map of Strs to Ints crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-map")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  m = assoc(assoc({}, "é, b", 2), "a", 1)
+  calls = [
+    ["put_word", [m, "c", 3]],
+    ["put_word", [{}, "", -1]],
+    ["looked_up", [m, "a"]],
+    ["looked_up", [m, "absent"]]
+  ]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("put_word"))
+  mkdir_p(shelf)
+  other = path_join(root, "native", "v1", hex_of("put_double"))
+  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(other, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  assert interpreted(work, "put_word", [m, "c", 3], off) ==
+    unlines(["{\"a\" => 1, \"c\" => 3, \"é, b\" => 2}"])
+  assert interpreted(work, "put_word", [m, "c", 3], swapped) ==
+    unlines(["{\"a\" => 1, \"c\" => 6, \"é, b\" => 2}"])
+end

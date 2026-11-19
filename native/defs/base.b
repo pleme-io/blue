@@ -153,3 +153,15 @@ end
 def tallied(b: bag) -> bag
   bag(**b, n: count(b.xs))
 end
+
+def put_word(m: Map(Str, Int), k: Str, v: Int) -> Map(Str, Int)
+  assoc(m, k, v)
+end
+
+def put_double(m: Map(Str, Int), k: Str, v: Int) -> Map(Str, Int)
+  assoc(m, k, v * 2)
+end
+
+def looked_up(m: Map(Str, Int), k: Str) -> Int
+  get(m, k) + count(m)
+end

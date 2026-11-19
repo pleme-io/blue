@@ -18,6 +18,7 @@
 
 extern crate alloc;
 
+use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -259,6 +260,40 @@ pub fn text(s: &str) -> Str {
     Rc::from(s)
 }
 
+/// A refcounted map of strings to board words, ordered by key as the
+/// interpreter orders a map's entries.
+pub type Map = Rc<BTreeMap<Str, i64>>;
+
+/// `{}`: the empty map.
+#[must_use]
+pub fn map_empty() -> Map {
+    Rc::new(BTreeMap::new())
+}
+
+/// `assoc(m, k, v)`: `m` with `k` set to `v`, in place when nothing else
+/// holds `m`.
+#[must_use]
+pub fn map_put(mut m: Map, k: Str, v: i64) -> Map {
+    Rc::make_mut(&mut m).insert(k, v);
+    m
+}
+
+/// `get(m, k)`: the word at `k`, or a fault when `m` has none, so the call
+/// runs in the interpreter, which answers nil.
+#[must_use]
+pub fn map_get(m: &Map, k: &Str) -> i64 {
+    match m.get(k) {
+        Some(v) => *v,
+        None => kiban_io::fault(),
+    }
+}
+
+/// `count(m)`: its entries.
+#[must_use]
+pub fn map_count(m: &Map) -> i64 {
+    i64::try_from(m.len()).unwrap_or_else(|_| kiban_io::fault())
+}
+
 /// A value as `concat` and interpolation write it: a string as it is, an Int
 /// in decimal, a Bool as `true` or `false`, as the interpreter writes them.
 pub trait Piece {
@@ -309,6 +344,7 @@ pub enum Value {
     List(List),
     Record(List),
     Fields(Vec<Value>),
+    Map(Map),
 }
 
 impl Value {
@@ -362,6 +398,15 @@ impl Value {
     pub fn field(&self, i: usize) -> &Value {
         match self {
             Self::Fields(vs) => vs.get(i).unwrap_or_else(|| kiban_io::fault()),
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// The map of strings to Ints this is, or a fault.
+    #[must_use]
+    pub fn map(&self) -> Map {
+        match self {
+            Self::Map(m) => m.clone(),
             _ => kiban_io::fault(),
         }
     }

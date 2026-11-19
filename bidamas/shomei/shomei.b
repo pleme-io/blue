@@ -1340,3 +1340,308 @@ test "the content root sorts by path, and every path and hash moves it"
   assert content_root_of([a]) ==
     "b3:#{hash_message(unlines(["blue-content/v1", "a.b\t#{a[1]}"]))}"
 end
+
+@doc """
+blake3: The BLAKE3 hash of data (text or a list of bytes) as 64 lowercase hex
+characters, computed by blue itself (R6a of docs/PURE-BLUE.md): the digest
+blake3_hex gives, from the chunks, the compression function and the tree.
+
+    blake3("abc") #=> blake3_hex("abc")
+"""
+def blake3(data)
+  bytes = if string?(data)
+    text_bytes(data)
+  else
+    data
+  end
+  hex_encode(words_bytes(tree_cv(pieces(bytes, 1024), 0, true)))
+end
+
+@doc """
+blake3_iv: BLAKE3's eight initial words, the SHA-256 ones.
+
+    blake3_iv[0] #=> 1779033703
+"""
+def blake3_iv()
+  [
+    1_779_033_703,
+    3_144_134_277,
+    1_013_904_242,
+    2_773_480_762,
+    1_359_893_119,
+    2_600_822_924,
+    528_734_635,
+    1_541_459_225
+  ]
+end
+
+@doc """
+word32: A whole number cut to its low 32 bits.
+
+    word32(4294967296 + 5) #=> 5
+"""
+def word32(x)
+  bit_and(x, 4_294_967_295)
+end
+
+@doc """
+rotr32: A 32-bit word rotated right by n bits.
+
+    rotr32(1, 1) #=> 2147483648
+"""
+def rotr32(x, n)
+  word32(bit_or(shift_right(x, n), shift_left(x, 32 - n)))
+end
+
+@doc """
+pieces: A list cut into runs of n, the last one shorter; the empty list is one
+empty run, as BLAKE3 hashes empty input as one empty chunk.
+
+    pieces([1, 2, 3], 2) #=> [[1, 2], [3]]
+"""
+def pieces(xs, n)
+  if count(xs) <= n
+    [xs]
+  else
+    cons(take(n, xs), pieces(drop(n, xs), n))
+  end
+end
+
+@doc """
+mix: BLAKE3's quarter-round G on the state (a map from 0..15 to words), mixing
+in the two message words x and y.
+
+    get(mix(state_of(zeros(16)), 0, 4, 8, 12, 0, 0), 0) #=> 0
+"""
+def mix(s, a, b, c, d, x, y)
+  a1 = word32(get(s, a) + get(s, b) + x)
+  d1 = rotr32(bit_xor(get(s, d), a1), 16)
+  c1 = word32(get(s, c) + d1)
+  b1 = rotr32(bit_xor(get(s, b), c1), 12)
+  a2 = word32(a1 + b1 + y)
+  d2 = rotr32(bit_xor(d1, a2), 8)
+  c2 = word32(c1 + d2)
+  b2 = rotr32(bit_xor(b1, c2), 7)
+  assoc(assoc(assoc(assoc(s, a, a2), b, b2), c, c2), d, d2)
+end
+
+@doc """
+zeros: A list of n zeros.
+
+    zeros(2) #=> [0, 0]
+"""
+def zeros(n)
+  if n <= 0
+    []
+  else
+    cons(0, zeros(n - 1))
+  end
+end
+
+@doc """
+state_of: A list of words as the map from their positions to them.
+
+    get(state_of([7, 8]), 1) #=> 8
+"""
+def state_of(ws)
+  reduce((acc, i) -> assoc(acc, i, ws[i]), {}, range(0, count(ws)))
+end
+
+@doc """
+blake3_round: One round: the four column mixes, then the four diagonal ones.
+
+    count(map_entries(blake3_round(state_of(range(0, 16)), range(0, 16)))) #=> 16
+"""
+def blake3_round(s, m)
+  s1 = mix(s, 0, 4, 8, 12, m[0], m[1])
+  s2 = mix(s1, 1, 5, 9, 13, m[2], m[3])
+  s3 = mix(s2, 2, 6, 10, 14, m[4], m[5])
+  s4 = mix(s3, 3, 7, 11, 15, m[6], m[7])
+  s5 = mix(s4, 0, 5, 10, 15, m[8], m[9])
+  s6 = mix(s5, 1, 6, 11, 12, m[10], m[11])
+  s7 = mix(s6, 2, 7, 8, 13, m[12], m[13])
+  mix(s7, 3, 4, 9, 14, m[14], m[15])
+end
+
+@doc """
+permuted: The message words in BLAKE3's order for the next round.
+
+    permuted(range(0, 16))[0] #=> 2
+"""
+def permuted(m)
+  map((i) -> m[i], [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8])
+end
+
+@doc """
+rounds: The state after n rounds, the message permuted between them.
+
+    rounds({}, [], 0) #=> {}
+"""
+def rounds(s, m, n)
+  if n == 0
+    s
+  else
+    rounds(blake3_round(s, m), permuted(m), n - 1)
+  end
+end
+
+@doc """
+compress: BLAKE3's compression function, giving the eight-word chaining value
+of one 64-byte block (as sixteen words) under cv, the counter, the block's
+length and the flags.
+
+    count(compress(blake3_iv, zeros(16), 0, 0, 11)) #=> 8
+"""
+def compress(cv, m, counter, len, flags)
+  start = flatten(
+    [
+      cv,
+      take(4, blake3_iv),
+      [word32(counter), shift_right(counter, 32), len, flags]
+    ]
+  )
+  s = rounds(state_of(start), m, 7)
+  map((i) -> bit_xor(get(s, i), get(s, i + 8)), range(0, 8))
+end
+
+@doc """
+block_words: A block of up to 64 bytes, zero-padded, as sixteen little-endian words.
+
+    take(2, block_words([1, 0, 0, 0, 2])) #=> [1, 2]
+"""
+def block_words(block)
+  b = flatten([block, zeros(64 - count(block))])
+  map(
+    fn(i)
+      b[4 * i] +
+        shift_left(b[4 * i + 1], 8) +
+        shift_left(b[4 * i + 2], 16) +
+        shift_left(b[4 * i + 3], 24)
+    end,
+    range(0, 16)
+  )
+end
+
+@doc """
+words_bytes: Words as their little-endian bytes, in order.
+
+    words_bytes([258]) #=> [2, 1, 0, 0]
+"""
+def words_bytes(ws)
+  flatten(
+    map((w) -> map((k) -> bit_and(shift_right(w, 8 * k), 255), range(0, 4)), ws)
+  )
+end
+
+@doc """
+chunk_cv: The chaining value of one chunk of up to 1024 bytes at its index;
+root marks the chunk that is the whole input.
+
+    count(chunk_cv([], 0, true)) #=> 8
+"""
+def chunk_cv(chunk, index, root)
+  chunk_blocks(pieces(chunk, 64), blake3_iv, index, 1, root)
+end
+
+@doc """
+chunk_blocks: The chaining value after compressing a chunk's remaining blocks,
+start being the chunk-start flag for the first of them.
+
+    count(chunk_blocks([[]], blake3_iv, 0, 1, true)) #=> 8
+"""
+def chunk_blocks(blocks, cv, index, start, root)
+  block = first(blocks)
+  last = drop(1, blocks) == []
+  flags = start +
+    if last
+      2
+    else
+      0
+    end +
+    if last and root
+      8
+    else
+      0
+    end
+  out = compress(cv, block_words(block), index, count(block), flags)
+  if last
+    out
+  else
+    chunk_blocks(drop(1, blocks), out, index, 0, root)
+  end
+end
+
+@doc """
+tree_cv: The chaining value of a run of chunks starting at chunk index start:
+one chunk's own, or the parent of the left subtree (the largest power of two
+of chunks that leaves one for the right) and the right.
+
+    count(tree_cv([[], []], 0, true)) #=> 8
+"""
+def tree_cv(chunks, start, root)
+  n = count(chunks)
+  if n == 1
+    chunk_cv(first(chunks), start, root)
+  else
+    k = pow2_below(n, 1)
+    left = tree_cv(take(k, chunks), start, false)
+    right = tree_cv(drop(k, chunks), start + k, false)
+    flags = 4 +
+      if root
+        8
+      else
+        0
+      end
+    compress(blake3_iv, flatten([left, right]), 0, 64, flags)
+  end
+end
+
+@doc """
+pow2_below: The largest power of two (from p up) below n.
+
+    pow2_below(5, 1) #=> 4
+"""
+def pow2_below(n, p)
+  if p * 2 < n
+    pow2_below(n, p * 2)
+  else
+    p
+  end
+end
+
+test "blake3 gives blake3_hex's digest across chunk and tree shapes", {
+  kind: :unit
+}
+  lengths = [0, 1, 63, 64, 65, 1023, 1024, 1025, 2048, 2049, 3072, 4097]
+  differ = filter(
+    fn(n)
+      data = map((i) -> i % 251, range(0, n))
+      blake3(data) != blake3_hex(data)
+    end,
+    lengths
+  )
+  assert differ == []
+  assert blake3("abc") == blake3_hex("abc")
+end
+
+test "each step of blake3 does its own part", {kind: :unit}
+  assert word32(4_294_967_297) == 1
+  assert rotr32(2, 1) == 1
+  assert pieces([], 2) == [[]]
+  assert get(state_of([1]), 0) == 1
+  assert permuted(range(0, 16))[15] == 8
+  assert rounds({1 => 2}, [], 0) == {1 => 2}
+  assert get(mix(state_of(zeros(16)), 0, 4, 8, 12, 0, 0), 0) == 0
+  assert count(
+    map_entries(blake3_round(state_of(range(0, 16)), range(0, 16)))
+  ) == 16
+  assert count(compress(blake3_iv, range(0, 16), 0, 64, 0)) == 8
+  assert block_words([255])[0] == 255
+  assert words_bytes([1]) == [1, 0, 0, 0]
+  assert count(chunk_cv([1], 0, false)) == 8
+  assert count(chunk_blocks([[1], [2]], blake3_iv, 0, 1, false)) == 8
+  assert count(tree_cv([[1], [2], [3]], 0, false)) == 8
+  assert pow2_below(9, 1) == 8
+  assert zeros(0) == []
+  assert count(blake3_iv) == 8
+end

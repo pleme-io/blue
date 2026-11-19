@@ -59,6 +59,7 @@ Built and on main, each with its lock:
 | M2 (first slice) | `blue explain --memory FILE` prints the ownership facts kuzushi reads, one per line, from a blue program the CLI embeds (`crates/blue-lang-cli/blue/memory.b`); the conformance `cli` column now observes `facts` rows through it, so each M1 row is judged in-process and on the CLI | `crates/blue-lang-cli/blue/memory.b`, `crates/blue-lang-test/tests/conformance/eval.rs` |
 | R6a (first slice) | `deeta::read`, a JSON reader in blue: it gives the values `json_parse` gives, objects as key-ordered pairs with the last value of a repeated key, an empty object as the empty map, numbers as Int or Float as Rust reads them, `\\u` escapes with surrogate pairs; it agrees with `json_parse` on all 259 `in.json` fixtures that `json_parse` accepts | `bidamas/deeta/deeta.b`, `crates/blue-lang-yaml-diff/tests/json_agree.rs` |
 | R6a (JSON writers) | `deeta::write` and `deeta::stringify`, JSON writers in blue: the exact text of `json_write` and `json_stringify`, a list of pairs as an object only in `stringify`, keys in byte order with the last of a repeated key kept, floats in ryu's layout from `to_s`'s shortest digits, control characters as `\\u00XX`, NaN and infinity as null; both agree with Rust on every accepted `in.json` fixture and on 36 edge values | `bidamas/deeta/deeta.b`, `crates/blue-lang-yaml-diff/tests/json_agree.rs` |
+| R6a (BLAKE3) | `shomei::blake3`, BLAKE3 hash mode in blue: chunks of 1024 bytes in 64-byte blocks, the seven-round compression over a 16-word state, the parent tree with the largest power-of-two left subtree; it gives `blake3_hex`'s digest at every length from 0 to 4097 bytes across the chunk and tree boundaries | `bidamas/shomei/shomei.b` |
 | C1 | the native conformance column: every value row compiled by blue's own backend and judged against the walker, its passing count a ratchet (18 rows on 2026-11-18); a call to a global function with the wrong number of arguments is refused before code is made | `crates/blue-lang-test/tests/conformance`, `gen/native-row.b`, `spec/native.baseline`, `checks.conformance-three-way` |
 | C2 (first slice) | the `leaks(N)` expectation: the bytes one run leaves live, read from the counting allocator on the walker and the VM (a warm-up run, then the mean of three); 3 rows hold `leaks(0)` (a built list, a closure and its captures, a replaced cell), and a probe that keeps its runs live reads 65-67 bytes, so the rows can fail | `crates/blue-lang-test/tests/conformance`, `spec/rows/memory.b` |
 
@@ -76,7 +77,7 @@ and recompute this list from §7.
    ratchet over the spec rows. It is on every chain and unblocks M1's other kinds, B3, F2 and M3.
 2. **R4, the rest** (§R4): time, processes, sockets, epoll, the terminal, then `put_int` and
    `put_byte`, which C3 needs. Critical path: R4 → R6a → S1.
-3. **R6a, the rest** (§R6): BLAKE3 and SHA-2 in blue; the JSON reader and both writers landed.
+3. **R6a, the rest** (§R6): SHA-2 in blue; JSON (reader, both writers) and BLAKE3 landed.
 4. **F1** (`pure-blue/front-tower-conformance.md` §F1): the reader in blue. No dependencies, the
    heaviest front-end rung, and S1 needs it.
 5. **M2, the rest** (`pure-blue/language-memory.md` §M2): the static memory hints in the LSP's inlay hints, served without live evaluation; `blue explain --memory` landed.

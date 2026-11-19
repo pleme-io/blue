@@ -586,6 +586,69 @@ fn main() {
             red = true;
         }
     }
+    if filter.is_none() && !rows.is_empty() && eval::sweeping() {
+        let swept = std::mem::take(
+            &mut *eval::SWEPT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        let leaking: BTreeMap<(String, String), i64> = swept
+            .iter()
+            .filter(|(_, _, bytes)| *bytes > 0)
+            .map(|(id, ev, bytes)| ((id.clone(), (*ev).to_owned()), *bytes))
+            .collect();
+        let ledger = repo.join("spec/leaks.baseline");
+        if std::env::var_os("BLUE_CONFORMANCE_LEAKS_RECORD").is_some() {
+            let text: String = leaking
+                .iter()
+                .map(|((id, ev), bytes)| format!("{id}\t{ev}\t{bytes}\n"))
+                .collect();
+            std::fs::write(&ledger, text).expect("spec/leaks.baseline");
+        }
+        let held: BTreeMap<(String, String), i64> = std::fs::read_to_string(&ledger)
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| {
+                let mut f = l.split('\t');
+                let id = f.next()?.to_owned();
+                let ev = f.next()?.to_owned();
+                let bytes = f.next()?.trim().parse().ok()?;
+                Some(((id, ev), bytes))
+            })
+            .collect();
+        writeln!(
+            out,
+            "  leak sweep: {} row-runs measured, {} leave bytes live, the ledger holds {}",
+            swept.len(),
+            leaking.len(),
+            held.len()
+        )
+        .ok();
+        for ((id, ev), bytes) in &leaking {
+            match held.get(&(id.clone(), ev.clone())) {
+                Some(h) if bytes <= h => {}
+                Some(h) => {
+                    writeln!(
+                        out,
+                        "FAIL leaks {id} on {ev}: {bytes} bytes live per run, the ledger holds {h}"
+                    )
+                    .ok();
+                    red = true;
+                }
+                None => {
+                    writeln!(out, "FAIL leaks {id} on {ev}: {bytes} bytes live per run, and spec/leaks.baseline does not hold it").ok();
+                    red = true;
+                }
+            }
+        }
+        for (id, ev) in held.keys() {
+            let measured = swept.iter().any(|(i, e, _)| i == id && e == ev);
+            if measured && !leaking.contains_key(&(id.clone(), ev.clone())) {
+                writeln!(out, "FAIL leaks {id} on {ev}: leaves nothing live now; take its line out of spec/leaks.baseline (the ledger only shrinks)").ok();
+                red = true;
+            }
+        }
+    }
     if filter.is_none() && !rows.is_empty() && env.memo_disk_hits == 0 {
         writeln!(
             out,

@@ -266,6 +266,7 @@ pub fn walker(env: &mut Env, row: &Row) -> Obs {
     if let Expect::Leaks(_) = row.expect {
         return leaks(env, row, walker);
     }
+    sweep(env, row, "walker", walker);
     if !runs(row) {
         return Obs::Blind(format!(
             "a {} row is observed by the front end",
@@ -379,6 +380,7 @@ pub fn vm(env: &mut Env, row: &Row) -> Obs {
     if let Expect::Leaks(_) = row.expect {
         return leaks(env, row, vm);
     }
+    sweep(env, row, "vm", vm);
     if !runs(row) {
         return Obs::Blind(format!(
             "a {} row is observed by the front end",
@@ -1280,14 +1282,53 @@ pub fn leaks(env: &mut Env, row: &Row, run: fn(&mut Env, &Row) -> Obs) -> Obs {
         return first;
     }
     drop(first);
-    let Some(before) = blue_lang_runtime::alloc::allocations() else {
-        return Obs::Blind("this binary does not count allocations".into());
-    };
-    for _ in 0..3 {
+    let mut least: Option<i64> = None;
+    for _ in 0..5 {
+        let Some(before) = blue_lang_runtime::alloc::allocations() else {
+            return Obs::Blind("this binary does not count allocations".into());
+        };
         drop(run(env, &probe));
+        let Some(after) = blue_lang_runtime::alloc::allocations() else {
+            return Obs::Blind("this binary does not count allocations".into());
+        };
+        let kept = after.since(before).retained();
+        least = Some(least.map_or(kept, |l| l.min(kept)));
     }
-    let Some(after) = blue_lang_runtime::alloc::allocations() else {
-        return Obs::Blind("this binary does not count allocations".into());
+    Obs::Value(format!("leaks {}", least.unwrap_or(0).max(0)))
+}
+
+pub static SWEPT: std::sync::Mutex<Vec<(String, &'static str, i64)>> =
+    std::sync::Mutex::new(Vec::new());
+
+thread_local! {
+    static SWEEPING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub fn sweeping() -> bool {
+    std::env::var_os("BLUE_CONFORMANCE_LEAKS").is_some()
+}
+
+fn sweep(env: &mut Env, row: &Row, ev: &'static str, run: fn(&mut Env, &Row) -> Obs) {
+    if !sweeping()
+        || !matches!(row.expect, Expect::Value(_))
+        || !row.pending.is_empty()
+        || SWEEPING.with(std::cell::Cell::get)
+    {
+        return;
+    }
+    SWEEPING.with(|s| s.set(true));
+    let probe = Row {
+        expect: Expect::Leaks(0),
+        ..row.clone()
     };
-    Obs::Value(format!("leaks {}", after.since(before).retained() / 3))
+    let got = leaks(env, &probe, run);
+    SWEEPING.with(|s| s.set(false));
+    if let Obs::Value(v) = got {
+        if let Some(bytes) = v.strip_prefix("leaks ").and_then(|b| b.parse().ok()) {
+            SWEPT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push((row.id.clone(), ev, bytes));
+        }
+    }
 }

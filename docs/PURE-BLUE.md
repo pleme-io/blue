@@ -63,6 +63,12 @@ language in the path, give their value and end with 0 blocks live.
 Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1's other kinds (borrow, unique, escape, reuse), spans and the def-hash cache; M2-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
 beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2 beyond `leaks` (`closes_at`, cycle-through-cell, move vs copy, and I3 over every row), C3; D4-D6.
 
+In flight (2026-11-19, for the next session):
+
+- **tatara-lisp main, unpublished.** M3a (`eefe94d`: early reuse behind `Interpreter::set_early_reuse`, off by default), `Interpreter::on_release` (`dd312f4`), and a release fix so a closure that keeps a function argument dies with its interpreter (`598927d`; memoize and every higher-order constructor leaked 12-15 KB per run). They publish as tatara-lisp-eval 0.4.24 when tatara's auto-release passes; its release job runs blue's suite, so blue main must be green first. Then record M3a here.
+- **blue, local branch `runtime/release-hooks` (worktree `../blue-rh`, commit `4df8bdd8`).** The dispatch registry empties its handlers on `on_release`, with `leaks(0)` rows for a dispatch closure, `memoize` and a closure argument; all green against local tatara. It lands with the `Cargo.lock` bump to 0.4.24 (the pre-push gate cannot build it before).
+- **C2 sweep.** `BLUE_CONFORMANCE_LEAKS=1` measures every value row on the walker and the VM against `spec/leaks.baseline` (record with `BLUE_CONFORMANCE_LEAKS_RECORD=1`; release build, stdin closed: 1,234 row-runs in 28 s). 49 leak today: 22 dispatch (fixed by the branch above), 8 processes, 8 lisp, 6 wire, 2 host, 2 fn, 1 control. In a release build the `leaks(0)` rows read 22-43 bytes per run, every run (debug reads 0): a small per-run residue, cause not yet found. The ledger only shrinks; a gate (`checks.no-leak`, I3) follows once it is near empty.
+
 ## 2. Ground truth (measured 2026-11-17)
 
 | Fact | Value |

@@ -122,6 +122,7 @@ norm_seq: the binds, last atom and counter after normalising forms in sequence; 
     norm_seq(read_forms("1 2"), 0)[1] #=> 2
 """
 def norm_seq(forms, n)
+  once_defined(forms)
   r = reduce(
     fn(acc, f)
       x = if head_is?(f, "define") and symbol?(f[1])
@@ -136,6 +137,38 @@ def norm_seq(forms, n)
     forms
   )
   [r[0], r[1], r[2]]
+end
+
+@doc """
+once_defined: forms whose (define name form) entries each name a different name; a name defined twice is refused with :rebind before any code is made, since a closure made between the two would keep the first value where blue reads the name when the closure runs.
+
+    length(once_defined(read_forms("(define a 1) (define b 2)"))) #=> 2
+"""
+def once_defined(forms)
+  names = map(
+    (f) -> to_s(f[1]),
+    filter((f) -> head_is?(f, "define") and symbol?(f[1]), forms)
+  )
+  again = filter((x) -> count_of(names, x) > 1, names)
+  if again != []
+    raise(
+      :rebind,
+      "kuzushi: `#{again[0]}` is defined again in one sequence; a closure made before the second definition would keep the first value"
+    )
+  end
+  forms
+end
+
+test "a name defined twice in one sequence is refused before any code is made"
+  twice = nth(
+    0,
+    read_forms("(begin (define n 1) (define f (lambda () n)) (define n 2) (f))")
+  )
+  assert (anf(twice) rescue :rebind) == :rebind
+  assert (once_defined(rest(twice)) rescue :rebind) == :rebind
+  once = read_forms("(begin (define n 1) (define m 2) (+ n m))")[0]
+  assert eval_anf(anf(once), []) == 3
+  assert once_defined([]) == []
 end
 
 @doc """

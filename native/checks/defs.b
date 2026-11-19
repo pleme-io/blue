@@ -12,6 +12,8 @@ record pt(x: Int, y: Int)
 
 record gauge(on: Bool, w: Float, n: Int)
 
+record tag(label: Str, n: Int)
+
 @doc """
 cases: The calls each definition of native/defs/base.b is held to.
 """
@@ -369,4 +371,41 @@ test "a record of Bools and Floats crosses the seam both ways", {
     unlines(["gauge({n: 3, on: true, w: 1.75})"])
   assert interpreted(work, "weighed", [g, 0.25], swapped) ==
     unlines(["gauge({n: 3, on: true, w: 1.25})"])
+end
+
+test "a record that holds a Str crosses the seam both ways", {
+  kind: :integration
+}
+  work = temp_dir("native-tag")
+  root = env_required("DEFS_ROOT")
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
+  off = [%w[BLUE_NATIVE off]]
+  calls = [["bumped", [tag("é, a", 3), 4]], ["relabeled", [tag("", -1), "x"]]]
+  differ = filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+  assert differ == []
+  shelf = path_join(work, "shelf", "native", "v1", hex_of("bumped"))
+  mkdir_p(shelf)
+  other = path_join(root, "native", "v1", hex_of("shrunk"))
+  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(other, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  swapped = [
+    %w[BLUE_NATIVE on],
+    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
+  ]
+  t = tag("é, a", 3)
+  assert interpreted(work, "bumped", [t, 4], off) ==
+    unlines(["tag({label: \"é, a\", n: 7})"])
+  assert interpreted(work, "bumped", [t, 4], swapped) ==
+    unlines(["tag({label: \"é, a\", n: -1})"])
 end

@@ -125,3 +125,17 @@ end
 def lightened(g: gauge, d: Float) -> gauge
   gauge(**g, w: g.w - d)
 end
+
+record tag(label: Str, n: Int)
+
+def bumped(t: tag, d: Int) -> tag
+  tag(**t, n: t.n + d)
+end
+
+def shrunk(t: tag, d: Int) -> tag
+  tag(**t, n: t.n - d)
+end
+
+def relabeled(t: tag, s: Str) -> tag
+  tag(**t, label: "#{t.label}#{s}")
+end

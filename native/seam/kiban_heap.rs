@@ -53,6 +53,20 @@ pub fn rc_push(mut a: List, v: i64) -> List {
     a
 }
 
+/// No fields yet: where [`field_push`] starts a record that holds a string.
+#[must_use]
+pub fn no_fields() -> Vec<Value> {
+    Vec::new()
+}
+
+/// `vs` with `v` at its end: a record that holds a string, built one field
+/// at a time in declared order.
+#[must_use]
+pub fn field_push(mut vs: Vec<Value>, v: Value) -> Vec<Value> {
+    vs.push(v);
+    vs
+}
+
 /// The word at `i`, or a fault past either end.
 #[must_use]
 pub fn rc_nth(l: &List, i: i64) -> i64 {
@@ -294,6 +308,7 @@ pub enum Value {
     Str(Str),
     List(List),
     Record(List),
+    Fields(Vec<Value>),
 }
 
 impl Value {
@@ -338,6 +353,15 @@ impl Value {
     pub fn fields(&self) -> List {
         match self {
             Self::Record(l) => l.clone(),
+            _ => kiban_io::fault(),
+        }
+    }
+
+    /// The `i`th field of a record that holds a string, or a fault.
+    #[must_use]
+    pub fn field(&self, i: usize) -> &Value {
+        match self {
+            Self::Fields(vs) => vs.get(i).unwrap_or_else(|| kiban_io::fault()),
             _ => kiban_io::fault(),
         }
     }

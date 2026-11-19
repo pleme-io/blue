@@ -253,9 +253,24 @@ Each wave lists defaults in the order their gain is known. Each default meets
     Floats crosses the seam both ways" (`weighed`, `switched`; `lightened`'s
     artifact swapped in proves the artifact answered), its 10 tests passing
     on macOS against artifacts the builder made.
-  - Next: maps, and records holding a Str or a list (a record that holds a
-    refcounted value is cloned, not copied, which chuuzou's records are
-    today).
+  - ✅ A record that holds a Str across the seam: a Str field is the
+    refcounted string a Str argument is, so the record's struct is cloned,
+    not copied (it derives Clone without Copy, and so does `Rec` when any
+    record holds a Str), and a second use of it takes a clone, a count, as
+    a list or a Str does (`cz_counted?`, one rule where three places tested
+    for a list or a Str). It crosses the seam as `R` and each field's own
+    token (`Rsc3a9,i3`), a new `kiban_heap::Value::Fields` read field by
+    field; a record of words keeps its `r` token, so an artifact built before
+    reads what it read. Locks: native.rs
+    `a_record_that_holds_a_str_crosses_the_seam_as_each_field_s_own_token`
+    (a word token, a short token and fields out of order refused); chuuzou
+    136 tests ("a record that holds a Str is cloned, not copied, …");
+    `checks.native-defs` "a record that holds a Str crosses the seam both
+    ways" (`bumped`, `relabeled`; `shrunk`'s artifact swapped in proves the
+    artifact answered), its 11 tests passing on macOS. Found by that check
+    and fixed: a generated crate is `no_std`, so the empty field list is
+    `kiban_heap::no_fields`, not `Vec::new`.
+  - Next: maps, and records holding a list.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

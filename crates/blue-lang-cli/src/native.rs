@@ -157,12 +157,21 @@ struct Fields {
     kinds: Vec<Kind>,
 }
 
-/// What one field of a record the seam carries holds: one word each.
+impl Fields {
+    /// Whether a field holds a Str, so the token carries each field as its
+    /// own token (`R`) rather than as a word (`r`).
+    fn counted(&self) -> bool {
+        self.kinds.contains(&Kind::Str)
+    }
+}
+
+/// What one field of a record the seam carries holds: a word, or a Str.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Int,
     Bool,
     Float,
+    Str,
 }
 
 impl Kind {
@@ -172,6 +181,7 @@ impl Kind {
             Some(Some("Int")) => Some(Self::Int),
             Some(Some("Bool")) => Some(Self::Bool),
             Some(Some("Float")) => Some(Self::Float),
+            Some(Some("Str")) => Some(Self::Str),
             Some(_) => None,
         }
     }
@@ -185,13 +195,54 @@ impl Kind {
         }
     }
 
-    fn value(self, w: i64) -> Value {
+    fn value(self, w: i64) -> Option<Value> {
         match self {
-            Self::Int => Value::Int(w),
-            Self::Bool => Value::Bool(w != 0),
-            Self::Float => Value::Float(f64::from_bits(w.cast_unsigned())),
+            Self::Int => Some(Value::Int(w)),
+            Self::Bool => Some(Value::Bool(w != 0)),
+            Self::Float => Some(Value::Float(f64::from_bits(w.cast_unsigned()))),
+            Self::Str => None,
         }
     }
+
+    /// The field's own token, as a record that holds a Str carries each.
+    fn token(self, v: &Value) -> Option<String> {
+        match (self, v) {
+            (Self::Str, Value::Str(t)) => Some(str_token(t)),
+            (Self::Int, _) => self.word(v).map(|w| format!("i{w}")),
+            (Self::Bool, _) => self.word(v).map(|w| format!("b{w}")),
+            (Self::Float, _) => self.word(v).map(|w| format!("f{w}")),
+            _ => None,
+        }
+    }
+
+    fn of_token(self, t: &str) -> Option<Value> {
+        let (tag, rest) = (t.as_bytes().first()?, t.get(1..)?);
+        match (self, tag) {
+            (Self::Str, b's') => str_of(rest),
+            (Self::Int, b'i') | (Self::Bool, b'b') | (Self::Float, b'f') => {
+                rest.parse().ok().and_then(|w| self.value(w))
+            }
+            _ => None,
+        }
+    }
+}
+
+fn str_token(t: &str) -> String {
+    t.bytes().fold(String::from("s"), |mut out, b| {
+        out.push_str(&format!("{b:02x}"));
+        out
+    })
+}
+
+fn str_of(hex: &str) -> Option<Value> {
+    if hex.len() % 2 != 0 {
+        return None;
+    }
+    let bytes = (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok())
+        .collect::<Option<Vec<u8>>>()?;
+    String::from_utf8(bytes).ok().map(|t| Value::Str(t.into()))
 }
 
 /// The records of `forms` whose fields the seam carries, by the name a
@@ -327,23 +378,23 @@ impl Shape {
                     (blue_lang_runtime::record::name_of(v)?
                         == blue_lang_runtime::record::name_of_key(&f.key))
                     .then_some(())?;
+                    let counted = f.counted();
                     f.names
                         .iter()
                         .zip(&f.kinds)
                         .map(|(n, k)| {
-                            m.get(&tatara_lisp_eval::MapKey::Keyword(Arc::from(n.as_str())))
-                                .and_then(|v| k.word(v))
-                                .map(|w| w.to_string())
+                            let v =
+                                m.get(&tatara_lisp_eval::MapKey::Keyword(Arc::from(n.as_str())))?;
+                            if counted {
+                                k.token(v)
+                            } else {
+                                k.word(v).map(|w| w.to_string())
+                            }
                         })
                         .collect::<Option<Vec<String>>>()
-                        .map(|xs| format!("r{}", xs.join(",")))
+                        .map(|xs| format!("{}{}", if counted { 'R' } else { 'r' }, xs.join(",")))
                 }
-                (Value::Str(t), Word::Str) => {
-                    Some(t.bytes().fold(String::from("s"), |mut out, b| {
-                        out.push_str(&format!("{b:02x}"));
-                        out
-                    }))
-                }
+                (Value::Str(t), Word::Str) => Some(str_token(t)),
                 _ => None,
             })
             .collect()
@@ -369,12 +420,19 @@ impl Shape {
                 .parse::<i64>()
                 .ok()
                 .map(|b| Value::Float(f64::from_bits(b.cast_unsigned()))),
-            (b's', Word::Str) if rest.len() % 2 == 0 => {
-                let bytes = (0..rest.len())
-                    .step_by(2)
-                    .map(|i| u8::from_str_radix(rest.get(i..i + 2)?, 16).ok())
-                    .collect::<Option<Vec<u8>>>()?;
-                String::from_utf8(bytes).ok().map(|t| Value::Str(t.into()))
+            (b's', Word::Str) => str_of(rest),
+            (b'R', Word::Record(f)) if f.counted() => {
+                let values = if rest.is_empty() {
+                    Vec::new()
+                } else {
+                    rest.split(',')
+                        .zip(&f.kinds)
+                        .map(|(t, k)| k.of_token(t))
+                        .collect::<Option<Vec<Value>>>()?
+                };
+                (values.len() == f.kinds.len()).then_some(())?;
+                let names: Vec<&str> = f.names.iter().map(String::as_str).collect();
+                blue_lang_runtime::record::value_of(&f.key, &names, values)
             }
             (b'l', Word::List) if rest.is_empty() => Some(Value::List(Default::default())),
             (b'l', Word::List) => rest
@@ -382,13 +440,13 @@ impl Shape {
                 .map(|n| n.parse().ok().map(Value::Int))
                 .collect::<Option<Vec<Value>>>()
                 .map(|xs| Value::List(std::sync::Arc::new(xs.into()))),
-            (b'r', Word::Record(f)) => {
+            (b'r', Word::Record(f)) if !f.counted() => {
                 let values = if rest.is_empty() {
                     Vec::new()
                 } else {
                     rest.split(',')
                         .zip(&f.kinds)
-                        .map(|(n, k)| n.parse().ok().map(|w| k.value(w)))
+                        .map(|(n, k)| n.parse().ok().and_then(|w| k.value(w)))
                         .collect::<Option<Vec<Value>>>()?
                 };
                 (values.len() == f.kinds.len()).then_some(())?;
@@ -1037,10 +1095,33 @@ mod tests {
         assert_eq!(shift.tokens(&[other, Value::Int(5)]), None);
         assert_eq!(
             shape(
-                "(blue-record %root/pt %root/pt? (:y Str)) (define-typed (%root/s (p pt)) Int 0)"
+                "(blue-record %root/pt %root/pt? (:y (List Int))) (define-typed (%root/s (p pt)) Int 0)"
             ),
             None
         );
+    }
+
+    #[test]
+    fn a_record_that_holds_a_str_crosses_the_seam_as_each_field_s_own_token() {
+        let named = shape(
+            "(blue-record %root/tag %root/tag? (:label Str) (:n Int)) (define-typed (%root/k (t tag)) tag t)",
+        )
+        .expect("a shape");
+        let t = blue_lang_runtime::record::value_of(
+            "%root/tag",
+            &["label", "n"],
+            vec![Value::Str("é,1".into()), Value::Int(3)],
+        )
+        .expect("a record");
+        assert_eq!(
+            named.tokens(std::slice::from_ref(&t)),
+            Some(vec!["Rsc3a92c31,i3".to_string()])
+        );
+        let back = named.from_token("Rsc3a92c31,i3").expect("a record");
+        assert!(blue_lang_runtime::stdlib::blue_equal(&back, &t));
+        assert!(named.from_token("rsc3a92c31,3").is_none());
+        assert!(named.from_token("Ri3,sc3a9").is_none());
+        assert!(named.from_token("Rsc3a9").is_none());
     }
 
     #[test]

@@ -546,12 +546,12 @@ end
 @doc """
 cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares,
 with the type each field holds: an Int or untyped field the board word, a Bool
-a bool, a Float an f64.
+a bool, a Float an f64, a Str a refcounted string.
 
     cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"], types: [:word, :word]}
 """
 def cz_record_of(form)
-  kinds = [["Int", :word], ["Bool", :bool], ["Float", :float]]
+  kinds = [["Int", :word], ["Bool", :bool], ["Float", :float], ["Str", :str]]
   pairs = map(
     fn(k)
       if list?(k) and
@@ -560,7 +560,7 @@ def cz_record_of(form)
         [first(k)[:kw], cz_lookup(cz_sym(second(k)), kinds)]
       elsif list?(k)
         cz_refuse(
-          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record holds values it copies, so its fields are Int, Bool, Float or untyped"
+          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record's fields are Int, Bool, Float, Str or untyped"
         )
       else
         [k[:kw], :word]
@@ -712,6 +712,39 @@ def cz_ty(n, ctx)
     cz_lookup(h, ctx[:sigs])[:ret]
   else
     :word
+  end
+end
+
+@doc """
+cz_holds_str?: Whether the record `rec` holds a Str, so its struct is cloned, not
+copied.
+
+    cz_holds_str?({fields: ["n"], types: [:str]}) #=> true
+    cz_holds_str?({fields: ["x"]}) #=> false
+"""
+def cz_holds_str?(rec)
+  member?(:str, rec[:types] or [])
+end
+
+@doc """
+cz_counted?: Whether a value of type `ty` is refcounted, so a second use takes a
+clone (a count, not a copy): a list, a Str, a record that holds a Str, and any
+record when one of `records` does.
+
+    cz_counted?(:list, []) #=> true
+    cz_counted?(:word, []) #=> false
+    cz_counted?("%root/p", [{name: "%root/p", fields: ["n"], types: [:str]}]) #=> true
+    cz_counted?(:dyn, [{name: "%root/q", fields: ["x"], types: [:word]}]) #=> false
+"""
+def cz_counted?(ty, records)
+  if member?(ty, %i[list str])
+    true
+  elsif ty == :dyn
+    any?(cz_holds_str?, records)
+  elsif string?(ty)
+    any?((r) -> r[:name] == ty and cz_holds_str?(r), records)
+  else
+    false
   end
 end
 
@@ -1023,7 +1056,7 @@ def cz_expr(n, ctx)
       rs_path(cz_const_name(s))
     elsif member?(s, ctx[:bindings]) and
         ctx[:self].nil? and
-        cz_lookup(s, ctx[:types] or []) == :list
+        cz_counted?(cz_lookup(s, ctx[:types] or []), ctx[:records] or [])
       rs_method(rs_path(cz_binding_name(s)), "clone", [])
     elsif member?(s, ctx[:bindings]) and ctx[:self].nil?
       rs_path(cz_binding_name(s))
@@ -2020,7 +2053,8 @@ def cz_lead(forms, ctx)
         x = cz_sym(second(f))
         c = cz_scope([f], acc[:ctx])
         later = reduce((n, g) -> n + cz_uses(g, x), 0, drop(i + 1, forms))
-        shared = if member?(cz_lookup(x, c[:types]), %i[list str]) and later > 1
+        shared = if cz_counted?(cz_lookup(x, c[:types]), c[:records] or []) and
+            later > 1
           append(c[:shared] or [], [x])
         else
           c[:shared] or []
@@ -2218,7 +2252,7 @@ def cz_fn(form, env)
   shared = map(
     first,
     filter(
-      (t) -> member?(second(t), %i[list str]) and cz_uses(body, first(t)) > 1,
+      (t) -> cz_counted?(second(t), records) and cz_uses(body, first(t)) > 1,
       types
     )
   )
@@ -2736,13 +2770,24 @@ records, `Rec`: one variant per record, each holding only that record.
     cz_record_items([], 64) #=> []
 """
 def cz_record_items(records, word)
-  derives = %w[Clone Copy PartialEq]
+  copied = %w[Clone Copy PartialEq]
+  cloned = %w[Clone PartialEq]
+  derives = if any?(cz_holds_str?, records)
+    cloned
+  else
+    copied
+  end
   structs = map(
     fn(r)
+      own = if cz_holds_str?(r)
+        cloned
+      else
+        copied
+      end
       {
         kind: "struct",
         name: cz_struct_name(r[:name]),
-        derives:,
+        derives: own,
         fields: map(
           fn(f)
             {
@@ -3415,6 +3460,39 @@ def cz_value_arg(e, ty, records)
   rec = find(records, (r) -> r[:name] == ty)
   if rec.nil?
     rs_method(e, cz_seam_kind(ty)[:read], [])
+  elsif cz_holds_str?(rec)
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          {kind: "local", name: "v", value: e},
+          rs_tail(
+            {
+              kind: "struct-lit",
+              path: [cz_struct_name(rec[:name])],
+              fields: map(
+                fn(i)
+                  f = rec[:fields][i]
+                  {
+                    name: cz_checked_ident(f, "a field"),
+                    value: rs_method(
+                      rs_method(
+                        rs_path("v"),
+                        "field",
+                        [{kind: "int", value: i, suffix: "usize"}]
+                      ),
+                      cz_seam_kind(cz_field_ty(rec, f))[:read],
+                      []
+                    )
+                  }
+                end,
+                range(count(rec[:fields]))
+              )
+            }
+          )
+        ]
+      )
+    }
   else
     {
       kind: "block",
@@ -3461,6 +3539,38 @@ def cz_value_result(e, ty, records)
   rec = find(records, (r) -> r[:name] == ty)
   if rec.nil?
     rs_call(["Value", cz_seam_kind(ty)[:variant]], [e])
+  elsif cz_holds_str?(rec)
+    values = reduce(
+      fn(acc, f)
+        rs_call(
+          %w[kiban_heap field_push],
+          [
+            acc,
+            rs_call(
+              ["Value", cz_seam_kind(cz_field_ty(rec, f))[:variant]],
+              [
+                {
+                  kind: "field",
+                  base: rs_path("r"),
+                  field: cz_checked_ident(f, "a field")
+                }
+              ]
+            )
+          ]
+        )
+      end,
+      rs_call(%w[kiban_heap no_fields], []),
+      rec[:fields]
+    )
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          {kind: "local", name: "r", value: e},
+          rs_tail(rs_call(%w[Value Fields], [values]))
+        ]
+      )
+    }
   else
     words = reduce(
       fn(acc, f)
@@ -4243,7 +4353,7 @@ test "a record of Ints crosses the valued seam as its fields"
   shift = "(define-typed (%root/s (p pt) (d Int)) pt (%root/pt (blue-kwargs (blue-splice p) (hash-map :x (+ (blue-field p :x) d)))))"
   assert cz_def_native(concat(rec, shift), "%root/s").nil?
   assert cz_def_native(
-    "(blue-record %root/q %root/q? (:x Str)) (define-typed (%root/f (p q)) Int 0)",
+    "(blue-record %root/q %root/q? (:x (List Int))) (define-typed (%root/f (p q)) Int 0)",
     "%root/f"
   ) != nil
   assert get(
@@ -4339,7 +4449,38 @@ test "a record of Bools and Floats holds each field in its own native form"
   out = cz_value_result(rs_path("r"), "%root/g", [g])
   assert contains?(to_s(out), "float_word")
   assert cz_def_native(
-    "(blue-record %root/q %root/q? (:x Str)) (define-typed (%root/f (p q)) Int 0)",
+    "(blue-record %root/q %root/q? (:x (List Int))) (define-typed (%root/f (p q)) Int 0)",
+    "%root/f"
+  ) != nil
+end
+
+test "a record that holds a Str is cloned, not copied, and crosses the seam as its fields' values"
+  rec = "(blue-record %root/t %root/t? (:label Str) (:n Int)) "
+  bump = "(define-typed (%root/b (t t) (d Int)) t (%root/t (blue-kwargs (blue-splice t) (hash-map :n (+ (blue-field t :n) d)))))"
+  assert cz_def_native(concat(rec, bump), "%root/b").nil?
+  t = cz_record_of(first(cz_read(rec)))
+  assert t[:types] == %i[str word]
+  assert cz_holds_str?(t)
+  assert cz_field_ty(t, "label") == :str
+  ctx = {types: [%w[a %root/t]], records: [t], params: ["a"]}
+  assert cz_field_read_ty([{sym: "a"}, {kw: "label"}], ctx) == :str
+  assert cz_counted?("%root/t", [t])
+  assert cz_counted?(:dyn, [t])
+  items = cz_record_items([t], 64)
+  assert first(items)[:derives] == %w[Clone PartialEq]
+  assert last(items)[:derives] == %w[Clone PartialEq]
+  plain = cz_record_items(
+    [{name: "%root/p", fields: ["x"], types: [:word]}],
+    64
+  )
+  assert first(plain)[:derives] == %w[Clone Copy PartialEq]
+  arg = cz_value_arg(rs_path("a"), "%root/t", [t])
+  label = first(last(arg[:block][:stmts])[:expr][:fields])[:value]
+  assert label[:method] == "str"
+  out = cz_value_result(rs_path("r"), "%root/t", [t])
+  assert last(out[:block][:stmts])[:expr][:func] == %w[Value Fields]
+  assert cz_def_native(
+    "(blue-record %root/q %root/q? (:x (List Int))) (define-typed (%root/f (p q)) Int 0)",
     "%root/f"
   ) != nil
 end

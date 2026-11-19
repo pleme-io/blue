@@ -1617,6 +1617,36 @@ def confirm_landed(ref, home)
 end
 
 @doc """
+blind_hold: What a land does while the land and release runs cannot be read (GitHub
+answers 403, a rate limit). `since` is when the reads went blind, `now` the time,
+both in ms, and `limit` the minutes it may stay blind. Under the limit it waits,
+sleeping about as long as it has been blind (from `poll` seconds up to ten
+minutes), so the polling that tripped the limit eases off. Past the limit it gives
+up its place loudly rather than hold the turn or land without one.
+
+    blind_hold(0, 0, 20, 60) #=> {sleep: 60, give_up: false}
+    blind_hold(0, 300_000, 20, 60) #=> {sleep: 300, give_up: false}
+    blind_hold(0, 1_000_000, 20, 60) #=> {sleep: 600, give_up: false}
+    blind_hold(0, 1_200_001, 20, 60) #=> {sleep: 600, give_up: true}
+"""
+def blind_hold(since, now, limit, poll)
+  blind = now - since
+  {
+    sleep: min(600, kazu::max(poll, blind / 1000)),
+    give_up: blind > limit * 60000
+  }
+end
+
+def blind_minutes()
+  n = to_int(getenv("BLUE_LAND_BLIND_MINUTES", "20"))
+  if n.nil? or n < 1
+    20
+  else
+    n
+  end
+end
+
+@doc """
 wait_turn: Wait while a land runs ahead, a land queued first waits, or a release
 would move main under the suite. A land whose ticket a batch decided (land_batch)
 stops waiting: it says the verdict and ends, 0 when it landed in the batch, 1
@@ -1624,10 +1654,11 @@ with the reason when it was blamed. The verdict is read after the queue, and a
 batch writes its verdicts before its leader leaves the queue, so a land never
 reads the queue empty and its verdict not yet written.
 """
-def wait_turn(ref, deadline, waited, ticket?, home?)
+def wait_turn(ref, deadline, waited, ticket?, home?, blind_since?)
   runs = land_runs
   releases = release_runs
-  held = if runs.nil? or releases.nil?
+  blind = runs.nil? or releases.nil?
+  held = if blind
     "the land or release runs cannot be read (a rate limit answers 403), so this land holds its turn"
   else
     reap(ref, runs)
@@ -1665,6 +1696,26 @@ def wait_turn(ref, deadline, waited, ticket?, home?)
   told = take_alone(ref, ticket)
   if held.nil?
     told
+  elsif blind
+    since = if blind_since.nil?
+      now_ms
+    else
+      blind_since
+    end
+    hold = blind_hold(since, now_ms, blind_minutes, poll_seconds)
+    if hold[:give_up]
+      leave(
+        ref,
+        1,
+        "the land and release runs could not be read for #{to_s(blind_minutes)} minutes (GitHub answers 403, a rate limit); this land gives up its place rather than hold the turn or land without one: land again"
+      )
+    end
+    if blind_since.nil?
+      say(held)
+    end
+    sleep(hold[:sleep])
+    later = wait_turn(ref, deadline, true, ticket, home, since)
+    told or later
   elsif now_ms > deadline
     say("waited the --queue-minutes limit; landing without a turn: #{held}")
     told

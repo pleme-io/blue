@@ -987,7 +987,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                 }
             };
             let Some((head, tail)) = xs.split_first() else {
-                return Ok(Value::Nil);
+                return Ok(list(Vec::new()));
             };
             let started = std::time::Instant::now();
             let mut out = vec![caller.apply_value(&a[0], vec![head.clone()], host, s)?];

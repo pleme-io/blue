@@ -3409,6 +3409,83 @@ test "self_exe builds /proc/self/exe on the stack and readlinks it"
 end
 
 @doc """
+argv_on_stack: the instructions that build, below rbp, the argv of a command run through /usr/bin/env from the list of strings at rbp-8: the path at rbp-32, argv at rbp-24 (rbp-16, -40 and -48 are its scratch), each argument copied NUL-ended, the array ending in nil. Labels are named from tag.
+
+    argv_on_stack("t")[0] #=> {op: "mov", dst: "r10", imm: 0}
+"""
+def argv_on_stack(tag)
+  append(
+    *[
+      [
+        {op: "mov", dst: "r10", imm: 0},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "mov", dst: "rdx", src: "rdi"},
+        {op: "label", name: "#{tag}_size"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_sized"},
+        {op: "load", dst: "r8", base: "rdx", disp: 24},
+        {op: "load", dst: "r9", base: "r8", disp: 24},
+        {op: "add", dst: "rcx", src: "r9"},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "add", dst: "r10", imm: 1},
+        {op: "load", dst: "rdx", base: "rdx", disp: 32},
+        {op: "jmp", label: "#{tag}_size"},
+        {op: "label", name: "#{tag}_sized"},
+        {op: "mov", dst: "r9", src: "r10"},
+        {op: "add", dst: "r9", imm: 2}
+      ],
+      times8("r9"),
+      [
+        {op: "store", src: "r9", base: "rbp", disp: -16},
+        {op: "add", dst: "rcx", src: "r9"},
+        {op: "add", dst: "rcx", imm: 31},
+        {op: "and", dst: "rcx", imm: -16},
+        {op: "sub", dst: "rsp", src: "rcx"},
+        {op: "mov", dst: "r11", src: "rsp"},
+        {op: "store", src: "r11", base: "rbp", disp: -24},
+        {op: "add", dst: "r11", src: "r9"},
+        {op: "store", src: "r11", base: "rbp", disp: -32},
+        {op: "movabs", dst: "rcx", imm: text_word("/usr/bin")},
+        {op: "store", src: "rcx", base: "r11", disp: 0},
+        {op: "movabs", dst: "rcx", imm: text_word("/env")},
+        {op: "store", src: "rcx", base: "r11", disp: 8},
+        {op: "load", dst: "rax", base: "rbp", disp: -24},
+        {op: "store", src: "r11", base: "rax", disp: 0},
+        {op: "add", dst: "rax", imm: 8},
+        {op: "store", src: "rax", base: "rbp", disp: -40},
+        {op: "add", dst: "r11", imm: 16},
+        {op: "load", dst: "rdx", base: "rbp", disp: -8},
+        {op: "label", name: "#{tag}_arg"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_argv_done"},
+        {op: "store", src: "rdx", base: "rbp", disp: -48},
+        {op: "load", dst: "rax", base: "rbp", disp: -40},
+        {op: "store", src: "r11", base: "rax", disp: 0},
+        {op: "add", dst: "rax", imm: 8},
+        {op: "store", src: "rax", base: "rbp", disp: -40},
+        {op: "load", dst: "r8", base: "rdx", disp: 24},
+        {op: "load", dst: "r9", base: "r8", disp: 24},
+        {op: "mov", dst: "rdx", src: "r8"},
+        {op: "add", dst: "rdx", imm: 32}
+      ],
+      copy_bytes("r9", "#{tag}_copy"),
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store_byte", src: "rcx", base: "r11"},
+        {op: "add", dst: "r11", imm: 1},
+        {op: "load", dst: "rdx", base: "rbp", disp: -48},
+        {op: "load", dst: "rdx", base: "rdx", disp: 32},
+        {op: "jmp", label: "#{tag}_arg"},
+        {op: "label", name: "#{tag}_argv_done"},
+        {op: "load", dst: "rax", base: "rbp", disp: -40},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rax", disp: 0}
+      ]
+    ]
+  )
+end
+
+@doc """
 RT_EXEC_CHECK: exec_check natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed; the command runs with no shell and the program's own environment, its output passing through, and its exit status is answered in rax. The child runs /usr/bin/env with the command first, so the command is found on PATH as the reference finds it; argv and each argument, NUL-ended, are built on the stack. A command that cannot run exits 127 (env's own refusal), as a shell reports it.
 
     RT_EXEC_CHECK[0] #=> {op: "label", name: "rt_exec_check"}
@@ -3420,70 +3497,10 @@ RT_EXEC_CHECK = append(
       {op: "push_rbp"},
       {op: "mov", dst: "rbp", src: "rsp"},
       {op: "sub", dst: "rsp", imm: 64},
-      {op: "store", src: "rdi", base: "rbp", disp: -8},
-      {op: "mov", dst: "r10", imm: 0},
-      {op: "mov", dst: "rcx", imm: 0},
-      {op: "mov", dst: "rdx", src: "rdi"},
-      {op: "label", name: "rt_ex_size"},
-      {op: "cmp", dst: "rdx", imm: 0},
-      {op: "j", cond: "e", label: "rt_ex_sized"},
-      {op: "load", dst: "r8", base: "rdx", disp: 24},
-      {op: "load", dst: "r9", base: "r8", disp: 24},
-      {op: "add", dst: "rcx", src: "r9"},
-      {op: "add", dst: "rcx", imm: 1},
-      {op: "add", dst: "r10", imm: 1},
-      {op: "load", dst: "rdx", base: "rdx", disp: 32},
-      {op: "jmp", label: "rt_ex_size"},
-      {op: "label", name: "rt_ex_sized"},
-      {op: "mov", dst: "r9", src: "r10"},
-      {op: "add", dst: "r9", imm: 2}
+      {op: "store", src: "rdi", base: "rbp", disp: -8}
     ],
-    times8("r9"),
+    argv_on_stack("rt_ex"),
     [
-      {op: "store", src: "r9", base: "rbp", disp: -16},
-      {op: "add", dst: "rcx", src: "r9"},
-      {op: "add", dst: "rcx", imm: 31},
-      {op: "and", dst: "rcx", imm: -16},
-      {op: "sub", dst: "rsp", src: "rcx"},
-      {op: "mov", dst: "r11", src: "rsp"},
-      {op: "store", src: "r11", base: "rbp", disp: -24},
-      {op: "add", dst: "r11", src: "r9"},
-      {op: "store", src: "r11", base: "rbp", disp: -32},
-      {op: "movabs", dst: "rcx", imm: text_word("/usr/bin")},
-      {op: "store", src: "rcx", base: "r11", disp: 0},
-      {op: "movabs", dst: "rcx", imm: text_word("/env")},
-      {op: "store", src: "rcx", base: "r11", disp: 8},
-      {op: "load", dst: "rax", base: "rbp", disp: -24},
-      {op: "store", src: "r11", base: "rax", disp: 0},
-      {op: "add", dst: "rax", imm: 8},
-      {op: "store", src: "rax", base: "rbp", disp: -40},
-      {op: "add", dst: "r11", imm: 16},
-      {op: "load", dst: "rdx", base: "rbp", disp: -8},
-      {op: "label", name: "rt_ex_arg"},
-      {op: "cmp", dst: "rdx", imm: 0},
-      {op: "j", cond: "e", label: "rt_ex_argv_done"},
-      {op: "store", src: "rdx", base: "rbp", disp: -48},
-      {op: "load", dst: "rax", base: "rbp", disp: -40},
-      {op: "store", src: "r11", base: "rax", disp: 0},
-      {op: "add", dst: "rax", imm: 8},
-      {op: "store", src: "rax", base: "rbp", disp: -40},
-      {op: "load", dst: "r8", base: "rdx", disp: 24},
-      {op: "load", dst: "r9", base: "r8", disp: 24},
-      {op: "mov", dst: "rdx", src: "r8"},
-      {op: "add", dst: "rdx", imm: 32}
-    ],
-    copy_bytes("r9", "rt_ex_copy"),
-    [
-      {op: "mov", dst: "rcx", imm: 0},
-      {op: "store_byte", src: "rcx", base: "r11"},
-      {op: "add", dst: "r11", imm: 1},
-      {op: "load", dst: "rdx", base: "rbp", disp: -48},
-      {op: "load", dst: "rdx", base: "rdx", disp: 32},
-      {op: "jmp", label: "rt_ex_arg"},
-      {op: "label", name: "rt_ex_argv_done"},
-      {op: "load", dst: "rax", base: "rbp", disp: -40},
-      {op: "mov", dst: "rcx", imm: 0},
-      {op: "store", src: "rcx", base: "rax", disp: 0},
       {op: "mov", dst: "rax", imm: 57},
       {op: "syscall"},
       {op: "cmp", dst: "rax", imm: 0},

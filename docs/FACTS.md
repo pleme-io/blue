@@ -369,6 +369,7 @@ Each wave lists defaults in the order their gain is known. Each default meets
     row names. Waits on the forms to search: blue has rewrite rules
     (fusion, the fold, the builder) but no equality saturation over them,
     and a search needs a cost model the profile does not yet give per form.
+    The plan for both, phases S1 to S4, is [ENGINES.md](ENGINES.md) §2.
 
 ### W4: concurrency from facts
 
@@ -394,7 +395,8 @@ Each wave lists defaults in the order their gain is known. Each default meets
 - Independent effects batched: calls the effect graph shows to be independent
   share one round trip. Waits on an effect graph, which no part of blue
   builds yet: reach says which capabilities a definition names, not which of
-  its calls depend on another's answer.
+  its calls depend on another's answer. The plan for that graph, phases E1 to E4, is
+  [ENGINES.md](ENGINES.md) §1.
 - ✅ An idempotent effect retried on a transient failure, with the retry named in
   the receipt (rule R15). An `http_request` whose method is GET, HEAD or
   OPTIONS, idempotent by RFC 9110, that fails before an answer because the

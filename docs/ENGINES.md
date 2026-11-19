@@ -1,0 +1,90 @@
+# The two engines W3.4 and W4.2 wait on
+
+Two rows of [FACTS.md](FACTS.md) §5 wait on machinery that blue does not
+build yet: W4.2 (independent effects batched) on an **effect graph**, and
+W3.4's search over equivalent forms on **equality saturation and a per-form
+cost model**. This page is the plan for both: the destination first, then
+the phases, each phase with what it reuses, its lever, its switch and the
+lock that proves it. A phase is done when its lock is green on main.
+
+## 1. The effect graph (W4.2)
+
+### Destination
+
+For each definition, blue knows every call that reaches the host, the
+resource it touches, and which earlier calls its arguments depend on. Calls
+that do not depend on each other and whose effects commute run together:
+requests to one host share a round trip, independent reads overlap. The
+answer, the error raised and the receipt are the ones the program gives in
+the order it is written.
+
+### Precedent
+
+- Haxl (Marlow, Brandy, Coens, Purdy; ICFP 2014, "There is no fork"):
+  independent data fetches in an applicative block are batched into one
+  round trip per source, with no change to the program's text.
+- In blue: `reach` already names each host capability a definition reaches,
+  with a chain (`reach::host_reach`); the process tape records each effect
+  call in order (`proc::trace::TapeEntry`); R15 holds the idempotent-method
+  table; the scheduler pool and `proc::parallel` run work apart.
+
+No pleme-io repository builds an effect graph (searched 2026-11-19); this
+is new, and it lives in `blue-lang-runtime` beside `reach`.
+
+### Phases
+
+| Phase | Builds | Reuses | Lever, switch | Lock |
+|---|---|---|---|---|
+| E1 | `reach::effect_graph(def)`: each effect site (a call to a word with a host capability), its capability, its resource when the arguments make it a literal (host and port, a path), and def-use edges between sites through local bindings | the `Scopes` walk `reach` and `fuse` use; `host_reach` | none (a fact) | unit tests: two GETs to one host are independent, a GET whose URL uses an earlier answer depends on it; `blue query` answers `(independent a b)` |
+| E2 | the commutation table: which effects commute (two reads; writes to two different literal resources), as rows in a registry like `kitei`'s, each with a witness | R15's idempotent methods; `Capability::host_effects` | none (a table) | a gate that every capability has a row, and that a write to an unknown resource commutes with nothing |
+| E3 | rule R18: a run of independent, commuting reads in one block runs at once: HTTP reads to one host over one kept-alive connection, others on the scheduler pool; the first error in program order is raised, and the tape records the calls in program order | `proc::parallel`, `net`'s per-host state (R16) | `BLUE_BATCH=off`; `--timings` counts `batched` | a conformance column that runs with batching on and off and holds both to the walker; replay of a batched run reads the same tape |
+| E4 | a definition's effect summary: a call to a definition whose sites are all reads is a read, so independence crosses calls | `chained` (the join `host_reach` and `suspension_reach` share) | as E3 | E3's column on rows whose reads sit behind helpers |
+
+Writes are not batched in this plan. A write that fails after another
+succeeded leaves state that program order would not, so writes stay in order
+until a row of E2 can prove a pair safe.
+
+## 2. Equality saturation and the cost model (W3.4)
+
+### Destination
+
+blue's rewrites stop being passes run in a fixed order (fold, then fusion,
+then the index, then R17). They become rules over one e-graph per
+definition. The graph is saturated within a budget, and the form a run uses
+is the cheapest one a measured cost model finds, decided once per definition
+and recalled by its hash, as the fold is.
+
+### Precedent
+
+- egg (Willsey et al., POPL 2021): e-graphs with rebuilding, e-class
+  analyses, and extraction by a cost function.
+- Cranelift's aegraphs (Fallin, 2023): an acyclic e-graph in a production
+  compiler's mid-end, which its authors measured at 7 to 8 % more compile
+  time for about 2 % faster code. So saturation must be paid once per
+  definition and cached, never per run.
+- In pleme-io: mathscape realizes its lattice as an `egg` e-graph
+  (`mathscape-compress/src/egraph.rs`, shipped). blue
+  is the second use, so the wrapper is extracted into a shared typed surface
+  before blue writes a second one.
+
+### Phases
+
+| Phase | Builds | Reuses | Lever, switch | Lock |
+|---|---|---|---|---|
+| S1 | the cost model: a cost per word and per form, measured from profiles of the bench corpus, stored by build identity like the fold cache | `blue profile`, `timings`, mondou's store, the bench workloads | none (a fact); `blue doc` and hover show a definition's predicted cost | a gate that the model ranks the bench workloads in the order they measure (rank correlation above a stated floor) |
+| S2 | a shared e-graph crate: the typed surface over `egg` that mathscape and blue both use, with the language given by the caller | mathscape's `egraph.rs` wrapper, moved, not copied | none | mathscape's equivalence tests and blue's new ones, both on the moved crate |
+| S3 | blue's rewrites as rules: fusion's `REWRITES`, the fold as a constant analysis, R17's rename; each rule a row with a witness and an okite law that both sides agree on every input class | `fuse::STAGES`, `fold`, the FORM axis's law shape | none (parity) | on the whole corpus, saturation then extraction gives the forms today's passes give |
+| S4 | rule R19: saturate each definition within a node and time budget, extract by S1's cost, keep the old form when the costs tie, and cache the choice by definition hash | `check_cache` (a new `Pass::Saturate`), the fold's recall | `BLUE_SATURATE=off`; `--timings` counts `saturated` with cost before and after | the bench gate holds or improves every workload; a conformance column with saturation on agrees with the walker |
+
+The ratchet holds S4: a workload the search makes slower blocks the land,
+and a tie keeps the form the author wrote.
+
+## 3. Order
+
+1. S1 first. The cost model is the missing fact under both engines: R17's
+   decision and E3's batch size read it too.
+2. E1, E2, E3, then E4. Batching gives the larger measured win on programs
+   that talk to the network.
+3. S2, S3, then S4.
+
+Each phase lands on main alone, with its lock, as the W phases did.

@@ -2093,6 +2093,11 @@ def read(text)
   got[0]
 end
 
+@doc """
+skip_ws: The characters past any JSON whitespace at the front.
+
+    skip_ws(chars("  x")) #=> ["x"]
+"""
 def skip_ws(cs)
   if not empty?(cs) and member?(first(cs), [" ", line_break, "\t", "\r"])
     skip_ws(rest(cs))
@@ -2101,6 +2106,11 @@ def skip_ws(cs)
   end
 end
 
+@doc """
+json_value: One JSON value read from the front of the characters, with what follows it.
+
+    json_value(chars("1 ]"))[0] #=> 1
+"""
 def json_value(cs)
   if empty?(cs)
     raise(:json, "deeta::read: EOF while parsing a value")
@@ -2123,10 +2133,20 @@ def json_value(cs)
   end
 end
 
+@doc """
+json_word: The characters past the literal word (true, false, null), refused when it is not there.
+
+    json_word(chars("true,"), "true") #=> [","]
+"""
 def json_word(cs, word)
   json_word_from(cs, chars(word), word)
 end
 
+@doc """
+json_word_from: json_word, one character of the word at a time.
+
+    json_word_from(chars("ab"), chars("a"), "a") #=> ["b"]
+"""
 def json_word_from(cs, want, word)
   if empty?(want)
     cs
@@ -2137,6 +2157,11 @@ def json_word_from(cs, want, word)
   end
 end
 
+@doc """
+json_object: An object read after its opening brace: the pairs so far are in acc, latest first.
+
+    json_object(chars("\"a\": 1}"), [])[0] #=> [["a", 1]]
+"""
 def json_object(cs, acc)
   if acc == [] and not empty?(cs) and first(cs) == "}"
     [{}, rest(cs)]
@@ -2171,6 +2196,11 @@ def object_pairs(latest_first)
   sort_keyed((p) -> p[0], last_of_each(latest_first, [], []))
 end
 
+@doc """
+last_of_each: The pairs with one per key, the first seen of each in the given order.
+
+    last_of_each([["a", 2], ["a", 1]], [], []) #=> [["a", 2]]
+"""
 def last_of_each(pairs, seen, kept)
   if empty?(pairs)
     kept
@@ -2185,6 +2215,11 @@ def last_of_each(pairs, seen, kept)
   end
 end
 
+@doc """
+json_array: An array read after its opening bracket: the items so far are in acc, latest first.
+
+    json_array(chars("1]"), [])[0] #=> [1]
+"""
 def json_array(cs, acc)
   if acc == [] and not empty?(cs) and first(cs) == "]"
     [[], rest(cs)]
@@ -2202,6 +2237,11 @@ def json_array(cs, acc)
   end
 end
 
+@doc """
+json_string: A string read after its opening quote: the characters so far are in acc, latest first.
+
+    json_string(chars("ab\""), [])[0] #=> "ab"
+"""
 def json_string(cs, acc)
   if empty?(cs)
     raise(:json, "deeta::read: EOF while parsing a string")
@@ -2216,6 +2256,11 @@ def json_string(cs, acc)
   end
 end
 
+@doc """
+json_escape: One escape read after its backslash, the string read on from there.
+
+    json_escape(chars("/\""), [])[0] #=> "/"
+"""
 def json_escape(cs, acc)
   if empty?(cs)
     raise(:json, "deeta::read: EOF in an escape")
@@ -2241,6 +2286,11 @@ def json_escape(cs, acc)
   end
 end
 
+@doc """
+json_unit: The text of one \\u unit, joined with the low half that follows a high surrogate.
+
+    json_unit(65, chars("\""), [])[0] #=> "A"
+"""
 def json_unit(code, cs, acc)
   if code >= 55296 and
       code <= 56319 and
@@ -2255,6 +2305,11 @@ def json_unit(code, cs, acc)
   end
 end
 
+@doc """
+hex4: The value of the four hex digits at the front, with what follows them.
+
+    hex4(chars("00e9"))[0] #=> 233
+"""
 def hex4(cs)
   digits = join(
     [first(cs), first(rest(cs)), first(drop(2, cs)), first(drop(3, cs))],
@@ -2267,6 +2322,11 @@ def hex4(cs)
   [v, drop(4, cs)]
 end
 
+@doc """
+json_number: A number read from its characters: a Float with a fraction or exponent, else an Int.
+
+    json_number(chars("12,"), [])[0] #=> 12
+"""
 def json_number(cs, acc)
   if not empty?(cs) and member?(first(cs), chars("-+0123456789.eE"))
     json_number(rest(cs), cons(first(cs), acc))
@@ -2307,4 +2367,22 @@ test "read gives the values json_parse gives, on every JSON shape", {
   assert (read("{") rescue :refused) == :refused
   assert (read("[1, 2") rescue :refused) == :refused
   assert (read("[1] x") rescue :refused) == :refused
+end
+
+test "each step of read takes what it reads and gives back the rest", {
+  kind: :unit
+}
+  assert skip_ws(chars("  x")) == ["x"]
+  assert json_value(chars("1 ]"))[0] == 1
+  assert json_word(chars("true,"), "true") == [","]
+  assert json_word_from(chars("ab"), chars("a"), "a") == ["b"]
+  assert json_object(chars("\"a\": 1}"), [])[0] == [["a", 1]]
+  assert last_of_each([["a", 2], ["a", 1]], [], []) == [["a", 2]]
+  assert json_array(chars("1]"), [])[0] == [1]
+  assert json_string(chars("ab\""), [])[0] == "ab"
+  assert json_escape(chars("n\""), [])[0] == line_break
+  assert json_unit(233, chars("\""), [])[0] == "é"
+  assert hex4(chars("00e9"))[0] == 233
+  assert json_number(chars("12,"), [])[0] == 12
+  assert object_pairs([["b", 1], ["a", 2]]) == [["a", 2], ["b", 1]]
 end

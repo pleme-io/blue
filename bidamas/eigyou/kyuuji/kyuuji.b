@@ -2209,7 +2209,7 @@ test "a step takes a settled child's reply out of the mailbox", {
   assert receive(%i[response _ _], 0, :none) == :none
 end
 
-test "with no request waiting, one metered turn answers nothing and keeps its metrics", {
+test "an idle metered turn answers nothing and keeps its metrics", {
   kind: :integration,
   allow: %i[network process]
 }

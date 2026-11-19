@@ -1256,18 +1256,7 @@ def rc_program(p, mode)
       ],
       main[0],
       fns[0],
-      RT_ALLOC,
-      RT_DUP,
-      RT_DROP,
-      RT_LENGTH,
-      RT_GET,
-      RT_IS_ERROR,
-      RT_PAYLOAD,
-      RT_CONCAT,
-      RT_EQUAL,
-      RT_TO_S,
-      RT_READ_FILE,
-      RT_WRITE_BYTES
+      runtime
     ]
   )
 end
@@ -1541,23 +1530,37 @@ def rc_global(g, n)
 end
 
 @doc """
+runtime: every runtime routine a reference-counted program carries, in order. rc_program places it after the program and rc_whole takes it back off to put the global functions before it, so both read this one list: a routine added here is never cut in half by one of them counting a shorter list.
+
+    runtime[0] #=> {op: "label", name: "rt_alloc"}
+"""
+def runtime()
+  append(
+    *[
+      RT_ALLOC,
+      RT_DUP,
+      RT_DROP,
+      RT_LENGTH,
+      RT_GET,
+      RT_IS_ERROR,
+      RT_PAYLOAD,
+      RT_CONCAT,
+      RT_EQUAL,
+      RT_TO_S,
+      RT_READ_FILE,
+      RT_WRITE_BYTES
+    ]
+  )
+end
+
+@doc """
 rc_whole: the instructions of a program with global functions: rc_program's frame, heap, main and closures, then every global function, then the runtime.
 
     rc_whole(whole(read_forms("7")[0]), :exit)[0] #=> {op: "push_rbp"}
 """
 def rc_whole(w, mode)
   base = rc_program({main: w[:main], fns: w[:fns]}, mode)
-  start = length(base) -
-    length(RT_ALLOC) -
-    length(RT_DUP) -
-    length(RT_DROP) -
-    length(RT_LENGTH) -
-    length(RT_GET) -
-    length(RT_IS_ERROR) -
-    length(RT_PAYLOAD) -
-    length(RT_CONCAT) -
-    length(RT_EQUAL) -
-    length(RT_TO_S)
+  start = length(base) - length(runtime)
   globals = reduce(
     fn(acc, g)
       c = rc_global(g, acc[1])
@@ -2878,7 +2881,7 @@ def read_programs(small, big)
   ]
 end
 
-test "read_file reads small and mapped files and refuses a missing one with its errno on x86-64", {
+test "read_file reads, maps and refuses natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -3049,7 +3052,7 @@ def write_programs(dir)
   ]
 end
 
-test "write_bytes writes what read_file reads back, maps a large buffer and refuses a bad path on x86-64", {
+test "write_bytes writes, maps and refuses natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -3087,4 +3090,11 @@ test "write_bytes is a call to rt_write_bytes, which gathers, opens to create, w
   assert length(path_on_stack("t")) > 0
   assert errno_block(-24)[4] ==
     {op: "store", src: "rcx", base: "rbp", disp: -24}
+end
+
+test "a program with global functions carries the runtime whole, after them, never cut by a global"
+  insns = rc_whole(whole(read_forms("(begin (define (f) 1) (f))")[0]), :exit)
+  at = index_of(insns, {op: "label", name: "rt_alloc"})
+  assert at > index_of(insns, {op: "label", name: "g_f"})
+  assert slice(insns, at, length(runtime)) == runtime
 end

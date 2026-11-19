@@ -63,16 +63,18 @@ and recalled by its hash, as the fold is.
   time for about 2 % faster code. So saturation must be paid once per
   definition and cached, never per run.
 - In pleme-io: mathscape realizes its lattice as an `egg` e-graph
-  (`mathscape-compress/src/egraph.rs`, shipped). blue
-  is the second use, so the wrapper is extracted into a shared typed surface
-  before blue writes a second one.
+  (`mathscape-compress/src/egraph.rs`, shipped). Read on 2026-11-19, its
+  wrapper is all mathscape's own: its language (`MathscapeLang`), the bridge
+  from its `Term`, its algebraic probes. The two share `egg`, not a shape, so
+  blue has its own typed surface over `egg` rather than a crate extracted
+  from mathscape that neither fits.
 
 ### Phases
 
 | Phase | Builds | Reuses | Lever, switch | Lock |
 |---|---|---|---|---|
 | S1 ✅ | the cost model: a price per word, a cost per call and per element in steps and allocations, measured from probe programs at two sizes on the walker with every lever off, and kept by binary identity; an allocation weighs what its time against a step's solves to; `estimate` prices an erased form, a list of unknown length taken at 1000 elements (`blue_lang_runtime::cost`, `blue cost FILE`) | `--timings`' steps and allocations, the counting allocator, the cache root | none (a fact) | `tests/cost.rs`: on four pairs of equal forms (a fused chain and the chain, a length and the length of a map, a list and the list reversed twice, one map and two) the model orders each pair as `blue run` measures it, and the table is measured once and read after |
-| S2 | a shared e-graph crate: the typed surface over `egg` that mathscape and blue both use, with the language given by the caller | mathscape's `egraph.rs` wrapper, moved, not copied | none | mathscape's equivalence tests and blue's new ones, both on the moved crate |
+| S2 ✅ | `blue-lang-saturate`, the one typed surface blue reaches `egg` 0.11 through: an erased tree encoded one to one as a `RecExpr` over `egg`'s `SymbolLang` (a list headed by a symbol with arguments is that symbol's node, any other list a `#list` node, a literal a leaf whose name starts with a mark no symbol can start with), rules written as patterns, `equivalent` (proved, refuted when the graph saturated, or unknown at a limit) and `cheapest` (extraction by a price function of a node's name and its children's costs, the written form kept unless something is cheaper), within `Limits` | `egg` | none | `tests/saturate.rs`: every atom kind and a call with no arguments round-trip; a rule proves `reverse(reverse(xs))` equal to `xs` and refutes `reverse(xs)`; extraction returns `length(xs)` for `length(reverse(reverse(xs)))` and keeps a form with nothing cheaper |
 | S3 | blue's rewrites as rules: fusion's `REWRITES`, the fold as a constant analysis, R17's rename; each rule a row with a witness and an okite law that both sides agree on every input class | `fuse::STAGES`, `fold`, the FORM axis's law shape | none (parity) | on the whole corpus, saturation then extraction gives the forms today's passes give |
 | S4 | rule R19: saturate each definition within a node and time budget, extract by S1's cost, keep the old form when the costs tie, and cache the choice by definition hash | `check_cache` (a new `Pass::Saturate`), the fold's recall | `BLUE_SATURATE=off`; `--timings` counts `saturated` with cost before and after | the bench gate holds or improves every workload; a conformance column with saturation on agrees with the walker |
 

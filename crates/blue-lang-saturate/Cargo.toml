@@ -1,0 +1,18 @@
+[package]
+name = "blue-lang-saturate"
+description = "Equality saturation over blue's erased trees: the one typed surface blue reaches egg through."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+egg = "0.11"
+tatara-lisp = { workspace = true }
+
+[dev-dependencies]
+blue-lang-syntax = { workspace = true }

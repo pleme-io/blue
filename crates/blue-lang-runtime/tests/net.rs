@@ -538,39 +538,45 @@ fn an_idle_listener_answers_nil_and_a_request_is_answered_once() {
     assert!(taken.contains("cannot listen"), "{taken}");
 }
 
-fn late_server(port: u16, after: Duration) -> std::thread::JoinHandle<()> {
-    std::thread::spawn(move || {
-        std::thread::sleep(after);
-        let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind late");
-        let (mut stream, _) = listener.accept().expect("accept");
-        read_request(&mut stream);
-        stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nlate")
+/// A server whose first connection is reset (it waits until the request has
+/// arrived, then closes without reading it, so the peer gets a reset, never a
+/// clean close) and whose next one is answered: a transient failure that does
+/// not depend on how fast the client is.
+fn reset_once_server() -> (u16, std::thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (first, _) = listener.accept().expect("accept");
+        let mut byte = [0u8; 1];
+        let _ = first.peek(&mut byte);
+        drop(first);
+        let (mut second, _) = listener.accept().expect("accept");
+        read_request(&mut second);
+        second
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nagain")
             .expect("respond");
-    })
+    });
+    (port, server)
 }
 
 #[test]
-fn an_idempotent_request_refused_once_is_sent_again_and_answered() {
-    let port = free_port();
-    let server = late_server(port, Duration::from_millis(30));
+fn an_idempotent_request_reset_once_is_sent_again_and_answered() {
+    let (port, server) = reset_once_server();
     let v = run(&format!(
         "r = http_request(\"GET\", \"http://127.0.0.1:{port}/\", nil, nil, 3000)\n[get(r, :status), get(r, :body)]"
     ));
     server.join().expect("server");
-    assert_eq!(strs(&v), ["200", "late"]);
+    assert_eq!(strs(&v), ["200", "again"]);
 }
 
 #[test]
 fn a_request_that_is_not_idempotent_is_sent_once() {
-    let port = free_port();
-    let server = late_server(port, Duration::from_millis(30));
+    let (port, server) = reset_once_server();
     let err = run_err(&format!(
         "http_request(\"POST\", \"http://127.0.0.1:{port}/\", nil, \"x\", 3000)"
     ));
     assert!(err.contains("http_request"), "{err}");
-    std::thread::sleep(Duration::from_millis(100));
-    let mut wake = TcpStream::connect(("127.0.0.1", port)).expect("the late server is up");
+    let mut wake = TcpStream::connect(("127.0.0.1", port)).expect("the server waits");
     wake.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
         .expect("wake");
     server.join().expect("server");

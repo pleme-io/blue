@@ -56,6 +56,7 @@ pub mod doc_sources;
 pub mod docs;
 pub mod domain;
 pub mod door;
+pub mod effects;
 #[cfg(feature = "host")]
 pub mod entropy;
 pub mod erase;

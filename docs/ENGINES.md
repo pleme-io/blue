@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: "The plan for the two engines W3.4 and W4.2 waited on, an effect graph and equality saturation over a measured cost model, each phase with its lever, switch and lock"
+---
+
 # The two engines W3.4 and W4.2 wait on
 
 Two rows of [FACTS.md](FACTS.md) §5 wait on machinery that blue does not

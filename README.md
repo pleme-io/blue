@@ -457,7 +457,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>64 pages on why blue is shaped as it is</summary>
+<summary>65 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -477,6 +477,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [The data framework: one model, every rendering, nothing written twice](docs/DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [ENGINE: an HD-2D tactics engine in blue](docs/ENGINE.md): one game engine written in blue for HD-2D tactics games on iPhone, with Rust only at the GPU, audio and UIKit seams (design, 2026-11-10)
+- [The two engines W3.4 and W4.2 wait on](docs/ENGINES.md): The plan for the two engines W3.4 and W4.2 waited on, an effect graph and equality saturation over a measured cost model, each phase with its lever, switch and lock
 - [Facts decide](docs/FACTS.md): how facts decide and defaults follow; the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language
 - [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [GPU — data-parallel blue as a compute kernel](docs/GPU.md): the GPU rung: a restricted rung of blue lowered to a WGSL compute kernel for data-parallel definitions, validated by naga at build time, gated by equality with blue's own run (design, 2026-11-12)

@@ -1930,6 +1930,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [The data framework: one model, every rendering, nothing written twice](DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [ENGINE: an HD-2D tactics engine in blue](ENGINE.md): one game engine written in blue for HD-2D tactics games on iPhone, with Rust only at the GPU, audio and UIKit seams (design, 2026-11-10)
+- [The two engines W3.4 and W4.2 wait on](ENGINES.md): The plan for the two engines W3.4 and W4.2 waited on, an effect graph and equality saturation over a measured cost model, each phase with its lever, switch and lock
 - [Facts decide](FACTS.md): how facts decide and defaults follow; the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language
 - [FRONTEND-PLAN — building the blue frontend framework](FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [GPU — data-parallel blue as a compute kernel](GPU.md): the GPU rung: a restricted rung of blue lowered to a WGSL compute kernel for data-parallel definitions, validated by naga at build time, gated by equality with blue's own run (design, 2026-11-12)

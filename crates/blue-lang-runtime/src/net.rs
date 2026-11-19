@@ -670,16 +670,29 @@ fn install_http<H: 'static>(interp: &mut Interpreter<H>) {
                     )),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let sent: Vec<Result<http::Response, String>> = std::thread::scope(|scope| {
-                let running: Vec<_> = reqs.iter().map(|r| scope.spawn(|| r.send())).collect();
-                running
-                    .into_iter()
-                    .map(|t| {
-                        t.join()
-                            .unwrap_or_else(|_| Err("the request's thread died".into()))
-                    })
-                    .collect()
-            });
+            let sent: Vec<Result<http::Response, String>> = if reqs.len() < 2 {
+                reqs.iter().map(Request::send).collect()
+            } else {
+                std::thread::scope(|scope| {
+                    let running: Vec<_> = reqs
+                        .iter()
+                        .map(|r| {
+                            std::thread::Builder::new()
+                                .spawn_scoped(scope, || r.send())
+                                .map_err(|_| r)
+                        })
+                        .collect();
+                    running
+                        .into_iter()
+                        .map(|t| match t {
+                            Ok(handle) => handle
+                                .join()
+                                .unwrap_or_else(|_| Err("the request's thread died".into())),
+                            Err(r) => r.send(),
+                        })
+                        .collect()
+                })
+            };
             if sent.len() > 1 {
                 crate::timings::count("batched", 1);
             }

@@ -226,6 +226,10 @@ pub struct Project {
     /// execution bounds, met with the operator's ([`crate::bounds`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounds: Option<crate::bounds::Bounds>,
+    /// How many schedulers run the root's processes, as `schedulers(n)`
+    /// declares; `None` runs them on one, the node's own thread.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schedulers: Option<usize>,
     /// `legacy_packages(since, [[old, "root/level"]])`: bidamas that moved
     /// into this one's tree, keyed by their old name. A `use` of the old name
     /// loads the level while the bridge is open (B0074). Skipped when empty,
@@ -854,6 +858,20 @@ const WORDS: &[Word] = &[
             let bounds = crate::bounds::Bounds::of_settings(&c.args[0])
                 .map_err(|why| Malformed::Bounds { word: c.word, why })?;
             set_once(&mut into.project.bounds, c.word, "bounds".into(), bounds)
+        },
+    },
+    Word {
+        name: "schedulers",
+        signature: "schedulers(n)",
+        doc: "How many threads run the project's :normal processes (A6 of docs/ASYNC.md), a positive integer: 1, the default, keeps them on the node's own thread, where their interleaving is replayable; more runs their slices at once, so their order among themselves is the OS's and a program's answers stay the same only where it declares no race. `blue run` reads it; `blue test` and a script run on one.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let n = match &c.args[0] {
+                Value::Int(n) if *n > 0 => usize::try_from(*n).unwrap_or(usize::MAX),
+                _ => return Err(c.type_error(0, "n", "a positive integer")),
+            };
+            set_once(&mut into.project.schedulers, c.word, "schedulers".into(), n)
         },
     },
     Word {
@@ -1916,6 +1934,8 @@ mod tests {
             .chain(["coverage", "skip"])
             // T8, 2026-11-14: a failing test held out of the verdict until a date.
             .chain(["quarantine"])
+            // A6, 2026-11-19: how many schedulers run the project's processes.
+            .chain(["schedulers"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

@@ -1033,6 +1033,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     ))?;
     blue_lang_proc::node::set_trace_dir(replay::trace_dir());
     blue_lang_proc::node::set_journal_bound(replay::journal_bound());
+    if let Cmd::Run { file, .. } = &cli.cmd {
+        if let Some(n) = blue_lang_pkg::capabilities::schedulers_for(file) {
+            blue_lang_proc::node::set_schedulers(n);
+        }
+    }
     // `self_exe` answers with THIS binary only because it is the blue CLI;
     // any other embedder leaves it nil (blue_lang_runtime::sys::set_blue_exe).
     if let Ok(me) = std::env::current_exe() {

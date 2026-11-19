@@ -373,10 +373,11 @@ Each wave lists defaults in the order their gain is known. Each default meets
 ### W4: concurrency from facts
 
 - `map` over a pure callback on a large list runs in parallel, the size from the
-  profile. Waits on more than one core: processes run interleaved on the
-  node's thread, and multi-core scheduling (`schedulers(n)`) is ASYNC's A6
-  ([ROADMAP.md](ROADMAP.md), not built). A parallel map over processes before
-  it would take turns on one core and only add copying.
+  profile. More than one core is now there: a project's `schedulers(n)`
+  runs its processes' slices at once (ASYNC A6, first slice, built
+  2026-11-19 on the operator's call). Next: a pure `map` on a list the
+  profile shows large, split across processes when the project declares
+  more than one scheduler, the answer joined in order.
 - Independent effects batched: calls the effect graph shows to be independent
   share one round trip. Waits on an effect graph, which no part of blue
   builds yet: reach says which capabilities a definition names, not which of
@@ -405,7 +406,8 @@ Each wave lists defaults in the order their gain is known. Each default meets
   computed reach would refuse a script whose reach the analysis cannot see
   (a name computed at run time), a refusal bigger than the fault. A
   project's lock already holds its run to the join of what its reached
-  definitions name (`unit` floors, SAFETY.md §4).
+  definitions name (`unit` floors, SAFETY.md §4). Operator ruling,
+  2026-11-19: D3 stands; W5.1 waits on D3's ratchet reaching zero.
 - ✅ A step and memory bound proposed from the profile ("this runs in 120 ms; hold
   it to 10 s"), applied only when the author accepts it (C9). `blue bounds
   FILE` runs the program once on the tree-walker, which counts every step,
@@ -428,7 +430,9 @@ Each wave lists defaults in the order their gain is known. Each default meets
   operator: today `half(4)`, `half(x: Float)` reached through an untyped
   caller, answers 2.0; a guard makes it raise. That changes what a working
   program does, which no default may (§2: an exact fallback), so it is a
-  semantic decision, not a lever.
+  semantic decision, not a lever. Operator ruling, 2026-11-19: refused.
+  Types are checked statically only, so the gradual guarantee holds: an
+  annotation never changes what a program that runs answers.
 
 ### W6: configuration from context
 

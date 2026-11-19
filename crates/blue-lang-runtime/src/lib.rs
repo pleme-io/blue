@@ -638,9 +638,14 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
 /// A fresh interpreter for a child process: the hostless base, forked. The
 /// node adds its child words to it.
 fn child_interpreter() -> Interpreter<()> {
-    let mut interp = match HOSTLESS_BASE.lock() {
-        Ok(base) => base.fork(),
-        Err(_) => interpreter(&mut ()),
+    let base = if blue_lang_proc::node::schedulers() > 1 {
+        None
+    } else {
+        HOSTLESS_BASE.lock().ok()
+    };
+    let mut interp = match base {
+        Some(base) => base.fork(),
+        None => interpreter(&mut ()),
     };
     stdlib::install_gensym(&mut interp);
     apply_execution_bounds(&mut interp);

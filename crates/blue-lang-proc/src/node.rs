@@ -189,6 +189,22 @@ pub fn set_journal_bound(bound: usize) {
     let _ = JOURNAL.set(bound);
 }
 
+static SCHEDULERS: OnceLock<usize> = OnceLock::new();
+
+/// How many threads run this process's nodes' `:normal` processes (A6 of
+/// docs/ASYNC.md, `schedulers(n)`); `1`, the default, keeps them all on the
+/// node's thread, where the interleaving is replayable. Only the first call
+/// counts, like [`set_journal_bound`].
+pub fn set_schedulers(n: usize) {
+    let _ = SCHEDULERS.set(n.max(1));
+}
+
+/// How many schedulers [`set_schedulers`] named, `1` when it was never called.
+#[must_use]
+pub fn schedulers() -> usize {
+    SCHEDULERS.get().copied().unwrap_or(1)
+}
+
 /// How a node reads time.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ClockKind {
@@ -320,6 +336,10 @@ pub struct NodeConfig {
     pub count_steps: bool,
     pub idle_lane: IdleLane,
     pub fd_of: Option<FdOf>,
+    /// How many threads run the node's `:normal` processes: `1` keeps them on
+    /// the node's own thread, replayable; more runs their slices at once on
+    /// a pool of that many, so their order among themselves is the OS's.
+    pub schedulers: usize,
 }
 
 impl NodeConfig {
@@ -351,6 +371,7 @@ impl NodeConfig {
             count_steps: false,
             idle_lane: IdleLane::default(),
             fd_of: None,
+            schedulers: SCHEDULERS.get().copied().unwrap_or(1),
         }
     }
 
@@ -805,6 +826,7 @@ pub struct Node {
     /// words and host recorders. Built at the first spawn.
     proto: OnceLock<Arc<Interpreter<()>>>,
     lanes: Mutex<BTreeMap<Pid, mpsc::Sender<Proc<()>>>>,
+    pool: OnceLock<Result<mpsc::Sender<Proc<()>>, String>>,
     flights: Mutex<mpsc::Receiver<Flight>>,
     radio: mpsc::Sender<Flight>,
     gate: Mutex<Gate>,
@@ -1514,6 +1536,35 @@ fn fly(me: &Weak<Node>, pid: Pid, queue: &mpsc::Receiver<Proc<()>>, radio: &mpsc
     }
 }
 
+fn schedule(
+    me: &Weak<Node>,
+    queue: &Arc<Mutex<mpsc::Receiver<Proc<()>>>>,
+    radio: &mpsc::Sender<Flight>,
+) {
+    loop {
+        let next = lock(queue).recv();
+        let Ok(mut p) = next else { break };
+        let Some(node) = me.upgrade() else { break };
+        scheduling::board(p.pid);
+        let before = p.vm.burned();
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let out = node.slice_held(&mut p);
+            node.dispatch_held(&mut p, out)
+        }));
+        let flight = match ran {
+            Ok(out) => {
+                let burned = p.vm.burned().saturating_sub(before);
+                Flight::Landed(p, out, burned)
+            }
+            Err(panic) => Flight::Fell(panic),
+        };
+        drop(node);
+        if radio.send(flight).is_err() {
+            break;
+        }
+    }
+}
+
 /// How a root wait ended.
 enum Driven<T> {
     Done(T),
@@ -1534,6 +1585,7 @@ impl Node {
             sched: Mutex::new(Vec::new()),
             proto: OnceLock::new(),
             lanes: Mutex::new(BTreeMap::new()),
+            pool: OnceLock::new(),
             flights: Mutex::new(flights),
             radio,
             gate: Mutex::new(Gate::default()),
@@ -1598,8 +1650,19 @@ impl Node {
         &self,
         bindings: &[(Arc<str>, Value)],
     ) -> Arc<dyn Fn() -> Interpreter<()> + Send + Sync> {
-        let proto = self.proto();
         let bindings = bindings.to_vec();
+        if self.config.schedulers > 1 {
+            let child = self.config.child.clone();
+            let (me, carrying) = (self.me.clone(), self.config.carrying());
+            return Arc::new(move || {
+                let mut i = child();
+                install_child(&mut i, &me, carrying);
+                record_host_names(&mut i, &me);
+                bind_all(&mut i, &bindings);
+                i
+            });
+        }
+        let proto = self.proto();
         Arc::new(move || {
             let mut i = proto.fork();
             bind_all(&mut i, &bindings);
@@ -1767,6 +1830,26 @@ impl Node {
         self.st().aloft.insert(pid);
         let mut p = p;
         let mut why = String::new();
+        let normal = self
+            .st()
+            .info
+            .get(&pid)
+            .is_some_and(|i| i.scheduling == Scheduling::Normal);
+        if normal {
+            match self.pool() {
+                Ok(pool) => match pool.send(p) {
+                    Ok(()) => return,
+                    Err(mpsc::SendError(back)) => {
+                        why = "the scheduler pool closed".to_string();
+                        p = back;
+                    }
+                },
+                Err(e) => why = e,
+            }
+            let out = unclassed(&mut p, &why);
+            let _ = self.radio.send(Flight::Landed(p, out, 0));
+            return;
+        }
         for _ in 0..2 {
             let lane = {
                 let mut lanes = lock(&self.lanes);
@@ -1883,12 +1966,33 @@ impl Node {
     }
 
     fn detached(&self, pid: Pid) -> bool {
-        self.config.idle_lane == IdleLane::Apart
-            && self
-                .st()
-                .info
-                .get(&pid)
-                .is_some_and(|i| i.scheduling == Scheduling::Idle)
+        let scheduling = self.st().info.get(&pid).map(|i| i.scheduling);
+        match scheduling {
+            Some(Scheduling::Idle) => self.config.idle_lane == IdleLane::Apart,
+            Some(Scheduling::Normal) => self.config.schedulers > 1,
+            None => false,
+        }
+    }
+
+    /// The pool that runs `:normal` processes when there are two or more
+    /// schedulers: that many threads at normal priority, each taking the next
+    /// process sent and running one slice of it.
+    fn pool(&self) -> Result<mpsc::Sender<Proc<()>>, String> {
+        self.pool
+            .get_or_init(|| {
+                let (work, queue) = mpsc::channel::<Proc<()>>();
+                let queue = Arc::new(Mutex::new(queue));
+                for n in 0..self.config.schedulers {
+                    let (me, radio, queue) = (self.me.clone(), self.radio.clone(), queue.clone());
+                    std::thread::Builder::new()
+                        .name(format!("blue-scheduler-{n}"))
+                        .stack_size(scheduling::LANE_STACK)
+                        .spawn(move || schedule(&me, &queue, &radio))
+                        .map_err(|e| e.to_string())?;
+                }
+                Ok(work)
+            })
+            .clone()
     }
 
     /// Compile `code` and queue a process running it, held to the bound of

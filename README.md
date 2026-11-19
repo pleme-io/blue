@@ -265,7 +265,7 @@ rendered:
 | Built-in names | 410: 383 functions, 14 special forms, 13 macros |
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 97: 42 fix themselves, 8 suggest a fix |
-| Bluefile words | 32 |
+| Bluefile words | 33 |
 | Commands | 66 |
 
 ## The standard library

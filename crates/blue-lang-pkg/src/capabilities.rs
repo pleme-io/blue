@@ -1139,6 +1139,25 @@ pub fn bounds_for(entry: &Path) -> Option<blue_lang_runtime::ExecutionBounds> {
         .map(crate::bounds::Bounds::execution)
 }
 
+/// How many schedulers the project at `entry` declares for its processes
+/// (`schedulers(n)`), read from the nearest Bluefile above it, whether or not
+/// it holds the program; `None` when it declares none, or its Bluefile does
+/// not read, so they run on one.
+#[must_use]
+pub fn schedulers_for(entry: &Path) -> Option<usize> {
+    let dir = entry
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    dir.ancestors()
+        .map(|at| at.join(crate::MANIFEST_FILE))
+        .filter(|path| path.is_file())
+        .find_map(|path| crate::read_bluefile(&std::fs::read_to_string(path).ok()?).ok())?
+        .project
+        .schedulers
+}
+
 fn held_project(entry: &Path) -> Result<Option<Bluefile>, String> {
     let dir = entry
         .parent()

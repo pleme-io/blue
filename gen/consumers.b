@@ -425,17 +425,58 @@ def read_private_text(text)
   doc = json_read(text)
   {
     consumers: map(from_row, doc["consumers"] or []),
-    recorded: doc["recorded"] or []
+    recorded: doc["recorded"] or [],
+    holds: doc["levels"] or []
   }
 end
 
-def render_private(cs, recorded)
+def render_private(cs, recorded, holds)
   json_stringify(
     {
       "consumers" => map(to_row, sort_keyed((c) -> c[:name], cs)),
-      "recorded" => sort_keyed((l) -> l, recorded)
+      "recorded" => sort_keyed((l) -> l, recorded),
+      "levels" => holds
     }
   )
+end
+
+@doc """
+held_level: The level a private hold names, or nil for a word that is no level.
+
+    held_level("audit") #=> :audit
+    held_level("loud") #=> nil
+"""
+def held_level(word)
+  get({"enforce" => :enforce, "audit" => :audit, "off" => :off}, word)
+end
+
+@doc """
+private_levels: The policy entries the private registry holds, `level(REPO,
+level, why)` as `{scope:, level:, why:}` rows, each for a private consumer: a
+private repository is held where its name may be written, never in the public
+`entries`. A row for a name the private registry does not list, or with no
+level, is dropped alone.
+
+    private_levels(nil) #=> []
+    size(private_levels({consumers: [{name: "p"}], holds: [{"scope" => "p", "level" => "audit", "why" => "w"}, {"scope" => "q", "level" => "audit", "why" => "w"}]})) #=> 1
+"""
+def private_levels(priv)
+  if priv.nil?
+    []
+  else
+    names = map((c) -> c[:name], priv[:consumers])
+    flat_map(
+      priv[:holds] or [],
+      fn(h)
+        lv = held_level(h["level"])
+        if lv.nil? or not member?(h["scope"], names)
+          []
+        else
+          [level(h["scope"], lv, h["why"])]
+        end
+      end
+    )
+  end
 end
 
 def recorded_name(line)
@@ -724,18 +765,26 @@ def reach(root, name, clone)
   end
 end
 
+@doc """
+carried?: Whether the sweep extracts tracked file `f`: blue source, a Bluefile
+and its lock, and the host surface `blue-host.json` that `blue check` reads
+beside them, without which every host function reads as unbound (B0001).
+
+    carried?("bidamas/a/a.b") #=> true
+    carried?("Bluefile.lock") #=> true
+    carried?("blue-host.json") #=> true
+    carried?("src/main.rs") #=> false
+"""
+def carried?(f)
+  ends_with?(f, ".b") or
+    member?(path_basename(f), %w[Bluefile Bluefile.lock blue-host.json])
+end
+
 def extract(root, name)
   dir = path_join(root, name)
   ref = ref_of(dir)
   all = tracked(dir, ref)
-  wanted = filter(
-    fn(f)
-      ends_with?(f, ".b") or
-        path_basename(f) == "Bluefile" or
-        path_basename(f) == "Bluefile.lock"
-    end,
-    all
-  )
+  wanted = filter(carried?, all)
   out = scratch(name)
   rm_rf(out)
   mkdir_p(out)
@@ -803,7 +852,7 @@ def sweep(blue, root, clone, record)
       priv[:recorded]
     end
   )
-  pol = settle(entries, nil)
+  pol = settle(concat_lists(entries, private_levels(priv)), nil)
   measured = map(
     (c) -> measure_one(blue, root, c[:name], level_of(pol, c[:name]), clone),
     cs
@@ -854,7 +903,10 @@ def sweep(blue, root, clone, record)
   if record and not priv.nil?
     kept = unorphaned(priv[:recorded], judged[:orphans])
     if kept != priv[:recorded]
-      write_file(private_path, render_private(priv[:consumers], kept))
+      write_file(
+        private_path,
+        render_private(priv[:consumers], kept, priv[:holds])
+      )
       write_stderr(
         unlines(
           map(
@@ -1004,8 +1056,13 @@ def store(cs, swept)
     else
       priv[:recorded]
     end
+    holds = if priv.nil?
+      []
+    else
+      priv[:holds]
+    end
     mkdir_p(path_dirname(private_path))
-    write_file(private_path, render_private(hidden, kept))
+    write_file(private_path, render_private(hidden, kept, holds))
   end
 end
 
@@ -1039,7 +1096,10 @@ def rewrite(blue, path)
 end
 
 def fix(blue, root, name)
-  pol = settle(entries, nil)
+  pol = settle(
+    concat_lists(entries, private_levels(read_private(private_path))),
+    nil
+  )
   lv = level_of(pol, name)
   if lv != :enforce
     write_stderr(
@@ -1499,7 +1559,11 @@ test "a private row is counted in the public registry and named only in the priv
   assert not contains?(pub, "unread")
   assert json_read(pub)["private"] == {"count" => 2}
   assert map((c) -> c[:name], read_registry(pub)[:consumers]) == ["tend"]
-  priv = render_private(reject(public?, cs), ["refused: hidden:h.b:B0001 1"])
+  priv = render_private(
+    reject(public?, cs),
+    ["refused: hidden:h.b:B0001 1"],
+    []
+  )
   assert map((c) -> c[:name], read_private_text(priv)[:consumers]) ==
     %w[hidden unread]
 end

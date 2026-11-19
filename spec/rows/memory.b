@@ -50,7 +50,13 @@ row(
 
 row(
   "memory.a_dispatch_handler_closure_is_freed",
-  join_lines(["space_for(:map, \"m\")", "verb_for(\"m\", \"has?\", (m, k) -> get(m, k) != nil)", "has?({a: 1}, :a)"]),
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"has?\", (m, k) -> get(m, k) != nil)",
+      "has?({a: 1}, :a)"
+    ]
+  ),
   leaks(0)
 )
 
@@ -62,6 +68,8 @@ row(
 
 row(
   "memory.a_closure_kept_by_a_closure_is_freed",
-  join_lines(["mk = fn(h) fn(x) h(x) end end", "f = mk(fn(y) y + 1 end)", "f(2)"]),
+  join_lines(
+    ["mk = fn(h) fn(x) h(x) end end", "f = mk(fn(y) y + 1 end)", "f(2)"]
+  ),
   leaks(0)
 )

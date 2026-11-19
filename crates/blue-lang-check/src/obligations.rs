@@ -270,7 +270,7 @@ obligations! {
         detector: Static,
         refusal: Code(Code::B0083),
         profile: Default,
-        held: 96,
+        held: 95,
         owner: "TESTING.md section 5, T4",
     }
     "point/seam" {

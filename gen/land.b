@@ -1,4 +1,4 @@
-use("gitto", %i[as_tester ask])
+use("gitto", %i[as_tester ask changed_generated])
 use("hizuke", [:rfc3339_of_ms])
 use("kazu", [:min])
 use("moji", %i[after_first before_first take_chars])
@@ -157,13 +157,14 @@ def direct_land(tries)
     exit_with(0)
   end
   said = "#{stdout_of(pushed)}#{stderr_of(pushed)}"
-  dirty = trim(ask(%w[status --porcelain --untracked-files=no])) != ""
-  next = direct_next(said, dirty)
+  regenerated = changed_generated
+  next = direct_next(said, regenerated != [])
   if next == :stop
     tell(said)
     exit_with(1)
   elsif next == :commit_regen
-    git_at(".", %w[commit -qam regen])
+    git_at(".", append(%w[add --], regenerated))
+    git_at(".", %w[commit -qm regen])
     say("committed the pre-push gate's regenerated files; pushing again")
   else
     say("main moved first; rebasing and pushing again")

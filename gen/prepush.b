@@ -1,3 +1,4 @@
+use("gitto", [:changed_generated])
 use("jisho", %i[from_entries merge])
 
 use("moji", %i[glob_match? take_chars])
@@ -914,29 +915,6 @@ def regen(bin, root, dir)
   end
 end
 
-@doc """
-stale_generated: The paths `git check-attr merge` output names as regenerated files
-(`merge=blue-generated` in .gitattributes).
-
-    stale_generated("docs/A.md: merge: blue-generated\nsrc/x.rs: merge: unspecified") #=> ["docs/A.md"]
-    stale_generated("") #=> []
-"""
-def stale_generated(attrs)
-  map(
-    (l) -> first(split(l, ": merge: ")),
-    filter((l) -> ends_with?(l, ": merge: blue-generated"), lines_of(attrs))
-  )
-end
-
-def uncommitted_generated()
-  names = lines_of(git(%w[diff --name-only HEAD]))
-  if names == []
-    []
-  else
-    stale_generated(git(append(%w[check-attr merge --], names)))
-  end
-end
-
 def regen_with(bin, root, dir, tools)
   was = lines_of(git(%w[status --porcelain --untracked-files=all]))
   before = changed
@@ -953,7 +931,7 @@ def regen_with(bin, root, dir, tools)
   if status_of(run) != 0
     [:red, stderr_of(run)]
   elsif before == changed
-    stale = uncommitted_generated
+    stale = changed_generated
     if stale == []
       [:green, ""]
     else

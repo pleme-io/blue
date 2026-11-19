@@ -21,7 +21,6 @@ use("tesuto", [:scratch])
 
 legacy_names("0.1.3", [%w[raised kyohi::raised]])
 
-# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def run(repo, args)
   exec_with_env(
     [%w[GIT_TERMINAL_PROMPT 0], %w[LC_ALL C]],
@@ -78,6 +77,51 @@ tool run inside its checkout puts to git, where no answer reads as "".
 """
 def ask(args)
   out_or(".", args, "")
+end
+
+@doc """
+generated_paths: The paths `git check-attr merge` output names as regenerated files
+(`merge=blue-generated` in .gitattributes).
+
+    generated_paths("docs/A.md: merge: blue-generated\nsrc/x.rs: merge: unspecified") #=> ["docs/A.md"]
+    generated_paths("") #=> []
+"""
+def generated_paths(attrs)
+  map(
+    (l) -> first(split(l, ": merge: ")),
+    filter(
+      (l) -> ends_with?(l, ": merge: blue-generated"),
+      filter((l) -> l != "", split(attrs, line_break))
+    )
+  )
+end
+
+@doc """
+changed_generated: The tracked files that differ from HEAD in the working directory and
+that .gitattributes marks as regenerated, so a tool commits a regen's output and
+nothing else.
+
+    list?(changed_generated) #=> true
+"""
+def changed_generated()
+  changed_generated_in(".")
+end
+
+@doc """
+changed_generated_in: `changed_generated` for the repository at `repo`.
+
+    changed_generated_in("/nonexistent/gitto") #=> []
+"""
+def changed_generated_in(repo)
+  names = filter(
+    (l) -> l != "",
+    split(out_or(repo, %w[diff --name-only HEAD], ""), line_break)
+  )
+  if names == []
+    []
+  else
+    generated_paths(out_or(repo, append(%w[check-attr merge --], names), ""))
+  end
 end
 
 @doc """
@@ -884,4 +928,27 @@ test "a master verb on a gitto subject raises what gitto raises"
   ) != nil
   assert kyohi::raised(() -> has?(s, "topic")) == :usage
   assert kyohi::raised(() -> need(s, "topic")) == :usage
+end
+
+test "only the regenerated files a tree changed are named", {kind: :integration}
+  dir = "#{scratch}-gitto-generated"
+  rm_rf(dir)
+  mkdir_p(dir)
+  as_tester(dir, %w[init -q -b main])
+  write_file(
+    path_join(dir, ".gitattributes"),
+    unlines(["gen.md merge=blue-generated"])
+  )
+  write_file(path_join(dir, "gen.md"), "one")
+  write_file(path_join(dir, "src.txt"), "one")
+  as_tester(dir, %w[add -A])
+  as_tester(dir, %w[commit -q -m one])
+  assert changed_generated_in(dir) == []
+  write_file(path_join(dir, "gen.md"), "two")
+  write_file(path_join(dir, "src.txt"), "two")
+  assert changed_generated_in(dir) == ["gen.md"]
+  assert generated_paths(
+    join_lines(["gen.md: merge: blue-generated", "src.txt: merge: unspecified"])
+  ) == ["gen.md"]
+  assert list?(changed_generated)
 end

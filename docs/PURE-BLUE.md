@@ -56,6 +56,7 @@ Built and on main, each with its lock:
 | D3 | a Bluefile names its toolchain with `toolchain(entry)`; the project engine checks it against substrate's registry, refusing an unknown name and an entry whose rung has not landed, and builds with `rust` | `crates/blue-lang-pkg/src/bluefile.rs`, `nix/project.nix`, `checks.toolchain-selection` |
 | D4 | the nix fleet imports the blueToolchain concept on every NixOS and darwin node, its `packages` from one table (`lib/blue-toolchains.nix`) that the fleet's blue overlay also reads; nodes select with `pleme.blueToolchain.selected`, every node on `rust` with its toplevel drvPath unchanged | nix `06eeca94`: `modules/pleme/shared/blue-toolchain.nix`, `lib/blue-toolchains.nix` |
 | D5 | `checks.toolchain-matrix`: every buildable registry entry (no rung pending) has a row that builds `blue` and runs conformance; a buildable entry without a row is refused at evaluation, and the check proves that refusal on a made-up second entry. One row today, `rust` | `flake.nix`, `nix/toolchain-matrix.nix` |
+| M2 (first slice) | `blue explain --memory FILE` prints the ownership facts kuzushi reads, one per line, from a blue program the CLI embeds (`crates/blue-lang-cli/blue/memory.b`); the conformance `cli` column now observes `facts` rows through it, so each M1 row is judged in-process and on the CLI | `crates/blue-lang-cli/blue/memory.b`, `crates/blue-lang-test/tests/conformance/eval.rs` |
 | C1 | the native conformance column: every value row compiled by blue's own backend and judged against the walker, its passing count a ratchet (18 rows on 2026-11-18); a call to a global function with the wrong number of arguments is refused before code is made | `crates/blue-lang-test/tests/conformance`, `gen/native-row.b`, `spec/native.baseline`, `checks.conformance-three-way` |
 | C2 (first slice) | the `leaks(N)` expectation: the bytes one run leaves live, read from the counting allocator on the walker and the VM (a warm-up run, then the mean of three); 3 rows hold `leaks(0)` (a built list, a closure and its captures, a replaced cell), and a probe that keeps its runs live reads 65-67 bytes, so the rows can fail | `crates/blue-lang-test/tests/conformance`, `spec/rows/memory.b` |
 
@@ -76,7 +77,7 @@ and recompute this list from §7.
 3. **R6a** (§R6): the blue JSON reader and writer, then BLAKE3 and SHA-2.
 4. **F1** (`pure-blue/front-tower-conformance.md` §F1): the reader in blue. No dependencies, the
    heaviest front-end rung, and S1 needs it.
-5. **M2** (`pure-blue/language-memory.md` §M2): `blue explain --memory` over M1's facts.
+5. **M2, the rest** (`pure-blue/language-memory.md` §M2): the static memory hints in the LSP's inlay hints, served without live evaluation; `blue explain --memory` landed.
 6. **C2, the rest** (§C2): `closes_at`, cycle-through-cell, move vs copy; then
    `checks.no-leak` (I3) once `spec/leaks.baseline` is near empty.
 7. **B3** (§B3): `checks.native-x64-corpus`.

@@ -876,11 +876,6 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         // The printer has rows of its own (spec/rows/printing.b).
         return Obs::Blind("a value is not observable on stdout; see printing.b".into());
     }
-    if matches!(row.expect, Expect::Facts(_)) {
-        return Obs::Blind(
-            "facts are observed in-process until `blue explain --memory` (M2)".into(),
-        );
-    }
     if let Expect::Leaks(_) = row.expect {
         return Obs::Blind(
             "a run's allocations are counted in process, by the walker and VM columns".into(),
@@ -928,7 +923,10 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         Expect::Shifts(..) => {
             cmd.arg("shift").arg(&file);
         }
-        Expect::Value(_) | Expect::Facts(_) | Expect::Leaks(_) => unreachable!("returned above"),
+        Expect::Facts(_) => {
+            cmd.arg("explain").arg("--memory").arg(&file);
+        }
+        Expect::Value(_) | Expect::Leaks(_) => unreachable!("returned above"),
     }
     let out = match output_within(&mut cmd) {
         Ok(o) => o,
@@ -985,6 +983,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 .filter_map(|v| v.get("code").and_then(|c| c.as_str()).map(str::to_owned))
                 .collect(),
         ),
+        Expect::Facts(_) => Obs::Facts(stdout.lines().map(str::to_owned).collect()),
         Expect::Shifts(..) => {
             let mut lines = stdout.lines();
             // `███░ checked  (…)`: the ramp, then the rung. A file with no
@@ -1002,7 +1001,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 .collect();
             Obs::Shift { rung, holding }
         }
-        Expect::Value(_) | Expect::Facts(_) | Expect::Leaks(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Leaks(_) => unreachable!("returned above"),
     }
 }
 
@@ -1190,7 +1189,7 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Static | Ev::Cli,
         ) => true,
-        (Expect::Facts(_), Ev::Static) => true,
+        (Expect::Facts(_), Ev::Static | Ev::Cli) => true,
         _ => false,
     }
 }

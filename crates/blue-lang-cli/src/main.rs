@@ -72,6 +72,7 @@ const MIGRATE: &str = include_str!("../blue/migrate.b");
 const VERBS: &str = include_str!("../blue/verbs.b");
 const REUSE: &str = include_str!("../blue/reuse.b");
 const BOUNDS: &str = include_str!("../blue/bounds.b");
+const MEMORY: &str = include_str!("../blue/memory.b");
 
 const NATURALIZE: &str = include_str!("../blue/naturalize.b");
 mod config;
@@ -451,12 +452,15 @@ enum Cmd {
         facts: bool,
     },
     /// Explain a diagnostic code (`blue explain B0001`), or list them all.
-    #[command(group(clap::ArgGroup::new("which").required(true).args(["code", "list"])))]
+    #[command(group(clap::ArgGroup::new("which").required(true).args(["code", "list", "memory"])))]
     Explain {
         code: Option<String>,
         /// List every code with its severity and one-line law.
         #[arg(long)]
         list: bool,
+        /// Print the ownership facts kuzushi reads from FILE, one per line (M2).
+        #[arg(long, value_name = "FILE")]
+        memory: Option<PathBuf>,
     },
     /// Check the file (as `blue check` does), then run its `test` blocks. A
     /// directory runs every `.b` file under it holding a `test` block, in
@@ -1575,7 +1579,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             )
         }
 
-        Cmd::Explain { code, list } => {
+        Cmd::Explain { code, list, memory } => {
+            if let Some(file) = memory {
+                return embedded("memory.b", MEMORY, vec![file.display().to_string()]);
+            }
             if list {
                 for r in blue_lang_check::RULES {
                     println!(

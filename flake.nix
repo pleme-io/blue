@@ -887,6 +887,40 @@
             appliance = applianceFor system;
           };
 
+          toolchain-matrix =
+            let
+              rows = {
+                rust = {
+                  package = blue;
+                  conformance = self.checks.${system}.conformance;
+                };
+              };
+              matrix = import ./nix/toolchain-matrix.nix {
+                inherit lib rows;
+                entries = toolchainEntries;
+              };
+              probe = import ./nix/toolchain-matrix.nix {
+                inherit lib rows;
+                entries = toolchainEntries // {
+                  probe = {
+                    runtime = "rust";
+                    front = "rust";
+                    memory = "counted";
+                  };
+                };
+              };
+            in
+            assert lib.assertMsg (matrix.missing == [ ])
+              "toolchain-matrix: buildable entries ${lib.concatStringsSep ", " matrix.missing} have no matrix row; add one beside rust";
+            assert probe.missing == [ "probe" ];
+            pkgs.runCommand "toolchain-matrix" { } ''
+              ${lib.concatMapStrings (n: ''
+                test -x ${rows.${n}.package}/bin/blue
+                test -e ${rows.${n}.conformance}
+                echo "${n}: blue builds and conformance holds" >> $out
+              '') matrix.buildable}
+            '';
+
           toolchain-selection =
             let
               lower = d: engine.projectFor { inherit pkgs blue toolchainEntries; src = ./nix/toolchain-fixture + "/${d}"; };

@@ -55,6 +55,7 @@ Built and on main, each with its lock:
 | D2 | the `pleme.blueToolchain` registry: five entries, an incoherent permutation refused by the entry type, a not-yet entry refused by its rung | `substrate/lib/build/blue/toolchain.nix`, `checks.blue-toolchain` |
 | D3 | a Bluefile names its toolchain with `toolchain(entry)`; the project engine checks it against substrate's registry, refusing an unknown name and an entry whose rung has not landed, and builds with `rust` | `crates/blue-lang-pkg/src/bluefile.rs`, `nix/project.nix`, `checks.toolchain-selection` |
 | D4 | the nix fleet imports the blueToolchain concept on every NixOS and darwin node, its `packages` from one table (`lib/blue-toolchains.nix`) that the fleet's blue overlay also reads; nodes select with `pleme.blueToolchain.selected`, every node on `rust` with its toplevel drvPath unchanged | nix `06eeca94`: `modules/pleme/shared/blue-toolchain.nix`, `lib/blue-toolchains.nix` |
+| D5 | `checks.toolchain-matrix`: every buildable registry entry (no rung pending) has a row that builds `blue` and runs conformance; a buildable entry without a row is refused at evaluation, and the check proves that refusal on a made-up second entry. One row today, `rust` | `flake.nix`, `nix/toolchain-matrix.nix` |
 | C1 | the native conformance column: every value row compiled by blue's own backend and judged against the walker, its passing count a ratchet (18 rows on 2026-11-18); a call to a global function with the wrong number of arguments is refused before code is made | `crates/blue-lang-test/tests/conformance`, `gen/native-row.b`, `spec/native.baseline`, `checks.conformance-three-way` |
 | C2 (first slice) | the `leaks(N)` expectation: the bytes one run leaves live, read from the counting allocator on the walker and the VM (a warm-up run, then the mean of three); 3 rows hold `leaks(0)` (a built list, a closure and its captures, a replaced cell), and a probe that keeps its runs live reads 65-67 bytes, so the rows can fail | `crates/blue-lang-test/tests/conformance`, `spec/rows/memory.b` |
 
@@ -62,7 +63,7 @@ Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with 
 language in the path, give their value and end with 0 blocks live.
 
 Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1's other kinds (borrow, unique, escape, reuse), spans and the def-hash cache; M2-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
-beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2 beyond `leaks` (`closes_at`, cycle-through-cell, move vs copy, and I3 over every row), C3; D5, D6.
+beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2 beyond `leaks` (`closes_at`, cycle-through-cell, move vs copy, and I3 over every row), C3; D6.
 
 In flight (2026-11-19, for the next session):
 

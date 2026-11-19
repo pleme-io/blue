@@ -156,7 +156,7 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: every definition of a bidama is public today (docs/STDLIB.md), so none is dead by construction; a dead private definition is decidable from the call graph once private definitions land | default | 0 |
 | doc/definition | a public definition of a bidama | declared | static | B0056 | default | 0 |
 | doc/example | a `@doc` | unit | static | B0057 | default | 0 |
-| point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 97 |
+| point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 96 |
 | point/seam | a definition that calls an imported word which names such a builtin | integration | static | B0084 | default | 22 |
 | point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 33 |
 | point/service | the program of a Bluefile `service(...)` row | e2e | project | B0086 | service | 2 |

@@ -816,6 +816,10 @@ def tagged_atom(slots, a, r)
     [{op: "lea_label", dst: r, label: kw_label(a)}]
   elsif string?(a)
     [{op: "lea_label", dst: r, label: str_label(a)}]
+  elsif symbol?(a) and member?(to_s(a), %w[nil false])
+    [{op: "mov", dst: r, imm: 0}]
+  elsif symbol?(a) and to_s(a) == "true"
+    [{op: "mov", dst: r, imm: 2}]
   elsif symbol?(a)
     [{op: "load", dst: r, disp: slot(slots, to_s(a))}]
   elsif a == true
@@ -1033,6 +1037,13 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif op == "is_terminal"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_is_terminal"}]
+    )
+  elsif op == "read_line"
+    [{op: "call_label", label: "rt_read_line"}]
   elsif op == "self_exe"
     [{op: "call_label", label: "rt_self_exe"}]
   elsif op == "write_bytes"
@@ -1655,7 +1666,9 @@ def runtime()
       RT_SELF_EXE,
       RT_EXEC_CHECK,
       RT_EXEC_CAPTURE,
-      RT_TCP_CONNECT
+      RT_TCP_CONNECT,
+      RT_READ_LINE,
+      IS_TERMINAL
     ]
   )
 end
@@ -4912,4 +4925,160 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
     {op: "ret"}
   ]
   assert length(assemble(append(RT_TCP_CONNECT, stand_ins))) > 0
+end
+
+@doc """
+IS_TERMINAL: is_terminal natively (R4 of docs/PURE-BLUE.md), a routine so every call site shares its one label: whether the stream whose tagged number is in rdi (0 input, 1 output, 2 errors) is a terminal, as true (2) or false (0) in rax: TCGETS (ioctl 16, request 0x5401) succeeds on a terminal and on nothing else; any other number is false.
+
+    IS_TERMINAL[0] #=> {op: "label", name: "rt_is_terminal"}
+"""
+IS_TERMINAL = [
+  {op: "label", name: "rt_is_terminal"},
+  {op: "sar1", dst: "rdi"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "cmp", dst: "rdi", imm: 0},
+  {op: "j", cond: "l", label: "rt_tty_no"},
+  {op: "cmp", dst: "rdi", imm: 2},
+  {op: "j", cond: "g", label: "rt_tty_no"},
+  {op: "sub", dst: "rsp", imm: 64},
+  {op: "mov", dst: "rdx", src: "rsp"},
+  {op: "mov", dst: "rsi", imm: 21505},
+  {op: "mov", dst: "rax", imm: 16},
+  {op: "syscall"},
+  {op: "add", dst: "rsp", imm: 64},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "j", cond: "ne", label: "rt_tty_no"},
+  {op: "mov", dst: "rax", imm: 2},
+  {op: "label", name: "rt_tty_no"},
+  {op: "ret"}
+]
+
+@doc """
+RT_READ_LINE: read_line natively (R4 of docs/PURE-BLUE.md): one line of standard input without its line break, as a new string in rax, or nil at the end of input. Bytes are read one at a time into a CAPTURE_BYTES mapping (committed only as written), so nothing past the line is taken from the stream.
+
+    RT_READ_LINE[0] #=> {op: "label", name: "rt_read_line"}
+"""
+RT_READ_LINE = append(
+  *[
+    [
+      {op: "label", name: "rt_read_line"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 64},
+      {op: "mov", dst: "rdi", imm: 0},
+      {op: "mov", dst: "rsi", imm: CAPTURE_BYTES},
+      {op: "mov", dst: "rdx", imm: 3},
+      {op: "mov", dst: "r10", imm: 34},
+      {op: "mov", dst: "r8", imm: -1},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "mov", dst: "rax", imm: 9},
+      {op: "syscall"},
+      {op: "store", src: "rax", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "label", name: "rt_rl_byte"},
+      {op: "load", dst: "rsi", base: "rbp", disp: -8},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "add", dst: "rsi", src: "rcx"},
+      {op: "mov", dst: "rdi", imm: 0},
+      {op: "mov", dst: "rdx", imm: 1},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "le", label: "rt_rl_end"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rsi", base: "rbp", disp: -8},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "add", dst: "rsi", src: "rcx"},
+      {op: "load_byte", dst: "rax", base: "rsi"},
+      {op: "cmp", dst: "rax", imm: 10},
+      {op: "j", cond: "e", label: "rt_rl_line"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "jmp", label: "rt_rl_byte"},
+      {op: "label", name: "rt_rl_end"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_rl_line"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "jmp", label: "rt_rl_unmap"},
+      {op: "label", name: "rt_rl_line"}
+    ],
+    string_from_buffer(-8, -16, -32, "rt_rl_copy"),
+    [
+      {op: "label", name: "rt_rl_unmap"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rsi", imm: CAPTURE_BYTES},
+      {op: "mov", dst: "rax", imm: 11},
+      {op: "syscall"},
+      {op: "load", dst: "rax", base: "rbp", disp: -32},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+terminal_programs: programs over the terminal words, with the input each is given and the exit status and output each must give: a line read without its break, a line at the end of input with no break, the end of input as nil, and a stream that is no terminal.
+
+    length(terminal_programs) #=> 4
+"""
+def terminal_programs()
+  [
+    ["(begin (write_stdout (read_line)) 0)", unlines(%w[abc def]), 0, "abc"],
+    ["(begin (write_stdout (read_line)) 0)", "last", 0, "last"],
+    ["(if (equal? (read_line) nil) 0 1)", "", 0, ""],
+    ["(if (is_terminal 1) 1 (if (is_terminal 9) 2 0))", "", 0, ""]
+  ]
+end
+
+test "read_line and is_terminal work natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-tty"), "tty.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_with_stdin(p[1], path)
+        assert status_of(r) == p[2]
+        assert stdout_of(r) == p[3]
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_with_stdin(p[1], path)) == 0
+      end,
+      terminal_programs
+    )
+  end
+end
+
+test "is_terminal asks TCGETS, and read_line reads a byte at a time into a mapping"
+  assert member?({op: "mov", dst: "rsi", imm: 21505}, IS_TERMINAL)
+  assert last(rc_op([], "is_terminal", [1])) ==
+    {op: "call_label", label: "rt_is_terminal"}
+  assert tagged_atom([], read_forms("nil")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: 0}]
+  assert tagged_atom([], read_forms("true")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: 2}]
+  assert tagged_atom([], read_forms("false")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: 0}]
+  assert last(rc_op([], "read_line", [])) ==
+    {op: "call_label", label: "rt_read_line"}
+  assert member?({op: "mov", dst: "rdx", imm: 1}, RT_READ_LINE)
+  stand_ins = [{op: "label", name: "rt_alloc"}, {op: "ret"}]
+  assert length(assemble(append(RT_READ_LINE, stand_ins))) > 0
+  assert length(assemble(append(IS_TERMINAL, []))) > 0
+  twice = rc_whole(
+    whole(read_forms("(if (is_terminal 1) 1 (if (is_terminal 9) 2 0))")[0]),
+    :exit
+  )
+  assert length(filter((i) -> i == {op: "label", name: "rt_tty_no"}, twice)) ==
+    1
 end

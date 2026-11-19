@@ -86,7 +86,7 @@ end
 
 def measured(root)
   paths = rust_files(root)
-  totals(paths, map((p) -> file_size(p), paths))
+  totals(paths, map((p) -> file_size(path_join(root, p)), paths))
 end
 
 @doc """
@@ -99,10 +99,10 @@ def rows_text(ms)
 end
 
 def record()
-  text = rows_text(measured("."))
-  write_file(BASELINE, text)
+  text = rows_text(measured(root))
+  write_file(path_join(root, BASELINE), text)
   write_stdout(
-    unlines(["recorded #{to_s(size(measured(".")))} crate(s) in #{BASELINE}"])
+    unlines(["recorded #{to_s(size(measured(root)))} crate(s) in #{BASELINE}"])
   )
 end
 
@@ -152,4 +152,14 @@ test "a growth is reported as its message"
   bad = map((f) -> f[1], failures(rows, KIND, [measurement("crates/a", 101)]))
   assert bad ==
     ["purity-bytes: crates/a measures 101, past its recorded 100 by 1"]
+end
+
+test "the ledger measures a tree it is not standing in"
+  away = temp_dir("purity-away")
+  mkdir_p(path_join(away, "crates/tiny/src"))
+  write_file(path_join(away, "crates/tiny/src/lib.rs"), unlines(["fn a() {}"]))
+  ms = measured(away)
+  assert size(ms) == 1
+  assert ms[0][:size] == 10
+  rm_rf(away)
 end

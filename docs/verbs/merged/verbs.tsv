@@ -406,7 +406,7 @@ A	deeta	patch	pure	patch(doc, changes) -> doc	error,idempotent	-	absent	apply ch
 A	deeta	paths	pure	paths(doc, opts) -> [path]	-	-	absent	every leaf path, sorted	2		na
 A	deeta	put	pure	put(doc, path, value) -> doc	-	-	absent	new doc with the value set at the path	1	put(doc, path, value) -> doc	yes
 A	deeta	query	pure	query(doc, expression) -> [value]	error	-	absent	jq-style expression over a document	3	query(doc, expression) -> [value]	yes
-A	deeta	read	effect	read(path, opts) -> value	capability,error,serialize	-	partial:deeta	file to value, format taken from the extension	1	read(path, opts) -> value	yes
+A	deeta	read	effect	read(path, opts) -> value	capability,error,serialize	-	partial:deeta	A JSON text as blue values, in the shapes `json_parse` gives, read by blue itself (R6a of docs/PURE-BLUE.md): an object as a list of [key, value] pairs (an empty one as the empty map), an array as a list, null as nil, a number with a fraction or an exponent as a Float and any other as an Int	1	read(path, opts) -> value	yes
 A	deeta	render	pure	render(value, format, opts) -> text	error,serialize	tatara-lisp-script	partial:deeta	value to stable canonical text	1	render(value, format, opts) -> text	yes
 A	deeta	select	pure	select(doc, paths) -> doc	-	-	absent	keep only the listed paths	1	select(doc, paths) -> doc	yes
 A	deeta	stream	stream	stream(source, format, f, opts) -> count	cancel,error,resource	-	absent	call f per record of NDJSON, CSV or a JSON array	2	stream(source, format, f, opts) -> count	yes

@@ -1,4 +1,4 @@
-{"blind":[],"definitions":6521,"format":"arika/1","leaves":6521,"repo":"blue","shape_root":"b3:6be8fc85d6d879b6f8156043c3e1fe277b8663779c1d4176f783588bdf4b261a","shapes":6245,"snapshot_root":"b3:a943e1766400b6bc038439886ef27c836bd0040aedf38fc69c5d6955ea81705b","units":[
+{"blind":[],"definitions":6534,"format":"arika/1","leaves":6534,"repo":"blue","shape_root":"b3:14d67f4a1d888ff6d19a2a0b734fa872dce40cc5d11ec11e85cb51b145fa0898","shapes":6258,"snapshot_root":"b3:546eb7ffb4512665d07eaec00e66d1fdc8bdabc7f81daee2b0ee4fb48d7d35ff","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:adb2601e123c3a75bb85b128ee2b8a4ae32f17b3091b5b5df1525ef0135e7de4"},
 {"leaves":23,"package":"baito","unit_root":"b3:92add2513d2ac3dbeef2644d0e2775272359a5490d54fceff6188a2b20052f45"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:7df9cbe6fbc51af2e59b6b5d48ce37dd5848ab4b5d535f6c0da01d0f20b63ca3"},
@@ -7,7 +7,7 @@
 {"leaves":34,"package":"chozou/kiibariu","unit_root":"b3:424f2ebe5881b7e19380d2019ec6201f5dd8c658c129634949a835ba04ee5adc"},
 {"leaves":28,"package":"chozou/sutoriimu","unit_root":"b3:58a3276b39eed1f6e509cf72917d4fcc1af590516740fe95a8d0f16609eb4d3c"},
 {"leaves":46,"package":"chozou/teeburu","unit_root":"b3:2afc89a27ee35ace0036ae488e089c88ff3ee99c4f1c4cc1224d01db87f2f02e"},
-{"leaves":135,"package":"deeta","unit_root":"b3:2c3a1fba461f681022a04c0ec2810f5ef7e5778517c5bfb1dfea0dae97f97625"},
+{"leaves":148,"package":"deeta","unit_root":"b3:3103ea2610d1953fdf0cb22b1b5d4c4e4c42c9bcba944a3d2adc1e61521e7d3c"},
 {"leaves":23,"package":"eigyou/bougyo","unit_root":"b3:310e78f17a9967a8454b026f2b977aa155fab0f55873a8a230bcf5afd6ec6179"},
 {"leaves":83,"package":"eigyou/haibi","unit_root":"b3:c67e976768f03cdaa03948ab9801cd35113aeae510945752711d3d676e5f7628"},
 {"leaves":50,"package":"eigyou/heddaa","unit_root":"b3:7552119a2677bc5add8e41b8ee3fd080146786b2149d48fe95613428d758e883"},

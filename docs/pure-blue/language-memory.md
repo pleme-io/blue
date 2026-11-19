@@ -107,6 +107,7 @@ fleet change.
   serves inlay hints only with live evaluation on (`blue-lang-lsp/src/server.rs:306`, `:1005`).
 - **Change.** `blue explain --memory FILE` (a blue renderer over JSON facts); static memory hints
   merged into the LSP's inlay hints, served without live evaluation.
+- **First commit.** `blue explain --memory FILE` printing the last-use facts M1 already reads, one line per fact, with a golden test over the four `memory.last_use.*` rows.
 - **Exit.** Golden output per M1 row; an LSP test.
 
 ### M3 — the fallback runtime on the model

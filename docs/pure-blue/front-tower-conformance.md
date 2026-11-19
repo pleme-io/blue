@@ -107,6 +107,7 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
 - **First commit.** The shape on a toy: `hello` built by two independent stage builds,
   compared with `cmp`.
 - **Determinism to prove:** `gensym`, map iteration order, erufu output.
+- **Exit.** `checks.pure-fixpoint`: `bluec₂` and `bluec₃` are equal under `cmp`.
 
 ### S2 — binary seed and DDC
 
@@ -115,6 +116,8 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   `update-seed`. A second derivation driven by the Rust stage 0 is the DDC leg, compared with
   `cmp` (`checks.pure-seed-ddc`).
 - **Note.** The check runs on x86_64-linux only.
+- **First commit.** `gen/seed.b` writing S1's toy `hello` image as the committed seed, with `checks.generated-bluec-seed-fresh`; the DDC leg (the same image from the Rust stage 0) follows as the second commit.
+- **Exit.** `checks.generated-bluec-seed-fresh` and `checks.pure-seed-ddc` green for `bluec` itself.
 
 ### S3 — two runtimes
 
@@ -140,6 +143,7 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
 - **Change.** Commit the hex as `seed/x86_64-linux/*.hex0`; reuse stage0-posix's `hex0`/`hex1`
   (counted as non-blue in the ledger) or write a blue-specific `hex0`; then the minimal blue
   reader and evaluator at that level (new work, no existing code).
+- **First commit.** A bare `derivation` that builds stage0-posix's `hex0` from its 181-byte seed by hash, as nixpkgs does, with `checks.hex0-seed` asserting the output hash; the blue reader at that level comes after.
 - **Exit.** `checks.pure-full-source`: the chain's `bluec` equals S2's seed under `cmp`.
 
 ### S5 — aarch64 macOS
@@ -148,6 +152,7 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
 - **Change.** A Mach-O sibling of erufu, checked with `otool` as erufu is with `readelf`; an
   aarch64 encoder by the B2 method. **Code signing:** arm64 macOS refuses unsigned binaries,
   so the writer emits an ad-hoc `LC_CODE_SIGNATURE` in blue.
+- **First commit.** A Mach-O writer that emits a static, ad-hoc-signed executable whose exit status is a constant, checked with `otool -h` and run on aarch64-darwin.
 - **Exit.** The native conformance column on aarch64 macOS.
 
 ## C — conformance
@@ -187,6 +192,8 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   `bench/native/*.rs`; `native-ratio:` rows per mille, keyed `darwin`; only `cost` is gated
   (`checks.bench-ratchet`, `flake.nix:755`).
 - **Change.** A `bluec` path in `native_paths` (:877), keyed `linux`.
+- **Blocked on native output (measured 2026-11-19).** The corpus programs print with `put_int` and `put_byte`, which hashiru has no code for, so `bluec` cannot build them yet.
+- **First commit.** `put_int` and `put_byte` in hashiru (R4's write path), then the `bluec` path in `native_paths` for `fib`, keyed `linux`.
 - **Exit.** `checks.native-bench` on an x86-64 Linux builder (I7).
 
 Every finding of this mapping (F2 on `ir_eval`, F1 as the kiwari parser rung, the

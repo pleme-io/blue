@@ -65,6 +65,26 @@ language in the path, give their value and end with 0 blocks live.
 Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1's other kinds (borrow, unique, escape, reuse), spans and the def-hash cache; M2-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
 beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2 beyond `leaks` (`closes_at`, cycle-through-cell, move vs copy, and I3 over every row), C3; D6.
 
+Next, in order (2026-11-19). Every open rung whose dependencies in §7 are met, each with its
+first commit in its track doc. Take the top one; when a rung lands, record it in the table above
+and recompute this list from §7.
+
+1. **B1, its exit** (`pure-blue/backend-runtime.md` §B1): borrow inference and the `ir_eval`
+   ratchet over the spec rows. It is on every chain and unblocks M1's other kinds, B3, F2 and M3.
+2. **R4, the rest** (§R4): time, processes, sockets, epoll, the terminal, then `put_int` and
+   `put_byte`, which C3 needs. Critical path: R4 → R6a → S1.
+3. **R6a** (§R6): the blue JSON reader and writer, then BLAKE3 and SHA-2.
+4. **F1** (`pure-blue/front-tower-conformance.md` §F1): the reader in blue. No dependencies, the
+   heaviest front-end rung, and S1 needs it.
+5. **M2** (`pure-blue/language-memory.md` §M2): `blue explain --memory` over M1's facts.
+6. **C2, the rest** (§C2): `closes_at`, cycle-through-cell, move vs copy; then
+   `checks.no-leak` (I3) once `spec/leaks.baseline` is near empty.
+7. **B3** (§B3): `checks.native-x64-corpus`.
+8. **R6c** (§R6): YAML, XML, Nix parsing in blue (needs only R3).
+9. **C3** (§C3), after R4's `put_int`: the `bluec` path in the benchmark.
+
+Waiting on others' rungs: M3 (M1, C2), M4, M5, R5 (M4), R6b, R7, F2-F4, S1-S5, B5, D6.
+
 In flight (2026-11-19, for the next session):
 
 - **tatara-lisp main, unpublished.** M3a (`eefe94d`: early reuse behind `Interpreter::set_early_reuse`, off by default), `Interpreter::on_release` (`dd312f4`), and a release fix so a closure that keeps a function argument dies with its interpreter (`598927d`; memoize and every higher-order constructor leaked 12-15 KB per run). They publish as tatara-lisp-eval 0.4.24 when tatara's auto-release passes; its release job runs blue's suite, so blue main must be green first. Then record M3a here.

@@ -117,6 +117,7 @@ the repo root and were read on 2026-11-17.
   `bench/native.baseline`.
 - **Change.** `native/bidamas/ir/opt.b`: inlining, unboxed Ints where typed, drop fusion,
   reuse pairing; `cz_nonneg` ported onto the IR.
+- **First commit.** `cz_nonneg`'s range-proven check removal ported onto hashiru's IR for one corpus program (`sums`), its native-ratio row in `bench/native.baseline` falling.
 - **Exit.** `checks.native-bench` against `bench/native.baseline`, a ratchet (I7).
 
 ## R — the runtime
@@ -191,6 +192,12 @@ the repo root and were read on 2026-11-17.
 - **Exit.** json and crypto rows natively; `checks.purity-ledger` falls.
 - **Needs L2 first:** constant-time arithmetic and Ed25519 field math need unsigned 64-bit and a
   64×64→128 multiply.
+
+The three sub-rungs, each its own slice:
+
+- **R6a — JSON and hashes.** First commit: the blue JSON reader and writer above, differential against `json_read`/`json_write` on `spec/rows/json.b`; then BLAKE3 against `blake3_hex`, then SHA-2. Exit: the json and hash rows pass natively.
+- **R6b — crypto.** First commit: X25519 in blue over L2's unsigned words, differential against the Rust `x25519` on RFC 7748's vectors; then Ed25519, ChaCha20-Poly1305, HMAC, Bao, FROST, ECDSA P-256, RSA. Exit: the crypto rows natively; the purity ledger falls by `crypto.rs`'s lines.
+- **R6c — formats.** Unblocked now (needs only R3). First commit: a blue YAML reader, differential against `yaml_read` on `spec/rows/yaml.b`; then XML, then Nix parsing against rnix. Exit: their rows natively; the ledger falls.
 
 ### R7 — TLS
 

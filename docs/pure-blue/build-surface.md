@@ -118,3 +118,10 @@ does, blue's copy becomes a drift-checked mirror, then goes.
 
 D0-D2 can start now: they need nothing from the compiler work, and they make every later rung
 a one-field switch.
+
+### D6 — entries come alive
+
+- **Today.** One buildable entry, `rust`; four refused by rung (`rust-owned` M3, `native-rustc` R6, `pure` S2, `pure-source` S4).
+- **Change.** When an entry's rung lands, its `rung` in substrate's `toolchain.nix` becomes null and it gains a `checks.toolchain-matrix` row in the same change; D5 refuses the first without the second.
+- **First commit.** `rust-owned`, once M3 lands: blue built with inferred ownership (M3a's `set_early_reuse` on, then M3's frees), its matrix row running conformance.
+- **Exit.** A matrix row per entry.

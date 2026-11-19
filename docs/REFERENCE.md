@@ -583,7 +583,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `cell` | `cell(v)` | 1 | A cell holding v: the one value that changes in place. Read it with cell_get, replace its content with cell_put. A cell is local to the process that made it. |
+| `cell` | `cell(v)` | 1 | A cell holding v: the one value that changes in place. Read it with cell_get, replace its content with cell_put. A cell is local to the process that made it. Also defined by `hashiru` (`hashiru::cell`): a file that lists it gets that one. |
 | `cell?` | `cell?(x)` | 1 | Whether x is a cell. |
 | `cell_get` | `cell_get(c)` | 1 | The value a cell holds. |
 | `cell_put` | `cell_put(c, v)` | 2 | Replace a cell's content with v; the answer is v. |

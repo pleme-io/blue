@@ -971,6 +971,17 @@ def rc_op(slots, op, args)
         {op: "call_label", label: "rt_exec_check"}
       ]
     )
+  elsif op == "exec_capture"
+    append(
+      list_code(slots, args),
+      [
+        {op: "mov", dst: "rdi", src: "rax"},
+        {op: "lea_label", dst: "rsi", label: kw_label(:status)},
+        {op: "lea_label", dst: "rdx", label: kw_label(:stdout)},
+        {op: "lea_label", dst: "rcx", label: kw_label(:stderr)},
+        {op: "call_label", label: "rt_exec_capture"}
+      ]
+    )
   elsif op == "self_exe"
     [{op: "call_label", label: "rt_self_exe"}]
   elsif op == "write_bytes"
@@ -1591,8 +1602,21 @@ def runtime()
       RT_READ_FILE,
       RT_WRITE_BYTES,
       RT_SELF_EXE,
-      RT_EXEC_CHECK
+      RT_EXEC_CHECK,
+      RT_EXEC_CAPTURE
     ]
+  )
+end
+
+@doc """
+with_capture_keywords: a program's literals with the keywords exec_capture answers added once each, so its data section holds them whether or not the program names them.
+
+    with_capture_keywords([:status]) #=> %i[status stdout stderr]
+"""
+def with_capture_keywords(literals)
+  append(
+    literals,
+    filter((k) -> not member?(k, literals), %i[status stdout stderr])
   )
 end
 
@@ -1618,9 +1642,11 @@ def rc_whole(w, mode)
       globals[0],
       drop_n(base, start),
       static_data(
-        append(
-          literals_in(w[:main]),
-          flat_map(append(w[:fns], w[:globals]), (f) -> literals_in(f[:body]))
+        with_capture_keywords(
+          append(
+            literals_in(w[:main]),
+            flat_map(append(w[:fns], w[:globals]), (f) -> literals_in(f[:body]))
+          )
         )
       )
     ]
@@ -1695,7 +1721,8 @@ test "a global function is a label called directly, its parameters from ARG_REGS
   assert last(rc_gcall([], "f", [1, 2])) == {op: "call_label", label: "g_f"}
   insns = rc_whole(whole(read_forms("(begin (define (f) 1) (f))")[0]), :exit)
   assert member?({op: "label", name: "g_f"}, insns)
-  assert last(insns) == {op: "ret"}
+  data_at = index_of(map((i) -> i[:op], insns), "align")
+  assert insns[data_at - 1] == {op: "ret"}
   assert length(RECURSIVE_PROGRAMS) == 5
   assert compile_whole(read_forms("1")[0], :exit)[1] == 69
 end
@@ -3591,4 +3618,383 @@ test "exec_check forks, runs /usr/bin/env with the inherited environment and wai
     {op: "call_label", label: "rt_exec_check"}
   stand_ins = [{op: "label", name: "rt_drop"}, {op: "ret"}]
   assert length(assemble(append(RT_EXEC_CHECK, stand_ins))) > 0
+end
+
+@doc """
+CAPTURE_BYTES: how much each captured stream may hold: its own mapping, committed only as it is written, so a large reservation costs nothing until used.
+
+    CAPTURE_BYTES #=> 268_435_456
+"""
+CAPTURE_BYTES = 268_435_456
+
+@doc """
+CAPTURE_KEYWORDS: the keywords exec_capture's answer names, placed in the data section of every program built by rc_whole.
+
+    CAPTURE_KEYWORDS #=> %i[status stdout stderr]
+"""
+CAPTURE_KEYWORDS = %i[status stdout stderr]
+
+@doc """
+split_fds: the instructions that split the two descriptors pipe wrote (two 32-bit words at rbp+at) into the read end at rbp+r and the write end at rbp+w.
+
+    length(split_fds(-80, -96, -104)) > 32 #=> true
+"""
+def split_fds(at, r, w)
+  append(
+    *[
+      [
+        {op: "load", dst: "rax", base: "rbp", disp: at},
+        {op: "mov", dst: "rcx", src: "rax"}
+      ],
+      map((k) -> {op: "shr1", dst: "rcx"}, range(0, 32)),
+      [
+        {op: "store", src: "rcx", base: "rbp", disp: w},
+        {op: "movabs", dst: "r8", imm: 4_294_967_296},
+        {op: "imul", dst: "rcx", src: "r8"},
+        {op: "sub", dst: "rax", src: "rcx"},
+        {op: "store", src: "rax", base: "rbp", disp: r}
+      ]
+    ]
+  )
+end
+
+@doc """
+poll_word: the instructions that write one pollfd at rbp+slot for the descriptor at rbp+fd, waiting to read (POLLIN): a closed stream holds -1, which poll ignores.
+
+    last(poll_word(-96, -184)) #=> {op: "store", src: "rax", base: "rbp", disp: -184}
+"""
+def poll_word(fd, slot)
+  [
+    {op: "load", dst: "rax", base: "rbp", disp: fd},
+    {op: "cmp", dst: "rax", imm: 0},
+    {op: "j", cond: "ge", label: "rt_xc_fd#{to_s(-slot)}"},
+    {op: "movabs", dst: "rax", imm: 4_294_967_295},
+    {op: "label", name: "rt_xc_fd#{to_s(-slot)}"},
+    {op: "movabs", dst: "rcx", imm: 4_294_967_296},
+    {op: "add", dst: "rax", src: "rcx"},
+    {op: "store", src: "rax", base: "rbp", disp: slot}
+  ]
+end
+
+@doc """
+drain_ready: the instructions that, when the pollfd at rbp+slot has events, read what its descriptor holds into the buffer at rbp+buf after its length at rbp+len; an end of stream closes the descriptor, marks it -1 and counts one stream fewer at rbp-192.
+
+    length(drain_ready(-184, -96, -128, -136)) > 48 #=> true
+"""
+def drain_ready(slot, fd, buf, len)
+  tag = "rt_xc_drain#{to_s(-slot)}"
+  append(
+    *[
+      [{op: "load", dst: "rax", base: "rbp", disp: slot}],
+      map((k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
+      [
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_skip"},
+        {op: "load", dst: "rdi", base: "rbp", disp: fd},
+        {op: "load", dst: "rsi", base: "rbp", disp: buf},
+        {op: "load", dst: "rcx", base: "rbp", disp: len},
+        {op: "add", dst: "rsi", src: "rcx"},
+        {op: "mov", dst: "rdx", imm: CAPTURE_BYTES},
+        {op: "sub", dst: "rdx", src: "rcx"},
+        {op: "mov", dst: "rax", imm: 0},
+        {op: "syscall"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "le", label: "#{tag}_end"},
+        {op: "load", dst: "rcx", base: "rbp", disp: len},
+        {op: "add", dst: "rcx", src: "rax"},
+        {op: "store", src: "rcx", base: "rbp", disp: len},
+        {op: "jmp", label: "#{tag}_skip"},
+        {op: "label", name: "#{tag}_end"},
+        {op: "load", dst: "rdi", base: "rbp", disp: fd},
+        {op: "mov", dst: "rax", imm: 3},
+        {op: "syscall"},
+        {op: "mov", dst: "rcx", imm: -1},
+        {op: "store", src: "rcx", base: "rbp", disp: fd},
+        {op: "load", dst: "rcx", base: "rbp", disp: -192},
+        {op: "sub", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rbp", disp: -192},
+        {op: "label", name: "#{tag}_skip"}
+      ]
+    ]
+  )
+end
+
+@doc """
+string_from_buffer: the instructions that copy the bytes at the buffer at rbp+buf, its length at rbp+len, into a new string block stored at rbp+dest.
+
+    last(string_from_buffer(-128, -136, -248, "t")) #=> {op: "load", dst: "rax", base: "rbp", disp: -248}
+"""
+def string_from_buffer(buf, len, dest, tag)
+  append(
+    *[
+      [
+        {op: "load", dst: "rdi", base: "rbp", disp: len},
+        {op: "add", dst: "rdi", imm: 7},
+        {op: "shr1", dst: "rdi"},
+        {op: "shr1", dst: "rdi"},
+        {op: "shr1", dst: "rdi"},
+        {op: "add", dst: "rdi", imm: 4},
+        {op: "call_label", label: "rt_alloc"},
+        {op: "mov", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rax", disp: 0},
+        {op: "load", dst: "r8", base: "rbp", disp: len},
+        {op: "store", src: "r8", base: "rax", disp: 24},
+        {op: "store", src: "rax", base: "rbp", disp: dest},
+        {op: "mov", dst: "r11", src: "rax"},
+        {op: "add", dst: "r11", imm: 32},
+        {op: "load", dst: "rdx", base: "rbp", disp: buf}
+      ],
+      copy_bytes("r8", tag),
+      [{op: "load", dst: "rax", base: "rbp", disp: dest}]
+    ]
+  )
+end
+
+@doc """
+cell: the instructions that allocate one cons cell whose head is the word at rbp+head and whose tail is the word at rbp+tail (0 for nil), stored at rbp+dest.
+
+    last(cell(-56, 0, -208)) #=> {op: "store", src: "rax", base: "rbp", disp: -208}
+"""
+def cell(head, tail, dest)
+  append(
+    *[
+      [
+        {op: "mov", dst: "rdi", imm: 5},
+        {op: "call_label", label: "rt_alloc"},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rax", disp: 0}
+      ],
+      if tail == 0
+        [{op: "mov", dst: "rcx", imm: 0}]
+      else
+        [{op: "load", dst: "rcx", base: "rbp", disp: tail}]
+      end,
+      [
+        {op: "store", src: "rcx", base: "rax", disp: 32},
+        {op: "load", dst: "rcx", base: "rbp", disp: head},
+        {op: "store", src: "rcx", base: "rax", disp: 24},
+        {op: "store", src: "rax", base: "rbp", disp: dest}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_EXEC_CAPTURE: exec_capture natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed, with the keywords :status, :stdout and :stderr in rsi, rdx and rcx; answered in rax as [[:status, n], [:stdout, s], [:stderr, s]]. The child's stdout and stderr are pipes (dup2), read by poll until both end, so a child filling one cannot block on the other; each is gathered in its own CAPTURE_BYTES mapping, then copied into a string. The command runs through /usr/bin/env with the program's environment, as exec_check runs it.
+
+    RT_EXEC_CAPTURE[0] #=> {op: "label", name: "rt_exec_capture"}
+"""
+RT_EXEC_CAPTURE = append(
+  *[
+    [
+      {op: "label", name: "rt_exec_capture"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 320},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -56},
+      {op: "store", src: "rdx", base: "rbp", disp: -64},
+      {op: "store", src: "rcx", base: "rbp", disp: -72}
+    ],
+    argv_on_stack("rt_xc"),
+    [
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -80},
+      {op: "mov", dst: "rax", imm: 22},
+      {op: "syscall"},
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -88},
+      {op: "mov", dst: "rax", imm: 22},
+      {op: "syscall"}
+    ],
+    split_fds(-80, -96, -104),
+    split_fds(-88, -112, -120),
+    flat_map(
+      [-128, -144],
+      fn(slot)
+        [
+          {op: "mov", dst: "rdi", imm: 0},
+          {op: "mov", dst: "rsi", imm: CAPTURE_BYTES},
+          {op: "mov", dst: "rdx", imm: 3},
+          {op: "mov", dst: "r10", imm: 34},
+          {op: "mov", dst: "r8", imm: -1},
+          {op: "mov", dst: "r9", imm: 0},
+          {op: "mov", dst: "rax", imm: 9},
+          {op: "syscall"},
+          {op: "store", src: "rax", base: "rbp", disp: slot},
+          {op: "mov", dst: "rcx", imm: 0},
+          {op: "store", src: "rcx", base: "rbp", disp: slot - 8}
+        ]
+      end
+    ),
+    [
+      {op: "mov", dst: "rax", imm: 57},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_xc_parent"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -104},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "mov", dst: "rax", imm: 33},
+      {op: "syscall"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -120},
+      {op: "mov", dst: "rsi", imm: 2},
+      {op: "mov", dst: "rax", imm: 33},
+      {op: "syscall"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -32},
+      {op: "load", dst: "rsi", base: "rbp", disp: -24},
+      {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
+      {op: "mov", dst: "rax", imm: 59},
+      {op: "syscall"},
+      {op: "mov", dst: "rdi", imm: 127},
+      {op: "mov", dst: "rax", imm: 60},
+      {op: "syscall"},
+      {op: "label", name: "rt_xc_parent"},
+      {op: "store", src: "rax", base: "rbp", disp: -160},
+      {op: "load", dst: "rdi", base: "rbp", disp: -104},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -120},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "mov", dst: "rcx", imm: 2},
+      {op: "store", src: "rcx", base: "rbp", disp: -192},
+      {op: "label", name: "rt_xc_poll"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -192},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_xc_read"}
+    ],
+    poll_word(-96, -184),
+    poll_word(-112, -176),
+    [
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -184},
+      {op: "mov", dst: "rsi", imm: 2},
+      {op: "mov", dst: "rdx", imm: -1},
+      {op: "mov", dst: "rax", imm: 7},
+      {op: "syscall"}
+    ],
+    drain_ready(-184, -96, -128, -136),
+    drain_ready(-176, -112, -144, -152),
+    [
+      {op: "jmp", label: "rt_xc_poll"},
+      {op: "label", name: "rt_xc_read"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -168},
+      {op: "load", dst: "rdi", base: "rbp", disp: -160},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -168},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "r10", imm: 0},
+      {op: "mov", dst: "rax", imm: 61},
+      {op: "syscall"},
+      {op: "load", dst: "rax", base: "rbp", disp: -168}
+    ],
+    map((k) -> {op: "shr1", dst: "rax"}, range(0, 8)),
+    [
+      {op: "and", dst: "rax", imm: 255},
+      {op: "add", dst: "rax", src: "rax"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rbp", disp: -200}
+    ],
+    string_from_buffer(-128, -136, -248, "rt_xc_out"),
+    string_from_buffer(-144, -152, -256, "rt_xc_err"),
+    flat_map(
+      [-128, -144],
+      fn(slot)
+        [
+          {op: "load", dst: "rdi", base: "rbp", disp: slot},
+          {op: "mov", dst: "rsi", imm: CAPTURE_BYTES},
+          {op: "mov", dst: "rax", imm: 11},
+          {op: "syscall"}
+        ]
+      end
+    ),
+    cell(-256, 0, -208),
+    cell(-72, -208, -216),
+    cell(-248, 0, -208),
+    cell(-64, -208, -224),
+    cell(-200, 0, -208),
+    cell(-56, -208, -232),
+    cell(-216, 0, -240),
+    cell(-224, -240, -240),
+    cell(-232, -240, -240),
+    [
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -240},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+capture_programs: programs over exec_capture, with the exit status and output each must give: a command's status, stdout and stderr read back from its answer.
+
+    length(capture_programs) #=> 3
+"""
+def capture_programs()
+  [
+    [
+      "(let ((r (exec_capture \"sh\" \"-c\" \"echo out; echo err 1>&2; exit 4\"))) (begin (write_stdout (first (rest (first (rest r))))) (write_stdout (first (rest (first (rest (rest r)))))) (first (rest (first r)))))",
+      4,
+      unlines(%w[out err])
+    ],
+    [
+      "(let ((r (exec_capture \"echo\" \"hi\"))) (if (equal? (first (first r)) :status) (first (rest (first r))) 9))",
+      0,
+      ""
+    ],
+    [
+      "(let ((r (exec_capture \"sh\" \"-c\" \"head -c 200000 /dev/zero 1>&2; echo done\"))) (begin (write_stdout (first (rest (first (rest r))))) (if (equal? (string_length (first (rest (first (rest (rest r)))))) 200000) 0 1)))",
+      0,
+      unlines(["done"])
+    ]
+  ]
+end
+
+test "exec_capture answers a command's status, stdout and stderr natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-capture"), "capture.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      capture_programs
+    )
+  end
+end
+
+test "exec_capture pipes, polls, waits and builds its answer from cells"
+  for_each = %i[status stdout stderr]
+  assert with_capture_keywords([:status]) == for_each
+  assert member?({op: "mov", dst: "rax", imm: 22}, RT_EXEC_CAPTURE)
+  assert member?({op: "mov", dst: "rax", imm: 33}, RT_EXEC_CAPTURE)
+  assert member?({op: "mov", dst: "rax", imm: 7}, RT_EXEC_CAPTURE)
+  assert CAPTURE_KEYWORDS == for_each
+  assert length(split_fds(-80, -96, -104)) > 32
+  assert last(poll_word(-96, -184))[:disp] == -184
+  assert length(drain_ready(-184, -96, -128, -136)) > 48
+  assert last(string_from_buffer(-128, -136, -248, "t"))[:disp] == -248
+  assert last(cell(-56, 0, -208))[:disp] == -208
+  assert last(rc_op([], "exec_capture", ["c"])) ==
+    {op: "call_label", label: "rt_exec_capture"}
+  stand_ins = [
+    {op: "label", name: "rt_alloc"},
+    {op: "ret"},
+    {op: "label", name: "rt_drop"},
+    {op: "ret"}
+  ]
+  assert length(assemble(append(RT_EXEC_CAPTURE, stand_ins))) > 0
 end

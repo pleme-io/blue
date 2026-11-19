@@ -65,6 +65,16 @@ pub const TAG_ERROR: i64 = 2;
 pub const MAX_TAGGED: i64 = i64::MAX >> 2;
 pub const MIN_TAGGED: i64 = i64::MIN >> 2;
 
+/// The clock `instant` asks for on a target with no clock of its own. egg,
+/// the e-graph `blue-lang-saturate` runs, reads it for its time limit; the
+/// iteration and node limits already bound the search, so a clock that never
+/// moves keeps saturation deterministic and leaves the page nothing to supply.
+#[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
+#[no_mangle]
+pub extern "C" fn now() -> f64 {
+    0.0
+}
+
 /// Reserve `len` bytes the host can write source into.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {

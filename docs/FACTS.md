@@ -468,7 +468,19 @@ Each wave lists defaults in the order their gain is known. Each default meets
     within 1 s where a fixed 30 s would wait. Lock: `tests/net.rs`
     `a_nil_timeout_is_measured_from_how_fast_the_host_answered_before` (red
     when nothing is measured).
-  - Next: cache and pool sizes from measured load.
+  - ✅ Pool sizes (rule R20): a `par_map` that runs apart (R17's decision,
+    unchanged) takes a worker only while it pays. The first call prices the
+    load `w`, one worker's start is measured, and the `k`-th worker saves
+    `w / (k(k-1))`, so the pool is the largest `k`, at least 2 and at most
+    the schedulers, whose last worker saves more than twice a start.
+    `--timings` counts the workers started (`workers`); `BLUE_POOL=fixed`
+    takes a scheduler for each element left. Sixteen 20,000-step calls on
+    sixteen schedulers: 5 workers, not 15, the same 0.07 s wall time on half
+    the CPU (0.10 s, not 0.20 s), the same answer. Locks: `tests/schedulers.rs`
+    `rule_r20_sizes_the_pool_from_the_measured_load_and_its_switch_takes_every_scheduler`
+    (red when the pool is fixed); `parallel::tests` for the rule, and that a
+    sized pool runs apart exactly when the fixed one does and is never larger.
+  - Next: cache sizes from measured load.
 - ✅ Behaviour per placement (a phone, a wasm component, a node) chosen from the
   placement fact, never from a flag the author must know. Every placement
   difference blue makes is read from the build target, and each is locked:

@@ -136,3 +136,33 @@ fn rule_r17_runs_a_map_whose_callback_only_computes_apart_and_its_switch_keeps_i
     );
     let _ = std::fs::remove_dir_all(&four);
 }
+
+const POOL_MAIN: &str = "def main()\n  write_stdout(to_s(par_map((k) -> burn(0, k, 20_000), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])))\nend\n";
+
+fn workers(timings: &str) -> usize {
+    timings
+        .lines()
+        .find_map(|l| l.strip_prefix("workers"))
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+#[test]
+fn rule_r20_sizes_the_pool_from_the_measured_load_and_its_switch_takes_every_scheduler() {
+    let sixteen = project("r20", "schedulers(16)\n");
+    let (sized, sized_timings) = timed_with(&sixteen, POOL_MAIN, &[]);
+    let (fixed, fixed_timings) = timed_with(&sixteen, POOL_MAIN, &[("BLUE_POOL", "fixed")]);
+    assert_eq!(sized, fixed, "R20 answers as map does");
+    assert!(ran_apart(&sized_timings), "{sized_timings}");
+    let k = workers(&sized_timings);
+    assert!(
+        (2..15).contains(&k),
+        "the measured load takes fewer workers than the schedulers: {sized_timings}"
+    );
+    assert_eq!(
+        workers(&fixed_timings),
+        15,
+        "BLUE_POOL=fixed takes a scheduler for each element left: {fixed_timings}"
+    );
+    let _ = std::fs::remove_dir_all(&sixteen);
+}

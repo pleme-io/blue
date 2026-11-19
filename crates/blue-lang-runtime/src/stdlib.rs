@@ -997,6 +997,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                     blue_lang_proc::parallel::map(&a[0], tail, workers, &crate::child_interpreter)
                 {
                     crate::timings::count("parallel", 1);
+                    crate::timings::count("workers", workers);
                     out.extend(rest);
                     return Ok(Value::list(out));
                 }

@@ -81,11 +81,12 @@ thread_local! {
 /// them: the lists erasure indexed ([`crate::member_index`]), the
 /// string-append loops it built once ([`crate::builder`]), and the
 /// idempotent requests retried after a transient failure ([`crate::net`]).
-pub const COUNTED_ROWS: [&str; 6] = [
+pub const COUNTED_ROWS: [&str; 7] = [
     "indexed",
     "built",
     "retried",
     "parallel",
+    "workers",
     "batched",
     "saturated",
 ];

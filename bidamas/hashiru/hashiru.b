@@ -3872,7 +3872,7 @@ def exec_programs()
   ]
 end
 
-test "exec_check runs a command on PATH and answers its status natively on x86-64", {
+test "exec_check runs a command natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -4388,7 +4388,7 @@ def capture_programs()
   ]
 end
 
-test "exec_capture answers a command's status, stdout and stderr natively on x86-64", {
+test "exec_capture captures a command natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -4467,7 +4467,7 @@ def env_programs()
   ]
 end
 
-test "exec_with_env runs a command with extra variables natively on x86-64", {
+test "exec_with_env adds variables natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -4526,7 +4526,7 @@ def stdin_programs()
   ]
 end
 
-test "exec_with_stdin feeds a command its input natively on x86-64", {
+test "exec_with_stdin feeds input natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }

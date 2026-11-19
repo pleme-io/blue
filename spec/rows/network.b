@@ -329,5 +329,6 @@ row(
   "network.http_batch.https_refused",
   "http_batch([[\"GET\", \"https://127.0.0.1:1/\", nil, nil, 500]])",
   fails(:eval, "http_batch"),
-  host()
+  host(),
+  flaky("G24", "component")
 )

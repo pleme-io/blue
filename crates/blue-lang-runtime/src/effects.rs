@@ -29,6 +29,8 @@ pub struct Site {
     pub word: String,
     pub capability: Capability,
     pub resource: Option<String>,
+    /// An HTTP request's method, when its argument is a literal.
+    pub method: Option<String>,
     pub at: Span,
     pub depends_on: BTreeSet<usize>,
     pub deferred: bool,
@@ -244,10 +246,14 @@ impl Walk<'_> {
         } else {
             resource_of(word, args)
         };
+        let method = (word == "http_request")
+            .then(|| args.first().and_then(string_of).map(str::to_string))
+            .flatten();
         self.sites.push(Site {
             word: word.to_string(),
             capability,
             resource,
+            method,
             at: form.span,
             depends_on,
             deferred: self.deferred > 0,
@@ -308,6 +314,97 @@ fn resource_of(word: &str, args: &[Spanned]) -> Option<String> {
             })
         }
         _ => args.first().and_then(string_of).map(str::to_string),
+    }
+}
+
+/// How a host word touches what it names: E2 of docs/ENGINES.md.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Access {
+    /// It reads; two reads commute.
+    Read,
+    /// It changes the resource its first argument names; it commutes with a
+    /// call on a different named resource.
+    Write,
+    /// Its order is observable (a clock, entropy, a process, a session, a
+    /// device), so it commutes with nothing.
+    Ordered,
+}
+
+/// The requests HTTP defines as safe and idempotent (RFC 9110 §9.2.1,
+/// §9.2.2): GET, HEAD and OPTIONS. A request with one reads; R15 sends one
+/// again on a transient failure. PUT and DELETE are idempotent too, but a
+/// retry of one whose first try reached the server repeats its effect.
+pub const SAFE_METHODS: [&str; 3] = ["GET", "HEAD", "OPTIONS"];
+
+/// Every host word that only reads.
+pub const READS: &[&str] = &[
+    "read_file",
+    "read_bytes",
+    "read_u32s",
+    "file_size",
+    "file_mtime_ms",
+    "is_dir?",
+    "is_file?",
+    "path_exists",
+    "glob",
+    "walk_dir",
+    "ls",
+    "cwd",
+    "temp_dir",
+    "path_join",
+    "path_basename",
+    "path_dirname",
+    "path_extension",
+    "getenv",
+    "env_required",
+    "argv",
+    "argv_get",
+    "self_exe",
+    "read_log",
+];
+
+/// Every host word that changes the one resource its first argument names.
+pub const WRITES: &[&str] = &[
+    "write_file",
+    "write_bytes",
+    "write_program",
+    "append_file",
+    "mkdir",
+    "mkdir_p",
+    "rm",
+    "rm_rf",
+    "append_log",
+];
+
+/// The access of a site: an HTTP request reads when its method is one RFC 9110
+/// calls safe and idempotent (R15's), and is ordered otherwise; every other
+/// word as [`READS`] and [`WRITES`] say, else ordered.
+#[must_use]
+pub fn access(site: &Site) -> Access {
+    if site.word == "http_request" {
+        return match &site.method {
+            Some(m) if SAFE_METHODS.contains(&m.as_str()) => Access::Read,
+            _ => Access::Ordered,
+        };
+    }
+    if READS.contains(&site.word.as_str()) {
+        Access::Read
+    } else if WRITES.contains(&site.word.as_str()) {
+        Access::Write
+    } else {
+        Access::Ordered
+    }
+}
+
+/// Whether the effects of sites `a` and `b` commute: running them in either
+/// order leaves the same answers and the same world.
+#[must_use]
+pub fn commute(a: &Site, b: &Site) -> bool {
+    let apart = || matches!((&a.resource, &b.resource), (Some(x), Some(y)) if x != y);
+    match (access(a), access(b)) {
+        (Access::Ordered, _) | (_, Access::Ordered) => false,
+        (Access::Read, Access::Read) => true,
+        _ => apart(),
     }
 }
 
@@ -382,6 +479,57 @@ mod tests {
         assert!(twice.sites.iter().all(|s| s.resource.is_none()));
         assert_eq!(twice.sites[0].capability, Capability::Clock);
         assert!(twice.independent(0, 1));
+    }
+
+    #[test]
+    fn reads_commute_a_write_commutes_only_with_another_resource_and_order_commutes_with_nothing() {
+        let g = graph_of(FETCH);
+        assert!(commute(&g.sites[0], &g.sites[1]), "two GETs");
+        assert!(
+            commute(&g.sites[0], &g.sites[3]),
+            "a GET and a write to a file"
+        );
+        let src = "def files()\n  a = read_file(\"/a\")\n  write_file(\"/a\", \"x\")\n  write_file(\"/b\", \"y\")\n  write_file(path_join(\"/\", a), \"z\")\n  b = now_ms\n  c = http_request(\"POST\", \"http://example.test/p\", nil, nil, nil)\n  [b, c]\nend\n";
+        let f = graph_of(src);
+        let words: Vec<&str> = f.sites.iter().map(|s| s.word.as_str()).collect();
+        assert_eq!(
+            words,
+            [
+                "read_file",
+                "write_file",
+                "write_file",
+                "path_join",
+                "write_file",
+                "now_ms",
+                "http_request"
+            ]
+        );
+        assert!(
+            !commute(&f.sites[0], &f.sites[1]),
+            "a read and a write of one file"
+        );
+        assert!(commute(&f.sites[1], &f.sites[2]), "writes to two files");
+        assert!(
+            !commute(&f.sites[2], &f.sites[4]),
+            "a write to a path not known"
+        );
+        assert!(!commute(&f.sites[5], &f.sites[5]), "the clock is ordered");
+        assert_eq!(access(&f.sites[6]), Access::Ordered, "a POST");
+        assert_eq!(access(&g.sites[0]), Access::Read, "a GET");
+    }
+
+    #[test]
+    fn every_listed_word_is_a_host_word_and_none_is_both_a_read_and_a_write() {
+        let host: Vec<&str> = Capability::host_effects()
+            .into_iter()
+            .flat_map(Capability::names)
+            .collect();
+        for w in READS.iter().chain(WRITES) {
+            assert!(host.contains(w), "{w} is no host word");
+        }
+        for w in READS {
+            assert!(!WRITES.contains(w), "{w} is both");
+        }
     }
 
     #[test]

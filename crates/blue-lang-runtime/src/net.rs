@@ -527,10 +527,8 @@ fn answered_in(url: &str, took: std::time::Duration) {
     }
 }
 
-/// The requests HTTP defines as idempotent and safe to send again (RFC 9110
-/// §9.2.2): GET, HEAD and OPTIONS. PUT and DELETE are idempotent too, but a
-/// retry of one whose first try reached the server repeats its effect.
-const RETRIED_METHODS: [&str; 3] = ["GET", "HEAD", "OPTIONS"];
+/// The requests R15 sends again: [`crate::effects::SAFE_METHODS`].
+const RETRIED_METHODS: [&str; 3] = crate::effects::SAFE_METHODS;
 
 /// How many times an idempotent request is sent again after a transient
 /// failure, and the pause before each, doubling.

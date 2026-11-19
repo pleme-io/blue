@@ -451,6 +451,7 @@
         };
       } else null;
       moduleTrio = import "${substrate}/lib/module-trio.nix" { inherit lib; };
+      toolchainEntries = (substrate.blueBuilders.toolchain { inherit lib; trio = moduleTrio; }).entries;
       chartLibraries = { pleme-lib = "${helmworks}/charts/pleme-lib"; };
 
       componentFor = system:
@@ -527,6 +528,7 @@
         oci = ociFor system;
         appliance = applianceFor system;
         inherit tameshi;
+        inherit toolchainEntries;
         inherit (import ./nix/check-tiers.nix) postMerge;
         shards.heni-mutations = { env = "HENI_SPEC"; dir = "bidamas/heni/mutations"; suffix = ".json"; };
       });
@@ -606,7 +608,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries componentFor applianceFor tameshi; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio toolchainEntries chartLibraries componentFor applianceFor tameshi; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;
@@ -884,6 +886,20 @@
             src = ./nix/project-fixture;
             appliance = applianceFor system;
           };
+
+          toolchain-selection =
+            let
+              lower = d: engine.projectFor { inherit pkgs blue toolchainEntries; src = ./nix/toolchain-fixture + "/${d}"; };
+              refused = d: !(builtins.tryEval (lower d).name).success;
+              chosen = lower "rust";
+            in
+            assert chosen.blueToolchain == "rust";
+            assert refused "unknown";
+            assert refused "later";
+            pkgs.runCommand "toolchain-selection" { } ''
+              test -e ${chosen.runner}
+              echo "rust lowers and builds; an unknown entry and a not-yet-buildable entry are refused" > $out
+            '';
 
           project-overlay =
             let extended = pkgs.extend (self.lib.project { src = ./nix/project-fixture; }).overlays.default;

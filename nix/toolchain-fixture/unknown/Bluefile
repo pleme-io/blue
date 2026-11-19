@@ -1,0 +1,2 @@
+package("toolchain-unknown", "0.1.0")
+toolchain("nope")

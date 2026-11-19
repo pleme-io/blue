@@ -43,6 +43,7 @@ Built and on main, each with its lock:
 | L1 | typed cells `cell`, `cell_get`, `cell_put`; every rebind a closure can see migrated, the census at 0 | `crates/blue-lang-runtime/src/cell.rs`, `spec/rows/cells.b`, `gen/mutation-census.baseline` |
 | L2 | `u8`..`i64` in `Ty`, compatible with `Int`; a literal argument out of its parameter's range is B0005; arithmetic keeps its operands' width, and a mix of widths or a literal operand that does not fit is B0004; width words in kazu (`low_bits`, `as_signed`, `unsigned_bounds`, `signed_bounds`, `fits`), which kaaneru's bpf width words now call; a returned literal is held to the declared width (B0003); bpf's `mask32`, `low32` and `sign32` declare u32, u32 and i32 | `crates/blue-lang-check/src/lib.rs` |
 | L3 | `gensym` per interpreter and fork | `crates/blue-lang-runtime/src/stdlib.rs` |
+| M1 (first slice) | `last_use` facts, read from Perceus's own output over the resolved tree (a use no `dup` precedes is the last one), per definition, each naming the source form that consumes the name, through branches and `try`; kuzushi reads the resolved tree's local `define`; `facts([...])` rows judged in-process through blue-lang-host | `bidamas/kuzushi` (`memory_facts`, `last_uses`), `spec/rows/memory.b` |
 | B0 | nanopass core: languages, passes, checks | `bidamas/henkan` |
 | B1 (partial) | A-normal form, Perceus with a reference-count checker, closure conversion, cond and case, raise and try with explicit propagation, global functions | `bidamas/kuzushi` |
 | B2 | x86-64 encoder, 2774 instructions byte-identical to llvm-mc | `bidamas/kikaigo`, `checks.x86-isa-llvm` |
@@ -57,7 +58,7 @@ Built and on main, each with its lock:
 Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
 language in the path, give their value and end with 0 blocks live.
 
-Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
+Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1's other kinds (borrow, unique, escape, reuse), spans and the def-hash cache; M2-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
 beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2, C3; D3-D6.
 
 ## 2. Ground truth (measured 2026-11-17)

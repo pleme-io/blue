@@ -2386,3 +2386,302 @@ test "each step of read takes what it reads and gives back the rest", {
   assert json_number(chars("12,"), [])[0] == 12
   assert object_pairs([["b", 1], ["a", 2]]) == [["a", 2], ["b", 1]]
 end
+
+@doc """
+write: A blue value as compact JSON text, written by blue itself (R6a of
+docs/PURE-BLUE.md), exactly as `json_write` writes it: every list an array, a
+map an object with its keys in byte order, a keyword or symbol as its name, a
+float as Rust's shortest text, and anything JSON cannot hold as null.
+
+    write([["a", 1], ["b", 2.5]]) #=> "[[\"a\",1],[\"b\",2.5]]"
+"""
+def write(v)
+  json_text(v, false)
+end
+
+@doc """
+stringify: A blue value as compact JSON text, exactly as `json_stringify`
+writes it: like `write`, except a list whose every element is a [name, value]
+pair is an object, the shape `read` gives an object.
+
+    stringify([["b", 1], ["a", nil]]) #=> "{\"a\":null,\"b\":1}"
+"""
+def stringify(v)
+  json_text(v, true)
+end
+
+@doc """
+json_text: The JSON text of a value; pairs says whether a list of pairs is an object.
+
+    json_text([true, nil], false) #=> "[true,null]"
+"""
+def json_text(v, pairs)
+  if v.nil?
+    "null"
+  elsif v == true
+    "true"
+  elsif v == false
+    "false"
+  elsif integer?(v)
+    to_s(v)
+  elsif float?(v)
+    float_text(v)
+  elsif string?(v) or symbol?(v) or keyword?(v)
+    quoted(to_s(v))
+  elsif map?(v)
+    object_text(map((e) -> [json_key(e[0]), e[1]], map_entries(v)), pairs)
+  elsif list?(v) and pairs and object_like?(v)
+    object_text(map((p) -> [to_s(p[0]), p[1]], v), pairs)
+  elsif list?(v)
+    "[#{join(map((x) -> json_text(x, pairs), v), ",")}]"
+  else
+    "null"
+  end
+end
+
+@doc """
+object_like?: Whether a list is a non-empty list of [name, value] pairs, a name
+being a string, symbol or keyword.
+
+    object_like?([["a", 1], [:b, 2]]) #=> true
+"""
+def object_like?(xs)
+  xs != [] and
+    not any?(
+      fn(p)
+        not (
+          list?(p) and
+          count(p) == 2 and
+          (string?(p[0]) or symbol?(p[0]) or keyword?(p[0]))
+        )
+      end,
+      xs
+    )
+end
+
+@doc """
+object_text: An object's JSON text from its [key, value] entries: the last value
+of a repeated key kept, the keys in byte order.
+
+    object_text([["b", 1], ["a", 2], ["b", 3]], true) #=> "{\"a\":2,\"b\":3}"
+"""
+def object_text(entries, pairs)
+  kept = sort_keyed((e) -> e[0], last_of_each(reverse(entries), [], []))
+  body = map((e) -> "#{quoted(e[0])}:#{json_text(e[1], pairs)}", kept)
+  "{#{join(body, ",")}}"
+end
+
+@doc """
+json_key: A map key as the object key json_write gives it: nil as null, a name
+as itself, a float as Rust prints it, anything else as its text.
+
+    json_key(nil) #=> "null"
+"""
+def json_key(k)
+  if k.nil?
+    "null"
+  elsif float?(k) and ends_with?(to_s(k), ".0")
+    join(reverse(drop(2, reverse(chars(to_s(k))))), "")
+  else
+    to_s(k)
+  end
+end
+
+@doc """
+quoted: A string as a JSON string literal: quote and backslash escaped, the
+five short control escapes, any other control character as \\u00XX.
+
+    quoted("ab") #=> "\"ab\""
+"""
+def quoted(s)
+  "\"#{join(map(escape_char, chars(s)), "")}\""
+end
+
+@doc """
+escape_char: One character as it stands inside a JSON string literal.
+
+    escape_char("a") #=> "a"
+"""
+def escape_char(c)
+  short = {
+    "\"" => "\\\"",
+    "\\" => "\\\\",
+    "\u{8}" => "\\b",
+    "\u{c}" => "\\f",
+    line_break => "\\n",
+    "\r" => "\\r",
+    "\t" => "\\t"
+  }
+  b = text_bytes(c)
+  if get(short, c) != nil
+    get(short, c)
+  elsif count(b) == 1 and first(b) < 32
+    "\\u00#{hex_encode(b)}"
+  else
+    c
+  end
+end
+
+@doc """
+float_text: A float as serde_json writes it: the shortest digits that read back
+to the same float, laid out plain when the point falls within sixteen digits,
+as 0.000ddd down to five zeros, else as d.ddde±x; a NaN or an infinity as null.
+
+    float_text(1.0e20) #=> "1e+20"
+"""
+def float_text(x)
+  if x - x != 0.0
+    "null"
+  else
+    t = chars(to_s(x))
+    neg = first(t) == "-"
+    body = if neg
+      rest(t)
+    else
+      t
+    end
+    whole = take(count_leading((c) -> c != ".", body), body)
+    all = filter((c) -> c != ".", body)
+    lead = count_leading((c) -> c == "0", all)
+    digits = drop_zeros(reverse(drop(lead, all)))
+    sign = if neg
+      "-"
+    else
+      ""
+    end
+    if digits == []
+      "#{sign}0.0"
+    else
+      "#{sign}#{ryu_text(digits, count(whole) - lead)}"
+    end
+  end
+end
+
+@doc """
+drop_zeros: Characters with the zeros at the front dropped.
+
+    drop_zeros(chars("001")) #=> ["1"]
+"""
+def drop_zeros(cs)
+  drop(count_leading((c) -> c == "0", cs), cs)
+end
+
+@doc """
+count_leading: How many characters at the front satisfy pred.
+
+    count_leading((c) -> c == "0", chars("001")) #=> 2
+"""
+def count_leading(pred, cs)
+  if not empty?(cs) and pred(first(cs))
+    1 + count_leading(pred, rest(cs))
+  else
+    0
+  end
+end
+
+@doc """
+zero_text: A run of m zeros as text.
+
+    zero_text(3) #=> "000"
+"""
+def zero_text(m)
+  if m <= 0
+    ""
+  else
+    "0#{zero_text(m - 1)}"
+  end
+end
+
+@doc """
+ryu_text: Significant digits, given last first, laid out with the decimal point
+point places after the first digit's place, the way ryu does.
+
+    ryu_text(chars("21"), 3) #=> "120.0"
+"""
+def ryu_text(last_first, point)
+  d = reverse(last_first)
+  n = count(d)
+  text = join(d, "")
+  if point >= n and point <= 16
+    "#{text}#{zero_text(point - n)}.0"
+  elsif point > 0 and point <= 16
+    "#{join(take(point, d), "")}.#{join(drop(point, d), "")}"
+  elsif point > -5 and point <= 0
+    "0.#{zero_text(-point)}#{text}"
+  else
+    frac = if n > 1
+      ".#{join(rest(d), "")}"
+    else
+      ""
+    end
+    exp = point - 1
+    plus = if exp > 0
+      "+"
+    else
+      ""
+    end
+    "#{first(d)}#{frac}e#{plus}#{exp}"
+  end
+end
+
+test "write and stringify give the text json_write and json_stringify give", {
+  kind: :unit
+}
+  samples = [
+    nil,
+    true,
+    false,
+    0,
+    -12,
+    12_345_678_901_234_567,
+    1.0,
+    -2000.0,
+    0.1,
+    1000000000000000.0,
+    10000000000000000.0,
+    100000000000000000000.0,
+    0.0000003,
+    0.00001,
+    0.0001,
+    123456.789,
+    0.00000012345,
+    1250000000000000000000.0,
+    1500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0,
+    0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025,
+    0.0,
+    "",
+    join_lines(["tab\there", "\"q\"\\/é😀\u{1}\u{1f}\u{7f}"]),
+    :sym,
+    [],
+    {},
+    [[], ["a"]],
+    [["a", 1], ["b", 2]],
+    [["a", 1], [2, 2]],
+    [["a", 1], ["a", 2]],
+    [[:a, [["b", 1]]]],
+    ["a", 1],
+    [["a", 1, 2]],
+    {b: 1, a: {"z" => nil, "y" => [true, 1.5, -0.25]}},
+    {"x" => [["b", 1]], y: {z: [[:q, 1]]}},
+    {1 => 2, nil => 3, true => 4, 1.5 => 5, "a" => 0}
+  ]
+  assert filter((v) -> write(v) != json_write(v), samples) == []
+  assert filter((v) -> stringify(v) != json_stringify(v), samples) == []
+end
+
+test "each step of write gives its own part of the text", {kind: :unit}
+  assert json_text([1, "a"], false) == "[1,\"a\"]"
+  assert object_like?([["a", 1]])
+  assert not object_like?([])
+  assert object_text([["b", 1], ["a", 2]], true) == "{\"a\":2,\"b\":1}"
+  assert json_key(true) == "true"
+  assert json_key(1.0) == "1"
+  assert quoted("x") == "\"x\""
+  assert escape_char(line_break) == "\\n"
+  assert escape_char("\u{1}") == "\\u0001"
+  assert float_text(0.0000003) == "3e-7"
+  assert drop_zeros(chars("0012")) == %w[1 2]
+  assert ryu_text(chars("1"), 21) == "1e+20"
+  assert count_leading((c) -> c == "0", chars("0a")) == 1
+  assert zero_text(0) == ""
+end

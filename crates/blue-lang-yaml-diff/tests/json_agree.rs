@@ -1,6 +1,6 @@
-//! deeta::read, blue's own JSON reader (R6a of docs/PURE-BLUE.md), gives the
-//! values the Rust json_parse gives on every in.json fixture json_parse
-//! accepts. A fixture json_parse refuses is skipped; any other difference is
+//! deeta::read, stringify and write, blue's own JSON reader and writers (R6a
+//! of docs/PURE-BLUE.md), agree with the Rust json_parse, json_stringify and
+//! json_write on every in.json fixture json_parse accepts. A fixture json_parse refuses is skipped; any other difference is
 //! red, and a corpus that compared fewer than 250 files is red too, so the
 //! test cannot pass by reading nothing.
 
@@ -48,12 +48,12 @@ fn read_agrees_with_json_parse_on_every_fixture() {
         {
             Value::Str(s) if &*s == "same" => same += 1,
             Value::Str(s) if &*s == "skipped" => {}
-            _ => differs.push(f.display().to_string()),
+            other => differs.push(format!("{}: {other:?}", f.display())),
         }
     }
     assert!(
         differs.is_empty(),
-        "deeta::read differs from json_parse on: {differs:#?}"
+        "deeta differs from the Rust JSON surface on: {differs:#?}"
     );
     assert!(
         same >= 250,

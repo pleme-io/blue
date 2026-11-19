@@ -366,14 +366,21 @@ Each wave lists defaults in the order their gain is known. Each default meets
     fold runs the call again). `BLUE_FOLD=off` and `BLUE_CHECK_CACHE=off` turn
     it off.
   - Next: a search over equivalent forms, the expensive optimization this
-    row names.
+    row names. Waits on the forms to search: blue has rewrite rules
+    (fusion, the fold, the builder) but no equality saturation over them,
+    and a search needs a cost model the profile does not yet give per form.
 
 ### W4: concurrency from facts
 
 - `map` over a pure callback on a large list runs in parallel, the size from the
-  profile.
+  profile. Waits on more than one core: processes run interleaved on the
+  node's thread, and multi-core scheduling (`schedulers(n)`) is ASYNC's A6
+  ([ROADMAP.md](ROADMAP.md), not built). A parallel map over processes before
+  it would take turns on one core and only add copying.
 - Independent effects batched: calls the effect graph shows to be independent
-  share one round trip.
+  share one round trip. Waits on an effect graph, which no part of blue
+  builds yet: reach says which capabilities a definition names, not which of
+  its calls depend on another's answer.
 - ✅ An idempotent effect retried on a transient failure, with the retry named in
   the receipt (rule R15). An `http_request` whose method is GET, HEAD or
   OPTIONS, idempotent by RFC 9110, that fails before an answer because the
@@ -437,8 +444,17 @@ Each wave lists defaults in the order their gain is known. Each default meets
     `a_nil_timeout_is_measured_from_how_fast_the_host_answered_before` (red
     when nothing is measured).
   - Next: cache and pool sizes from measured load.
-- Behaviour per placement (a phone, a wasm component, a node) chosen from the
-  placement fact, never from a flag the author must know.
+- ✅ Behaviour per placement (a phone, a wasm component, a node) chosen from the
+  placement fact, never from a flag the author must know. Every placement
+  difference blue makes is read from the build target, and each is locked:
+  a phone or a wasm component runs ahead-of-time code only, since its crates
+  link no native tier and map no executable memory (R12,
+  `tests/placement_tiers.rs`); the native tier's hot mean follows whether
+  this platform could load a library (a static Linux blue cannot), never a
+  flag (R7, `tests/native_tier.rs`
+  `a_library_that_does_not_load_keeps_the_process_threshold`); and a wasm32
+  build counts no evaluation time, which it cannot read
+  (`timings::counted`). A new per-placement default reads the same fact.
 
 ### W7: the author sees it
 

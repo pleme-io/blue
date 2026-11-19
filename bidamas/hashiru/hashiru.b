@@ -1014,6 +1014,25 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif op == "tcp_connect_ms"
+    append(
+      *[
+        tagged_atom(slots, args[0], "rdi"),
+        tagged_atom(slots, args[1], "rsi"),
+        tagged_atom(slots, args[2], "rdx"),
+        [
+          {op: "lea_label", dst: "rcx", label: kw_label(:failed)},
+          {op: "push", src: "rcx"},
+          {op: "lea_label", dst: "rcx", label: kw_label(:error)},
+          {op: "lea_label", dst: "r8", label: kw_label(:refused)},
+          {op: "lea_label", dst: "r9", label: kw_label(:timeout)},
+          {op: "lea_label", dst: "r10", label: kw_label(:unreachable)},
+          {op: "lea_label", dst: "r11", label: kw_label(:unresolved)},
+          {op: "call_label", label: "rt_tcp_connect"},
+          {op: "pop", dst: "rcx"}
+        ]
+      ]
+    )
   elsif op == "self_exe"
     [{op: "call_label", label: "rt_self_exe"}]
   elsif op == "write_bytes"
@@ -1635,7 +1654,8 @@ def runtime()
       RT_WRITE_BYTES,
       RT_SELF_EXE,
       RT_EXEC_CHECK,
-      RT_EXEC_CAPTURE
+      RT_EXEC_CAPTURE,
+      RT_TCP_CONNECT
     ]
   )
 end
@@ -1650,6 +1670,15 @@ def with_capture_keywords(literals)
     literals,
     filter((k) -> not member?(k, literals), %i[status stdout stderr])
   )
+end
+
+@doc """
+with_runtime_keywords: a program's literals with the keywords the runtime's answers name (RUNTIME_KEYWORDS) added once each, so its data section holds them whether or not the program names them.
+
+    with_runtime_keywords([:status])[0] #=> :status
+"""
+def with_runtime_keywords(literals)
+  append(literals, filter((k) -> not member?(k, literals), RUNTIME_KEYWORDS))
 end
 
 @doc """
@@ -1674,7 +1703,7 @@ def rc_whole(w, mode)
       globals[0],
       drop_n(base, start),
       static_data(
-        with_capture_keywords(
+        with_runtime_keywords(
           append(
             literals_in(w[:main]),
             flat_map(append(w[:fns], w[:globals]), (f) -> literals_in(f[:body]))
@@ -3921,6 +3950,20 @@ CAPTURE_KEYWORDS: the keywords exec_capture's answer names, placed in the data s
 CAPTURE_KEYWORDS = %i[status stdout stderr]
 
 @doc """
+NETWORK_KEYWORDS: the keywords tcp_connect_ms answers with when a connect fails: :error, then why.
+
+    NETWORK_KEYWORDS[0] #=> :error
+"""
+NETWORK_KEYWORDS = %i[error refused timeout unreachable unresolved failed]
+
+@doc """
+RUNTIME_KEYWORDS: every keyword a runtime routine answers with, placed in the data section of every program rc_whole builds.
+
+    length(RUNTIME_KEYWORDS) #=> 9
+"""
+RUNTIME_KEYWORDS = append(CAPTURE_KEYWORDS, NETWORK_KEYWORDS)
+
+@doc """
 split_fds: the instructions that split the two descriptors pipe wrote (two 32-bit words at rbp+at) into the read end at rbp+r and the write end at rbp+w.
 
     length(split_fds(-80, -96, -104)) > 32 #=> true
@@ -4412,6 +4455,7 @@ end
 
 test "exec_capture pipes, polls, waits and builds its answer from cells"
   for_each = %i[status stdout stderr]
+  assert take_n(with_runtime_keywords([:status]), 3) == for_each
   assert with_capture_keywords([:status]) == for_each
   assert member?({op: "mov", dst: "rax", imm: 22}, RT_EXEC_CAPTURE)
   assert member?({op: "mov", dst: "rax", imm: 33}, RT_EXEC_CAPTURE)
@@ -4560,4 +4604,312 @@ test "exec_with_stdin passes its input to rt_exec_capture, which pipes it in as 
     poll_word(-352, -416, 4)
   )
   assert member?({op: "mov", dst: "rax", imm: 13}, RT_EXEC_CAPTURE)
+end
+
+@doc """
+classify_connect: the instructions that turn a refused connect's -errno in rax into the keyword slot its why names, stored at rbp-128: ECONNREFUSED (111) is :refused, ENETUNREACH (101) and EHOSTUNREACH (113) are :unreachable, any other is :failed.
+
+    length(classify_connect) > 10 #=> true
+"""
+def classify_connect()
+  [
+    {op: "load", dst: "rcx", base: "rbp", disp: -72},
+    {op: "cmp", dst: "rax", imm: -111},
+    {op: "j", cond: "ne", label: "rt_tc_not_refused"},
+    {op: "load", dst: "rcx", base: "rbp", disp: -40},
+    {op: "label", name: "rt_tc_not_refused"},
+    {op: "cmp", dst: "rax", imm: -101},
+    {op: "j", cond: "ne", label: "rt_tc_not_net"},
+    {op: "load", dst: "rcx", base: "rbp", disp: -56},
+    {op: "label", name: "rt_tc_not_net"},
+    {op: "cmp", dst: "rax", imm: -113},
+    {op: "j", cond: "ne", label: "rt_tc_not_host"},
+    {op: "load", dst: "rcx", base: "rbp", disp: -56},
+    {op: "label", name: "rt_tc_not_host"},
+    {op: "store", src: "rcx", base: "rbp", disp: -128},
+    {op: "jmp", label: "rt_tc_fail"}
+  ]
+end
+
+@doc """
+RT_TCP_CONNECT: tcp_connect_ms natively (R4 of docs/PURE-BLUE.md): one TCP connection to the host string in rdi, port in rsi, within the timeout in rdx (milliseconds), closed at once; answered in rax as the milliseconds the handshake took, or [:error, why, host] with why :refused, :timeout, :unreachable, :unresolved or :failed (keywords passed in rcx, r8 to r11 and on the stack). The host is a dotted IPv4 address or localhost: native code resolves no other name, so any other answers :unresolved. A port outside 1..65535 or a negative timeout is refused as an error, as the reference raises. The connect is non-blocking, waited for by poll, and judged by SO_ERROR.
+
+    RT_TCP_CONNECT[0] #=> {op: "label", name: "rt_tcp_connect"}
+"""
+RT_TCP_CONNECT = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_connect"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 192},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "store", src: "rdx", base: "rbp", disp: -24},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "store", src: "r8", base: "rbp", disp: -40},
+      {op: "store", src: "r9", base: "rbp", disp: -48},
+      {op: "store", src: "r10", base: "rbp", disp: -56},
+      {op: "store", src: "r11", base: "rbp", disp: -64},
+      {op: "load", dst: "rcx", base: "rbp", disp: 16},
+      {op: "store", src: "rcx", base: "rbp", disp: -72},
+      {op: "mov", dst: "rcx", imm: -1},
+      {op: "store", src: "rcx", base: "rbp", disp: -80},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "sar1", dst: "rax"},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "l", label: "rt_tc_bad"},
+      {op: "cmp", dst: "rax", imm: 65535},
+      {op: "j", cond: "g", label: "rt_tc_bad"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "sar1", dst: "rcx"},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "l", label: "rt_tc_bad"},
+      {op: "mov", dst: "rcx", src: "rax"},
+      {op: "and", dst: "rcx", imm: 255},
+      {op: "mov", dst: "rdx", imm: 256},
+      {op: "imul", dst: "rcx", src: "rdx"}
+    ],
+    map((k) -> {op: "shr1", dst: "rax"}, range(0, 8)),
+    [
+      {op: "add", dst: "rcx", src: "rax"},
+      {op: "mov", dst: "rdx", imm: 65536},
+      {op: "imul", dst: "rcx", src: "rdx"},
+      {op: "add", dst: "rcx", imm: 2},
+      {op: "store", src: "rcx", base: "rbp", disp: -96},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -104},
+      {op: "load", dst: "rsi", base: "rbp", disp: -8},
+      {op: "load", dst: "r9", base: "rsi", disp: 24},
+      {op: "mov", dst: "r8", src: "rsi"},
+      {op: "add", dst: "r8", imm: 32},
+      {op: "cmp", dst: "r9", imm: 9},
+      {op: "j", cond: "ne", label: "rt_tc_parse"},
+      {op: "load", dst: "rax", base: "r8", disp: 0},
+      {op: "movabs", dst: "rcx", imm: text_word("localhos")},
+      {op: "cmp", dst: "rax", src: "rcx"},
+      {op: "j", cond: "ne", label: "rt_tc_parse"},
+      {op: "mov", dst: "rax", src: "r8"},
+      {op: "add", dst: "rax", imm: 8},
+      {op: "load_byte", dst: "rax", base: "rax"},
+      {op: "cmp", dst: "rax", imm: 116},
+      {op: "j", cond: "ne", label: "rt_tc_parse"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -96},
+      {op: "movabs", dst: "rdx", imm: 16_777_343 * 4_294_967_296},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "store", src: "rcx", base: "rbp", disp: -96},
+      {op: "jmp", label: "rt_tc_addressed"},
+      {op: "label", name: "rt_tc_parse"},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "r10", imm: 0},
+      {op: "label", name: "rt_tc_char"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_tc_last"},
+      {op: "load_byte", dst: "rax", base: "r8"},
+      {op: "cmp", dst: "rax", imm: 46},
+      {op: "j", cond: "e", label: "rt_tc_dot"},
+      {op: "sub", dst: "rax", imm: 48},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_tc_unresolved"},
+      {op: "cmp", dst: "rax", imm: 9},
+      {op: "j", cond: "g", label: "rt_tc_unresolved"},
+      {op: "mov", dst: "rcx", imm: 10},
+      {op: "imul", dst: "rdx", src: "rcx"},
+      {op: "add", dst: "rdx", src: "rax"},
+      {op: "cmp", dst: "rdx", imm: 255},
+      {op: "j", cond: "g", label: "rt_tc_unresolved"},
+      {op: "jmp", label: "rt_tc_next"},
+      {op: "label", name: "rt_tc_dot"},
+      {op: "cmp", dst: "r10", imm: 3},
+      {op: "j", cond: "ge", label: "rt_tc_unresolved"},
+      {op: "mov", dst: "rcx", src: "rbp"},
+      {op: "add", dst: "rcx", imm: -92},
+      {op: "add", dst: "rcx", src: "r10"},
+      {op: "store_byte", src: "rdx", base: "rcx"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_tc_next"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "jmp", label: "rt_tc_char"},
+      {op: "label", name: "rt_tc_last"},
+      {op: "cmp", dst: "r10", imm: 3},
+      {op: "j", cond: "ne", label: "rt_tc_unresolved"},
+      {op: "mov", dst: "rcx", src: "rbp"},
+      {op: "add", dst: "rcx", imm: -89},
+      {op: "store_byte", src: "rdx", base: "rcx"},
+      {op: "label", name: "rt_tc_addressed"},
+      {op: "mov", dst: "rdi", imm: 2},
+      {op: "mov", dst: "rsi", imm: 2049},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "rax", imm: 41},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_tc_failed"},
+      {op: "store", src: "rax", base: "rbp", disp: -80}
+    ],
+    clock_read,
+    nanos_in_rax,
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -88},
+      {op: "load", dst: "rdi", base: "rbp", disp: -80},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -96},
+      {op: "mov", dst: "rdx", imm: 16},
+      {op: "mov", dst: "rax", imm: 42},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_tc_connected"},
+      {op: "cmp", dst: "rax", imm: -115},
+      {op: "j", cond: "ne", label: "rt_tc_classify"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -80},
+      {op: "movabs", dst: "rdx", imm: 4 * 4_294_967_296},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "store", src: "rcx", base: "rbp", disp: -136},
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -136},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "load", dst: "rdx", base: "rbp", disp: -24},
+      {op: "sar1", dst: "rdx"},
+      {op: "mov", dst: "rax", imm: 7},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "g", label: "rt_tc_polled"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -48},
+      {op: "store", src: "rcx", base: "rbp", disp: -128},
+      {op: "jmp", label: "rt_tc_fail"},
+      {op: "label", name: "rt_tc_polled"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -112},
+      {op: "mov", dst: "rcx", imm: 4},
+      {op: "store", src: "rcx", base: "rbp", disp: -120},
+      {op: "load", dst: "rdi", base: "rbp", disp: -80},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "mov", dst: "rdx", imm: 4},
+      {op: "mov", dst: "r10", src: "rbp"},
+      {op: "add", dst: "r10", imm: -112},
+      {op: "mov", dst: "r8", src: "rbp"},
+      {op: "add", dst: "r8", imm: -120},
+      {op: "mov", dst: "rax", imm: 55},
+      {op: "syscall"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -112},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_tc_connected"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "sub", dst: "rax", src: "rcx"},
+      {op: "label", name: "rt_tc_classify"}
+    ],
+    classify_connect,
+    [
+      {op: "label", name: "rt_tc_connected"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -80},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"}
+    ],
+    clock_read,
+    nanos_in_rax,
+    [
+      {op: "load", dst: "rcx", base: "rbp", disp: -88},
+      {op: "sub", dst: "rax", src: "rcx"},
+      {op: "cqo"},
+      {op: "mov", dst: "r9", imm: 1_000_000},
+      {op: "idiv", src: "r9"}
+    ],
+    tag_rax,
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -160},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "jmp", label: "rt_tc_out"},
+      {op: "label", name: "rt_tc_unresolved"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -64},
+      {op: "store", src: "rcx", base: "rbp", disp: -128},
+      {op: "jmp", label: "rt_tc_fail"},
+      {op: "label", name: "rt_tc_failed"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -72},
+      {op: "store", src: "rcx", base: "rbp", disp: -128},
+      {op: "label", name: "rt_tc_fail"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -80},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "l", label: "rt_tc_unopened"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "label", name: "rt_tc_unopened"}
+    ],
+    cell(-8, 0, -168),
+    cell(-128, -168, -176),
+    cell(-32, -176, -160),
+    [
+      {op: "jmp", label: "rt_tc_out"},
+      {op: "label", name: "rt_tc_bad"},
+      {op: "mov", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 4},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "store", src: "rcx", base: "rax", disp: 24},
+      {op: "store", src: "rax", base: "rbp", disp: -160},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "label", name: "rt_tc_out"},
+      {op: "load", dst: "rax", base: "rbp", disp: -160},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+tcp_programs: programs over tcp_connect_ms, with the exit status each must give: a refused port answers [:error, :refused, …], a name native code cannot resolve answers :unresolved, a bad port is refused as an error, and a listening port answers a time.
+
+    length(tcp_programs) #=> 4
+"""
+def tcp_programs()
+  [
+    [
+      "(if (equal? (first (rest (tcp_connect_ms \"127.0.0.1\" 1 500))) :refused) 0 1)",
+      0
+    ],
+    [
+      "(if (equal? (first (rest (tcp_connect_ms \"example.invalid\" 80 500))) :unresolved) 0 1)",
+      0
+    ],
+    ["(try (tcp_connect_ms \"127.0.0.1\" 0 500) (catch (e) 7))", 7],
+    ["(if (< (tcp_connect_ms \"localhost\" 22 2000) 2000) 0 1)", 0]
+  ]
+end
+
+test "tcp_connect_ms connects, times and refuses natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem network process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-tcp"), "tcp.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      take_n(tcp_programs, 3)
+    )
+  end
+end
+
+test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-blocking connect"
+  assert last(rc_op([], "tcp_connect_ms", ["h", 1, 500])) ==
+    {op: "pop", dst: "rcx"}
+  assert member?({op: "mov", dst: "rax", imm: 42}, RT_TCP_CONNECT)
+  assert member?({op: "mov", dst: "rax", imm: 55}, RT_TCP_CONNECT)
+  assert length(classify_connect) > 10
+  assert NETWORK_KEYWORDS[0] == :error
+  assert length(RUNTIME_KEYWORDS) == 9
+  stand_ins = [
+    {op: "label", name: "rt_alloc"},
+    {op: "ret"},
+    {op: "label", name: "rt_drop"},
+    {op: "ret"}
+  ]
+  assert length(assemble(append(RT_TCP_CONNECT, stand_ins))) > 0
 end

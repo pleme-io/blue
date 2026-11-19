@@ -15,8 +15,8 @@ purity-bytes: crates/blue-lang-lsp 206836
 purity-bytes: crates/blue-lang-mondou 277392
 purity-bytes: crates/blue-lang-pkg 618679
 purity-bytes: crates/blue-lang-proc 395068
-purity-bytes: crates/blue-lang-runtime 1785847
-purity-bytes: crates/blue-lang-saturate 11251
+purity-bytes: crates/blue-lang-runtime 1793762
+purity-bytes: crates/blue-lang-saturate 11391
 purity-bytes: crates/blue-lang-senses 47392
 purity-bytes: crates/blue-lang-syntax 398976
 purity-bytes: crates/blue-lang-test 74378

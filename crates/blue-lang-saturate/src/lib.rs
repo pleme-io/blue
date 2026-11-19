@@ -10,8 +10,10 @@
 //! any other list is a `#list` node over all its items, so a call with no
 //! arguments is never read back as a bare name. A symbol is a leaf of its
 //! own name; every other atom is a leaf whose name starts with a mark no
-//! blue symbol can start with (`#`, `:` or `"`). Positions do not survive:
-//! what comes back carries synthetic spans.
+//! blue symbol can start with (`#`, `:` or `"`), so a symbol a caller makes
+//! up must not start with one: it would come back as no tree, and
+//! [`cheapest`] would keep the written form. Positions do not survive: what
+//! comes back carries synthetic spans.
 
 use egg::{
     Applier, AstSize, CostFunction, EGraph, Extractor, Id, Language, Pattern, PatternAst, RecExpr,

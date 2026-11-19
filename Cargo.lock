@@ -594,6 +594,7 @@ dependencies = [
  "blue-lang-kernel",
  "blue-lang-pkg",
  "blue-lang-proc",
+ "blue-lang-saturate",
  "blue-lang-senses",
  "blue-lang-syntax",
  "blue-lang-waku",

@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "9d9b6549aa37baa9c5ff1bcf3b805fe898d6f7df309f08c504f83f5c8320ed8c",
+  "cargo_lock_sha256": "42677a238aba3976a116dcd7b6213acfbfb4d6fee6217be3f0e9470d2767e7ba",
   "manifest_sha256": {
-    "Cargo.toml": "9cc180150802db1fb364631d2bfda881935ab742d6e39a27d53b01a92ad6fa0a",
+    "Cargo.toml": "e990ad05a9cffb8a7380f5db3196fb64294dacfcec511b54034153bb87d23d44",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -20,8 +20,8 @@
     "crates/blue-lang-mondou/Cargo.toml": "7fa130dd926e7a2b77bd815089e3a115a2ce6ff9edb041afb4da5a323c6c96aa",
     "crates/blue-lang-pkg/Cargo.toml": "4748e901a3daea02d320297a956284dcb4aeee913c1c3df074d0722fda893d3c",
     "crates/blue-lang-proc/Cargo.toml": "84d0fc0f2223461e180e38eb73bfd8a1e3e474b12d0eb8d9814198520ae9c48b",
-    "crates/blue-lang-runtime/Cargo.toml": "c13416e645663b4ac04182797791cc2e2b69393685d1ae5ae5efbe4fcb5a9ea8",
-    "crates/blue-lang-saturate/Cargo.toml": "958f083f09de66803cd7a686c5349abcdf667943b4390572d00afbcdf2e8500f",
+    "crates/blue-lang-runtime/Cargo.toml": "39a17bbba6c1e849e9d8ce84079c5e3967782ead482db1f9a11c6f948738af99",
+    "crates/blue-lang-saturate/Cargo.toml": "e22650fa8b5d183d5b280110b279d2ed75732079e1362cadbef5ef4ec322f74a",
     "crates/blue-lang-senses/Cargo.toml": "b8a88a1d21769a74b0210bd6ad3aa3e91cbdb59f7f7f531c569bb20a040eb7f0",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "dcccfd80885c6dc3f1fa098263a62d380f6205233fcd9a1ad4b9980adc8d1865",
@@ -2044,6 +2044,16 @@
           {
             "name": "blue_lang_proc",
             "package_key": "blue-lang-proc-0.0.192",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_saturate",
+            "package_key": "blue-lang-saturate-0.0.192",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,

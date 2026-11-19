@@ -87,6 +87,7 @@ pub mod provide;
 pub mod reach;
 pub mod receipt;
 pub mod record;
+pub mod saturation;
 #[cfg(feature = "host")]
 pub mod scratch;
 pub mod session;

@@ -29,6 +29,7 @@ blue-lang-host = { path = "crates/blue-lang-host", version = "0.0.192" }
 blue-lang-host-macros = { path = "crates/blue-lang-host-macros", version = "0.0.192" }
 blue-lang-senses = { path = "crates/blue-lang-senses", version = "0.0.192" }
 blue-lang-kernel = { path = "crates/blue-lang-kernel", version = "0.0.192" }
+blue-lang-saturate = { path = "crates/blue-lang-saturate", version = "0.0.192" }
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
 # `Bluefile.lock` and `blue bluefile --json` — the evaluated manifest nix reads.

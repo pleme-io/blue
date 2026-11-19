@@ -23,6 +23,7 @@ row(
   join_lines(["def k(x)", "  1", "end"]),
   facts([])
 )
+
 # Memory rows (docs/PURE-BLUE.md C2, invariant I3): a run leaves nothing live.
 # leaks(N) runs the program once to warm the evaluator, then three more times,
 # and reads the counting allocator's bytes retained per run.
@@ -41,6 +42,8 @@ row(
 
 row(
   "memory.a_cell_is_freed",
-  join_lines(["c = cell([1, 2, 3])", "cell_put(c, [4])", "length(cell_get(c))"]),
+  join_lines(
+    ["c = cell([1, 2, 3])", "cell_put(c, [4])", "length(cell_get(c))"]
+  ),
   leaks(0)
 )

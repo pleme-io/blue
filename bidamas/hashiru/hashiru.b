@@ -3436,7 +3436,7 @@ test "self_exe builds /proc/self/exe on the stack and readlinks it"
 end
 
 @doc """
-argv_on_stack: the instructions that build, below rbp, the argv of a command run through /usr/bin/env from the list of strings at rbp-8: the path at rbp-32, argv at rbp-24 (rbp-16, -40 and -48 are its scratch), each argument copied NUL-ended, the array ending in nil. Labels are named from tag.
+argv_on_stack: the instructions that build, below rbp, the argv of a command from the list of strings at rbp-8, the command first: argv at rbp-24 (rbp-16, -40 and -48 are its scratch), each argument copied NUL-ended, the array ending in nil. Labels are named from tag.
 
     argv_on_stack("t")[0] #=> {op: "mov", dst: "r10", imm: 0}
 """
@@ -3459,7 +3459,7 @@ def argv_on_stack(tag)
         {op: "jmp", label: "#{tag}_size"},
         {op: "label", name: "#{tag}_sized"},
         {op: "mov", dst: "r9", src: "r10"},
-        {op: "add", dst: "r9", imm: 2}
+        {op: "add", dst: "r9", imm: 1}
       ],
       times8("r9"),
       [
@@ -3471,16 +3471,8 @@ def argv_on_stack(tag)
         {op: "mov", dst: "r11", src: "rsp"},
         {op: "store", src: "r11", base: "rbp", disp: -24},
         {op: "add", dst: "r11", src: "r9"},
-        {op: "store", src: "r11", base: "rbp", disp: -32},
-        {op: "movabs", dst: "rcx", imm: text_word("/usr/bin")},
-        {op: "store", src: "rcx", base: "r11", disp: 0},
-        {op: "movabs", dst: "rcx", imm: text_word("/env")},
-        {op: "store", src: "rcx", base: "r11", disp: 8},
         {op: "load", dst: "rax", base: "rbp", disp: -24},
-        {op: "store", src: "r11", base: "rax", disp: 0},
-        {op: "add", dst: "rax", imm: 8},
         {op: "store", src: "rax", base: "rbp", disp: -40},
-        {op: "add", dst: "r11", imm: 16},
         {op: "load", dst: "rdx", base: "rbp", disp: -8},
         {op: "label", name: "#{tag}_arg"},
         {op: "cmp", dst: "rdx", imm: 0},
@@ -3513,7 +3505,111 @@ def argv_on_stack(tag)
 end
 
 @doc """
-RT_EXEC_CHECK: exec_check natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed; the command runs with no shell and the program's own environment, its output passing through, and its exit status is answered in rax. The child runs /usr/bin/env with the command first, so the command is found on PATH as the reference finds it; argv and each argument, NUL-ended, are built on the stack. A command that cannot run exits 127 (env's own refusal), as a shell reports it.
+PATH_PREFIX_MASK: the low five bytes of a word, the length of "PATH=", for finding the PATH entry of an environment by comparing one word.
+
+    PATH_PREFIX_MASK #=> 1_099_511_627_775
+"""
+PATH_PREFIX_MASK = 1_099_511_627_775
+
+@doc """
+exec_child: the child's half of running a command, after the fork: argv is at rbp-24 and the environment at r14 + ENVP_AT. A command holding a slash is run as given; any other is tried as dir/command for each directory of the environment's PATH, in order, as a shell finds it. A command that runs nowhere exits 127.
+
+    exec_child("t")[0] #=> {op: "load", dst: "r9", base: "rbp", disp: -24}
+"""
+def exec_child(tag)
+  execve = [
+    {op: "load", dst: "rsi", base: "rbp", disp: -24},
+    {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
+    {op: "mov", dst: "rax", imm: 59},
+    {op: "syscall"}
+  ]
+  append(
+    *[
+      [
+        {op: "load", dst: "r9", base: "rbp", disp: -24},
+        {op: "load", dst: "r9", base: "r9", disp: 0},
+        {op: "mov", dst: "r8", src: "r9"},
+        {op: "label", name: "#{tag}_slash"},
+        {op: "load_byte", dst: "rcx", base: "r8"},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_search"},
+        {op: "cmp", dst: "rcx", imm: 47},
+        {op: "j", cond: "e", label: "#{tag}_direct"},
+        {op: "add", dst: "r8", imm: 1},
+        {op: "jmp", label: "#{tag}_slash"},
+        {op: "label", name: "#{tag}_direct"},
+        {op: "mov", dst: "rdi", src: "r9"}
+      ],
+      execve,
+      [
+        {op: "jmp", label: "#{tag}_fail"},
+        {op: "label", name: "#{tag}_search"},
+        {op: "load", dst: "r10", base: "r14", disp: ENVP_AT},
+        {op: "label", name: "#{tag}_env"},
+        {op: "load", dst: "r8", base: "r10", disp: 0},
+        {op: "cmp", dst: "r8", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_fail"},
+        {op: "load", dst: "rax", base: "r8", disp: 0},
+        {op: "movabs", dst: "rcx", imm: PATH_PREFIX_MASK},
+        {op: "and", dst: "rax", src: "rcx"},
+        {op: "movabs", dst: "rcx", imm: text_word("PATH=")},
+        {op: "cmp", dst: "rax", src: "rcx"},
+        {op: "j", cond: "e", label: "#{tag}_path"},
+        {op: "add", dst: "r10", imm: 8},
+        {op: "jmp", label: "#{tag}_env"},
+        {op: "label", name: "#{tag}_path"},
+        {op: "add", dst: "r8", imm: 5},
+        {op: "sub", dst: "rsp", imm: 4096},
+        {op: "label", name: "#{tag}_dir"},
+        {op: "load_byte", dst: "rcx", base: "r8"},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_fail"},
+        {op: "mov", dst: "rdx", src: "rsp"},
+        {op: "label", name: "#{tag}_dir_byte"},
+        {op: "load_byte", dst: "rcx", base: "r8"},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_dir_end"},
+        {op: "cmp", dst: "rcx", imm: 58},
+        {op: "j", cond: "e", label: "#{tag}_dir_end"},
+        {op: "store_byte", src: "rcx", base: "rdx"},
+        {op: "add", dst: "rdx", imm: 1},
+        {op: "add", dst: "r8", imm: 1},
+        {op: "jmp", label: "#{tag}_dir_byte"},
+        {op: "label", name: "#{tag}_dir_end"},
+        {op: "mov", dst: "rcx", imm: 47},
+        {op: "store_byte", src: "rcx", base: "rdx"},
+        {op: "add", dst: "rdx", imm: 1},
+        {op: "load", dst: "r9", base: "rbp", disp: -24},
+        {op: "load", dst: "r9", base: "r9", disp: 0},
+        {op: "label", name: "#{tag}_cmd_byte"},
+        {op: "load_byte", dst: "rcx", base: "r9"},
+        {op: "store_byte", src: "rcx", base: "rdx"},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_built"},
+        {op: "add", dst: "rdx", imm: 1},
+        {op: "add", dst: "r9", imm: 1},
+        {op: "jmp", label: "#{tag}_cmd_byte"},
+        {op: "label", name: "#{tag}_built"},
+        {op: "mov", dst: "rdi", src: "rsp"}
+      ],
+      execve,
+      [
+        {op: "load_byte", dst: "rcx", base: "r8"},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_fail"},
+        {op: "add", dst: "r8", imm: 1},
+        {op: "jmp", label: "#{tag}_dir"},
+        {op: "label", name: "#{tag}_fail"},
+        {op: "mov", dst: "rdi", imm: 127},
+        {op: "mov", dst: "rax", imm: 60},
+        {op: "syscall"}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_EXEC_CHECK: exec_check natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed; the command runs with no shell and the program's own environment, its output passing through, and its exit status is answered in rax. The child finds the command as a shell does (exec_child: as given when it holds a slash, else on the environment's PATH); argv and each argument, NUL-ended, are built on the stack. A command that runs nowhere exits 127, as a shell reports it.
 
     RT_EXEC_CHECK[0] #=> {op: "label", name: "rt_exec_check"}
 """
@@ -3531,15 +3627,10 @@ RT_EXEC_CHECK = append(
       {op: "mov", dst: "rax", imm: 57},
       {op: "syscall"},
       {op: "cmp", dst: "rax", imm: 0},
-      {op: "j", cond: "ne", label: "rt_ex_parent"},
-      {op: "load", dst: "rdi", base: "rbp", disp: -32},
-      {op: "load", dst: "rsi", base: "rbp", disp: -24},
-      {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
-      {op: "mov", dst: "rax", imm: 59},
-      {op: "syscall"},
-      {op: "mov", dst: "rdi", imm: 127},
-      {op: "mov", dst: "rax", imm: 60},
-      {op: "syscall"},
+      {op: "j", cond: "ne", label: "rt_ex_parent"}
+    ],
+    exec_child("rt_ex"),
+    [
       {op: "label", name: "rt_ex_parent"},
       {op: "mov", dst: "rcx", imm: 0},
       {op: "store", src: "rcx", base: "rbp", disp: -56},
@@ -3605,7 +3696,7 @@ test "exec_check runs a command on PATH and answers its status natively on x86-6
   end
 end
 
-test "exec_check forks, runs /usr/bin/env with the inherited environment and waits"
+test "exec_check forks, finds the command on PATH in the inherited environment and waits"
   assert member?({op: "mov", dst: "rax", imm: 57}, RT_EXEC_CHECK)
   assert member?({op: "mov", dst: "rax", imm: 59}, RT_EXEC_CHECK)
   assert member?({op: "mov", dst: "rax", imm: 61}, RT_EXEC_CHECK)
@@ -3780,7 +3871,7 @@ def cell(head, tail, dest)
 end
 
 @doc """
-RT_EXEC_CAPTURE: exec_capture natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed, with the keywords :status, :stdout and :stderr in rsi, rdx and rcx; answered in rax as [[:status, n], [:stdout, s], [:stderr, s]]. The child's stdout and stderr are pipes (dup2), read by poll until both end, so a child filling one cannot block on the other; each is gathered in its own CAPTURE_BYTES mapping, then copied into a string. The command runs through /usr/bin/env with the program's environment, as exec_check runs it.
+RT_EXEC_CAPTURE: exec_capture natively (R4 of docs/PURE-BLUE.md): the list of strings in rdi, a command and its arguments, consumed, with the keywords :status, :stdout and :stderr in rsi, rdx and rcx; answered in rax as [[:status, n], [:stdout, s], [:stderr, s]]. The child's stdout and stderr are pipes (dup2), read by poll until both end, so a child filling one cannot block on the other; each is gathered in its own CAPTURE_BYTES mapping, then copied into a string. The command is found and run as exec_check runs it (exec_child).
 
     RT_EXEC_CAPTURE[0] #=> {op: "label", name: "rt_exec_capture"}
 """
@@ -3839,15 +3930,10 @@ RT_EXEC_CAPTURE = append(
       {op: "load", dst: "rdi", base: "rbp", disp: -120},
       {op: "mov", dst: "rsi", imm: 2},
       {op: "mov", dst: "rax", imm: 33},
-      {op: "syscall"},
-      {op: "load", dst: "rdi", base: "rbp", disp: -32},
-      {op: "load", dst: "rsi", base: "rbp", disp: -24},
-      {op: "load", dst: "rdx", base: "r14", disp: ENVP_AT},
-      {op: "mov", dst: "rax", imm: 59},
-      {op: "syscall"},
-      {op: "mov", dst: "rdi", imm: 127},
-      {op: "mov", dst: "rax", imm: 60},
-      {op: "syscall"},
+      {op: "syscall"}
+    ],
+    exec_child("rt_xc"),
+    [
       {op: "label", name: "rt_xc_parent"},
       {op: "store", src: "rax", base: "rbp", disp: -160},
       {op: "load", dst: "rdi", base: "rbp", disp: -104},
@@ -3997,4 +4083,18 @@ test "exec_capture pipes, polls, waits and builds its answer from cells"
     {op: "ret"}
   ]
   assert length(assemble(append(RT_EXEC_CAPTURE, stand_ins))) > 0
+end
+
+test "the clock and process helpers each do their one part"
+  assert member?({op: "mov", dst: "rax", imm: 228}, clock_read)
+  assert nanos_in_rax[0] == {op: "mov", dst: "rdx", imm: 1_000_000_000}
+  assert last(tag_rax) == {op: "add", dst: "rax", imm: 1}
+  assert argv_on_stack("t")[0] == {op: "mov", dst: "r10", imm: 0}
+  assert PATH_PREFIX_MASK == 1_099_511_627_775
+  assert member?(
+    {op: "movabs", dst: "rcx", imm: PATH_PREFIX_MASK},
+    exec_child("t")
+  )
+  assert last(exec_child("t")) == {op: "syscall"}
+  assert CAPTURE_BYTES == 268_435_456
 end

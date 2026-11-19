@@ -15,12 +15,12 @@ purity-bytes: crates/blue-lang-lsp 206836
 purity-bytes: crates/blue-lang-mondou 277392
 purity-bytes: crates/blue-lang-pkg 618679
 purity-bytes: crates/blue-lang-proc 395068
-purity-bytes: crates/blue-lang-runtime 1801511
+purity-bytes: crates/blue-lang-runtime 1803636
 purity-bytes: crates/blue-lang-saturate 11573
 purity-bytes: crates/blue-lang-senses 47392
 purity-bytes: crates/blue-lang-syntax 398976
 purity-bytes: crates/blue-lang-test 74378
 purity-bytes: crates/blue-lang-waku 85925
-purity-bytes: crates/blue-lang-wasm 13127
+purity-bytes: crates/blue-lang-wasm 13555
 purity-bytes: crates/blue-lang-worker 33698
 purity-bytes: crates/blue-lang-yaml-diff 1

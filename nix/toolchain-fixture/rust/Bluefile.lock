@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:7caf1337a803e6b93b17b2707c91205bcd349ad6083b31dd11c20713a8d5a575",
+  "manifest": {
+    "schema": 1,
+    "name": "toolchain-rust",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "toolchain": "rust"
+  },
+  "sources": {}
+}

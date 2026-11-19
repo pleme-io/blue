@@ -192,6 +192,10 @@ pub struct Project {
     pub vm_checks: BTreeMap<String, crate::deploy::VmCheck>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visibility: Option<String>,
+    /// The `blueToolchain` entry this project builds with (`toolchain("rust")`), checked
+    /// against substrate's registry when the project is lowered; `None` is the default entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toolchain: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tier: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1125,6 +1129,17 @@ const WORDS: &[Word] = &[
         },
     },
     Word {
+        name: "toolchain",
+        signature: "toolchain(entry)",
+        doc: "The `blueToolchain` entry this project is built with: `toolchain(\"rust\")`. The project's flake checks the name against substrate's registry: an unknown name is refused, and an entry that is not buildable yet is refused with the plan step that unblocks it. Without it the project builds with the default entry.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let entry = c.text(0, "entry")?;
+            set_once(&mut into.project.toolchain, c.word, entry.clone(), entry)
+        },
+    },
+    Word {
         name: "skip",
         signature: "skip(gate, why)",
         doc: "Configures one default gate off for this project, with the reason: `skip(\"test-beside\", \"…\")`. The gate's code and its tests stay; the lock records the skip and its reason, and a gate blue does not give every project is refused.",
@@ -1914,6 +1929,7 @@ mod tests {
             .chain(["verify"])
             // T2, 2026-11-13: the coverage policy and a default gate's skip.
             .chain(["coverage", "skip"])
+            .chain(["toolchain"])
             // T8, 2026-11-14: a failing test held out of the verdict until a date.
             .chain(["quarantine"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
@@ -2805,6 +2821,20 @@ mod tests {
     /// reason, and the policy program is recorded.** A skip of a gate blue
     /// does not give every project, or with no reason, is refused, and its
     /// siblings stand.
+    /// **A project names its toolchain entry once, and the lock carries it.** The
+    /// name is checked against the registry when the project is lowered, so the
+    /// lock records it as written; a project that names none records nothing.
+    #[test]
+    fn toolchain_records_the_entry_a_project_builds_with() {
+        let p = project_of("toolchain(\"rust\")");
+        assert_eq!(p.toolchain.as_deref(), Some("rust"));
+        let bare =
+            serde_json::to_value(project_of("check(\"docs\", \"gen/docs.b\")")).expect("json");
+        assert!(bare.get("toolchain").is_none(), "{bare}");
+        let err = refusal_of("toolchain(\"rust\")\ntoolchain(\"pure\")").to_string();
+        assert!(err.contains("toolchain"), "{err}");
+    }
+
     #[test]
     fn coverage_and_skip_record_the_policy_and_the_reason_a_gate_is_off() {
         let p = project_of(

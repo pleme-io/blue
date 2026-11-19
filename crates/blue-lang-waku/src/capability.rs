@@ -218,6 +218,7 @@ const MANIFEST_NAMES: &[&str] = &[
     "verify",
     "coverage",
     "skip",
+    "toolchain",
     "quarantine",
 ];
 

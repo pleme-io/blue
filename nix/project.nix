@@ -47,6 +47,7 @@
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
 # | `coverage(file)` | the program whose `blue run file -- policy` prints the policy `checks.test-beside` judges by (tesuto `level` and `waive` entries, hadome `untested: <pkg> <n>` debt); with none, every package at enforce with no debt |
 # | `skip(gate, why)` | configures a default gate off with its reason; the only gate today is `test-beside` |
+# | `toolchain(entry)` | the `blueToolchain` entry the project builds with, checked against substrate's registry (`toolchainEntries`): an unknown name, or an entry whose rung has not landed, is refused at evaluation; `blueToolchain` names the choice; none selects `rust` |
 # | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
 # | `generate`, `catalog` or `workload` | `apps.regen` |
 # | `projectFor { postMerge = [ name … ]; }` | those checks leave `checks` and `checks.project` and are `postMergeChecks`, run after the merge |
@@ -108,7 +109,7 @@ let
     "sources" "packages" "runs" "tools" "tool_platforms" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends" "vm_checks"
     "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
-    "bounds" "tier" "target" "verify" "coverage" "skips" "quarantines"
+    "bounds" "tier" "target" "verify" "coverage" "skips" "quarantines" "toolchain"
   ];
 
   readLock = src:
@@ -203,7 +204,7 @@ let
   #          caller has none, and an `image(...)` is then refused by name
   #   appliance  the `blue-appliance` runner for the system (static musl on
   #          Linux), or null, and an `app` then lowers to no appliance
-  projectFor = { pkgs, blue, src, fetchTree ? builtins.fetchTree, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ], shards ? { } }:
+  projectFor = { pkgs, blue, src, fetchTree ? builtins.fetchTree, base ? null, oci ? null, moduleTrio ? null, toolchainEntries ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ], shards ? { } }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -215,6 +216,16 @@ let
       m = lock.manifest;
       name = m.name;
       generated = m.generated or { };
+
+      toolchainName = m.toolchain or "rust";
+      toolchainRefusal =
+        if toolchainEntries == null then
+          (if toolchainName == "rust" then null else "lib.project: toolchain(\"${toolchainName}\") needs substrate's blueToolchain registry, and this engine was given none (`toolchainEntries`)")
+        else if !(toolchainEntries ? ${toolchainName}) then
+          "lib.project: toolchain(\"${toolchainName}\") names no entry of substrate's blueToolchain registry; it has ${lib.concatStringsSep ", " (attrNames toolchainEntries)}"
+        else if (toolchainEntries.${toolchainName}.rung or null) != null then
+          "lib.project: toolchain(\"${toolchainName}\") is not buildable yet: needs ${toolchainEntries.${toolchainName}.rung}"
+        else null;
 
       public = if base == null then bl.mkDistribution { root = ../bidamas; inherit pkgs; } else base;
 
@@ -746,8 +757,11 @@ let
     in
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides${lib.concatStrings (lib.mapAttrsToList (sn: f: "; source(\"${sn}\") added nothing: ${f.refused}") refusedSources)}"
+    else if toolchainRefusal != null then
+      throw toolchainRefusal
     else {
       inherit name runner bidamas packages apps commands bluePath imageGate postMergeChecks postMergeNames shards;
+      blueToolchain = toolchainName;
       toolchain = pkgs.symlinkJoin { name = "${name}-toolchain"; paths = tools; };
       inherit (lowered) services trios executables;
       checks = disjoint "check" preMergeChecks {
@@ -769,10 +783,10 @@ in
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
   #   applianceFor  system -> the `blue-appliance` runner, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null), tameshi ? null }: { src, legacy ? { }, shards ? { } }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, toolchainEntries ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null), tameshi ? null }: { src, legacy ? { }, shards ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
-        inherit src moduleTrio legacy chartLibraries tameshi shards;
+        inherit src moduleTrio toolchainEntries legacy chartLibraries tameshi shards;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;

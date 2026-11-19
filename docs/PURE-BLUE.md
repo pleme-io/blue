@@ -52,13 +52,14 @@ Built and on main, each with its lock:
 | D0 (substrate half) | the bidama builders in substrate | `substrate/lib/build/blue` |
 | D1 | `overlays.bidamas` wraps the package set's own `blue`, so an override reaches every bidama tool | `flake.nix`, `checks.overlay-reads-final-blue` |
 | D2 | the `pleme.blueToolchain` registry: five entries, an incoherent permutation refused by the entry type, a not-yet entry refused by its rung | `substrate/lib/build/blue/toolchain.nix`, `checks.blue-toolchain` |
+| D3 | a Bluefile names its toolchain with `toolchain(entry)`; the project engine checks it against substrate's registry, refusing an unknown name and an entry whose rung has not landed, and builds with `rust` | `crates/blue-lang-pkg/src/bluefile.rs`, `nix/project.nix`, `checks.toolchain-selection` |
 | C1 | the native conformance column: every value row compiled by blue's own backend and judged against the walker, its passing count a ratchet (18 rows on 2026-11-18); a call to a global function with the wrong number of arguments is refused before code is made | `crates/blue-lang-test/tests/conformance`, `gen/native-row.b`, `spec/native.baseline`, `checks.conformance-three-way` |
 
 Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
 language in the path, give their value and end with 0 blocks live.
 
 Not yet: B1's borrow inference, its `ir_eval` ratchet over the spec rows and chuuzou's front passes moved in (B1's exit, which M1 needs); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1-M5 on the Rust runtime; B5; R4 beyond `write_stdout`, `exit_with`, `read_file` and `write_bytes` (time, processes, sockets, epoll, the terminal) and R5-R7
-beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2, C3; D3-D6.
+beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2, C3; D4-D6.
 
 ## 2. Ground truth (measured 2026-11-17)
 

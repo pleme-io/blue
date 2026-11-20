@@ -189,3 +189,23 @@ end
 def headed(ts: List(tag)) -> tag
   tag(**first(ts), n: count(ts))
 end
+
+def scaled(xs: List(Int), k: Int) -> List(Int)
+  map((x) -> x * k, xs)
+end
+
+def scaled_up(xs: List(Int), k: Int) -> List(Int)
+  map((x) -> x * k + 1, xs)
+end
+
+def kept(xs: List(Int), k: Int) -> List(Int)
+  filter((x) -> x > k, xs)
+end
+
+def crossed(xs: List(Int), ys: List(Int)) -> Int
+  reduce((a, x) -> a + reduce((b, y) -> b + x * y, 0, ys), 0, xs)
+end
+
+def nudged(ps: List(pt), d: Int) -> List(pt)
+  map((q) -> pt(q.x + d, q.y), ps)
+end

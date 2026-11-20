@@ -360,3 +360,26 @@ test "a list of records crosses the seam both ways", {kind: :integration}
     swapped(work, "placed", "placed_twice")
   ) == unlines(["[pt({x: 1, y: 2}), pt({x: 3, y: -3}), pt({x: 3, y: -3})]"])
 end
+
+test "a lambda written in place for map, filter or reduce runs natively", {
+  kind: :integration
+}
+  work = temp_dir("native-lambda")
+  calls = [
+    ["scaled", [[1, -2, 3], 4]],
+    ["scaled", [[], 4]],
+    ["kept", [[5, -1, 9, 2], 2]],
+    ["kept", [[], 0]],
+    ["crossed", [[1, 2], [3, 4, 5]]],
+    ["crossed", [[], [1]]],
+    ["nudged", [[pt(1, 2), pt(-3, 4)], 10]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "scaled", [[1, 2], 3], off) == unlines(["[3, 6]"])
+  assert interpreted(
+    work,
+    "scaled",
+    [[1, 2], 3],
+    swapped(work, "scaled", "scaled_up")
+  ) == unlines(["[4, 7]"])
+end

@@ -326,7 +326,27 @@ Each wave lists defaults in the order their gain is known. Each default meets
     list of structs: …"); `checks.native-defs` "a list of records crosses
     the seam both ways" (`placed`, `swept`, `joined`, `headed`;
     `placed_twice`'s artifact swapped in proves the artifact answered).
-  - Next: closures.
+  - ✅ A lambda written in place, natively: `map(f, xs)`, `filter(f, xs)`
+    and `reduce(f, init, xs)` whose `f` is a lambda in the call, over a list
+    of Ints or of records, lower to a loop over the list (`cz_inline_fn`).
+    The lambda's body is the loop's body, each of its parameters a local
+    bound per element, and what it captures the definition's own locals,
+    read in place, so no closure is made and nothing is allocated for one.
+    Every local the body reads is cloned on each read, since the body runs
+    once per element. Lambdas nest (each loop's locals carry its depth).
+    `map` answers a list of Ints or of records. A named function passed as
+    `f`, a lambda that answers a Float or a Str, and a definition that holds
+    its lists in a region are refused. Locks: chuuzou 155 tests ("a lambda
+    written in place for map, filter or reduce is a loop over the list, …");
+    `checks.native-defs` "a lambda written in place for map, filter or
+    reduce runs natively" (`scaled`, `kept`, `crossed`, nested, and
+    `nudged` over records agree with the interpreter; `scaled_up`'s
+    artifact swapped in for `scaled` answers `[4, 7]` where the
+    interpreter answers `[3, 6]`, so the artifact answered), 15 tests
+    passing on macOS.
+  - Next: a lambda as a value (stored, passed to a definition, answered),
+    defunctionalized: one enum variant per lambda holding its captures, and
+    one `apply` that matches them, which the Rust AST already expresses.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

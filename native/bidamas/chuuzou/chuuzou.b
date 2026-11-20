@@ -754,6 +754,8 @@ def cz_ty(n, ctx)
     cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
   elsif h == "begin"
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
+  elsif cz_inline_fn?(h, rest(n), ctx)
+    cz_inline_ty(h, rest(n), ctx)
   elsif cz_items_op?(h, rest(n), ctx)
     cz_items_ty(h, rest(n), ctx)
   elsif h == "list" or h == "append" or h == "rest"
@@ -1447,6 +1449,8 @@ def cz_call(n, ctx)
     cz_member(first(args), second(args), ctx)
   elsif cz_map_op?(h, args, ctx)
     cz_map_op(h, args, ctx)
+  elsif cz_inline_fn?(h, args, ctx)
+    cz_inline_fn(h, args, ctx)
   elsif cz_items_op?(h, args, ctx)
     cz_items_op(h, args, ctx)
   elsif member?(h, %w[first count rest]) and
@@ -1891,6 +1895,248 @@ def cz_items_op(h, args, ctx)
       [cz_borrowed(second(args), ctx), cz_as(first(args), :word, ctx)]
     )
   end
+end
+
+@doc """
+cz_lambda?: Whether `n` is a lambda written in place, `(lambda (params…) body)`, with
+`arity` parameters.
+
+    cz_lambda?(first(cz_read("(lambda (x) (* x 2))")), 1) #=> true
+    cz_lambda?(first(cz_read("(lambda (a x) a)")), 1) #=> false
+"""
+def cz_lambda?(n, arity)
+  cz_head(n) == "lambda" and
+    count(n) == 3 and
+    list?(second(n)) and
+    count(second(n)) == arity and
+    every?(cz_sym?, second(n))
+end
+
+@doc """
+cz_inline_fn?: Whether the call `h(args…)` applies a lambda written in place to each
+element of a list: `map(f, xs)`, `filter(f, xs)` or `reduce(f, init, xs)`,
+`xs` a list of Ints or of records.
+
+    cz_inline_fn?("map", cz_read("(lambda (x) (* x 2)) xs"), {types: [["xs", :list]]}) #=> true
+    cz_inline_fn?("map", cz_read("f xs"), {types: [["xs", :list]]}) #=> false
+"""
+def cz_inline_fn?(h, args, ctx)
+  listed = (n) -> cz_ty(n, ctx) == :list or cz_items?(cz_ty(n, ctx))
+  if member?(h, %w[map filter])
+    count(args) == 2 and cz_lambda?(first(args), 1) and listed(second(args))
+  elsif h == "reduce"
+    count(args) == 3 and cz_lambda?(first(args), 2) and listed(third(args))
+  else
+    false
+  end
+end
+
+@doc """
+cz_elem_ty: The type of one element of a list of type `ty`: an Int, or the record.
+
+    cz_elem_ty(:list) #=> :word
+    cz_elem_ty({items: "%root/p"}) #=> "%root/p"
+"""
+def cz_elem_ty(ty)
+  if map?(ty) and ty[:items] != nil
+    ty[:items]
+  else
+    :word
+  end
+end
+
+@doc """
+cz_inline_scope: The context a lambda's body is lowered in: each of its parameters bound
+to its type and read as a local, every parameter cloned on each read, since
+the body runs once per element, and the loop depth one deeper.
+
+    cz_inline_scope([["x", :word]], {params: ["k"], types: []})[:params] #=> ["k", "x"]
+"""
+def cz_inline_scope(bound, ctx)
+  params = append(ctx[:params] or [], map(first, bound))
+  {
+    **ctx,
+    params:,
+    types: append(ctx[:types] or [], bound),
+    shared: params,
+    loops: (ctx[:loops] or 0) + 1
+  }
+end
+
+@doc """
+cz_inline_ty: The type `map`, `filter` or `reduce` with a lambda in place answers: the
+list of what the body gives for map, the list itself for filter, the
+accumulator's for reduce.
+
+    cz_inline_ty("filter", cz_read("(lambda (x) (> x 0)) xs"), {types: [["xs", :list]]}) #=> :list
+    cz_inline_ty("map", cz_read("(lambda (x) (* x 2)) xs"), {types: [["xs", :list]]}) #=> :list
+"""
+def cz_inline_ty(h, args, ctx)
+  if h == "filter"
+    cz_ty(second(args), ctx)
+  elsif h == "reduce"
+    cz_ty(second(args), ctx)
+  else
+    f = first(args)
+    x = cz_sym(first(second(f)))
+    body = cz_ty(
+      third(f),
+      cz_inline_scope([[x, cz_elem_ty(cz_ty(second(args), ctx))]], ctx)
+    )
+    if body == :word
+      :list
+    elsif string?(body)
+      cz_items_of(body)
+    else
+      cz_refuse(
+        "map's lambda answers #{cz_ty_text(body)}; a native list holds Ints or records"
+      )
+    end
+  end
+end
+
+@doc """
+cz_inline_fn: `map`, `filter` or `reduce` with a lambda written in place, lowered to a
+loop over the list: the lambda's body is the loop's body, each parameter a
+local bound per element, and what it captures the definition's own locals,
+read in place. No closure is made.
+
+    cz_inline_fn("map", cz_read("(lambda (x) (* x k)) xs"), {params: ["xs", "k"], types: [["xs", :list], ["k", :word]], strategy: :refcount, word: 64, heap: true, records: []})[:kind] #=> "block"
+"""
+def cz_inline_fn(h, args, ctx)
+  if not ctx[:heap]
+    cz_refuse("a list needs a heap, and this board has none; lists compile for the host board")
+  elsif ctx[:strategy] == :arena
+    cz_refuse(
+      "#{h} with a lambda walks a refcounted list; a region's list has no native #{h} yet"
+    )
+  end
+  f = first(args)
+  xs = last(args)
+  lty = cz_ty(xs, ctx)
+  ety = cz_elem_ty(lty)
+  d = ctx[:loops] or 0
+  l = "lp#{d}_l"
+  i = "lp#{d}_i"
+  n = "lp#{d}_n"
+  items = cz_items?(lty)
+  nth = if items
+    %w[kiban_heap items_nth]
+  else
+    %w[kiban_heap rc_nth]
+  end
+  counted = if items
+    %w[kiban_heap items_count]
+  else
+    %w[kiban_heap rc_count]
+  end
+  names = map(cz_sym, second(f))
+  x = last(names)
+  acc = if h == "reduce"
+    first(names)
+  end
+  acc_ty = if h == "reduce"
+    cz_ty(second(args), ctx)
+  end
+  bound = if h == "reduce"
+    [[acc, acc_ty], [x, ety]]
+  else
+    [[x, ety]]
+  end
+  inner = cz_inline_scope(bound, ctx)
+  out_ty = cz_inline_ty(h, args, ctx)
+  start = [
+    {kind: "local", name: l, value: cz_borrowed(xs, ctx)},
+    {kind: "local", name: n, value: rs_call(counted, [rs_path(l)])},
+    {kind: "local", name: i, mutable: true, value: rs_word(0, 64)}
+  ]
+  held = if h == "reduce"
+    [
+      {
+        kind: "local",
+        name: cz_param_name(acc),
+        mutable: true,
+        value: cz_as(second(args), acc_ty, ctx)
+      }
+    ]
+  else
+    [
+      {
+        kind: "local",
+        name: "#{l}_v",
+        mutable: true,
+        value: rs_call(
+          if cz_items?(out_ty)
+            %w[kiban_heap items_with]
+          else
+            %w[kiban_heap vec_with]
+          end,
+          [{kind: "int", value: 0, suffix: "usize"}]
+        )
+      }
+    ]
+  end
+  push = (e) -> rs_semi(rs_method(rs_path("#{l}_v"), "push", [e]))
+  step = if h == "map"
+    [push(cz_as(third(f), cz_elem_ty(out_ty), inner))]
+  elsif h == "filter"
+    [
+      rs_semi(
+        rs_if(
+          cz_as(third(f), :bool, inner),
+          rs_block([push(rs_path(cz_param_name(x)))]),
+          nil
+        )
+      )
+    ]
+  else
+    [
+      rs_semi(
+        {
+          kind: "assign",
+          target: cz_param_name(acc),
+          value: cz_as(third(f), acc_ty, inner)
+        }
+      )
+    ]
+  end
+  body = append(
+    [
+      rs_semi(
+        rs_if(
+          rs_binary("eq", rs_path(i), rs_path(n)),
+          rs_block([rs_semi({kind: "break"})]),
+          nil
+        )
+      ),
+      {
+        kind: "local",
+        name: cz_param_name(x),
+        value: rs_call(nth, [rs_path(l), rs_path(i)])
+      }
+    ],
+    step,
+    [
+      rs_semi(
+        {
+          kind: "assign",
+          target: i,
+          value: rs_binary("add", rs_path(i), rs_word(1, 64))
+        }
+      )
+    ]
+  )
+  answer = if h == "reduce"
+    rs_path(cz_param_name(acc))
+  elsif cz_items?(out_ty)
+    rs_call(%w[kiban_heap items_of], [rs_path("#{l}_v")])
+  else
+    rs_call(%w[kiban_heap rc_of], [rs_path("#{l}_v")])
+  end
+  rs_seq(
+    append(start, held, [rs_semi({kind: "loop", body: rs_block(body)})]),
+    answer
+  )
 end
 
 @doc """
@@ -4918,4 +5164,44 @@ test "a list of records is a refcounted list of structs: built, appended, counte
   assert map((f) -> f[:item][:sig][:name], fns) == %w[seam_in_p seam_out_p]
   arena = "(define-typed (%root/a (ps (List p))) Int (reclaim :arena (count ps)))"
   assert cz_def_native(concat(rec, arena), "%root/a") != nil
+end
+
+test "a lambda written in place for map, filter or reduce is a loop over the list, its captures read in place"
+  scaled = "(define-typed (%root/s (xs (List Int)) (k Int)) (List Int) (map (lambda (x) (* x k)) xs))"
+  assert cz_def_native(scaled, "%root/s").nil?
+  kept = "(define-typed (%root/f (xs (List Int)) (k Int)) (List Int) (filter (lambda (x) (> x k)) xs))"
+  assert cz_def_native(kept, "%root/f").nil?
+  total = "(define-typed (%root/t (xs (List Int)) (k Int)) Int (reduce (lambda (acc x) (+ acc (* x k))) 0 xs))"
+  assert cz_def_native(total, "%root/t").nil?
+  rec = "(blue-record %root/p %root/p? (:x Int) (:y Int)) "
+  moved = "(define-typed (%root/m (ps (List p)) (d Int)) (List p) (map (lambda (q) (%root/p (+ (blue-field q :x) d) (blue-field q :y))) ps))"
+  assert cz_def_native(concat(rec, moved), "%root/m").nil?
+  xs_of = "(define-typed (%root/x (ps (List p))) (List Int) (map (lambda (q) (blue-field q :x)) ps))"
+  assert cz_def_native(concat(rec, xs_of), "%root/x").nil?
+  nested = "(define-typed (%root/n (xs (List Int)) (ys (List Int))) Int (reduce (lambda (a x) (+ a (reduce (lambda (b y) (+ b (* x y))) 0 ys))) 0 xs))"
+  assert cz_def_native(nested, "%root/n").nil?
+  named = "(define-typed (%root/d (x Int)) Int (* x 2)) (define-typed (%root/g (xs (List Int))) (List Int) (map %root/d xs))"
+  assert cz_def_native(named, "%root/g") != nil
+  floats = "(define-typed (%root/h (xs (List Int))) (List Int) (map (lambda (x) 1.5) xs))"
+  assert cz_def_native(floats, "%root/h") != nil
+  assert cz_lambda?(first(cz_read("(lambda (x) x)")), 1)
+  assert not cz_lambda?(first(cz_read("(lambda (x) x)")), 2)
+  ctx = {
+    types: [["xs", :list], ["k", :word]],
+    params: %w[xs k],
+    records: [],
+    word: 64,
+    heap: true,
+    strategy: :refcount
+  }
+  assert cz_inline_fn?("filter", cz_read("(lambda (x) (> x k)) xs"), ctx)
+  assert not cz_inline_fn?("filter", cz_read("(lambda (x) (> x k)) k"), ctx)
+  assert cz_inline_ty("reduce", cz_read("(lambda (a x) a) 0 xs"), ctx) == :word
+  assert cz_elem_ty({items: "%root/p"}) == "%root/p"
+  assert cz_inline_scope([["x", :word]], ctx)[:loops] == 1
+  out = cz_inline_fn("map", cz_read("(lambda (x) (* x k)) xs"), ctx)
+  assert contains?(to_s(out), "loop")
+  arena = assoc(ctx, :strategy, :arena)
+  assert (cz_inline_fn("map", cz_read("(lambda (x) x) xs"), arena) rescue
+    :refused) == :refused
 end

@@ -1,0 +1,38 @@
+================================================================================
+an arrow body holds an inline rescue, as parse.rs reads it
+================================================================================
+
+f = (t) -> read(t) rescue :refused
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (binding
+    name: (identifier)
+    value: (arrow_lambda
+      parameters: (parameters
+        parameter: (identifier))
+      body: (rescue_expression
+        left: (call
+          function: (identifier)
+          arguments: (arguments
+            (identifier)))
+        right: (symbol)))))
+
+================================================================================
+an arrow body holds a pipe
+================================================================================
+
+g = (x) -> x |> h
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (binding
+    name: (identifier)
+    value: (arrow_lambda
+      parameters: (parameters
+        parameter: (identifier))
+      body: (pipe_expression
+        left: (identifier)
+        right: (identifier)))))

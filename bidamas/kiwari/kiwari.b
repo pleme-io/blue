@@ -2318,7 +2318,7 @@ def surface()
         rule(
           "arrow_lambda",
           prec_right(
-            0,
+            -1,
             seq(
               [
                 field(

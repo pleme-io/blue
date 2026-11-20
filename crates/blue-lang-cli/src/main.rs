@@ -255,6 +255,11 @@ enum Cmd {
         file: PathBuf,
         #[arg(long)]
         resolved: bool,
+        /// Print the parsed tree as JSON, one node `[start, end, kind,
+        /// payload]` per form with byte spans (a synthetic span is null):
+        /// the oracle blue's own reader is held to (F1 of docs/PURE-BLUE.md).
+        #[arg(long, conflicts_with = "resolved")]
+        tree_json: bool,
         #[arg(long, requires = "resolved")]
         json: bool,
         #[arg(long, requires = "resolved")]
@@ -970,6 +975,46 @@ fn read(path: &Path) -> Result<String, CliError> {
 /// order: a second door that quietly uses the compiled-in default would make
 /// `max_expr_depth` true of some subcommands and not others, and nothing would
 /// say which.
+/// One spanned node as `[start, end, kind, payload]`: kind `nil`, `sym`, `kw`,
+/// `str`, `int`, `float`, `bool`, `list` (payload the children), or `quote`,
+/// `quasiquote`, `unquote`, `unquote_splice` (payload the one child). A
+/// synthetic span (`usize::MAX`) is null.
+fn tree_json(node: &blue_lang_syntax::Spanned) -> serde_json::Value {
+    use serde_json::{json, Value};
+    use tatara_lisp::{Atom, SpannedForm};
+    let at = |n: usize| {
+        if n == usize::MAX {
+            Value::Null
+        } else {
+            json!(n)
+        }
+    };
+    let (s, e) = (at(node.span.start), at(node.span.end));
+    match &node.form {
+        SpannedForm::Nil => json!([s, e, "nil"]),
+        SpannedForm::Atom(a) => match a {
+            Atom::Symbol(x) => json!([s, e, "sym", x]),
+            Atom::Keyword(x) => json!([s, e, "kw", x]),
+            Atom::Str(x) => json!([s, e, "str", x]),
+            Atom::Int(x) => json!([s, e, "int", x]),
+            Atom::Float(x) => json!([s, e, "float", x]),
+            Atom::Bool(x) => json!([s, e, "bool", x]),
+        },
+        SpannedForm::List(items) => {
+            json!([
+                s,
+                e,
+                "list",
+                items.iter().map(tree_json).collect::<Vec<_>>()
+            ])
+        }
+        SpannedForm::Quote(c) => json!([s, e, "quote", tree_json(c)]),
+        SpannedForm::Quasiquote(c) => json!([s, e, "quasiquote", tree_json(c)]),
+        SpannedForm::Unquote(c) => json!([s, e, "unquote", tree_json(c)]),
+        SpannedForm::UnquoteSplice(c) => json!([s, e, "unquote_splice", tree_json(c)]),
+    }
+}
+
 fn parse(src: &str, cfg: &BlueConfig) -> Result<Vec<blue_lang_syntax::Sexp>, CliError> {
     Ok(blue_lang_runtime::parse_with_depth(
         src,
@@ -1221,6 +1266,19 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             } else {
                 ExitCode::SUCCESS
             })
+        }
+
+        Cmd::Ast {
+            file,
+            tree_json: true,
+            ..
+        } => {
+            let forms =
+                blue_lang_syntax::parse_program_tree_with_depth(&read(&file)?, cfg.max_expr_depth)
+                    .map_err(|e| CliError::Usage(e.to_string()))?;
+            let nodes: Vec<serde_json::Value> = forms.iter().map(tree_json).collect();
+            println!("{}", serde_json::Value::Array(nodes));
+            Ok(ExitCode::SUCCESS)
         }
 
         Cmd::Ast {

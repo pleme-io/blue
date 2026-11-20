@@ -44,6 +44,7 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   `null`; `crates/blue-lang-syntax/tests/reader_in_blue.rs`.
 - **First commit.** The lexer: blue `lex(src)` → kinds and spans, equal to `lex::lex` over
   `spec/rows/*.b`.
+- **Landed (2026-11-20).** The lexer (`yomi::lex`, every `.b` file in the repo agrees with `lex::lex`), and the oracle: `blue ast --tree-json FILE` writes `parse_program_tree`'s tree as `[start, end, kind, payload]` per node (`tests/ast_tree_json.rs`). Next: the parser in blue over `yomi::lex`, compared node for node with that JSON.
 - **Exit.** `checks.reader-differential`: all 604 `.b` files give identical JSON, spans
   included; the fleet half reuses `gen/consumers.json` (20 repos, 132 files) as a prepush gate.
 - **Risks.** ~7.7k lines of behaviour; 34 span-synthesis sites and `cover` (`parse.rs:3806`);

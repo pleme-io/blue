@@ -1669,7 +1669,8 @@ def runtime()
       RT_TCP_CONNECT,
       RT_READ_LINE,
       IS_TERMINAL,
-      RT_HOSTS_LOOKUP
+      RT_HOSTS_LOOKUP,
+      RT_DNS_LOOKUP
     ]
   )
 end
@@ -4888,7 +4889,381 @@ RT_HOSTS_LOOKUP = append(
 )
 
 @doc """
-RT_TCP_CONNECT: tcp_connect_ms natively (R4 of docs/PURE-BLUE.md): one TCP connection to the host string in rdi, port in rsi, within the timeout in rdx (milliseconds), closed at once; answered in rax as the milliseconds the handshake took, or [:error, why, host] with why :refused, :timeout, :unreachable, :unresolved or :failed (keywords passed in rcx, r8 to r11 and on the stack). The host is a dotted IPv4 address or a name the system's /etc/hosts gives an IPv4 address (rt_hosts_lookup); native code asks no DNS server yet, so any other name answers :unresolved. A port outside 1..65535 or a negative timeout is refused as an error, as the reference raises. The connect is non-blocking, waited for by poll, and judged by SO_ERROR.
+skip_dns_name: the instructions that move r8 past one DNS name (labels, or a pointer) in a message ending at r9, jumping to fail when the name runs past the end.
+
+    skip_dns_name("t", "bad")[0] #=> {op: "label", name: "t_label"}
+"""
+def skip_dns_name(tag, fail)
+  [
+    {op: "label", name: "#{tag}_label"},
+    {op: "cmp", dst: "r8", src: "r9"},
+    {op: "j", cond: "ge", label: fail},
+    {op: "load_byte", dst: "rax", base: "r8"},
+    {op: "cmp", dst: "rax", imm: 0},
+    {op: "j", cond: "e", label: "#{tag}_root"},
+    {op: "cmp", dst: "rax", imm: 192},
+    {op: "j", cond: "ge", label: "#{tag}_pointer"},
+    {op: "add", dst: "r8", src: "rax"},
+    {op: "add", dst: "r8", imm: 1},
+    {op: "jmp", label: "#{tag}_label"},
+    {op: "label", name: "#{tag}_pointer"},
+    {op: "add", dst: "r8", imm: 1},
+    {op: "label", name: "#{tag}_root"},
+    {op: "add", dst: "r8", imm: 1}
+  ]
+end
+
+@doc """
+dns_pair: the instructions that read the two bytes at r8+at as a big-endian number into dst.
+
+    length(dns_pair("rdx", 0)) #=> 9
+"""
+def dns_pair(dst, at)
+  [
+    {op: "mov", dst: "rcx", src: "r8"},
+    {op: "add", dst: "rcx", imm: at},
+    {op: "load_byte", dst:, base: "rcx"},
+    {op: "mov", dst: "r11", imm: 256},
+    {op: "imul", dst:, src: "r11"},
+    {op: "mov", dst: "rcx", src: "r8"},
+    {op: "add", dst: "rcx", imm: at + 1},
+    {op: "load_byte", dst: "rcx", base: "rcx"},
+    {op: "add", dst:, src: "rcx"}
+  ]
+end
+
+@doc """
+DNS_QUERY: where rt_dns_lookup's frame holds the question it sends, 512 bytes up from rbp-600.
+
+    DNS_QUERY #=> -600
+"""
+DNS_QUERY = -600
+
+@doc """
+DNS_ANSWER: where rt_dns_lookup's frame holds the answer it reads, 512 bytes up from rbp-1200 (first, the resolv.conf path block).
+
+    DNS_ANSWER #=> -1200
+"""
+DNS_ANSWER = -1200
+
+@doc """
+RT_DNS_LOOKUP: the IPv4 address a DNS server gives the host string in rdi (borrowed, not consumed), as parse_dotted's word in rax, or -1. The server is the first IPv4 nameserver line of /etc/resolv.conf (read with rt_read_file); one A question goes to it over UDP port 53 on a connected socket, the answer is awaited up to 1500 ms with poll, and its first A record of four bytes is the address. No resolv.conf, no nameserver, a name with an empty or long label, no answer in time, a failing code or no A record each answer -1.
+
+    RT_DNS_LOOKUP[0] #=> {op: "label", name: "rt_dns_lookup"}
+"""
+RT_DNS_LOOKUP = append(
+  *[
+    [
+      {op: "label", name: "rt_dns_lookup"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 1216},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: -1},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "store", src: "rcx", base: "rbp", disp: -40},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_ANSWER},
+      {op: "movabs", dst: "rcx", imm: IMMORTAL},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_ANSWER + 8},
+      {op: "mov", dst: "rcx", imm: 6},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_ANSWER + 16},
+      {op: "mov", dst: "rcx", imm: 16},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_ANSWER + 24},
+      {op: "movabs", dst: "rcx", imm: text_word("/etc/res")},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_ANSWER + 32},
+      {op: "movabs", dst: "rcx", imm: text_word("olv.conf")},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_ANSWER + 40},
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: DNS_ANSWER},
+      {op: "call_label", label: "rt_read_file"},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rax", disp: 0},
+      {op: "cmp", dst: "rcx", imm: 4},
+      {op: "j", cond: "e", label: "rt_dl_conf_done"},
+      {op: "mov", dst: "r8", src: "rax"},
+      {op: "add", dst: "r8", imm: 32},
+      {op: "load", dst: "r9", base: "rax", disp: 24},
+      {op: "label", name: "rt_dl_line"},
+      {op: "cmp", dst: "r9", imm: 11},
+      {op: "j", cond: "l", label: "rt_dl_conf_done"},
+      {op: "load", dst: "rax", base: "r8", disp: 0},
+      {op: "movabs", dst: "rcx", imm: text_word("nameserv")},
+      {op: "cmp", dst: "rax", src: "rcx"},
+      {op: "j", cond: "ne", label: "rt_dl_skip_line"},
+      {op: "mov", dst: "rcx", src: "r8"},
+      {op: "add", dst: "rcx", imm: 8},
+      {op: "load_byte", dst: "rax", base: "rcx"},
+      {op: "cmp", dst: "rax", imm: 101},
+      {op: "j", cond: "ne", label: "rt_dl_skip_line"},
+      {op: "mov", dst: "rcx", src: "r8"},
+      {op: "add", dst: "rcx", imm: 9},
+      {op: "load_byte", dst: "rax", base: "rcx"},
+      {op: "cmp", dst: "rax", imm: 114},
+      {op: "j", cond: "ne", label: "rt_dl_skip_line"},
+      {op: "add", dst: "r8", imm: 10},
+      {op: "sub", dst: "r9", imm: 10},
+      {op: "label", name: "rt_dl_gap"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_dl_conf_done"},
+      {op: "load_byte", dst: "rax", base: "r8"},
+      {op: "cmp", dst: "rax", imm: 32},
+      {op: "j", cond: "e", label: "rt_dl_gap_next"},
+      {op: "cmp", dst: "rax", imm: 9},
+      {op: "j", cond: "ne", label: "rt_dl_server"},
+      {op: "label", name: "rt_dl_gap_next"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "jmp", label: "rt_dl_gap"},
+      {op: "label", name: "rt_dl_server"},
+      {op: "mov", dst: "r10", src: "r8"},
+      {op: "label", name: "rt_dl_server_byte"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_dl_server_end"},
+      {op: "load_byte", dst: "rax", base: "r8"},
+      {op: "cmp", dst: "rax", imm: 32},
+      {op: "j", cond: "le", label: "rt_dl_server_end"},
+      {op: "cmp", dst: "rax", imm: 35},
+      {op: "j", cond: "e", label: "rt_dl_server_end"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "jmp", label: "rt_dl_server_byte"},
+      {op: "label", name: "rt_dl_server_end"},
+      {op: "store", src: "r8", base: "rbp", disp: -48},
+      {op: "store", src: "r9", base: "rbp", disp: -56},
+      {op: "mov", dst: "r9", src: "r8"},
+      {op: "sub", dst: "r9", src: "r10"},
+      {op: "mov", dst: "r8", src: "r10"}
+    ],
+    parse_dotted("rt_dl_ip"),
+    [
+      {op: "load", dst: "r8", base: "rbp", disp: -48},
+      {op: "load", dst: "r9", base: "rbp", disp: -56},
+      {op: "cmp", dst: "rax", imm: -1},
+      {op: "j", cond: "e", label: "rt_dl_skip_line"},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "jmp", label: "rt_dl_conf_done"},
+      {op: "label", name: "rt_dl_skip_line"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_dl_conf_done"},
+      {op: "load_byte", dst: "rax", base: "r8"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "cmp", dst: "rax", imm: 10},
+      {op: "j", cond: "e", label: "rt_dl_line"},
+      {op: "jmp", label: "rt_dl_skip_line"},
+      {op: "label", name: "rt_dl_conf_done"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "rcx", imm: -1},
+      {op: "j", cond: "e", label: "rt_dl_out"},
+      {op: "load", dst: "rsi", base: "rbp", disp: -8},
+      {op: "load", dst: "r9", base: "rsi", disp: 24},
+      {op: "cmp", dst: "r9", imm: 1},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "cmp", dst: "r9", imm: 253},
+      {op: "j", cond: "g", label: "rt_dl_out"},
+      {op: "mov", dst: "r8", src: "rsi"},
+      {op: "add", dst: "r8", imm: 32},
+      {op: "movabs", dst: "rcx", imm: 1_099_511_710_274},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_QUERY},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: DNS_QUERY + 8},
+      {op: "mov", dst: "r11", src: "rbp"},
+      {op: "add", dst: "r11", imm: DNS_QUERY + 12},
+      {op: "mov", dst: "r10", src: "r11"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_dl_q_byte"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_dl_q_end"},
+      {op: "load_byte", dst: "rax", base: "r8"},
+      {op: "cmp", dst: "rax", imm: 46},
+      {op: "j", cond: "e", label: "rt_dl_q_dot"},
+      {op: "store_byte", src: "rax", base: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "jmp", label: "rt_dl_q_next"},
+      {op: "label", name: "rt_dl_q_dot"},
+      {op: "cmp", dst: "rdx", imm: 1},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "cmp", dst: "rdx", imm: 63},
+      {op: "j", cond: "g", label: "rt_dl_out"},
+      {op: "store_byte", src: "rdx", base: "r11"},
+      {op: "mov", dst: "r11", src: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_dl_q_next"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "jmp", label: "rt_dl_q_byte"},
+      {op: "label", name: "rt_dl_q_end"},
+      {op: "cmp", dst: "rdx", imm: 1},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "cmp", dst: "rdx", imm: 63},
+      {op: "j", cond: "g", label: "rt_dl_out"},
+      {op: "store_byte", src: "rdx", base: "r11"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store_byte", src: "rcx", base: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "store_byte", src: "rcx", base: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store_byte", src: "rcx", base: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store_byte", src: "rcx", base: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store_byte", src: "rcx", base: "r10"},
+      {op: "add", dst: "r10", imm: 1},
+      {op: "mov", dst: "rcx", src: "rbp"},
+      {op: "add", dst: "rcx", imm: DNS_QUERY},
+      {op: "sub", dst: "r10", src: "rcx"},
+      {op: "store", src: "r10", base: "rbp", disp: -48},
+      {op: "mov", dst: "rdi", imm: 2},
+      {op: "mov", dst: "rsi", imm: 526_338},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "rax", imm: 41},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "movabs", dst: "rdx", imm: 4_294_967_296},
+      {op: "imul", dst: "rcx", src: "rdx"},
+      {op: "movabs", dst: "rdx", imm: 13568 * 65536 + 2},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "store", src: "rcx", base: "rbp", disp: -72},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -64},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -72},
+      {op: "mov", dst: "rdx", imm: 16},
+      {op: "mov", dst: "rax", imm: 42},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_dl_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: DNS_QUERY},
+      {op: "load", dst: "rdx", base: "rbp", disp: -48},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "syscall"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -48},
+      {op: "cmp", dst: "rax", src: "rcx"},
+      {op: "j", cond: "ne", label: "rt_dl_out"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "movabs", dst: "rdx", imm: 4_294_967_296},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "store", src: "rcx", base: "rbp", disp: -80},
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -80},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "mov", dst: "rdx", imm: 1500},
+      {op: "mov", dst: "rax", imm: 7},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: DNS_ANSWER},
+      {op: "mov", dst: "rdx", imm: 512},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 12},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "mov", dst: "r8", src: "rbp"},
+      {op: "add", dst: "r8", imm: DNS_ANSWER},
+      {op: "mov", dst: "r9", src: "r8"},
+      {op: "add", dst: "r9", src: "rax"}
+    ],
+    dns_pair("rdx", 0),
+    [
+      {op: "cmp", dst: "rdx", imm: 16962},
+      {op: "j", cond: "ne", label: "rt_dl_out"}
+    ],
+    dns_pair("rdx", 2),
+    [
+      {op: "and", dst: "rdx", imm: 15},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_dl_out"}
+    ],
+    dns_pair("rdx", 6),
+    [
+      {op: "store", src: "rdx", base: "rbp", disp: -88},
+      {op: "add", dst: "r8", imm: 12}
+    ],
+    skip_dns_name("rt_dl_qn", "rt_dl_out"),
+    [
+      {op: "add", dst: "r8", imm: 4},
+      {op: "label", name: "rt_dl_record"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -88},
+      {op: "cmp", dst: "rcx", imm: 1},
+      {op: "j", cond: "l", label: "rt_dl_out"},
+      {op: "sub", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -88}
+    ],
+    skip_dns_name("rt_dl_an", "rt_dl_out"),
+    [
+      {op: "mov", dst: "rcx", src: "r8"},
+      {op: "add", dst: "rcx", imm: 10},
+      {op: "cmp", dst: "rcx", src: "r9"},
+      {op: "j", cond: "g", label: "rt_dl_out"}
+    ],
+    dns_pair("rdx", 0),
+    dns_pair("r10", 8),
+    [
+      {op: "add", dst: "r8", imm: 10},
+      {op: "mov", dst: "rcx", src: "r8"},
+      {op: "add", dst: "rcx", src: "r10"},
+      {op: "cmp", dst: "rcx", src: "r9"},
+      {op: "j", cond: "g", label: "rt_dl_out"},
+      {op: "cmp", dst: "rdx", imm: 1},
+      {op: "j", cond: "ne", label: "rt_dl_next_record"},
+      {op: "cmp", dst: "r10", imm: 4},
+      {op: "j", cond: "ne", label: "rt_dl_next_record"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "mov", dst: "r11", imm: 256}
+    ],
+    flat_map(
+      [3, 2, 1, 0],
+      fn(k)
+        [
+          {op: "imul", dst: "rax", src: "r11"},
+          {op: "mov", dst: "rcx", src: "r8"},
+          {op: "add", dst: "rcx", imm: k},
+          {op: "load_byte", dst: "rcx", base: "rcx"},
+          {op: "add", dst: "rax", src: "rcx"}
+        ]
+      end
+    ),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -16},
+      {op: "jmp", label: "rt_dl_out"},
+      {op: "label", name: "rt_dl_next_record"},
+      {op: "add", dst: "r8", src: "r10"},
+      {op: "jmp", label: "rt_dl_record"},
+      {op: "label", name: "rt_dl_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "l", label: "rt_dl_closed"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "label", name: "rt_dl_closed"},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_TCP_CONNECT: tcp_connect_ms natively (R4 of docs/PURE-BLUE.md): one TCP connection to the host string in rdi, port in rsi, within the timeout in rdx (milliseconds), closed at once; answered in rax as the milliseconds the handshake took, or [:error, why, host] with why :refused, :timeout, :unreachable, :unresolved or :failed (keywords passed in rcx, r8 to r11 and on the stack). The host is a dotted IPv4 address or a name the system's /etc/hosts gives an IPv4 address (rt_hosts_lookup), else the address a DNS server gives it (rt_dns_lookup); a name neither gives answers :unresolved. A port outside 1..65535 or a negative timeout is refused as an error, as the reference raises. The connect is non-blocking, waited for by poll, and judged by SO_ERROR.
 
     RT_TCP_CONNECT[0] #=> {op: "label", name: "rt_tcp_connect"}
 """
@@ -4946,6 +5321,10 @@ RT_TCP_CONNECT = append(
       {op: "j", cond: "ne", label: "rt_tc_have"},
       {op: "load", dst: "rdi", base: "rbp", disp: -8},
       {op: "call_label", label: "rt_hosts_lookup"},
+      {op: "cmp", dst: "rax", imm: -1},
+      {op: "j", cond: "ne", label: "rt_tc_have"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_dns_lookup"},
       {op: "cmp", dst: "rax", imm: -1},
       {op: "j", cond: "e", label: "rt_tc_unresolved"},
       {op: "label", name: "rt_tc_have"},
@@ -5076,9 +5455,9 @@ RT_TCP_CONNECT = append(
 )
 
 @doc """
-tcp_programs: programs over tcp_connect_ms, with the exit status each must give: a refused port answers [:error, :refused, …], a name native code cannot resolve answers :unresolved, a bad port is refused as an error, and a listening port answers a time.
+tcp_programs: programs over tcp_connect_ms, with the exit status each must give: a refused port answers [:error, :refused, …], a name native code cannot resolve answers :unresolved, a bad port is refused as an error, and a listening port answers a time, by an /etc/hosts name and by a name only DNS gives.
 
-    length(tcp_programs) #=> 4
+    length(tcp_programs) #=> 5
 """
 def tcp_programs()
   [
@@ -5091,7 +5470,8 @@ def tcp_programs()
       0
     ],
     ["(try (tcp_connect_ms \"127.0.0.1\" 0 500) (catch (e) 7))", 7],
-    ["(if (< (tcp_connect_ms \"localhost\" 22 2000) 2000) 0 1)", 0]
+    ["(if (< (tcp_connect_ms \"localhost\" 22 2000) 2000) 0 1)", 0],
+    ["(if (< (tcp_connect_ms \"dns.google\" 443 3000) 3000) 0 1)", 0]
   ]
 end
 
@@ -5128,10 +5508,16 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
     {op: "label", name: "rt_hosts_lookup"},
     {op: "ret"},
     {op: "label", name: "rt_read_file"},
+    {op: "ret"},
+    {op: "label", name: "rt_dns_lookup"},
     {op: "ret"}
   ]
   assert length(assemble(append(RT_TCP_CONNECT, stand_ins))) > 0
   assert length(assemble(append(RT_HOSTS_LOOKUP, stand_ins))) > 0
+  assert length(assemble(append(RT_DNS_LOOKUP, stand_ins))) > 0
+  assert skip_dns_name("t", "bad")[0] == {op: "label", name: "t_label"}
+  assert length(dns_pair("rdx", 0)) == 9
+  assert DNS_QUERY - DNS_ANSWER == 600
   assert parse_dotted("t")[0] == {op: "mov", dst: "rdx", imm: 0}
 end
 

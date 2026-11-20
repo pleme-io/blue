@@ -5082,3 +5082,14 @@ test "is_terminal asks TCGETS, and read_line reads a byte at a time into a mappi
   assert length(filter((i) -> i == {op: "label", name: "rt_tty_no"}, twice)) ==
     1
 end
+
+test "run_status and rc_run run a compiled program and answer a status", {
+  allow: %i[filesystem process]
+}
+  assert integer?(run_status(read_forms("7")[0], compile))
+  assert integer?(rc_run(read_forms("7")[0], :exit))
+  if linux_x86?
+    assert run_status(read_forms("7")[0], compile) == 7
+    assert rc_run(read_forms("7")[0], :exit) == 7
+  end
+end

@@ -1037,6 +1037,16 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif op == "put_int"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_put_int"}]
+    )
+  elsif op == "put_byte"
+    append(
+      tagged_atom(slots, args[0], "rdi"),
+      [{op: "call_label", label: "rt_put_byte"}]
+    )
   elsif op == "is_terminal"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1670,7 +1680,9 @@ def runtime()
       RT_READ_LINE,
       IS_TERMINAL,
       RT_HOSTS_LOOKUP,
-      RT_DNS_LOOKUP
+      RT_DNS_LOOKUP,
+      RT_PUT_INT,
+      RT_PUT_BYTE
     ]
   )
 end
@@ -5686,4 +5698,123 @@ test "run_status and rc_run run a compiled program and answer a status", {
     assert run_status(read_forms("7")[0], compile) == 7
     assert rc_run(read_forms("7")[0], :exit) == 7
   end
+end
+
+@doc """
+RT_PUT_INT: put_int natively (R4 of docs/PURE-BLUE.md, the word C3's corpus prints with): the tagged number in rdi to standard output in decimal, a minus sign first when it is negative, answered in rax. The digits are built backward in the routine's frame and go out in one write, so nothing is allocated.
+
+    RT_PUT_INT[0] #=> {op: "label", name: "rt_put_int"}
+"""
+RT_PUT_INT = [
+  {op: "label", name: "rt_put_int"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: 48},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "mov", dst: "rax", src: "rdi"},
+  {op: "sar1", dst: "rax"},
+  {op: "mov", dst: "r8", src: "rbp"},
+  {op: "add", dst: "r8", imm: -8},
+  {op: "mov", dst: "r10", src: "r8"},
+  {op: "mov", dst: "r9", imm: 0},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ge", label: "rt_pi_digit"},
+  {op: "mov", dst: "r9", imm: 1},
+  {op: "mov", dst: "rcx", imm: 0},
+  {op: "sub", dst: "rcx", src: "rax"},
+  {op: "mov", dst: "rax", src: "rcx"},
+  {op: "label", name: "rt_pi_digit"},
+  {op: "cqo"},
+  {op: "mov", dst: "rcx", imm: 10},
+  {op: "idiv", src: "rcx"},
+  {op: "add", dst: "rdx", imm: 48},
+  {op: "sub", dst: "r10", imm: 1},
+  {op: "store_byte", src: "rdx", base: "r10"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ne", label: "rt_pi_digit"},
+  {op: "cmp", dst: "r9", imm: 0},
+  {op: "j", cond: "e", label: "rt_pi_write"},
+  {op: "mov", dst: "rcx", imm: 45},
+  {op: "sub", dst: "r10", imm: 1},
+  {op: "store_byte", src: "rcx", base: "r10"},
+  {op: "label", name: "rt_pi_write"},
+  {op: "mov", dst: "rdi", imm: 1},
+  {op: "mov", dst: "rsi", src: "r10"},
+  {op: "mov", dst: "rdx", src: "r8"},
+  {op: "sub", dst: "rdx", src: "r10"},
+  {op: "mov", dst: "rax", imm: 1},
+  {op: "syscall"},
+  {op: "load", dst: "rax", base: "rbp", disp: -8},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+RT_PUT_BYTE: put_byte natively: the low byte of the tagged number in rdi to standard output, answered in rax.
+
+    RT_PUT_BYTE[0] #=> {op: "label", name: "rt_put_byte"}
+"""
+RT_PUT_BYTE = [
+  {op: "label", name: "rt_put_byte"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: 16},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "mov", dst: "rcx", src: "rdi"},
+  {op: "sar1", dst: "rcx"},
+  {op: "mov", dst: "rsi", src: "rbp"},
+  {op: "add", dst: "rsi", imm: -16},
+  {op: "store_byte", src: "rcx", base: "rsi"},
+  {op: "mov", dst: "rdi", imm: 1},
+  {op: "mov", dst: "rdx", imm: 1},
+  {op: "mov", dst: "rax", imm: 1},
+  {op: "syscall"},
+  {op: "load", dst: "rax", base: "rbp", disp: -8},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+output_programs: programs over put_int and put_byte, with the exit status and output each must give: a number and a line break, a negative number, zero, and a value answered back as the status.
+
+    length(output_programs) #=> 4
+"""
+def output_programs()
+  [
+    ["(begin (put_int 1234) (put_byte 10) 0)", 0, unlines(["1234"])],
+    ["(begin (put_int -56) (put_byte 10) 0)", 0, unlines(["-56"])],
+    ["(begin (put_int 0) 0)", 0, "0"],
+    ["(put_byte (put_int 65))", 65, "65A"]
+  ]
+end
+
+test "put_int and put_byte print natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-put"), "put.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+      end,
+      output_programs
+    )
+  end
+end
+
+test "put_int builds its digits in its frame, and put_byte writes one byte"
+  assert last(rc_op([], "put_int", [1])) ==
+    {op: "call_label", label: "rt_put_int"}
+  assert last(rc_op([], "put_byte", [10])) ==
+    {op: "call_label", label: "rt_put_byte"}
+  assert length(assemble(RT_PUT_INT)) > 0
+  assert length(assemble(RT_PUT_BYTE)) > 0
+  assert length(output_programs) == 4
 end

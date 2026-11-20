@@ -82,7 +82,7 @@ and recompute this list from §7.
    `put_byte`, which C3 needs (both landed natively). Critical path: R4 → R6a → S1.
 3. **R6a** is done (JSON reader and writers, BLAKE3, SHA-256, SHA-512, each differential against its Rust word). Its exit, the json and hash rows passing natively, waits on the native backend (R4).
 4. **F1, the rest** (`pure-blue/front-tower-conformance.md` §F1): the parser in blue over `yomi::lex`, then `blue ast --tree-json` as the oracle and `checks.reader-differential`. The lexer landed and agrees over every `.b` file.
-5. **M2, the rest** (`pure-blue/language-memory.md` §M2): only the merge of the static memory hints into the live hints when live evaluation is on; `blue explain --memory`, its `--hints`, `local_reads` and the language server serving them with live evaluation off landed.
+5. **M2** is done: `blue explain --memory` and `--hints`, `local_reads`, and the language server serving the memory hints with live evaluation off and beside the value hints with it on.
 6. **C2, the rest** (§C2): cycle-through-cell first (measured: the VM's letrec ring, fixed in tatara by a closed-ring release; the C2 track doc has the shape), then `closes_at`, move vs copy, and `checks.no-leak` (I3) once `spec/leaks.baseline` is near empty.
 7. **B3** (§B3): `checks.native-x64-corpus`.
 8. **R6c** (§R6): YAML, XML, Nix parsing in blue (needs only R3).

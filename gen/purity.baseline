@@ -11,7 +11,7 @@ purity-bytes: crates/blue-lang-host-macros 9063
 purity-bytes: crates/blue-lang-ios 23082
 purity-bytes: crates/blue-lang-kernel 20080
 purity-bytes: crates/blue-lang-kiwari 67967
-purity-bytes: crates/blue-lang-lsp 208134
+purity-bytes: crates/blue-lang-lsp 209373
 purity-bytes: crates/blue-lang-mondou 280613
 purity-bytes: crates/blue-lang-pkg 618679
 purity-bytes: crates/blue-lang-proc 395068

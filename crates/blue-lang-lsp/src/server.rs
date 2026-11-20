@@ -851,7 +851,10 @@ impl Server {
             return Vec::new();
         }
         doc.running = None;
-        if let Some((found_diagnostics, hints)) = found {
+        if let Some((found_diagnostics, mut hints)) = found {
+            if let (Some(of), Some(text)) = (&self.memory_hints, self.engine.document_text(uri)) {
+                hints.extend(of(&text));
+            }
             doc.diagnostics = found_diagnostics;
             doc.hints = hints;
         }
@@ -2081,10 +2084,14 @@ mod tests {
 
     impl Client {
         fn start(options: Value) -> Self {
+            Self::start_with(options, Server::new)
+        }
+
+        fn start_with(options: Value, make: impl FnOnce() -> Server + Send + 'static) -> Self {
             let (server_in, input) = std::io::pipe().expect("a pipe to the server");
             let (from_server, server_out) = std::io::pipe().expect("a pipe from the server");
             let server = std::thread::spawn(move || {
-                Server::new().serve(std::io::BufReader::new(server_in), server_out)
+                make().serve(std::io::BufReader::new(server_in), server_out)
             });
             let (sink, inbox) = mpsc::channel();
             std::thread::spawn(move || {
@@ -2245,6 +2252,33 @@ mod tests {
             hints["result"],
             json!([{ "position": { "line": 0, "character": 5 }, "label": "=> 3", "paddingLeft": true }])
         );
+    }
+
+    #[test]
+    fn live_hints_carry_the_memory_hints_beside_the_values() {
+        let served = || {
+            Server::new().with_memory_hints(Box::new(|_| {
+                vec![live::Hint {
+                    position: Position {
+                        line: 0,
+                        character: 0,
+                    },
+                    label: "last read of x".to_owned(),
+                }]
+            }))
+        };
+        let mut c = Client::start_with(json!({}), served);
+        let uri = "file:///live/merged.b";
+        c.open(uri, "1 + 2\n");
+        let hints = c.inlay_hints(uri);
+        let labels: Vec<&str> = hints["result"]
+            .as_array()
+            .expect("hints")
+            .iter()
+            .filter_map(|h| h["label"].as_str())
+            .collect();
+        assert!(labels.contains(&"=> 3"), "{hints:#?}");
+        assert!(labels.contains(&"last read of x"), "{hints:#?}");
     }
 
     #[test]

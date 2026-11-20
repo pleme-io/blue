@@ -75,13 +75,54 @@ def native(name, args)
   )
 end
 
+@doc """
+off: The environment of a run the interpreter answers alone.
+"""
+def off()
+  [%w[BLUE_NATIVE off]]
+end
+
+@doc """
+disagreeing: The calls, each `[name, args]`, whose answer under BLUE_NATIVE=on, with the
+artifacts of $DEFS_ROOT on the shelf, is not the interpreter's.
+"""
+def disagreeing(work, calls)
+  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", env_required("DEFS_ROOT")]]
+  filter(
+    fn(c)
+      interpreted(work, first(c), second(c), off) !=
+        interpreted(work, first(c), second(c), on)
+    end,
+    calls
+  )
+end
+
+@doc """
+swapped: The environment of a run whose shelf answers `name` from the artifact of `other`
+(its executable and its library), so a call of `name` that answers what
+`other` answers was answered by an artifact, not the interpreter.
+"""
+def swapped(work, name, other)
+  shelf = path_join(work, "shelf", "native", "v1", hex_of(name))
+  mkdir_p(shelf)
+  from = path_join(env_required("DEFS_ROOT"), "native", "v1", hex_of(other))
+  exec_capture("ln", "-s", path_join(from, "def"), path_join(shelf, "def"))
+  exec_capture(
+    "ln",
+    "-s",
+    path_join(from, "def.so"),
+    path_join(shelf, "def.so")
+  )
+  [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", path_join(work, "shelf")]]
+end
+
 test "every compiled definition answers what the interpreter answers", {
   kind: :integration
 }
   work = temp_dir("native-defs")
   differ = filter(
     fn(c)
-      want = interpreted(work, first(c), second(c), [%w[BLUE_NATIVE off]])
+      want = interpreted(work, first(c), second(c), off)
       want.nil? or "i#{want}" != native(first(c), second(c))
     end,
     cases
@@ -103,212 +144,102 @@ test "the native tier answers a call from its def_hash's artifact", {
     path_join(shelf, "def")
   )
   on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", path_join(work, "shelf")]]
-  off = [%w[BLUE_NATIVE off], ["BLUE_CACHE_SHARED", path_join(work, "shelf")]]
-  assert interpreted(work, "fib", [5], off) == unlines(["5"])
+  held = [%w[BLUE_NATIVE off], ["BLUE_CACHE_SHARED", path_join(work, "shelf")]]
+  assert interpreted(work, "fib", [5], held) == unlines(["5"])
   assert interpreted(work, "fib", [5], on) == unlines(["25"])
   assert interpreted(work, "square", [5], on) == unlines(["25"])
 end
 
 test "a Bool crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-bool")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [
     ["small", [2]],
     ["small", [5]],
     ["pick", [true, 7]],
     ["pick", [false, 7]]
   ]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("big"))
-  mkdir_p(shelf)
-  small = path_join(root, "native", "v1", hex_of("small"))
-  exec_capture("ln", "-s", path_join(small, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(small, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   assert interpreted(work, "big", [5], off) == unlines(["true"])
-  assert interpreted(work, "big", [5], swapped) == unlines(["false"])
+  assert interpreted(work, "big", [5], swapped(work, "big", "small")) ==
+    unlines(["false"])
 end
 
 test "a Float crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-float")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [
     ["area", [1.5]],
     ["half", [-3.0]],
     ["wide", [2.5, 2]],
     ["wide", [1.5, 2]]
   ]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("area"))
-  mkdir_p(shelf)
-  half = path_join(root, "native", "v1", hex_of("half"))
-  exec_capture("ln", "-s", path_join(half, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(half, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   assert interpreted(work, "area", [4.0], off) == unlines(["56.0"])
-  assert interpreted(work, "area", [4.0], swapped) == unlines(["2.0"])
+  assert interpreted(work, "area", [4.0], swapped(work, "area", "half")) ==
+    unlines(["2.0"])
 end
 
 test "a Str crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-str")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [
     ["shout", ["hé", 3]],
     ["width", ["héllo"]],
     ["width", [""]],
     ["twice", ["ab"]]
   ]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("twice"))
-  mkdir_p(shelf)
-  bang = path_join(root, "native", "v1", hex_of("bang"))
-  exec_capture("ln", "-s", path_join(bang, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(bang, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   assert interpreted(work, "twice", ["ab"], off) == unlines(["abab"])
-  assert interpreted(work, "twice", ["ab"], swapped) == unlines(["ab!"])
+  assert interpreted(work, "twice", ["ab"], swapped(work, "twice", "bang")) ==
+    unlines(["ab!"])
 end
 
 test "a list of Ints crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-list")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [
     ["grown", [[1, -2], 3]],
     ["grown", [[], 0]],
     ["tally", [[5, 6, 7]]],
     ["tally", [[]]]
   ]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("grown"))
-  mkdir_p(shelf)
-  doubled = path_join(root, "native", "v1", hex_of("doubled"))
-  exec_capture("ln", "-s", path_join(doubled, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(doubled, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   assert interpreted(work, "grown", [[1], 2], off) == unlines(["[1, 2]"])
-  assert interpreted(work, "grown", [[1], 2], swapped) == unlines(["[1, 2, 2]"])
+  assert interpreted(
+    work,
+    "grown",
+    [[1], 2],
+    swapped(work, "grown", "doubled")
+  ) == unlines(["[1, 2, 2]"])
 end
 
 test "a record of Ints crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-record")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [["shifted", [pt(1, -2), 5]], ["spread", [pt(7, 3)]]]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("shifted"))
-  mkdir_p(shelf)
-  lifted = path_join(root, "native", "v1", hex_of("lifted"))
-  exec_capture("ln", "-s", path_join(lifted, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(lifted, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   assert interpreted(work, "shifted", [pt(1, 2), 5], off) ==
     unlines(["pt({x: 6, y: 2})"])
-  assert interpreted(work, "shifted", [pt(1, 2), 5], swapped) ==
-    unlines(["pt({x: 1, y: 7})"])
+  assert interpreted(
+    work,
+    "shifted",
+    [pt(1, 2), 5],
+    swapped(work, "shifted", "lifted")
+  ) == unlines(["pt({x: 1, y: 7})"])
 end
 
 test "a list only tested is a set, and answers as the list does", {
   kind: :integration
 }
   work = temp_dir("native-set")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [["hits", [[1, 3, 5], 50, 0]], ["hits", [[], 10, 0]]]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
+  assert disagreeing(work, calls) == []
   assert contains?(
-    read_file(path_join(root, "native", "v1", hex_of("hits"), "def.rs")),
+    read_file(
+      path_join(
+        env_required("DEFS_ROOT"),
+        "native",
+        "v1",
+        hex_of("hits"),
+        "def.rs"
+      )
+    ),
     "set_of"
   )
 end
@@ -317,20 +248,18 @@ test "a list only popped is a queue, and answers as the list does", {
   kind: :integration
 }
   work = temp_dir("native-queue")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [["drain", [[4, -1, 9], 0]], ["drain", [[], 3]]]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
+  assert disagreeing(work, calls) == []
   assert contains?(
-    read_file(path_join(root, "native", "v1", hex_of("drain"), "def.rs")),
+    read_file(
+      path_join(
+        env_required("DEFS_ROOT"),
+        "native",
+        "v1",
+        hex_of("drain"),
+        "def.rs"
+      )
+    ),
     "queue_of"
   )
 end
@@ -339,121 +268,58 @@ test "a record of Bools and Floats crosses the seam both ways", {
   kind: :integration
 }
   work = temp_dir("native-gauge")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [
     ["weighed", [gauge(true, 1.5, 3), 0.25]],
     ["switched", [gauge(false, -2.0, 7)]]
   ]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("weighed"))
-  mkdir_p(shelf)
-  other = path_join(root, "native", "v1", hex_of("lightened"))
-  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(other, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   g = gauge(true, 1.5, 3)
   assert interpreted(work, "weighed", [g, 0.25], off) ==
     unlines(["gauge({n: 3, on: true, w: 1.75})"])
-  assert interpreted(work, "weighed", [g, 0.25], swapped) ==
-    unlines(["gauge({n: 3, on: true, w: 1.25})"])
+  assert interpreted(
+    work,
+    "weighed",
+    [g, 0.25],
+    swapped(work, "weighed", "lightened")
+  ) == unlines(["gauge({n: 3, on: true, w: 1.25})"])
 end
 
 test "a record that holds a Str crosses the seam both ways", {
   kind: :integration
 }
   work = temp_dir("native-tag")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [["bumped", [tag("é, a", 3), 4]], ["relabeled", [tag("", -1), "x"]]]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("bumped"))
-  mkdir_p(shelf)
-  other = path_join(root, "native", "v1", hex_of("shrunk"))
-  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(other, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   t = tag("é, a", 3)
   assert interpreted(work, "bumped", [t, 4], off) ==
     unlines(["tag({label: \"é, a\", n: 7})"])
-  assert interpreted(work, "bumped", [t, 4], swapped) ==
-    unlines(["tag({label: \"é, a\", n: -1})"])
+  assert interpreted(
+    work,
+    "bumped",
+    [t, 4],
+    swapped(work, "bumped", "shrunk")
+  ) == unlines(["tag({label: \"é, a\", n: -1})"])
 end
 
 test "a record that holds a list of Ints crosses the seam both ways", {
   kind: :integration
 }
   work = temp_dir("native-bag")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   calls = [["pushed", [bag([1, -2], 0), 5]], ["tallied", [bag([], 9)]]]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("pushed"))
-  mkdir_p(shelf)
-  other = path_join(root, "native", "v1", hex_of("pushed_twice"))
-  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(other, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   b = bag([1], 0)
   assert interpreted(work, "pushed", [b, 5], off) ==
     unlines(["bag({n: 0, xs: [1, 5]})"])
-  assert interpreted(work, "pushed", [b, 5], swapped) ==
-    unlines(["bag({n: 0, xs: [1, 5, 5]})"])
+  assert interpreted(
+    work,
+    "pushed",
+    [b, 5],
+    swapped(work, "pushed", "pushed_twice")
+  ) == unlines(["bag({n: 0, xs: [1, 5, 5]})"])
 end
 
 test "a map of Strs to Ints crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-map")
-  root = env_required("DEFS_ROOT")
-  on = [%w[BLUE_NATIVE on], ["BLUE_CACHE_SHARED", root]]
-  off = [%w[BLUE_NATIVE off]]
   m = assoc(assoc({}, "é, b", 2), "a", 1)
   calls = [
     ["put_word", [m, "c", 3]],
@@ -461,30 +327,36 @@ test "a map of Strs to Ints crosses the seam both ways", {kind: :integration}
     ["looked_up", [m, "a"]],
     ["looked_up", [m, "absent"]]
   ]
-  differ = filter(
-    fn(c)
-      interpreted(work, first(c), second(c), off) !=
-        interpreted(work, first(c), second(c), on)
-    end,
-    calls
-  )
-  assert differ == []
-  shelf = path_join(work, "shelf", "native", "v1", hex_of("put_word"))
-  mkdir_p(shelf)
-  other = path_join(root, "native", "v1", hex_of("put_double"))
-  exec_capture("ln", "-s", path_join(other, "def"), path_join(shelf, "def"))
-  exec_capture(
-    "ln",
-    "-s",
-    path_join(other, "def.so"),
-    path_join(shelf, "def.so")
-  )
-  swapped = [
-    %w[BLUE_NATIVE on],
-    ["BLUE_CACHE_SHARED", path_join(work, "shelf")]
-  ]
+  assert disagreeing(work, calls) == []
   assert interpreted(work, "put_word", [m, "c", 3], off) ==
     unlines(["{\"a\" => 1, \"c\" => 3, \"é, b\" => 2}"])
-  assert interpreted(work, "put_word", [m, "c", 3], swapped) ==
-    unlines(["{\"a\" => 1, \"c\" => 6, \"é, b\" => 2}"])
+  assert interpreted(
+    work,
+    "put_word",
+    [m, "c", 3],
+    swapped(work, "put_word", "put_double")
+  ) == unlines(["{\"a\" => 1, \"c\" => 6, \"é, b\" => 2}"])
+end
+
+test "a list of records crosses the seam both ways", {kind: :integration}
+  work = temp_dir("native-items")
+  ts = [tag("é, a", 3), tag("", -1)]
+  calls = [
+    ["placed", [[pt(1, 2)], 3]],
+    ["placed", [[], 0]],
+    ["swept", [[pt(1, 2), pt(-4, 5)], 0, pt(0, 1)]],
+    ["swept", [[], 0, pt(7, 7)]],
+    ["joined", [ts, [tag("b", 2)]]],
+    ["joined", [[], []]],
+    ["headed", [ts]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "placed", [[pt(1, 2)], 3], off) ==
+    unlines(["[pt({x: 1, y: 2}), pt({x: 3, y: -3})]"])
+  assert interpreted(
+    work,
+    "placed",
+    [[pt(1, 2)], 3],
+    swapped(work, "placed", "placed_twice")
+  ) == unlines(["[pt({x: 1, y: 2}), pt({x: 3, y: -3}), pt({x: 3, y: -3})]"])
 end

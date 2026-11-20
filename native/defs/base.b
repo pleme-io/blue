@@ -165,3 +165,27 @@ end
 def looked_up(m: Map(Str, Int), k: Str) -> Int
   get(m, k) + count(m)
 end
+
+def placed(ps: List(pt), x: Int) -> List(pt)
+  append(ps, [pt(x, -x)])
+end
+
+def placed_twice(ps: List(pt), x: Int) -> List(pt)
+  append(ps, [pt(x, -x), pt(x, -x)])
+end
+
+def swept(ps: List(pt), i: Int, acc: pt) -> pt
+  if i == count(ps)
+    acc
+  else
+    swept(ps, i + 1, pt(acc.x + ps[i].x, acc.y * ps[i].y))
+  end
+end
+
+def joined(ts: List(tag), us: List(tag)) -> List(tag)
+  append(append(ts, us), [tag("end", count(ts))])
+end
+
+def headed(ts: List(tag)) -> tag
+  tag(**first(ts), n: count(ts))
+end

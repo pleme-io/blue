@@ -83,6 +83,66 @@ pub fn rc_count(l: &List) -> i64 {
     i64::try_from(l.len()).unwrap_or_else(|_| kiban_io::fault())
 }
 
+/// A refcounted list of records, each the record's own struct.
+pub type Items<T> = Rc<Vec<T>>;
+
+/// An empty list of records with room for `n`.
+#[must_use]
+pub fn items_with<T>(n: usize) -> Vec<T> {
+    Vec::with_capacity(n)
+}
+
+/// A built list of records, now refcounted.
+#[must_use]
+pub fn items_of<T>(v: Vec<T>) -> Items<T> {
+    Rc::new(v)
+}
+
+/// `a` then `b`: in place when `a` is held nowhere else.
+#[must_use]
+pub fn items_append<T: Clone>(mut a: Items<T>, b: &Items<T>) -> Items<T> {
+    Rc::make_mut(&mut a).extend_from_slice(b);
+    a
+}
+
+/// `a` with `v` at its end: in place when `a` is held nowhere else.
+#[must_use]
+pub fn items_push<T: Clone>(mut a: Items<T>, v: T) -> Items<T> {
+    Rc::make_mut(&mut a).push(v);
+    a
+}
+
+/// The record at `i`, a clone, or a fault past either end.
+#[must_use]
+pub fn items_nth<T: Clone>(l: &Items<T>, i: i64) -> T {
+    match usize::try_from(i).ok().and_then(|i| l.get(i)) {
+        Some(v) => v.clone(),
+        None => kiban_io::fault(),
+    }
+}
+
+/// How many records `l` holds.
+#[must_use]
+pub fn items_count<T>(l: &Items<T>) -> i64 {
+    i64::try_from(l.len()).unwrap_or_else(|_| kiban_io::fault())
+}
+
+/// The list of records a seam value is, each element read by `read`, or a
+/// fault when it is not a list of records.
+#[must_use]
+pub fn items_in<T>(v: &Value, read: fn(&Value) -> T) -> Items<T> {
+    match v {
+        Value::Items(vs) => Rc::new(vs.iter().map(read).collect()),
+        _ => kiban_io::fault(),
+    }
+}
+
+/// A list of records as a seam value, each element written by `write`.
+#[must_use]
+pub fn items_out<T>(l: &Items<T>, write: fn(&T) -> Value) -> Value {
+    Value::Items(l.iter().map(write).collect())
+}
+
 /// A list in a region: where its words start and how many there are.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span {
@@ -345,6 +405,7 @@ pub enum Value {
     Record(List),
     Fields(Vec<Value>),
     Map(Map),
+    Items(Vec<Value>),
 }
 
 impl Value {

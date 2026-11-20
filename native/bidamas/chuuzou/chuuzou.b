@@ -451,13 +451,19 @@ end
 @doc """
 cz_sig_ty: The type a signature names: Int is the board word (:word), Bool is :bool,
 Float is :float (an f64, on the host board only), an untyped parameter (dyn) holds any record (:dyn), and a record's own name
-is that record, by its qualified name.
+is that record, by its qualified name; a list of a record is `{items: record}`.
 
     cz_sig_ty({sym: "Int"}, []) #=> :word
     cz_sig_ty({sym: "point"}, [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> "%root/point"
+    cz_sig_ty(first(cz_read("(List point)")), [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> {items: "%root/point"}
 """
 def cz_sig_ty(n, records)
-  s = if list?(n) and
+  held = if list?(n) and count(n) == 2 and cz_sym(first(n)) == "List"
+    find(records, (x) -> cz_local(x[:name]) == cz_sym(second(n)))
+  end
+  s = if held != nil
+    "Items"
+  elsif list?(n) and
       count(n) == 2 and
       cz_sym(first(n)) == "List" and
       cz_sym(second(n)) == "Int"
@@ -482,13 +488,34 @@ def cz_sig_ty(n, records)
     :list
   elsif s == "Map(Str, Int)"
     :map
+  elsif s == "Items"
+    cz_items_of(held[:name])
   elsif r != nil
     r[:name]
   else
     cz_refuse(
-      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, Str a refcounted string, Map(Str, Int) a refcounted map, a record its struct, dyn any record"
+      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, Float an f64, Str a refcounted string, Map(Str, Int) a refcounted map, a record its struct, a list of a record a refcounted list of its structs, dyn any record"
     )
   end
+end
+
+@doc """
+cz_items_of: The lowered type of a list whose elements are the record `name`.
+
+    cz_items_of("%root/p") #=> {items: "%root/p"}
+"""
+def cz_items_of(name)
+  {items: name}
+end
+
+@doc """
+cz_items?: Whether the lowered type `ty` is a list of a record.
+
+    cz_items?({items: "%root/p"}) #=> true
+    cz_items?(:list) #=> false
+"""
+def cz_items?(ty)
+  map?(ty) and ty[:items] != nil
 end
 
 @doc """
@@ -521,6 +548,8 @@ def cz_rs_ty(ty, word)
     cz_refuse("a map has a native form on the 64-bit host only, where the heap is")
   elsif ty == :span
     rs_ty("Span")
+  elsif cz_items?(ty)
+    {ident: "Items", generics: [rs_ty(cz_struct_name(ty[:items]))]}
   else
     rs_ty(cz_struct_name(ty))
   end
@@ -661,6 +690,8 @@ def cz_ty_text(t)
     "a Str"
   elsif t == :dyn
     "any record"
+  elsif cz_items?(t)
+    "a list of #{cz_local(t[:items])}"
   else
     "a #{cz_local(t)}"
   end
@@ -723,6 +754,8 @@ def cz_ty(n, ctx)
     cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
   elsif h == "begin"
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
+  elsif cz_items_op?(h, rest(n), ctx)
+    cz_items_ty(h, rest(n), ctx)
   elsif h == "list" or h == "append" or h == "rest"
     :list
   elsif h == "assoc" or h == "hash-map"
@@ -772,7 +805,7 @@ record when one of `records` does.
     cz_counted?(:dyn, [{name: "%root/q", fields: ["x"], types: [:word]}]) #=> false
 """
 def cz_counted?(ty, records)
-  if member?(ty, %i[list str map])
+  if member?(ty, %i[list str map]) or cz_items?(ty)
     true
   elsif ty == :dyn
     any?(cz_holds_counted?, records)
@@ -1414,6 +1447,8 @@ def cz_call(n, ctx)
     cz_member(first(args), second(args), ctx)
   elsif cz_map_op?(h, args, ctx)
     cz_map_op(h, args, ctx)
+  elsif cz_items_op?(h, args, ctx)
+    cz_items_op(h, args, ctx)
   elsif member?(h, %w[first count rest]) and
       count(args) == 1 and
       cz_sym?(first(args)) and
@@ -1589,6 +1624,8 @@ def cz_member(v, xs, ctx)
     cz_refuse("a list needs a heap, and this board has none; lists compile for the host board")
   elsif ctx[:strategy] == :arena
     cz_refuse("member? has a native form on a refcounted list; a region's has none yet")
+  elsif cz_items?(cz_ty(xs, ctx))
+    cz_refuse("member? has a native form on a list of Ints; a list of records has none yet")
   elsif cz_sym?(xs) and member?(cz_sym(xs), ctx[:sets] or [])
     rs_call(
       %w[kiban_heap set_has],
@@ -1735,6 +1772,124 @@ def cz_pops?(n, p, name, i)
     true
   else
     any?((x) -> cz_pops?(x, p, name, i), n)
+  end
+end
+
+@doc """
+cz_items_op?: Whether the call `h(args…)` is a list word on a list of records: `[a, b]`
+of records, or append, count, nth, first or rest of a list of one.
+
+    cz_items_op?("first", [{sym: "ps"}], {types: [["ps", {items: "%root/p"}]]}) #=> true
+    cz_items_op?("first", [{sym: "xs"}], {types: [["xs", :list]]}) #=> false
+    cz_items_op?("list", [{sym: "p"}], {types: [["p", "%root/p"]]}) #=> true
+"""
+def cz_items_op?(h, args, ctx)
+  held = (i) -> count(args) > i and cz_items?(cz_ty(args[i], ctx))
+  if h == "list"
+    not empty?(args) and string?(cz_ty(first(args), ctx))
+  elsif member?(h, %w[append count first rest])
+    held(0)
+  elsif h == "nth"
+    count(args) == 2 and held(1)
+  else
+    false
+  end
+end
+
+@doc """
+cz_items_ty: The type a list word on a list of records answers: the list for `[a, b]`,
+append and rest, the record for nth and first, an Int for count.
+
+    cz_items_ty("nth", [0, {sym: "ps"}], {types: [["ps", {items: "%root/p"}]]}) #=> "%root/p"
+    cz_items_ty("count", [{sym: "ps"}], {types: [["ps", {items: "%root/p"}]]}) #=> :word
+"""
+def cz_items_ty(h, args, ctx)
+  if h == "list"
+    cz_items_of(cz_ty(first(args), ctx))
+  elsif h == "count"
+    :word
+  elsif h == "nth"
+    cz_ty(second(args), ctx)[:items]
+  elsif h == "first"
+    cz_ty(first(args), ctx)[:items]
+  else
+    cz_ty(first(args), ctx)
+  end
+end
+
+@doc """
+cz_items_op: A list word on a list of records, refcounted: `[a, b]` built in place,
+append (one record at a time when the right side is `[a, b]`), count, and nth
+and first answering a clone of the record. A region holds words only, so a
+definition that holds its lists in one is refused, and so is rest, which
+copies the list.
+
+    cz_items_op("count", [{sym: "ps"}], {params: ["ps"], types: [["ps", {items: "%root/p"}]], strategy: :refcount, word: 64, heap: true})[:func] #=> ["kiban_heap", "items_count"]
+"""
+def cz_items_op(h, args, ctx)
+  ty = cz_items_ty(h, args, ctx)
+  if not ctx[:heap]
+    cz_refuse("a list needs a heap, and this board has none; lists compile for the host board")
+  elsif ctx[:strategy] == :arena
+    cz_refuse("a region holds words; a list of records is refcounted")
+  elsif h == "rest"
+    cz_refuse("rest copies the list natively; a list of records has no native rest")
+  elsif h == "list"
+    t = cz_temps("e", map((a) -> cz_as(a, ty[:items], ctx), args))
+    rs_seq(
+      append(
+        first(t),
+        [
+          {
+            kind: "local",
+            name: "v",
+            mutable: true,
+            value: rs_call(
+              %w[kiban_heap items_with],
+              [{kind: "int", value: count(args), suffix: "usize"}]
+            )
+          }
+        ],
+        map((e) -> rs_semi(rs_method(rs_path("v"), "push", [e])), second(t))
+      ),
+      rs_call(%w[kiban_heap items_of], [rs_path("v")])
+    )
+  elsif h == "append" and count(args) == 2 and cz_head(second(args)) == "list"
+    t = cz_temps("w", map((a) -> cz_as(a, ty[:items], ctx), rest(second(args))))
+    rs_seq(
+      append(
+        [{kind: "local", name: "l_0", value: cz_as(first(args), ty, ctx)}],
+        first(t)
+      ),
+      reduce(
+        (acc, w) -> rs_call(%w[kiban_heap items_push], [acc, w]),
+        rs_path("l_0"),
+        second(t)
+      )
+    )
+  elsif h == "append"
+    reduce(
+      fn(acc, b)
+        rs_call(
+          %w[kiban_heap items_append],
+          [acc, {kind: "ref", expr: cz_as(b, ty, ctx)}]
+        )
+      end,
+      cz_as(first(args), ty, ctx),
+      rest(args)
+    )
+  elsif h == "count"
+    rs_call(%w[kiban_heap items_count], [cz_borrowed(first(args), ctx)])
+  elsif h == "first"
+    rs_call(
+      %w[kiban_heap items_nth],
+      [cz_borrowed(first(args), ctx), rs_word(0, 64)]
+    )
+  else
+    rs_call(
+      %w[kiban_heap items_nth],
+      [cz_borrowed(second(args), ctx), cz_as(first(args), :word, ctx)]
+    )
   end
 end
 
@@ -3063,6 +3218,14 @@ def cz_lower(forms, board)
       else
         []
       end,
+      if any?(
+        (s) -> any?(cz_items?, append(second(s)[:params], [second(s)[:ret]])),
+        sigs
+      )
+        [{kind: "use", item: {path: %w[kiban_heap Items]}}]
+      else
+        []
+      end,
       if strings
         [{kind: "use", item: {path: %w[kiban_heap Str]}}]
       else
@@ -3463,9 +3626,12 @@ def cz_lower_def(forms, key)
     map((p) -> cz_sig_ty(second(p), records), rest(second(form))),
     [cz_sig_ty(third(form), records)]
   )
-  if not every?((t) -> cz_seam_kind(t) != nil or string?(t), types)
+  if not every?(
+    (t) -> cz_seam_kind(t) != nil or string?(t) or cz_items?(t),
+    types
+  )
     cz_refuse(
-      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float, a Str or a list of Ints; the native tier's guard is one of those per argument"
+      "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float, a Str, a list of Ints, a record or a list of records; the native tier's guard is one of those per argument"
     )
   end
   if member?(:list, types) and cz_mentions?(forms, ["reclaim"])
@@ -3548,21 +3714,91 @@ def cz_lower_def(forms, key)
         {kind: "use", item: {path: %w[kiban_heap Values]}}
       ],
       file[:items],
+      cz_items_seam_fns(types, records),
       [entry, call_fn, cz_shallow_fn(cz_recursive(fn_forms, fns) == [])]
     )
   }
 end
 
 @doc """
+cz_items_seam_fns: For each record a list of which crosses the seam, the two functions
+that carry one element: `seam_in_<record>` reads a `Value` into the record's
+struct and `seam_out_<record>` writes the struct as a `Value`, the conversion a
+record argument and answer take.
+
+    map((f) -> f[:item][:sig][:name], cz_items_seam_fns([{items: "%root/p"}, :word], [{name: "%root/p", pred: "%root/p?", fields: ["x"]}])) #=> ["seam_in_p", "seam_out_p"]
+    cz_items_seam_fns([:word], []) #=> []
+"""
+def cz_items_seam_fns(types, records)
+  held = distinct(map((t) -> t[:items], filter(cz_items?, types)))
+  flat_map(
+    held,
+    fn(name)
+      local = cz_checked_ident(cz_local(name), "a record")
+      [
+        {
+          kind: "fn",
+          vis: "private",
+          item: {
+            sig: {
+              name: "seam_in_#{local}",
+              params: [
+                {name: "v", ty: {ident: "Value", reference: {kind: "shared"}}}
+              ],
+              return_type: rs_ty(cz_struct_name(name))
+            },
+            body: rs_block([rs_tail(cz_value_arg(rs_path("v"), name, records))])
+          }
+        },
+        {
+          kind: "fn",
+          vis: "private",
+          item: {
+            sig: {
+              name: "seam_out_#{local}",
+              params: [
+                {
+                  name: "r",
+                  ty: {ident: cz_struct_name(name), reference: {kind: "shared"}}
+                }
+              ],
+              return_type: rs_ty("Value")
+            },
+            body: rs_block(
+              [
+                rs_tail(
+                  cz_value_result(
+                    rs_method(rs_path("r"), "clone", []),
+                    name,
+                    records
+                  )
+                )
+              ]
+            )
+          }
+        }
+      ]
+    end
+  )
+end
+
+@doc """
 cz_value_arg: One argument of the valued seam, a `kiban_heap::Value`, as the parameter of
 type `ty` takes it: the value's Int, Bool, Float, Str or list, or a record's
-struct built from its fields in declared order; any other a fault.
+struct built from its fields in declared order, or a list of records each read
+by its `seam_in_` function; any other a fault.
 
     cz_value_arg(rs_path("a"), :str, [])[:method] #=> "str"
+    cz_value_arg(rs_path("a"), {items: "%root/p"}, [])[:func] #=> ["kiban_heap", "items_in"]
 """
 def cz_value_arg(e, ty, records)
   rec = find(records, (r) -> r[:name] == ty)
-  if rec.nil?
+  if cz_items?(ty)
+    rs_call(
+      %w[kiban_heap items_in],
+      [e, rs_path("seam_in_#{cz_local(ty[:items])}")]
+    )
+  elsif rec.nil?
     rs_method(e, cz_seam_kind(ty)[:read], [])
   elsif cz_holds_counted?(rec)
     {
@@ -3635,13 +3871,23 @@ end
 
 @doc """
 cz_value_result: The entry's answer as a `kiban_heap::Value` of its type: a record as
-its fields in declared order.
+its fields in declared order, a list of records each written by its `seam_out_`
+function.
 
     cz_value_result(rs_path("r"), :word, [])[:func] #=> ["Value", "Int"]
+    cz_value_result(rs_path("r"), {items: "%root/p"}, [])[:func] #=> ["kiban_heap", "items_out"]
 """
 def cz_value_result(e, ty, records)
   rec = find(records, (r) -> r[:name] == ty)
-  if rec.nil?
+  if cz_items?(ty)
+    rs_call(
+      %w[kiban_heap items_out],
+      [
+        {kind: "ref", mutable: false, expr: e},
+        rs_path("seam_out_#{cz_local(ty[:items])}")
+      ]
+    )
+  elsif rec.nil?
     rs_call(["Value", cz_seam_kind(ty)[:variant]], [e])
   elsif cz_holds_counted?(rec)
     values = reduce(
@@ -4622,4 +4868,54 @@ test "a map of Strs to Ints is a refcounted map: assoc puts, get reads, count co
   got = cz_map_op("get", cz_read("m k"), ctx)
   assert got[:func] == %w[kiban_heap map_get]
   assert cz_ty(first(cz_read("(assoc m k 1)")), ctx) == :map
+end
+
+test "a list of records is a refcounted list of structs: built, appended, counted and read, and it crosses the seam"
+  rec = "(blue-record %root/p %root/p? (:x Int) (:y Int)) "
+  push = "(define-typed (%root/g (ps (List p)) (x Int)) (List p) (append ps (list (%root/p x x))))"
+  assert cz_def_native(concat(rec, push), "%root/g").nil?
+  walk = "(define-typed (%root/s (ps (List p)) (i Int) (acc Int)) Int (if (equal? i (count ps)) acc (%root/s ps (+ i 1) (+ acc (blue-field (nth i ps) :x)))))"
+  assert cz_def_native(concat(rec, walk), "%root/s").nil?
+  both = "(define-typed (%root/b (a (List p)) (c (List p))) (List p) (append a c))"
+  assert cz_def_native(concat(rec, both), "%root/b").nil?
+  head = "(define-typed (%root/h (ps (List p))) p (first ps))"
+  assert cz_def_native(concat(rec, head), "%root/h").nil?
+  rest_of = "(define-typed (%root/r (ps (List p))) (List p) (rest ps))"
+  assert contains?(cz_def_native(concat(rec, rest_of), "%root/r"), "rest")
+  has = "(define-typed (%root/m (ps (List p)) (q p)) Bool (member? q ps))"
+  assert contains?(cz_def_native(concat(rec, has), "%root/m"), "member?")
+  mixed = "(blue-record %root/q %root/q? (:z Int)) (define-typed (%root/x (a p) (b q)) (List p) (list a b))"
+  assert cz_def_native(concat(rec, mixed), "%root/x") != nil
+  p = cz_record_of(first(cz_read(rec)))
+  ty = cz_sig_ty(first(cz_read("(List p)")), [p])
+  assert ty == {items: "%root/p"}
+  assert cz_counted?(ty, [p])
+  assert cz_rs_ty(ty, 64) == {ident: "Items", generics: [rs_ty("R_p")]}
+  assert cz_ty_text(ty) == "a list of p"
+  ctx = {
+    types: [["ps", ty], ["i", :word]],
+    params: %w[ps i],
+    records: [p],
+    word: 64,
+    heap: true,
+    strategy: :refcount
+  }
+  assert cz_ty(first(cz_read("(nth i ps)")), ctx) == "%root/p"
+  assert cz_ty(first(cz_read("(append ps ps)")), ctx) == ty
+  assert cz_items_of("%root/p") == ty
+  assert cz_items?(ty)
+  assert not cz_items?(:list)
+  assert cz_items_op?("nth", cz_read("i ps"), ctx)
+  assert not cz_items_op?("nth", cz_read("ps i"), ctx)
+  assert cz_items_ty("first", cz_read("ps"), ctx) == "%root/p"
+  assert cz_items_ty("count", cz_read("ps"), ctx) == :word
+  assert cz_value_arg(rs_path("a"), ty, [p])[:func] == %w[kiban_heap items_in]
+  assert cz_value_result(rs_path("r"), ty, [p])[:func] ==
+    %w[kiban_heap items_out]
+  assert cz_items_op("count", cz_read("ps"), ctx)[:func] ==
+    %w[kiban_heap items_count]
+  fns = cz_items_seam_fns([ty, ty, :word], [p])
+  assert map((f) -> f[:item][:sig][:name], fns) == %w[seam_in_p seam_out_p]
+  arena = "(define-typed (%root/a (ps (List p))) Int (reclaim :arena (count ps)))"
+  assert cz_def_native(concat(rec, arena), "%root/a") != nil
 end

@@ -301,7 +301,32 @@ Each wave lists defaults in the order their gain is known. Each default meets
     absent one; `put_double`'s artifact swapped in proves the artifact
     answered), its 13 tests passing on macOS. Found by that check and fixed:
     the generated crate imports `kiban_heap::Map` when a program names a map.
-  - Next: records in lists, then closures.
+  - ✅ A list of records in native code and across the seam: `List(pt)` is
+    `{items: pt}` in chuuzou and `Items<R_pt>` natively, a refcounted list
+    of the record's structs (`kiban_heap::Items`), counted as a list is.
+    `[a, b]` of records, `append` (one record at a time when the right side
+    is `[a, b]`), `count`, `nth` and `first` (a clone of the record) compile;
+    `rest`, `member?` and a definition that holds its lists in a region are
+    refused. It crosses the seam as `L` and each record's own token, `|`
+    between them, since a record's token holds commas and semicolons
+    (`Lr1,2|r3,4`, `LRs68;i3`); the artifact reads and writes each element
+    through `seam_in_<record>` and `seam_out_<record>`, the conversion a
+    record argument and answer already take, and the host reads a record's
+    token through one pair of words (`Fields::token`, `Fields::of_token`)
+    where `tokens` and `from_token` each had a copy. The ten swap blocks of
+    `checks.native-defs` are one word, `swapped`, and the ten agreement
+    filters one, `disagreeing`. Not built: a record that only a signature
+    names is not in its definition's slice, since the slice follows
+    mondou's calls and the def_hash does not cover it; a definition reaches
+    its record by building one (`spread` is refused for this reason).
+    Locks: native.rs
+    `a_list_of_records_crosses_the_seam_as_each_record_s_token_between_bars`
+    (a short record, a record of another kind, a list of Ints and an `l`
+    token refused); chuuzou 148 tests ("a list of records is a refcounted
+    list of structs: …"); `checks.native-defs` "a list of records crosses
+    the seam both ways" (`placed`, `swept`, `joined`, `headed`;
+    `placed_twice`'s artifact swapped in proves the artifact answered).
+  - Next: closures.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

@@ -68,8 +68,10 @@ pub fn run<F: FnOnce(&mut Host) -> bool + Send + 'static>(body: F) -> bool {
 /// `l` alone the empty one), `r1,2` (a record's fields in declared order),
 /// `m6162=3,63=-1` (a map of strings to Ints: each key's UTF-8 in hex, `=`,
 /// its Int), `Ri1;s68;l1,2` (a record that holds a string or a list: each field its
-/// own token, `;` between them, since a list's token holds commas), or a
-/// bare decimal Int, as artifacts built before tokens were called.
+/// own token, `;` between them, since a list's token holds commas),
+/// `Lr1,2|r3,4` (a list of records: each record's token, `|` between them,
+/// since a record's token holds commas and semicolons), or a bare decimal
+/// Int, as artifacts built before tokens were called.
 pub fn decode(token: &str) -> Option<kiban_heap::Value> {
     let (tag, rest) = (token.as_bytes().first()?, token.get(1..)?);
     Some(match tag {
@@ -114,6 +116,15 @@ pub fn decode(token: &str) -> Option<kiban_heap::Value> {
                 })
                 .collect::<Option<Vec<kiban_heap::Value>>>()?,
         ),
+        b'L' if rest.is_empty() => kiban_heap::Value::Items(Vec::new()),
+        b'L' => kiban_heap::Value::Items(
+            rest.split('|')
+                .map(|t| match t.as_bytes().first()? {
+                    b'r' | b'R' => decode(t),
+                    _ => None,
+                })
+                .collect::<Option<Vec<kiban_heap::Value>>>()?,
+        ),
         _ => kiban_heap::Value::Int(token.parse().ok()?),
     })
 }
@@ -146,6 +157,9 @@ pub fn encode(v: &kiban_heap::Value) -> String {
         }
         kiban_heap::Value::Fields(vs) => {
             format!("R{}", vs.iter().map(encode).collect::<Vec<String>>().join(";"))
+        }
+        kiban_heap::Value::Items(vs) => {
+            format!("L{}", vs.iter().map(encode).collect::<Vec<String>>().join("|"))
         }
     }
 }

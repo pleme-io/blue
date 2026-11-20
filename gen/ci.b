@@ -153,15 +153,19 @@ end
 
 @doc """
 check_job: substrate's cargo-ci flow: `nix flake check` in shards, and `cargo
-test` unless the suite proof covers this commit.
+test` unless the suite proof covers this commit. It grants `actions: read`,
+because substrate's `runner-resolve.yml`, which cargo-ci calls, asks for it,
+and GitHub refuses to start a run whose caller grants less.
 
     check_job["uses"] #=> "pleme-io/substrate/.github/workflows/cargo-ci.yml@main"
+    check_job["permissions"]["actions"] #=> "read"
 """
 def check_job()
   {
     "needs" => "blue",
     "if" => "${{ #{held} }}",
     "uses" => "pleme-io/substrate/.github/workflows/cargo-ci.yml@main",
+    "permissions" => {"contents" => "read", "actions" => "read"},
     "with" => {
       "test-args" => "--workspace --no-fail-fast",
       "runner" => "${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}",

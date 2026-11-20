@@ -39,6 +39,9 @@ jobs:
   check:
     if: "${{ needs.blue.outputs.held != 'false' }}"
     needs: "blue"
+    permissions:
+      actions: "read"
+      contents: "read"
     secrets: "inherit"
     uses: "pleme-io/substrate/.github/workflows/cargo-ci.yml@main"
     with:

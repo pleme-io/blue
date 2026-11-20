@@ -1272,6 +1272,13 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
 }
 
 pub fn leaks(env: &mut Env, row: &Row, run: fn(&mut Env, &Row) -> Obs) -> Obs {
+    let was = SWEEPING.with(|s| s.replace(true));
+    let got = measure(env, row, run);
+    SWEEPING.with(|s| s.set(was));
+    got
+}
+
+fn measure(env: &mut Env, row: &Row, run: fn(&mut Env, &Row) -> Obs) -> Obs {
     let probe = Row {
         expect: Expect::Value(String::new()),
         ..row.clone()
@@ -1315,13 +1322,11 @@ fn sweep(env: &mut Env, row: &Row, ev: &'static str, run: fn(&mut Env, &Row) -> 
     {
         return;
     }
-    SWEEPING.with(|s| s.set(true));
     let probe = Row {
         expect: Expect::Leaks(0),
         ..row.clone()
     };
     let got = leaks(env, &probe, run);
-    SWEEPING.with(|s| s.set(false));
     if let Obs::Value(v) = got {
         if let Some(bytes) = v.strip_prefix("leaks ").and_then(|b| b.parse().ok()) {
             SWEPT

@@ -487,6 +487,9 @@ struct ResolvedJson {
     ns: Vec<String>,
     /// Every non-local reference in the entry file.
     references: Vec<ReferenceJson>,
+    /// Every read of a local in the entry file: where a fact about a local,
+    /// such as its last read, is placed.
+    local_reads: Vec<LocalReadJson>,
     /// The entry file's `use` declarations.
     imports: Vec<ImportJson>,
     /// The first line of the entry file's first top-level form, `null` for
@@ -498,6 +501,14 @@ struct ResolvedJson {
     builtins: Vec<String>,
     /// The reserved words, which no definition can be named.
     reserved: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct LocalReadJson {
+    #[serde(flatten)]
+    at: Location,
+    top_level: usize,
+    name: String,
 }
 
 #[derive(Serialize)]
@@ -556,6 +567,16 @@ pub fn resolved_json(
                     _ => None,
                 },
                 nullary: r.nullary_ns,
+            })
+            .collect(),
+        local_reads: resolved
+            .local_reads
+            .iter()
+            .filter(|r| entry(r.top_level))
+            .map(|r| LocalReadJson {
+                at: Location::of(file, r.span),
+                top_level: r.top_level,
+                name: r.name.clone(),
             })
             .collect(),
         imports: program

@@ -1,8 +1,8 @@
 purity-bytes: crates/blue-lang-appliance 929
 purity-bytes: crates/blue-lang-art 13781
 purity-bytes: crates/blue-lang-bidama 125682
-purity-bytes: crates/blue-lang-check 738744
-purity-bytes: crates/blue-lang-cli 538136
+purity-bytes: crates/blue-lang-check 740131
+purity-bytes: crates/blue-lang-cli 538740
 purity-bytes: crates/blue-lang-component 1312
 purity-bytes: crates/blue-lang-danpen-diff 1
 purity-bytes: crates/blue-lang-fmt 124179

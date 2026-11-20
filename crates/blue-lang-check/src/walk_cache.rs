@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use tatara_lisp::{Span, Spanned, SpannedForm};
 
-use crate::names::{Namespace, Position, Reference, Target, Tier};
+use crate::names::{LocalRead, Namespace, Position, Reference, Target, Tier};
 
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 pub trait WalkMemo {
     fn recall(&mut self, top_level: usize) -> Option<Vec<u8>>;
@@ -14,6 +14,7 @@ pub trait WalkMemo {
 
 pub(crate) struct Walked {
     pub references: Vec<Reference>,
+    pub local_reads: Vec<LocalRead>,
     pub resolved: usize,
 }
 
@@ -235,7 +236,12 @@ fn tier_of(b: u8) -> Option<Tier> {
     })
 }
 
-pub(crate) fn encode(form: &Spanned, references: &[Reference], resolved: usize) -> Option<Vec<u8>> {
+pub(crate) fn encode(
+    form: &Spanned,
+    references: &[Reference],
+    local_reads: &[LocalRead],
+    resolved: usize,
+) -> Option<Vec<u8>> {
     let mut at = HashMap::new();
     paths(form, &mut Vec::new(), &mut at);
     let mut out = Out(vec![VERSION]);
@@ -273,6 +279,11 @@ pub(crate) fn encode(form: &Spanned, references: &[Reference], resolved: usize) 
         for p in path {
             out.n(u64::from(*p));
         }
+    }
+    out.u(local_reads.len());
+    for l in local_reads {
+        out.span(l.span, form.span)?;
+        out.s(&l.name);
     }
     Some(out.0)
 }
@@ -333,8 +344,20 @@ pub(crate) fn decode(form: &Spanned, top_level: usize, bytes: &[u8]) -> Option<W
             node,
         });
     }
+    let reads = r.u()?;
+    let mut local_reads = Vec::with_capacity(reads.min(4096));
+    for _ in 0..reads {
+        let span = r.span(form.span)?;
+        let name = r.s()?;
+        local_reads.push(LocalRead {
+            top_level,
+            span,
+            name,
+        });
+    }
     (r.at == bytes.len()).then_some(Walked {
         references,
+        local_reads,
         resolved,
     })
 }

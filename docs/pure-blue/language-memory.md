@@ -109,6 +109,7 @@ fleet change.
   merged into the LSP's inlay hints, served without live evaluation.
 - **First commit.** `blue explain --memory FILE` printing the last-use facts M1 already reads, one line per fact, with a golden test over the four `memory.last_use.*` rows.
 - **Exit.** Golden output per M1 row; an LSP test.
+- **Landed (2026-11-20): where each local is read.** `blue ast --resolved --json` gives `local_reads`, every read of a local with its span, kept through the check cache. Next: `blue explain --memory` joins kuzushi's last-use facts to the last read of each local (the fact names the local and its definition, `local_reads` gives the place), then the LSP serves those places as inlay hints without live evaluation.
 
 ### M3 — the fallback runtime on the model
 

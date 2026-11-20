@@ -1560,6 +1560,7 @@ pub fn resolve_program_with(
     }
     Resolved {
         references: w.references,
+        local_reads: w.local_reads,
         defs,
         respellings: w.respellings,
     }
@@ -1569,10 +1570,22 @@ fn to_is_operator(r: crate::respell::Respell) -> bool {
     matches!(r, crate::respell::Respell::Rename("mod"))
 }
 
+/// A read of a local: a parameter or a binding inside the definition, where
+/// it is written. The non-local references are [`Reference`]s; these are what
+/// a memory fact about a local (its last read) is placed by.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LocalRead {
+    /// The top-level form it is in.
+    pub top_level: usize,
+    pub span: Span,
+    pub name: String,
+}
+
 /// [`resolve_program`]'s result.
 #[derive(Clone, Debug)]
 pub struct Resolved {
     pub references: Vec<Reference>,
+    pub local_reads: Vec<LocalRead>,
     defs: Vec<DefSite>,
     pub respellings: Vec<(usize, crate::respell::Respelling)>,
 }
@@ -1703,6 +1716,7 @@ struct Walker<'t> {
     /// Names resolved, for the report.
     resolved: usize,
     references: Vec<Reference>,
+    local_reads: Vec<LocalRead>,
     position: Position,
     /// Where the call being walked ends its last argument: a retired word's
     /// fix appends the replacement's arguments there.
@@ -1805,6 +1819,7 @@ impl<'t> Walker<'t> {
             diagnostics: Vec::new(),
             resolved: 0,
             references: Vec::new(),
+            local_reads: Vec::new(),
             position: Position::Value,
             call_tail: None,
             respellings: Vec::new(),
@@ -1850,6 +1865,7 @@ impl<'t> Walker<'t> {
             .and_then(|bytes| crate::walk_cache::decode(form, i, &bytes))
         {
             self.references.extend(walked.references);
+            self.local_reads.extend(walked.local_reads);
             self.resolved += walked.resolved;
             return;
         }
@@ -1861,6 +1877,7 @@ impl<'t> Walker<'t> {
             self.respellings.len(),
             self.resolved,
         );
+        let reads_before = self.local_reads.len();
         self.enter(i, own, form);
         if imports {
             self.check_import_list(form);
@@ -1873,6 +1890,7 @@ impl<'t> Walker<'t> {
             if let Some(bytes) = crate::walk_cache::encode(
                 form,
                 &self.references[before.1..],
+                &self.local_reads[reads_before..],
                 self.resolved - before.4,
             ) {
                 memo.keep(i, bytes);
@@ -2157,6 +2175,11 @@ impl<'t> Walker<'t> {
     fn reference_at(&mut self, node: &Spanned, name: &str, opaque: bool) {
         let span = node.span;
         if self.read_local(name) {
+            self.local_reads.push(LocalRead {
+                top_level: self.top_level,
+                span,
+                name: name.to_owned(),
+            });
             self.resolved += 1;
             return;
         }

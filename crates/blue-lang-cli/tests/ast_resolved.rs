@@ -31,7 +31,7 @@ def g()
 end
 ";
 
-const EXPECTED: &str = r#"{"namespace":null,"flat":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"ns":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"references":[{"file":"F","line":2,"column":5,"end_line":2,"end_column":6,"byte_start":17,"byte_end":18,"top_level":0,"written":"+","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"+","key":"+"},"ns":{"kind":"builtin","namespace":null,"name":"+","key":"+"},"locals":["x"],"position":"call","argc":2,"nullary":false},{"file":"F","line":5,"column":1,"end_line":5,"end_column":6,"byte_start":26,"byte_end":31,"top_level":1,"written":"twice","opaque":false,"flat":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"},"ns":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"},"locals":[],"position":"call","argc":1,"nullary":false},{"file":"F","line":5,"column":7,"end_line":5,"end_column":11,"byte_start":32,"byte_end":36,"top_level":1,"written":"size","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null},"locals":[],"position":"call","argc":1,"nullary":false},{"file":"F","line":5,"column":12,"end_line":5,"end_column":13,"byte_start":37,"byte_end":38,"top_level":1,"written":"list","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"list","key":"list"},"ns":{"kind":"builtin","namespace":null,"name":"list","key":"list"},"locals":[],"position":"call","argc":1,"nullary":false},{"file":"F","line":9,"column":3,"end_line":9,"end_column":7,"byte_start":108,"byte_end":112,"top_level":2,"written":"nope","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null},"locals":[],"position":"value","argc":null,"nullary":false}],"imports":[],"first_line":1,"definitions":[{"file":"F","line":1,"column":5,"end_line":1,"end_column":10,"byte_start":4,"byte_end":9,"name":"twice"},{"file":"F","line":8,"column":5,"end_line":8,"end_column":6,"byte_start":102,"byte_end":103,"name":"g"}]}
+const EXPECTED: &str = r#"{"namespace":null,"flat":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"ns":["(define (%root/twice x) (+ x x))","(%root/twice (size (list 1)))","(define (%root/g) nope)"],"references":[{"file":"F","line":2,"column":5,"end_line":2,"end_column":6,"byte_start":17,"byte_end":18,"top_level":0,"written":"+","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"+","key":"+"},"ns":{"kind":"builtin","namespace":null,"name":"+","key":"+"},"locals":["x"],"position":"call","argc":2,"nullary":false},{"file":"F","line":5,"column":1,"end_line":5,"end_column":6,"byte_start":26,"byte_end":31,"top_level":1,"written":"twice","opaque":false,"flat":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"},"ns":{"kind":"def","namespace":null,"name":"twice","key":"%root/twice"},"locals":[],"position":"call","argc":1,"nullary":false},{"file":"F","line":5,"column":7,"end_line":5,"end_column":11,"byte_start":32,"byte_end":36,"top_level":1,"written":"size","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null},"locals":[],"position":"call","argc":1,"nullary":false},{"file":"F","line":5,"column":12,"end_line":5,"end_column":13,"byte_start":37,"byte_end":38,"top_level":1,"written":"list","opaque":false,"flat":{"kind":"builtin","namespace":null,"name":"list","key":"list"},"ns":{"kind":"builtin","namespace":null,"name":"list","key":"list"},"locals":[],"position":"call","argc":1,"nullary":false},{"file":"F","line":9,"column":3,"end_line":9,"end_column":7,"byte_start":108,"byte_end":112,"top_level":2,"written":"nope","opaque":false,"flat":{"kind":"unbound","namespace":null,"name":null,"key":null},"ns":{"kind":"unbound","namespace":null,"name":null,"key":null},"locals":[],"position":"value","argc":null,"nullary":false}],"local_reads":[{"file":"F","line":2,"column":3,"end_line":2,"end_column":4,"byte_start":15,"byte_end":16,"top_level":0,"name":"x"},{"file":"F","line":2,"column":7,"end_line":2,"end_column":8,"byte_start":19,"byte_end":20,"top_level":0,"name":"x"}],"imports":[],"first_line":1,"definitions":[{"file":"F","line":1,"column":5,"end_line":1,"end_column":10,"byte_start":4,"byte_end":9,"name":"twice"},{"file":"F","line":8,"column":5,"end_line":8,"end_column":6,"byte_start":102,"byte_end":103,"name":"g"}]}
 "#;
 
 #[test]
@@ -102,4 +102,37 @@ fn every_resolved_json_field_is_documented() {
             "`{field}` is not documented in the ast --resolved section"
         );
     }
+}
+
+#[test]
+fn a_cached_walk_gives_the_same_local_reads_as_a_fresh_one() {
+    let dir = std::env::temp_dir().join(format!("blue-ast-reads-{}", std::process::id()));
+    let cache = dir.join("cache");
+    std::fs::create_dir_all(&cache).expect("mkdir");
+    let p: PathBuf = dir.join("f.b");
+    std::fs::write(&p, SRC).expect("write");
+    let reads = || {
+        let out = blue()
+            .env("XDG_CACHE_HOME", &cache)
+            .args(["ast", "--resolved", "--json", p.to_str().expect("utf-8")])
+            .output()
+            .expect("spawn");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let text = String::from_utf8(out.stdout).expect("utf-8");
+        let (_, tail) = text.split_once("\"local_reads\":").expect("local_reads");
+        let (reads, _) = tail.split_once(",\"imports\":").expect("then imports");
+        reads.to_owned()
+    };
+    let fresh = reads();
+    let cached = reads();
+    assert!(fresh.contains("\"name\":\"x\""), "{fresh}");
+    assert_eq!(
+        fresh, cached,
+        "a cached walk lost or changed the local reads"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }

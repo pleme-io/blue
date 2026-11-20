@@ -512,6 +512,7 @@ if a field here is undocumented. A migration is proven on it: a program whose
 | `flat` | the entry file's top-level forms, resolved under the flat rule: each definition renamed to its runtime key (`retsu/first`; `%root/f` for a script) and each reference to what the rule binds it to (a builtin stays bare) |
 | `ns` | the same forms under per-bidama namespaces |
 | `references` | every non-local reference in the entry file |
+| `local_reads` | every read of a local (a parameter or a binding inside a definition) in the entry file: the location fields, `top_level` and `name`; what a fact about a local, such as its last read (`blue explain --memory`), is placed by |
 | `imports` | the entry file's `use` declarations: the location fields, `package`, and `names` (the list, empty for a whole-package `use`) |
 | `first_line` | the first line of the entry file's first top-level form, or `null` |
 | `definitions` | the entry file's top-level definitions: the location fields and `name` |

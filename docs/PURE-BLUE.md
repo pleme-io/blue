@@ -61,6 +61,7 @@ Built and on main, each with its lock:
 | R6a (JSON writers) | `deeta::write` and `deeta::stringify`, JSON writers in blue: the exact text of `json_write` and `json_stringify`, a list of pairs as an object only in `stringify`, keys in byte order with the last of a repeated key kept, floats in ryu's layout from `to_s`'s shortest digits, control characters as `\\u00XX`, NaN and infinity as null; both agree with Rust on every accepted `in.json` fixture and on 36 edge values | `bidamas/deeta/deeta.b`, `crates/blue-lang-yaml-diff/tests/json_agree.rs` |
 | R6a (BLAKE3) | `shomei::blake3`, BLAKE3 hash mode in blue: chunks of 1024 bytes in 64-byte blocks, the seven-round compression over a 16-word state, the parent tree with the largest power-of-two left subtree; it gives `blake3_hex`'s digest at every length from 0 to 4097 bytes across the chunk and tree boundaries | `bidamas/shomei/shomei.b` |
 | R6a (SHA-256) | `shomei::sha256`, SHA-256 in blue: the standard padding, the 64-word schedule, the 64 rounds with the round constants read from their hex text; it gives `digest_hex(:sha256, …)` at every length across the 55/56-byte padding edge and one, two and many blocks | `bidamas/shomei/shomei.b` |
+| R6a (SHA-512) | `shomei::sha512`, SHA-512 in blue with each 64-bit word a [high, low] pair of 32-bit halves (blue's Int is signed 64-bit and checks overflow): 64-bit add with carry, rotate and shift across the halves, the 80-word schedule and 80 rounds; it gives `digest_hex(:sha512, …)` at every length across the 111/112-byte padding edge and one, two and many blocks | `bidamas/shomei/shomei.b` |
 | C1 | the native conformance column: every value row compiled by blue's own backend and judged against the walker, its passing count a ratchet (18 rows on 2026-11-18); a call to a global function with the wrong number of arguments is refused before code is made | `crates/blue-lang-test/tests/conformance`, `gen/native-row.b`, `spec/native.baseline`, `checks.conformance-three-way` |
 | C2 (first slice) | the `leaks(N)` expectation: the bytes one run leaves live, read from the counting allocator on the walker and the VM (a warm-up run, then the mean of three); 3 rows hold `leaks(0)` (a built list, a closure and its captures, a replaced cell), and a probe that keeps its runs live reads 65-67 bytes, so the rows can fail | `crates/blue-lang-test/tests/conformance`, `spec/rows/memory.b` |
 
@@ -78,7 +79,7 @@ and recompute this list from §7.
    ratchet over the spec rows. It is on every chain and unblocks M1's other kinds, B3, F2 and M3.
 2. **R4, the rest** (§R4): time, processes, sockets, epoll, the terminal, then `put_int` and
    `put_byte`, which C3 needs. Critical path: R4 → R6a → S1.
-3. **R6a, the rest** (§R6): SHA-512 in blue (64-bit words beyond blue's Int, as word pairs); JSON, BLAKE3 and SHA-256 landed.
+3. **R6a** is done (JSON reader and writers, BLAKE3, SHA-256, SHA-512, each differential against its Rust word). Its exit, the json and hash rows passing natively, waits on the native backend (R4).
 4. **F1** (`pure-blue/front-tower-conformance.md` §F1): the reader in blue. No dependencies, the
    heaviest front-end rung, and S1 needs it.
 5. **M2, the rest** (`pure-blue/language-memory.md` §M2): the static memory hints in the LSP's inlay hints, served without live evaluation; `blue explain --memory` landed.

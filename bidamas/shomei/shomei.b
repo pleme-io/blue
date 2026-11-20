@@ -1823,3 +1823,249 @@ test "each step of sha256 does its own part", {kind: :unit}
   assert sha_step(zeros(8), 0, 0) == zeros(8)
   assert count(sha_block(zeros(8), zeros(64))) == 8
 end
+
+@doc """
+sha512: The SHA-512 digest of data (text or a list of bytes) as 128 lowercase
+hex characters, computed by blue itself (R6a of docs/PURE-BLUE.md): the digest
+digest_hex(:sha512, data) gives. A 64-bit word is a [high, low] pair of 32-bit
+halves, since blue's Int is a signed 64-bit number.
+
+    sha512("abc") #=> digest_hex(:sha512, "abc")
+"""
+def sha512(data)
+  bytes = if string?(data)
+    text_bytes(data)
+  else
+    data
+  end
+  h = reduce(sha512_block, sha512_h0, pieces(sha512_pad(bytes), 128))
+  hex_encode(flatten(map((w) -> flatten([be_bytes(w[0]), be_bytes(w[1])]), h)))
+end
+
+@doc """
+w64s: Hex text as 64-bit words, each a [high, low] pair of 32-bit halves.
+
+    w64s("0000000100000002") #=> [[1, 2]]
+"""
+def w64s(hex)
+  pieces(be_words(hex_decode(hex)), 2)
+end
+
+@doc """
+sha512_h0: SHA-512's eight initial words.
+
+    sha512_h0[0] #=> [1779033703, 4089235720]
+"""
+def sha512_h0()
+  w64s(
+    join(
+      %w[
+        6a09e667f3bcc908bb67ae8584caa73b3c6ef372fe94f82ba54ff53a5f1d36f1
+        510e527fade682d19b05688c2b3e6c1f1f83d9abfb41bd6b5be0cd19137e2179
+      ],
+      ""
+    )
+  )
+end
+
+@doc """
+sha512_k: SHA-512's 80 round constants.
+
+    count(sha512_k) #=> 80
+"""
+def sha512_k()
+  w64s(
+    join(
+      %w[
+        428a2f98d728ae227137449123ef65cdb5c0fbcfec4d3b2fe9b5dba58189dbbc
+        3956c25bf348b53859f111f1b605d019923f82a4af194f9bab1c5ed5da6d8118
+        d807aa98a303024212835b0145706fbe243185be4ee4b28c550c7dc3d5ffb4e2
+        72be5d74f27b896f80deb1fe3b1696b19bdc06a725c71235c19bf174cf692694
+        e49b69c19ef14ad2efbe4786384f25e30fc19dc68b8cd5b5240ca1cc77ac9c65
+        2de92c6f592b02754a7484aa6ea6e4835cb0a9dcbd41fbd476f988da831153b5
+        983e5152ee66dfaba831c66d2db43210b00327c898fb213fbf597fc7beef0ee4
+        c6e00bf33da88fc2d5a79147930aa72506ca6351e003826f142929670a0e6e70
+        27b70a8546d22ffc2e1b21385c26c9264d2c6dfc5ac42aed53380d139d95b3df
+        650a73548baf63de766a0abb3c77b2a881c2c92e47edaee692722c851482353b
+        a2bfe8a14cf10364a81a664bbc423001c24b8b70d0f89791c76c51a30654be30
+        d192e819d6ef5218d69906245565a910f40e35855771202a106aa07032bbd1b8
+        19a4c116b8d2d0c81e376c085141ab532748774cdf8eeb9934b0bcb5e19b48a8
+        391c0cb3c5c95a634ed8aa4ae3418acb5b9cca4f7763e373682e6ff3d6b2b8a3
+        748f82ee5defb2fc78a5636f43172f6084c87814a1f0ab728cc702081a6439ec
+        90befffa23631e28a4506cebde82bde9bef9a3f7b2c67915c67178f2e372532b
+        ca273eceea26619cd186b8c721c0c207eada7dd6cde0eb1ef57d4f7fee6ed178
+        06f067aa72176fba0a637dc5a2c898a6113f9804bef90dae1b710b35131c471b
+        28db77f523047d8432caab7b40c724933c9ebe0a15c9bebc431d67c49c100d4c
+        4cc5d4becb3e42b6597f299cfc657e2a5fcb6fab3ad6faec6c44198c4a475817
+      ],
+      ""
+    )
+  )
+end
+
+@doc """
+add64: The sum of two 64-bit words, cut to 64 bits.
+
+    add64([0, 4294967295], [0, 1]) #=> [1, 0]
+"""
+def add64(a, b)
+  low = a[1] + b[1]
+  [word32(a[0] + b[0] + shift_right(low, 32)), word32(low)]
+end
+
+@doc """
+sum64: The sum of a list of 64-bit words, cut to 64 bits.
+
+    sum64([[0, 1], [0, 2], [1, 0]]) #=> [1, 3]
+"""
+def sum64(ws)
+  reduce(add64, [0, 0], ws)
+end
+
+@doc """
+xor64: The exclusive or of two 64-bit words.
+
+    xor64([1, 2], [3, 2]) #=> [2, 0]
+"""
+def xor64(a, b)
+  [bit_xor(a[0], b[0]), bit_xor(a[1], b[1])]
+end
+
+@doc """
+rotr64: A 64-bit word rotated right by n bits, 0 < n < 64.
+
+    rotr64([0, 1], 1) #=> [2147483648, 0]
+"""
+def rotr64(w, n)
+  if n >= 32
+    rotr64([w[1], w[0]], n - 32)
+  elsif n == 0
+    w
+  else
+    [
+      word32(bit_or(shift_right(w[0], n), shift_left(w[1], 32 - n))),
+      word32(bit_or(shift_right(w[1], n), shift_left(w[0], 32 - n)))
+    ]
+  end
+end
+
+@doc """
+shr64: A 64-bit word shifted right by n bits, 0 < n < 32.
+
+    shr64([1, 0], 1) #=> [0, 2147483648]
+"""
+def shr64(w, n)
+  [
+    shift_right(w[0], n),
+    word32(bit_or(shift_right(w[1], n), shift_left(w[0], 32 - n)))
+  ]
+end
+
+@doc """
+sha512_pad: A message padded as SHA-512 pads it: a one bit, zeros to 112 bytes
+past a multiple of 128, then the bit length as sixteen big-endian bytes.
+
+    count(sha512_pad([])) #=> 128
+"""
+def sha512_pad(bytes)
+  n = count(bytes)
+  bits = n * 8
+  flatten(
+    [
+      bytes,
+      [128],
+      zeros((239 - n % 128) % 128 + 8),
+      be_bytes(shift_right(bits, 32)),
+      be_bytes(word32(bits))
+    ]
+  )
+end
+
+@doc """
+sha512_schedule: The 80-word message schedule of one block's sixteen words, as
+a map from round to word.
+
+    get(sha512_schedule(map((i) -> [0, i], range(0, 16))), 15) #=> [0, 15]
+"""
+def sha512_schedule(ws)
+  reduce(
+    fn(w, t)
+      a = get(w, t - 15)
+      b = get(w, t - 2)
+      s0 = xor64(xor64(rotr64(a, 1), rotr64(a, 8)), shr64(a, 7))
+      s1 = xor64(xor64(rotr64(b, 19), rotr64(b, 61)), shr64(b, 6))
+      assoc(w, t, sum64([get(w, t - 16), s0, get(w, t - 7), s1]))
+    end,
+    state_of(ws),
+    range(16, 80)
+  )
+end
+
+@doc """
+sha512_step: The eight working words after one SHA-512 round with constant k
+and schedule word w.
+
+    count(sha512_step(sha512_h0, [0, 0], [0, 0])) #=> 8
+"""
+def sha512_step(v, k, w)
+  a = v[0]
+  e = v[4]
+  big1 = xor64(xor64(rotr64(e, 14), rotr64(e, 18)), rotr64(e, 41))
+  choose = [
+    bit_xor(bit_and(e[0], v[5][0]), bit_and(bit_not(e[0]), v[6][0])),
+    bit_xor(bit_and(e[1], v[5][1]), bit_and(bit_not(e[1]), v[6][1]))
+  ]
+  t1 = sum64([v[7], big1, choose, k, w])
+  big0 = xor64(xor64(rotr64(a, 28), rotr64(a, 34)), rotr64(a, 39))
+  major = map(
+    fn(i)
+      bit_xor(
+        bit_xor(bit_and(a[i], v[1][i]), bit_and(a[i], v[2][i])),
+        bit_and(v[1][i], v[2][i])
+      )
+    end,
+    [0, 1]
+  )
+  [sum64([t1, big0, major]), a, v[1], v[2], add64(v[3], t1), e, v[5], v[6]]
+end
+
+@doc """
+sha512_block: The hash words after one 128-byte block.
+
+    count(sha512_block(sha512_h0, zeros(128))) #=> 8
+"""
+def sha512_block(h, block)
+  w = sha512_schedule(pieces(be_words(block), 2))
+  k = sha512_k
+  v = reduce((acc, t) -> sha512_step(acc, k[t], get(w, t)), h, range(0, 80))
+  map((i) -> add64(h[i], v[i]), range(0, 8))
+end
+
+test "sha512 gives digest_hex's SHA-512 across padding and block shapes", {
+  kind: :unit
+}
+  lengths = [0, 1, 111, 112, 127, 128, 129, 239, 240, 256, 1000]
+  differ = filter(
+    fn(n)
+      data = map((i) -> i % 251, range(0, n))
+      sha512(data) != digest_hex(:sha512, data)
+    end,
+    lengths
+  )
+  assert differ == []
+end
+
+test "each step of sha512 does its own part", {kind: :unit}
+  assert w64s("ffffffff00000000") == [[4_294_967_295, 0]]
+  assert sha512_h0[7] == [1_541_459_225, 327_033_209]
+  assert sha512_k[79] == [1_816_402_316, 1_246_189_591]
+  assert add64([4_294_967_295, 4_294_967_295], [0, 1]) == [0, 0]
+  assert sum64([]) == [0, 0]
+  assert xor64([1, 1], [1, 1]) == [0, 0]
+  assert rotr64([1, 2], 32) == [2, 1]
+  assert shr64([0, 2], 1) == [0, 1]
+  assert count(sha512_pad(zeros(112))) == 256
+  assert count(map_entries(sha512_schedule(pieces(zeros(32), 2)))) == 80
+  assert sha512_step(pieces(zeros(16), 2), [0, 0], [0, 0])[0] == [0, 0]
+  assert count(sha512_block(sha512_h0, zeros(128))) == 8
+end

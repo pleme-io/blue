@@ -110,7 +110,7 @@ fleet change.
 - **First commit.** `blue explain --memory FILE` printing the last-use facts M1 already reads, one line per fact, with a golden test over the four `memory.last_use.*` rows.
 - **Exit.** Golden output per M1 row; an LSP test.
 - **Landed (2026-11-20): where each local is read.** `blue ast --resolved --json` gives `local_reads`, every read of a local with its span, kept through the check cache. Next: `blue explain --memory` joins kuzushi's last-use facts to the last read of each local (the fact names the local and its definition, `local_reads` gives the place), then the LSP serves those places as inlay hints without live evaluation.
-- **Landed (2026-11-20): the hints.** `blue explain --memory FILE --hints` prints each last-use fact as a JSON hint (`line`, `column`, `label`) at the local's last read in its own definition, joined through `local_reads` and the `top_level` the definitions now carry; a golden test holds the four `memory.last_use.*` rows. Left for the exit: the LSP serves these hints without live evaluation, with its test.
+- **Landed (2026-11-20): the hints.** `blue explain --memory FILE --hints` prints each last-use fact as a JSON hint (`line`, `column`, `label`) at the local's last read in its own definition, joined through `local_reads` and the `top_level` the definitions now carry; a golden test holds the four `memory.last_use.*` rows. The LSP serves them: `blue lsp` hands its server a memory-hint source (the same binary's `explain --memory --hints` over the buffer's text), so with live evaluation off it advertises inlay hints and answers them; `lsp_session.rs` holds a real session. Left: merging them into the live hints when live evaluation is on.
 
 ### M3 — the fallback runtime on the model
 

@@ -222,3 +222,40 @@ fn a_buffer_that_does_not_parse_still_answers_a_token_request() {
     // And the server was still alive to answer shutdown afterwards.
     assert_eq!(reply_to(&messages, 3)["result"], Value::Null);
 }
+
+/// M2's exit: a real `blue lsp` session, with live evaluation off, answers an
+/// inlay-hint request with where each local is last read, from the buffer's
+/// text alone.
+#[test]
+fn a_real_session_serves_the_memory_hints_without_running_the_buffer() {
+    let messages = session(&[
+        req(1, "initialize", json!({ "initializationOptions": { "liveEval": false } })),
+        notify("initialized", json!({})),
+        notify(
+            "textDocument/didOpen",
+            json!({ "textDocument": { "uri": "file:///sq.b", "text": "def sq(x)\n  x * x\nend\n" } }),
+        ),
+        req(
+            2,
+            "textDocument/inlayHint",
+            json!({
+                "textDocument": { "uri": "file:///sq.b" },
+                "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 3, "character": 0 } }
+            }),
+        ),
+        req(3, "shutdown", json!({})),
+        notify("exit", json!({})),
+    ]);
+    assert_eq!(
+        reply_to(&messages, 1)["result"]["capabilities"]["inlayHintProvider"],
+        json!(true)
+    );
+    assert_eq!(
+        reply_to(&messages, 2)["result"],
+        json!([{
+            "position": { "line": 1, "character": 6 },
+            "label": "last read of x",
+            "paddingLeft": true
+        }])
+    );
+}

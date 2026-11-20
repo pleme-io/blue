@@ -79,7 +79,15 @@ pub struct Server {
     shutting_down: bool,
     live: Live,
     witnesses: Option<Witnesses>,
+    /// The static memory hints of a document (M2): where each local is last
+    /// read, from its text, without running it. Served as inlay hints when live
+    /// evaluation is off.
+    memory_hints: Option<MemoryHints>,
 }
+
+/// A document's static memory hints from its text; see
+/// [`Server::with_memory_hints`].
+pub type MemoryHints = Box<dyn Fn(&str) -> Vec<live::Hint> + Send>;
 
 struct Live {
     enabled: bool,
@@ -184,6 +192,15 @@ impl Server {
         Self::default()
     }
 
+    /// The same server, answering inlay hints with `hints` when live
+    /// evaluation is off: the last read of each local (blue explain --memory
+    /// --hints), served without running the document.
+    #[must_use]
+    pub fn with_memory_hints(mut self, hints: MemoryHints) -> Self {
+        self.memory_hints = Some(hints);
+        self
+    }
+
     /// A server whose documents resolve `use(...)` through `loader`.
     #[must_use]
     pub fn with_loader(loader: Box<dyn blue_lang_runtime::uses::Loader>) -> Self {
@@ -192,6 +209,7 @@ impl Server {
             shutting_down: false,
             live: Live::default(),
             witnesses: None,
+            memory_hints: None,
         }
     }
 
@@ -202,6 +220,7 @@ impl Server {
             shutting_down: false,
             live: Live::default(),
             witnesses: None,
+            memory_hints: None,
         }
     }
 
@@ -244,7 +263,10 @@ impl Server {
                         .filter(|root| root.is_dir())
                         .and_then(|root| Witnesses::open(&root, Identity::of_this_build()).ok()),
                 };
-                reply(&id, capabilities(self.live.enabled))
+                reply(
+                    &id,
+                    capabilities(self.live.enabled || self.memory_hints.is_some()),
+                )
             }
 
             "initialized" => Response::None,
@@ -304,15 +326,7 @@ impl Server {
             }
 
             "textDocument/inlayHint" if self.live.enabled => {
-                let at = |k: &str| {
-                    Some(Position {
-                        line: u32_at(&req.params, &["range", k, "line"])?,
-                        character: u32_at(&req.params, &["range", k, "character"])?,
-                    })
-                };
-                let range = at("start")
-                    .zip(at("end"))
-                    .map(|(start, end)| crate::Range { start, end });
+                let range = hint_range(&req.params);
                 match self.live.documents.get_mut(&uri) {
                     Some(doc) if doc.running.is_some() => {
                         if let Some(id) = id {
@@ -323,6 +337,14 @@ impl Server {
                     Some(doc) => reply(&id, hints_json(&doc.hints, range)),
                     None => reply(&id, json!([])),
                 }
+            }
+
+            "textDocument/inlayHint" if self.memory_hints.is_some() => {
+                let hints = match (&self.memory_hints, self.engine.document_text(&uri)) {
+                    (Some(of), Some(text)) => of(&text),
+                    _ => Vec::new(),
+                };
+                reply(&id, hints_json(&hints, hint_range(&req.params)))
             }
 
             // A file changed on disk: a bidama holding it is loaded again on
@@ -1023,6 +1045,19 @@ fn with_messages(response: Response, more: Vec<Value>) -> Response {
 
 fn result_message(id: &Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
+}
+
+/// The range an inlay-hint request asks about, when it names one.
+fn hint_range(params: &Value) -> Option<crate::Range> {
+    let at = |k: &str| {
+        Some(Position {
+            line: u32_at(params, &["range", k, "line"])?,
+            character: u32_at(params, &["range", k, "character"])?,
+        })
+    };
+    at("start")
+        .zip(at("end"))
+        .map(|(start, end)| crate::Range { start, end })
 }
 
 fn hints_json(hints: &[live::Hint], range: Option<crate::Range>) -> Value {

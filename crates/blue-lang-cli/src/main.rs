@@ -2067,6 +2067,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             blue_lang_lsp::Server::with_scopes(Box::new(
                 blue_lang_pkg::load_path::Environment::from_env(),
             ))
+            .with_memory_hints(Box::new(memory_hints))
             .serve(std::io::BufReader::new(std::io::stdin()), stdout.lock())
             .map_err(|source| CliError::Write {
                 path: "<stdio>".to_string(),
@@ -2075,6 +2076,45 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
     }
+}
+
+/// The static memory hints of a document for `blue lsp`: its text written to a
+/// file of its own, then `blue explain --memory FILE --hints` from this same
+/// binary, each hint's 1-based line and column made a 0-based position. A
+/// document that does not lower gives none.
+fn memory_hints(text: &str) -> Vec<blue_lang_lsp::live::Hint> {
+    let Ok(exe) = std::env::current_exe() else {
+        return Vec::new();
+    };
+    let dir = std::env::temp_dir().join(format!("blue-lsp-memory-{}", std::process::id()));
+    let path = dir.join("document.b");
+    if std::fs::create_dir_all(&dir).is_err() || std::fs::write(&path, text).is_err() {
+        return Vec::new();
+    }
+    let Ok(out) = std::process::Command::new(exe)
+        .arg("explain")
+        .arg("--memory")
+        .arg(&path)
+        .arg("--hints")
+        .stdin(std::process::Stdio::null())
+        .output()
+    else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter_map(|h| {
+            let at = |k: &str| h[k].as_u64().and_then(|n| u32::try_from(n).ok());
+            Some(blue_lang_lsp::live::Hint {
+                position: blue_lang_lsp::analysis::Position {
+                    line: at("line")?.checked_sub(1)?,
+                    character: at("column")?.checked_sub(1)?,
+                },
+                label: h["label"].as_str()?.to_owned(),
+            })
+        })
+        .collect()
 }
 
 /// `blue check`: the pipeline's check stage over the file and its imports.

@@ -8,7 +8,7 @@ refuses. It also owns the operator table both lexers read.
     lex("f(1)") #=> [[:ident, 0, 1, "f"], [:lparen, 1, 2, nil], [:int, 2, 3, 1], [:rparen, 3, 4, nil], [:eof, 4, 4, nil]]
 """
 
-use("deeta", %i[code_point_text radix_value])
+use("deeta", %i[code_point_text radix_value run_end space_byte? text_of])
 
 use("kazu")
 
@@ -158,28 +158,6 @@ def line_end(b, n, i)
     i
   else
     line_end(b, n, i + 1)
-  end
-end
-
-@doc """
-text_of: The text of bytes s up to e.
-
-    text_of(text_bytes("abc"), 1, 3) #=> "bc"
-"""
-def text_of(b, s, e)
-  bytes_text(map((i) -> b[i], range(s, e)))
-end
-
-@doc """
-run_end: The first index from i whose byte fails pred, or n.
-
-    run_end([1, 1, 2], 3, 0, (c) -> c == 1) #=> 2
-"""
-def run_end(b, n, i, pred)
-  if i < n and pred(b[i])
-    run_end(b, n, i + 1, pred)
-  else
-    i
   end
 end
 
@@ -478,15 +456,6 @@ def op_at(b, n, start)
 end
 
 @doc """
-gap?: Whether a byte separates the words of a word list.
-
-    gap?(10) #=> true
-"""
-def gap?(c)
-  member?(c, [32, 9, 13, 10])
-end
-
-@doc """
 words_at: A word list, `%w[…]` of strings or `%i[…]` of names, each word with its span.
 
     words_at(text_bytes("%w[a]"), 5, 0) #=> [[:words, 0, 5, [:strings, [["a", 3, 4]]]], 5]
@@ -506,13 +475,13 @@ words_from: The rest of a word list from i, the words so far in acc latest first
     words_from(text_bytes("%i[]"), 4, 0, 3, :keywords, [])[1] #=> 4
 """
 def words_from(b, n, start, i, flavor, acc)
-  j = run_end(b, n, i, gap?)
+  j = run_end(b, n, i, space_byte?)
   if j >= n
     raise(:lex, "unterminated word list")
   elsif b[j] == 93
     [[:words, start, j + 1, [flavor, reverse(acc)]], j + 1]
   else
-    e = run_end(b, n, j, (c) -> not (c == 93 or gap?(c)))
+    e = run_end(b, n, j, (c) -> not (c == 93 or space_byte?(c)))
     w = text_of(b, j, e)
     if not word_fits?(flavor, w)
       raise(:lex, "`#{w}` cannot be a word of this word list")
@@ -925,7 +894,7 @@ test "each step of lex does its own part", {kind: :unit}
   assert not word_list_at?(b, 2, 0)
   assert op_end(text_bytes("+"), 1, 0, 0) == 1
   assert op_at(text_bytes("|>"), 2, 0) == [[:pipe, 0, 2, nil], 2]
-  assert not gap?(65)
+  assert not space_byte?(65)
   assert words_at(text_bytes("%i[a]"), 5, 0)[0][3] == [:keywords, [["a", 3, 4]]]
   assert words_from(text_bytes("%w[]"), 4, 0, 3, :strings, [])[1] == 4
   assert word_char?("a")

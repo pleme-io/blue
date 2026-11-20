@@ -53,6 +53,10 @@ caller needs it, guarding on whatever boolean predicate the runtime offers.
     yaml([]) #=> "[]\n"
 """
 
+use("kazu", [:max])
+use("kyohi", [:raised])
+use("retsu", %i[first last rest])
+
 @doc """
 is_doc: True when `v` is a JSON object read for its fields.
 
@@ -185,7 +189,7 @@ def step_into(v, key)
 end
 
 def is_doc_pair?(x)
-  list?(x) and count(x) == 2 and string?(first(x))
+  list?(x) and count(x) == 2 and string?(x[0])
 end
 
 test "json_at walks objects, lists by index, and both kinds of parse"
@@ -673,10 +677,12 @@ def parse(text, format, opts?)
   end
   if format == :json
     json_read(text)
+  elsif format == :xml
+    xml_document(text)
   elsif format == :yaml
     one_or_all(yaml_documents(text), options[:documents])
   else
-    raise(:bad_option, "parse reads :json and :yaml, not #{to_s(format)}")
+    raise(:bad_option, "parse reads :json, :yaml and :xml, not #{to_s(format)}")
   end
 end
 
@@ -2714,4 +2720,467 @@ test "read refuses each malformed JSON at the step that meets it, and reads each
   assert write(huge) == "null"
   assert write(huge) == json_write(huge)
   assert write(() -> now_ms) == "null"
+end
+
+@doc """
+text_of: The text of bytes s up to e of a byte list.
+
+    text_of(text_bytes("abc"), 1, 3) #=> "bc"
+"""
+def text_of(b, s, e)
+  bytes_text(map((i) -> b[i], range(s, e)))
+end
+
+@doc """
+run_end: The first index from i whose byte fails pred, or n.
+
+    run_end([1, 1, 2], 3, 0, (c) -> c == 1) #=> 2
+"""
+def run_end(b, n, i, pred)
+  if i < n and pred(b[i])
+    run_end(b, n, i + 1, pred)
+  else
+    i
+  end
+end
+
+@doc """
+bytes_at?: Whether the bytes of lit stand at index i.
+
+    bytes_at?(text_bytes("<!--x"), 5, 0, "<!--") #=> true
+"""
+def bytes_at?(b, n, i, lit)
+  want = text_bytes(lit)
+  i + count(want) <= n and
+    not any?((k) -> b[i + k] != want[k], range(0, count(want)))
+end
+
+@doc """
+find_bytes: The first index from i where the bytes of lit stand, or nil.
+
+    find_bytes(text_bytes("a-->b"), 5, 0, "-->") #=> 1
+"""
+def find_bytes(b, n, i, lit)
+  if i + count(text_bytes(lit)) > n
+    nil
+  elsif bytes_at?(b, n, i, lit)
+    i
+  else
+    find_bytes(b, n, i + 1, lit)
+  end
+end
+
+@doc """
+xml_document: An XML document's root element, read by blue itself (R6c of
+docs/PURE-BLUE.md) as `xml_parse` reads it: a map {name, attributes, children,
+text}, attributes a map of strings, text the element's own text (with element
+children, only the runs that are not all white space). Malformed text raises
+:xml_malformed; an entity other than the five predefined ones and character
+references raises :xml_refused, and a DOCTYPE never declares one.
+
+    xml_document("<r a=\"1\"><c/></r>")[:attributes] #=> {"a" => "1"}
+"""
+def xml_document(text)
+  b = text_bytes(text)
+  xml_step(b, count(b), 0, [], nil)
+end
+
+@doc """
+xml_malformed: Raise :xml_malformed with a reason.
+
+    raised(() -> xml_malformed("x")) #=> :xml_malformed
+"""
+def xml_malformed(why)
+  raise(:xml_malformed, why)
+end
+
+@doc """
+space_byte?: Whether a byte is white space: a space, tab, line feed or carriage return.
+
+    space_byte?(9) #=> true
+"""
+def space_byte?(c)
+  member?(c, [32, 9, 10, 13])
+end
+
+@doc """
+xml_close: An open element [name, attributes, children, texts] (children and
+texts latest first) as the element map.
+
+    xml_close(["c", {}, [], ["b", "a"]])[:text] #=> "ab"
+"""
+def xml_close(open)
+  kids = reverse(open[2])
+  texts = reverse(open[3])
+  kept = if kids == []
+    texts
+  else
+    filter((t) -> trim(t) != "", texts)
+  end
+  {name: open[0], attributes: open[1], children: kids, text: join(kept, "")}
+end
+
+@doc """
+xml_attach: The stack and root after a finished element: added to the open
+parent's children, or the root when no element is open.
+
+    xml_attach([], {name: "r"}, nil)[1] #=> {name: "r"}
+"""
+def xml_attach(stack, done, root)
+  if stack == []
+    [stack, done]
+  else
+    top = first(stack)
+    [cons([top[0], top[1], cons(done, top[2]), top[3]], rest(stack)), root]
+  end
+end
+
+@doc """
+xml_add_text: The stack with a text run added to the open element, refusing
+text outside the root unless it is white space (what names the run).
+
+    xml_add_text([["r", {}, [], []]], "t", "text")[0][3] #=> ["t"]
+"""
+def xml_add_text(stack, t, what)
+  if stack == []
+    if what == "text" and trim(t) == ""
+      stack
+    else
+      xml_malformed("#{what} outside the root element")
+    end
+  else
+    top = first(stack)
+    cons([top[0], top[1], top[2], cons(t, top[3])], rest(stack))
+  end
+end
+
+@doc """
+xml_step: The document read on from byte pos with the open elements (innermost
+first) and the root so far.
+
+    xml_step(text_bytes("<r/>"), 4, 0, [], nil)[:name] #=> "r"
+"""
+def xml_step(b, n, pos, stack, root)
+  if pos >= n
+    if stack != []
+      xml_malformed("<#{first(stack)[0]}> is never closed")
+    elsif root.nil?
+      xml_malformed("the document has no root element")
+    else
+      root
+    end
+  elsif b[pos] == 60
+    xml_markup(b, n, pos, stack, root)
+  else
+    e = run_end(b, n, pos, (c) -> c != 60)
+    xml_step(b, n, e, xml_text_runs(b, pos, e, stack), root)
+  end
+end
+
+@doc """
+xml_text_runs: The stack after the character data from s to e, split at each
+reference the way the reader splits it: literal runs and resolved references.
+
+    xml_text_runs(text_bytes("a&amp;b"), 0, 7, [["r", {}, [], []]])[0][3] #=> ["b", "&", "a"]
+"""
+def xml_text_runs(b, s, e, stack)
+  if s >= e
+    stack
+  else
+    amp = run_end(b, e, s, (c) -> c != 38)
+    with_text = if amp > s
+      xml_add_text(stack, text_of(b, s, amp), "text")
+    else
+      stack
+    end
+    if amp >= e
+      with_text
+    else
+      semi = run_end(b, e, amp, (c) -> c != 59)
+      if semi >= e
+        xml_malformed("an unterminated reference")
+      end
+      ref = xml_reference(text_of(b, amp + 1, semi))
+      xml_text_runs(b, semi + 1, e, xml_add_text(with_text, ref, "a reference"))
+    end
+  end
+end
+
+@doc """
+xml_reference: The text of a reference's name: a character reference or one of
+the five predefined entities; any other entity is refused.
+
+    xml_reference("#x41") #=> "A"
+"""
+def xml_reference(name)
+  cs = chars(name)
+  predefined = {
+    "lt" => "<",
+    "gt" => ">",
+    "amp" => "&",
+    "apos" => "'",
+    "quot" => "\""
+  }
+  if cs != [] and first(cs) == "#"
+    digits = rest(cs)
+    hex = digits != [] and first(digits) == "x"
+    v = if hex
+      radix_value(join(rest(digits), ""), 16)
+    else
+      radix_value(join(digits, ""), 10)
+    end
+    legal = v != nil and
+      name != "#" and
+      name != "#x" and
+      (member?(v, [9, 10, 13]) or v >= 32 and v != 65534 and v != 65535)
+    t = if legal
+      code_point_text(v)
+    end
+    if t.nil?
+      xml_malformed("&#{name}; is not a legal character reference")
+    end
+    t
+  elsif get(predefined, name) != nil
+    get(predefined, name)
+  else
+    raise(
+      :xml_refused,
+      "entity &#{name}; is not expanded: blue reads only the five predefined entities and character references, never a DTD entity"
+    )
+  end
+end
+
+@doc """
+xml_markup: The document read on from a `<`: a comment, CDATA, a DOCTYPE, a
+declaration or processing instruction, an end tag or a start tag.
+
+    xml_markup(text_bytes("<!--c--><r/>"), 12, 0, [], nil)[:name] #=> "r"
+"""
+def xml_markup(b, n, pos, stack, root)
+  if bytes_at?(b, n, pos, "<!--")
+    close = find_bytes(b, n, pos + 4, "-->")
+    if close.nil?
+      xml_malformed("an unterminated comment")
+    end
+    if find_bytes(b, close, pos + 4, "--") != nil
+      xml_malformed("a comment holds --")
+    end
+    xml_step(b, n, close + 3, stack, root)
+  elsif bytes_at?(b, n, pos, "<![CDATA[")
+    close = find_bytes(b, n, pos + 9, "]]>")
+    if close.nil?
+      xml_malformed("an unterminated CDATA section")
+    end
+    xml_step(
+      b,
+      n,
+      close + 3,
+      xml_add_text(stack, text_of(b, pos + 9, close), "CDATA"),
+      root
+    )
+  elsif bytes_at?(b, n, pos, "<!DOCTYPE")
+    xml_doctype(b, n, pos, stack, root)
+  elsif bytes_at?(b, n, pos, "<?")
+    close = find_bytes(b, n, pos + 2, "?>")
+    if close.nil?
+      xml_malformed("an unterminated processing instruction")
+    end
+    xml_step(b, n, close + 2, stack, root)
+  elsif bytes_at?(b, n, pos, "</")
+    xml_end_tag(b, n, pos, stack, root)
+  else
+    xml_start_tag(b, n, pos, stack, root)
+  end
+end
+
+@doc """
+xml_doctype: Past a DOCTYPE, which may stand only before the root and never
+declares an entity.
+
+    xml_doctype(text_bytes("<!DOCTYPE r><r/>"), 16, 0, [], nil)[:name] #=> "r"
+"""
+def xml_doctype(b, n, pos, stack, root)
+  if root != nil or stack != []
+    xml_malformed("a DOCTYPE after the root element began")
+  end
+  bracket = run_end(b, n, pos, (c) -> c != 91 and c != 62)
+  close = if bracket < n and b[bracket] == 91
+    inner = find_bytes(b, n, bracket, "]")
+    if inner.nil?
+      nil
+    else
+      run_end(b, n, inner, (c) -> c != 62)
+    end
+  else
+    bracket
+  end
+  if close.nil? or close >= n
+    xml_malformed("an unterminated DOCTYPE")
+  end
+  if contains?(text_of(b, pos, close), "<!ENTITY")
+    raise(
+      :xml_refused,
+      "the DOCTYPE declares an entity: blue never expands or fetches DTD entities"
+    )
+  end
+  xml_step(b, n, close + 1, stack, root)
+end
+
+@doc """
+xml_name_end: Where an element or attribute name from i ends.
+
+    xml_name_end(text_bytes("ab c"), 4, 0) #=> 2
+"""
+def xml_name_end(b, n, i)
+  run_end(b, n, i, (c) -> not (space_byte?(c) or member?(c, [47, 62, 61])))
+end
+
+@doc """
+xml_end_tag: Past an end tag, which closes the innermost open element of the
+same name.
+
+    xml_end_tag(text_bytes("</r>"), 4, 0, [["r", {}, [], []]], nil)[:name] #=> "r"
+"""
+def xml_end_tag(b, n, pos, stack, root)
+  close = run_end(b, n, pos, (c) -> c != 62)
+  if close >= n
+    xml_malformed("an unterminated end tag")
+  end
+  name = trim(text_of(b, pos + 2, close))
+  if stack == []
+    xml_malformed("an end tag with no start")
+  end
+  if first(stack)[0] != name
+    xml_malformed("</#{name}> closes <#{first(stack)[0]}>")
+  end
+  done = xml_attach(rest(stack), xml_close(first(stack)), root)
+  xml_step(b, n, close + 1, done[0], done[1])
+end
+
+@doc """
+xml_start_tag: Past a start tag: its name and attributes, then either an empty
+element closed at once or an element left open.
+
+    xml_start_tag(text_bytes("<r a='1'/>"), 10, 0, [], nil)[:attributes] #=> {"a" => "1"}
+"""
+def xml_start_tag(b, n, pos, stack, root)
+  if root != nil and stack == []
+    xml_malformed("a second root element")
+  end
+  ne = xml_name_end(b, n, pos + 1)
+  if ne == pos + 1
+    xml_malformed("a tag with no name")
+  end
+  got = xml_attributes(b, n, ne, {})
+  open = [text_of(b, pos + 1, ne), got[0], [], []]
+  if got[2]
+    done = xml_attach(stack, xml_close(open), root)
+    xml_step(b, n, got[1], done[0], done[1])
+  else
+    xml_step(b, n, got[1], cons(open, stack), root)
+  end
+end
+
+@doc """
+xml_attributes: A start tag's attributes from i, with where the tag ends and
+whether it closed itself.
+
+    xml_attributes(text_bytes(" a=\"x\">"), 7, 0, {}) #=> [{"a" => "x"}, 7, false]
+"""
+def xml_attributes(b, n, i, attrs)
+  j = run_end(b, n, i, space_byte?)
+  if j >= n
+    xml_malformed("an unterminated start tag")
+  elsif b[j] == 62
+    [attrs, j + 1, false]
+  elsif b[j] == 47 and j + 1 < n and b[j + 1] == 62
+    [attrs, j + 2, true]
+  else
+    ke = xml_name_end(b, n, j)
+    eq = run_end(b, n, ke, space_byte?)
+    if ke == j or eq >= n or b[eq] != 61
+      xml_malformed("an attribute without a value")
+    end
+    q = run_end(b, n, eq + 1, space_byte?)
+    if q >= n or b[q] != 34 and b[q] != 39
+      xml_malformed("an attribute value without quotes")
+    end
+    close = run_end(b, n, q + 1, (c) -> c != b[q])
+    if close >= n
+      xml_malformed("an unterminated attribute value")
+    end
+    key = text_of(b, j, ke)
+    if get(attrs, key) != nil
+      xml_malformed("a duplicate attribute #{key}")
+    end
+    value = xml_unescape(b, q + 1, close)
+    xml_attributes(b, n, close + 1, assoc(attrs, key, value))
+  end
+end
+
+@doc """
+xml_unescape: An attribute value's text from s to e with its references resolved.
+
+    xml_unescape(text_bytes("1 &amp; 2"), 0, 9) #=> "1 & 2"
+"""
+def xml_unescape(b, s, e)
+  runs = xml_text_runs(b, s, e, [["", {}, [], []]])
+  join(reverse(first(runs)[3]), "")
+end
+
+test "xml_document gives the element map xml_parse gives", {kind: :unit}
+  samples = [
+    "<r a=\"1 &amp; 2\"><c>x &lt; y</c><c/></r>",
+    unlines(
+      [
+        "<?xml version=\"1.0\"?>",
+        "<!-- c --><r>",
+        "  <a x='1' y=\"2\">t</a>",
+        "  <b/>",
+        "</r>"
+      ]
+    ),
+    "<r>a<![CDATA[<b>]]>c&#65;&#x42;</r>",
+    "<!DOCTYPE r><r b=\"&quot;\" a=\"&lt;\">t &amp; u<c/></r>",
+    "<r> <a/> &amp; <b/> </r>",
+    "<ns:r xmlns:ns=\"u\"><ns:c/></ns:r>"
+  ]
+  assert filter((t) -> xml_document(t) != xml_parse(t), samples) == []
+  assert parse("<r/>", :xml)[:name] == "r"
+end
+
+test "xml_document refuses what xml_parse refuses, with its kind", {kind: :unit}
+  bad = ["<a><b></a>", "<a>", "", "<a/><b/>", "x<a/>", "<a b=1/>", "<a>&q;</a>"]
+  kinds = map((t) -> raised(() -> xml_document(t)), bad)
+  assert kinds == map((t) -> raised(() -> xml_parse(t)), bad)
+  assert raised(
+    fn()
+      xml_document("<!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>")
+    end
+  ) == :xml_refused
+end
+
+test "each step of the XML reader does its own part", {kind: :unit}
+  b = text_bytes("<r/>")
+  assert text_of(b, 1, 2) == "r"
+  assert run_end(b, 4, 0, (c) -> c == 60) == 1
+  assert not bytes_at?(b, 4, 3, "/>")
+  assert find_bytes(b, 4, 0, "!").nil?
+  assert raised(() -> xml_malformed("no")) == :xml_malformed
+  assert not space_byte?(65)
+  assert xml_close(["r", {}, [{name: "c"}], [" ", "t"]])[:text] == "t"
+  assert xml_attach([["p", {}, [], []]], {name: "c"}, nil)[0][0][2] ==
+    [{name: "c"}]
+  assert raised(() -> xml_add_text([], "t", "text")) == :xml_malformed
+  assert xml_step(b, 4, 0, [], nil)[:children] == []
+  assert xml_text_runs(b, 0, 0, []) == []
+  assert xml_reference("amp") == "&"
+  assert xml_markup(b, 4, 0, [], nil)[:name] == "r"
+  assert raised(() -> xml_doctype(b, 4, 0, [], {name: "r"})) == :xml_malformed
+  assert xml_name_end(b, 4, 1) == 2
+  assert raised(() -> xml_end_tag(text_bytes("</r>"), 4, 0, [], nil)) ==
+    :xml_malformed
+  assert xml_start_tag(b, 4, 0, [], nil)[:name] == "r"
+  assert xml_attributes(text_bytes("/>"), 2, 0, {}) == [{}, 2, true]
+  assert xml_unescape(text_bytes("&#33;"), 0, 5) == "!"
 end

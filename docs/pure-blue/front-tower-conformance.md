@@ -185,6 +185,7 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   harness's shared `Env` or a leak in the evaluator is not yet known. The sweep stalled on a
   host row that reads stdin. So the I3 gate must skip such rows, and it must run in a release
   build: a debug sweep took about 2 hours for 190 rows.
+- **Measured (2026-11-20): cycle-through-cell is the VM's letrec.** `control.while` leaks only on the VM, and so does `while(i < 0, 1)`, whose body never runs (13 KB per run; `set!` alone leaks nothing). `while` is tatara's macro over `(letrec ((loop (lambda () …))) (loop))`, and the VM lowers `letrec` to `(let ((loop nil)) (set! loop …) …)` with closures that capture by cell (`tatara-lisp-eval/src/vm/compile.rs`, `desugar_letrec`). The loop lambda captures the cell that holds it, so when the scope ends the cell and the closure hold each other. Clearing the cells at scope exit would break a `letrec` that returns its own function; the fix proves the ring closed first (the cell held only by its slot and its own closure's captures, the closure held only by the cell), the way `release_if_closed` proves a frame closed, and only then sets the cell to nil. It belongs in tatara's VM and ships in a tatara release. The same shape (named recursion through a cell) is the first suspect for `lisp.defstrategy`, `lisp.defvisitor` and the process and wire rows on the ledger.
 
 ### C3 — benchmarks
 

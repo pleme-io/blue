@@ -229,7 +229,11 @@ fn a_buffer_that_does_not_parse_still_answers_a_token_request() {
 #[test]
 fn a_real_session_serves_the_memory_hints_without_running_the_buffer() {
     let messages = session(&[
-        req(1, "initialize", json!({ "initializationOptions": { "liveEval": false } })),
+        req(
+            1,
+            "initialize",
+            json!({ "initializationOptions": { "liveEval": false } }),
+        ),
         notify("initialized", json!({})),
         notify(
             "textDocument/didOpen",

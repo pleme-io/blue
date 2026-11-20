@@ -964,19 +964,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
-    interp.register_fn(
-        "temp_dir",
-        Arity::Exact(1),
-        |args: &[Value], _h: &mut H, span| {
-            let label = arg_str(&args[0], "temp_dir", span)?;
-            let root = crate::scratch::root();
-            writable(&root.to_string_lossy(), "temp_dir", span)?;
-            let dir = crate::scratch::held(&label).map_err(|e| {
-                EvalError::native_fn("temp_dir", format!("{}: {e}", root.display()), span)
-            })?;
-            Ok(Value::Str(dir.to_string_lossy().into_owned().into()))
-        },
-    );
+    install_temp_dir(interp);
 
     install_path_words(interp, String::from);
 
@@ -1975,4 +1963,39 @@ mod tests {
             "sleep_ms must actually block"
         );
     }
+}
+
+/// `temp_dir` for one run: the directories it makes are released when the
+/// interpreter it is installed in is released, the run's end however it
+/// ends, rather than when the process exits. Installed with the system words
+/// and again on every fork a door attaches a node to, so each run holds its own.
+pub fn install_temp_dir<H: 'static>(interp: &mut Interpreter<H>) {
+    let made: Arc<std::sync::Mutex<Vec<std::path::PathBuf>>> = Arc::default();
+    let ended = Arc::clone(&made);
+    interp.on_release(move || {
+        let dirs = std::mem::take(
+            &mut *ended
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        for dir in dirs {
+            crate::scratch::release(&dir);
+        }
+    });
+    interp.register_fn(
+        "temp_dir",
+        Arity::Exact(1),
+        move |args: &[Value], _h: &mut H, span| {
+            let label = arg_str(&args[0], "temp_dir", span)?;
+            let root = crate::scratch::root();
+            writable(&root.to_string_lossy(), "temp_dir", span)?;
+            let dir = crate::scratch::held(&label).map_err(|e| {
+                EvalError::native_fn("temp_dir", format!("{}: {e}", root.display()), span)
+            })?;
+            made.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(dir.clone());
+            Ok(Value::Str(dir.to_string_lossy().into_owned().into()))
+        },
+    );
 }

@@ -188,6 +188,8 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
 /// per fork) calls it on each fork for the same reason.
 pub fn attach_node<H: 'static>(interp: &mut Interpreter<H>) {
     dispatch::install(interp);
+    #[cfg(feature = "host")]
+    sys::install_temp_dir(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(node_config()));
 }
 
@@ -215,6 +217,8 @@ pub fn attach_node_bounded<H: 'static>(
     config.identities = account.identities.clone();
     config.places = account.places.clone();
     dispatch::install(interp);
+    #[cfg(feature = "host")]
+    sys::install_temp_dir(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
 }
 
@@ -254,6 +258,8 @@ pub fn attach_node_accounted<H: 'static>(
         });
     }
     dispatch::install(interp);
+    #[cfg(feature = "host")]
+    sys::install_temp_dir(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
 }
 

@@ -1,4 +1,4 @@
-{"blind":[],"definitions":6570,"format":"arika/1","leaves":6570,"repo":"blue","shape_root":"b3:370f3e79c97d1e52d8081e73d9a60cba437bb3e08128a12ebaab10547b842f9e","shapes":6288,"snapshot_root":"b3:b46dc8503dd506d7e2c4c141541953d02bfd36ca5adbf828f189588ca7b5372b","units":[
+{"blind":[],"definitions":6583,"format":"arika/1","leaves":6583,"repo":"blue","shape_root":"b3:511c6604ae1dca251dba73d94a4952521e63ab6df2ecf12627b116fce967f60b","shapes":6301,"snapshot_root":"b3:b15ab7aba349bc7f87ad68fa49ab1576265bd4405b05802464e12c1d8f1dab5e","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:adb2601e123c3a75bb85b128ee2b8a4ae32f17b3091b5b5df1525ef0135e7de4"},
 {"leaves":23,"package":"baito","unit_root":"b3:92add2513d2ac3dbeef2644d0e2775272359a5490d54fceff6188a2b20052f45"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:7df9cbe6fbc51af2e59b6b5d48ce37dd5848ab4b5d535f6c0da01d0f20b63ca3"},
@@ -91,7 +91,7 @@
 {"leaves":32,"package":"shinsatsu","unit_root":"b3:ccb435a3370a7f511bd47afae831ed8fae75b2ee793af49648e5c329bd1e4877"},
 {"leaves":90,"package":"shinsuu","unit_root":"b3:eba76c01e8afeb7bf1c8f430f320842b82bdc25d26141ed01bcc7aef5dd8b9b8"},
 {"leaves":31,"package":"shisutemu","unit_root":"b3:114f22ff924174e6a8e3eeaab7c057c1df2e26716c042ed09c01e58d1bf535a1"},
-{"leaves":91,"package":"shomei","unit_root":"b3:c6aef7eeb31b28e4d404bbc976a7647c8428ee1af6e45c72d70e757f09bf5149"},
+{"leaves":104,"package":"shomei","unit_root":"b3:9b0d7d647e964063f93dc759c0d09e2c76b43ddf81fe3f62441bf93817ae1def"},
 {"leaves":33,"package":"shuugou","unit_root":"b3:f2b74763e7edff9ab78e0b95dc95c182f56263238c5b318b981abb50fbb0d793"},
 {"leaves":33,"package":"shuusei","unit_root":"b3:93fa94f37318085beb41e8d0e627c3cad9673b76fa0f169944ecac4e64d03ff7"},
 {"leaves":61,"package":"suugaku/gyouretsu","unit_root":"b3:7ea4c3a0c0d10dca1fe7fbf27070ee09186cdf9018d9b09bede89f64563ad2e9"},

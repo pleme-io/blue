@@ -65,6 +65,11 @@ pub struct Policy {
     /// not ended by then is a loop the memo stops paying for, and the fuel
     /// budget, not the memo, decides when it ends.
     pub chain_window: u64,
+    /// The keying time a definition may spend with no hit and nothing stored
+    /// before it stops being looked up, whatever its call count: a key costs
+    /// the size of the arguments, so a loop that passes a large value on
+    /// every call would otherwise pay that size [`Self::chain_window`] times.
+    pub key_budget: Duration,
     /// The in-process table's bound on stored bytes; past it, nothing more
     /// is stored this run.
     pub table_bytes: usize,
@@ -84,6 +89,7 @@ impl Default for Policy {
             store_min: Duration::from_micros(5),
             window: 256,
             chain_window: 1 << 14,
+            key_budget: Duration::from_millis(5),
             table_bytes: 256 << 20,
         }
     }
@@ -649,7 +655,8 @@ impl CallObserver for Recall {
         };
         let c = &mut st.counts[d];
         c.calls += 1;
-        if waiting == 0 && c.calls > window && c.hits + c.disk_hits == 0 && c.stored == 0 {
+        let fruitless = c.hits + c.disk_hits == 0 && c.stored == 0;
+        if waiting == 0 && fruitless && (c.calls > window || c.keying >= self.policy.key_budget) {
             c.retired = true;
             self.retired[d].store(true, Ordering::Relaxed);
             self.push(&mut st, frame);

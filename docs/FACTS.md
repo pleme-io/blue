@@ -100,7 +100,9 @@ Each wave lists defaults in the order their gain is known. Each default meets
   R1 to R12 (facts, lever, receipt, switch, state, locks). `tests/kitei_gate.rs`
   holds the table in docs/PERFORMANCE.md, the switches the crates read and the
   rules `blue shift --defaults` names to its rows; each turns red on a wrong row.
-- The fact store in mondou.
+- The fact store in mondou. An alias: its owner is PURE-BLUE M1 (ownership
+  facts, cached by `def_hash`; ROADMAP.md, the owner table), which holds its
+  state and lock.
 - ✅ `blue shift --defaults FILE` (`--json` too): per definition of the file,
   its facts (pure or why not, calls itself twice, typed), each default that
   fires (R2 memo, R3 fusion, R4 fold, R10 index, R7 native, R8 stored results)

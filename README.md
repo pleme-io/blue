@@ -274,7 +274,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-78 packages, 6452 definitions, 2279 tests.
+79 packages, 6496 definitions, 2282 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -353,6 +353,7 @@ rendered:
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 - [umu](bidamas/CATALOG.md#umu) (有無) — presence or absence, as a declared value: blue's Option.
 - [utsushi](bidamas/CATALOG.md#utsushi) (写し, a transcription) — a part of a repository's history, shown as a history of its own: a lens picks the part, and each commit is written again over the part's tree, with its author, committer and message unchanged, so the same lens over the same commit gives the same commit id on every machine (docs/UTSUSHI.md).
+- [yomi](bidamas/CATALOG.md#yomi) (読み): blue's reader, written in blue (F1 of docs/pure-blue/front-tower-conformance.md).
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
 
 </details>

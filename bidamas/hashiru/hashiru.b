@@ -1037,6 +1037,8 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif member?(op, map((w) -> w[0], TCP_OPS))
+    tcp_op(slots, op, args)
   elsif op == "put_int"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1682,7 +1684,16 @@ def runtime()
       RT_HOSTS_LOOKUP,
       RT_DNS_LOOKUP,
       RT_PUT_INT,
-      RT_PUT_BYTE
+      RT_PUT_BYTE,
+      RT_RESOLVE,
+      RT_SOCKADDR,
+      RT_TCP_LISTEN,
+      RT_TCP_PORT,
+      RT_TCP_ACCEPT,
+      RT_TCP_OPEN,
+      RT_TCP_READ,
+      RT_TCP_WRITE,
+      RT_TCP_CLOSE
     ]
   )
 end
@@ -5322,24 +5333,10 @@ RT_TCP_CONNECT = append(
       {op: "store", src: "rcx", base: "rbp", disp: -96},
       {op: "mov", dst: "rcx", imm: 0},
       {op: "store", src: "rcx", base: "rbp", disp: -104},
-      {op: "load", dst: "rsi", base: "rbp", disp: -8},
-      {op: "load", dst: "r9", base: "rsi", disp: 24},
-      {op: "mov", dst: "r8", src: "rsi"},
-      {op: "add", dst: "r8", imm: 32}
-    ],
-    parse_dotted("rt_tc_ip"),
-    [
-      {op: "cmp", dst: "rax", imm: -1},
-      {op: "j", cond: "ne", label: "rt_tc_have"},
       {op: "load", dst: "rdi", base: "rbp", disp: -8},
-      {op: "call_label", label: "rt_hosts_lookup"},
-      {op: "cmp", dst: "rax", imm: -1},
-      {op: "j", cond: "ne", label: "rt_tc_have"},
-      {op: "load", dst: "rdi", base: "rbp", disp: -8},
-      {op: "call_label", label: "rt_dns_lookup"},
+      {op: "call_label", label: "rt_resolve"},
       {op: "cmp", dst: "rax", imm: -1},
       {op: "j", cond: "e", label: "rt_tc_unresolved"},
-      {op: "label", name: "rt_tc_have"},
       {op: "movabs", dst: "rcx", imm: 4_294_967_296},
       {op: "imul", dst: "rax", src: "rcx"},
       {op: "load", dst: "rcx", base: "rbp", disp: -96},
@@ -5522,6 +5519,8 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
     {op: "label", name: "rt_read_file"},
     {op: "ret"},
     {op: "label", name: "rt_dns_lookup"},
+    {op: "ret"},
+    {op: "label", name: "rt_resolve"},
     {op: "ret"}
   ]
   assert length(assemble(append(RT_TCP_CONNECT, stand_ins))) > 0
@@ -5817,4 +5816,773 @@ test "put_int builds its digits in its frame, and put_byte writes one byte"
   assert length(assemble(RT_PUT_INT)) > 0
   assert length(assemble(RT_PUT_BYTE)) > 0
   assert length(output_programs) == 4
+end
+
+@doc """
+HANDLE_KIND: the block kind of a native socket handle: [kind, count, size 4, the descriptor as a tagged number], -1 once closed. rt_drop passes the descriptor by, as it is no block.
+
+    HANDLE_KIND #=> 6
+"""
+HANDLE_KIND = 6
+
+@doc """
+TCP_OPS: each native TCP word and the routine it calls, its arguments in rdi then rsi.
+
+    TCP_OPS[0] #=> ["tcp_listen", "rt_tcp_listen"]
+"""
+TCP_OPS = [
+  %w[tcp_listen rt_tcp_listen],
+  %w[tcp_port rt_tcp_port],
+  %w[tcp_accept rt_tcp_accept],
+  %w[tcp_connect rt_tcp_open],
+  %w[tcp_read rt_tcp_read],
+  %w[tcp_write rt_tcp_write],
+  %w[tcp_close rt_tcp_close]
+]
+
+@doc """
+tcp_op: the instructions of one TCP word: its arguments in rdi and rsi, then a call to its routine.
+
+    last(tcp_op([], "tcp_port", [1])) #=> {op: "call_label", label: "rt_tcp_port"}
+"""
+def tcp_op(slots, op, args)
+  routine = filter((w) -> w[0] == op, TCP_OPS)[0][1]
+  append(
+    flat_map(
+      range(0, length(args)),
+      (i) -> tagged_atom(slots, args[i], %w[rdi rsi][i])
+    ),
+    [{op: "call_label", label: routine}]
+  )
+end
+
+@doc """
+new_handle: the instructions that allocate a handle holding the descriptor at rbp+fd, answered in rax.
+
+    new_handle(-40)[0] #=> {op: "mov", dst: "rdi", imm: 4}
+"""
+def new_handle(fd)
+  [
+    {op: "mov", dst: "rdi", imm: 4},
+    {op: "call_label", label: "rt_alloc"},
+    {op: "mov", dst: "rcx", imm: HANDLE_KIND},
+    {op: "store", src: "rcx", base: "rax", disp: 0},
+    {op: "load", dst: "rcx", base: "rbp", disp: fd},
+    {op: "mov", dst: "rdx", src: "rcx"},
+    {op: "add", dst: "rcx", src: "rdx"},
+    {op: "add", dst: "rcx", imm: 1},
+    {op: "store", src: "rcx", base: "rax", disp: 24}
+  ]
+end
+
+@doc """
+error_from: the instructions that make an error block whose payload is the tagged number in src (a negated errno), answered in rax.
+
+    error_from("rax")[0] #=> {op: "push", src: "rax"}
+"""
+def error_from(src)
+  [
+    {op: "push", src:},
+    {op: "mov", dst: "rdi", imm: 4},
+    {op: "call_label", label: "rt_alloc"},
+    {op: "mov", dst: "rcx", imm: 4},
+    {op: "store", src: "rcx", base: "rax", disp: 0},
+    {op: "pop", dst: "rcx"},
+    {op: "mov", dst: "rdx", src: "rcx"},
+    {op: "add", dst: "rcx", src: "rdx"},
+    {op: "add", dst: "rcx", imm: 1},
+    {op: "store", src: "rcx", base: "rax", disp: 24}
+  ]
+end
+
+@doc """
+close_and_raise: the failure tail of a routine that may have opened the descriptor at rbp+fd: the errno in rax kept at rbp+tmp, the descriptor closed when it was opened, and an error block of the errno stored at rbp+out.
+
+    close_and_raise("t", -40, -56, -48)[0] #=> {op: "label", name: "t_bad"}
+"""
+def close_and_raise(tag, fd, tmp, out)
+  append(
+    *[
+      [
+        {op: "label", name: "#{tag}_bad"},
+        {op: "store", src: "rax", base: "rbp", disp: tmp},
+        {op: "load", dst: "rdi", base: "rbp", disp: fd},
+        {op: "cmp", dst: "rdi", imm: 0},
+        {op: "j", cond: "l", label: "#{tag}_unopened"},
+        {op: "mov", dst: "rax", imm: 3},
+        {op: "syscall"},
+        {op: "label", name: "#{tag}_unopened"},
+        {op: "load", dst: "rax", base: "rbp", disp: tmp}
+      ],
+      error_from("rax"),
+      [{op: "store", src: "rax", base: "rbp", disp: out}]
+    ]
+  )
+end
+
+@doc """
+leave_with: a routine's end: the word at rbp+drop dropped, the word at rbp+answer in rax, the frame gone.
+
+    last(leave_with(-8, -16)) #=> {op: "ret"}
+"""
+def leave_with(drop, answer)
+  [
+    {op: "load", dst: "rdi", base: "rbp", disp: drop},
+    {op: "call_label", label: "rt_drop"},
+    {op: "load", dst: "rax", base: "rbp", disp: answer},
+    {op: "mov", dst: "rsp", src: "rbp"},
+    {op: "pop_rbp"},
+    {op: "ret"}
+  ]
+end
+
+@doc """
+RT_RESOLVE: the IPv4 address of the host string in rdi (borrowed), as parse_dotted's word in rax, or -1: a dotted address, else /etc/hosts (rt_hosts_lookup), else DNS (rt_dns_lookup).
+
+    RT_RESOLVE[0] #=> {op: "label", name: "rt_resolve"}
+"""
+RT_RESOLVE = append(
+  *[
+    [
+      {op: "label", name: "rt_resolve"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 16},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "r8", src: "rdi"},
+      {op: "add", dst: "r8", imm: 32},
+      {op: "load", dst: "r9", base: "rdi", disp: 24}
+    ],
+    parse_dotted("rt_rs_ip"),
+    [
+      {op: "cmp", dst: "rax", imm: -1},
+      {op: "j", cond: "ne", label: "rt_rs_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_hosts_lookup"},
+      {op: "cmp", dst: "rax", imm: -1},
+      {op: "j", cond: "ne", label: "rt_rs_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_dns_lookup"},
+      {op: "label", name: "rt_rs_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_SOCKADDR: the IPv4 socket address of the "host:port" string in rdi (borrowed), written as 16 bytes at rsi; rax is 0, or -1 when there is no colon, the port is not 0 to 65535 in digits, or the host does not resolve (rt_resolve, on a string of the host part).
+
+    RT_SOCKADDR[0] #=> {op: "label", name: "rt_sockaddr"}
+"""
+RT_SOCKADDR = append(
+  *[
+    [
+      {op: "label", name: "rt_sockaddr"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 64},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "load", dst: "r9", base: "rdi", disp: 24},
+      {op: "mov", dst: "r8", src: "rdi"},
+      {op: "add", dst: "r8", imm: 32},
+      {op: "mov", dst: "r10", src: "r9"},
+      {op: "label", name: "rt_sa_colon"},
+      {op: "sub", dst: "r10", imm: 1},
+      {op: "cmp", dst: "r10", imm: 0},
+      {op: "j", cond: "l", label: "rt_sa_fail"},
+      {op: "mov", dst: "rax", src: "r8"},
+      {op: "add", dst: "rax", src: "r10"},
+      {op: "load_byte", dst: "rax", base: "rax"},
+      {op: "cmp", dst: "rax", imm: 58},
+      {op: "j", cond: "ne", label: "rt_sa_colon"},
+      {op: "store", src: "r10", base: "rbp", disp: -40},
+      {op: "store", src: "r8", base: "rbp", disp: -48},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "r11", src: "r10"},
+      {op: "add", dst: "r11", imm: 1},
+      {op: "cmp", dst: "r11", src: "r9"},
+      {op: "j", cond: "e", label: "rt_sa_fail"},
+      {op: "label", name: "rt_sa_digit"},
+      {op: "cmp", dst: "r11", src: "r9"},
+      {op: "j", cond: "e", label: "rt_sa_port"},
+      {op: "mov", dst: "rax", src: "r8"},
+      {op: "add", dst: "rax", src: "r11"},
+      {op: "load_byte", dst: "rax", base: "rax"},
+      {op: "sub", dst: "rax", imm: 48},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_sa_fail"},
+      {op: "cmp", dst: "rax", imm: 9},
+      {op: "j", cond: "g", label: "rt_sa_fail"},
+      {op: "mov", dst: "rcx", imm: 10},
+      {op: "imul", dst: "rdx", src: "rcx"},
+      {op: "add", dst: "rdx", src: "rax"},
+      {op: "cmp", dst: "rdx", imm: 65535},
+      {op: "j", cond: "g", label: "rt_sa_fail"},
+      {op: "add", dst: "r11", imm: 1},
+      {op: "jmp", label: "rt_sa_digit"},
+      {op: "label", name: "rt_sa_port"},
+      {op: "store", src: "rdx", base: "rbp", disp: -32}
+    ],
+    string_from_buffer(-48, -40, -24, "rt_sa_copy"),
+    [
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_resolve"},
+      {op: "store", src: "rax", base: "rbp", disp: -56},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -56},
+      {op: "cmp", dst: "rax", imm: -1},
+      {op: "j", cond: "e", label: "rt_sa_fail"},
+      {op: "movabs", dst: "rcx", imm: 4_294_967_296},
+      {op: "imul", dst: "rax", src: "rcx"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32},
+      {op: "mov", dst: "r10", src: "rdx"},
+      {op: "and", dst: "r10", imm: 255},
+      {op: "mov", dst: "rcx", imm: 256},
+      {op: "imul", dst: "r10", src: "rcx"}
+    ],
+    map((k) -> {op: "shr1", dst: "rdx"}, range(0, 8)),
+    [
+      {op: "add", dst: "r10", src: "rdx"},
+      {op: "mov", dst: "rcx", imm: 65536},
+      {op: "imul", dst: "r10", src: "rcx"},
+      {op: "add", dst: "rax", src: "r10"},
+      {op: "add", dst: "rax", imm: 2},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 8},
+      {op: "jmp", label: "rt_sa_out"},
+      {op: "label", name: "rt_sa_fail"},
+      {op: "mov", dst: "rax", imm: -1},
+      {op: "label", name: "rt_sa_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+socket_open: the instructions that open a non-blocking, close-on-exec IPv4 stream socket and keep it at rbp+fd, jumping to the routine's bad tail (errno in rax) when it cannot.
+
+    last(socket_open("t", -40))[:disp] #=> -40
+"""
+def socket_open(tag, fd)
+  [
+    {op: "mov", dst: "rdi", imm: 2},
+    {op: "mov", dst: "rsi", imm: 526_337},
+    {op: "mov", dst: "rdx", imm: 0},
+    {op: "mov", dst: "rax", imm: 41},
+    {op: "syscall"},
+    {op: "cmp", dst: "rax", imm: 0},
+    {op: "j", cond: "l", label: "#{tag}_bad"},
+    {op: "store", src: "rax", base: "rbp", disp: fd}
+  ]
+end
+
+@doc """
+RT_TCP_LISTEN: tcp_listen natively (R4 of docs/PURE-BLUE.md): a listening handle bound to the "host:port" string in rdi (consumed; port 0 picks one), with SO_REUSEADDR and a backlog of 128, or an error carrying the negated errno (EINVAL, -22, for an address that does not parse or resolve).
+
+    RT_TCP_LISTEN[0] #=> {op: "label", name: "rt_tcp_listen"}
+"""
+RT_TCP_LISTEN = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_listen"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 80},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: -1},
+      {op: "store", src: "rcx", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -32},
+      {op: "call_label", label: "rt_sockaddr"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_tl_sock"},
+      {op: "mov", dst: "rax", imm: -22},
+      {op: "jmp", label: "rt_tl_bad"},
+      {op: "label", name: "rt_tl_sock"}
+    ],
+    socket_open("rt_tl", -40),
+    [
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -56},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "mov", dst: "rdx", imm: 2},
+      {op: "mov", dst: "r10", src: "rbp"},
+      {op: "add", dst: "r10", imm: -56},
+      {op: "mov", dst: "r8", imm: 4},
+      {op: "mov", dst: "rax", imm: 54},
+      {op: "syscall"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -32},
+      {op: "mov", dst: "rdx", imm: 16},
+      {op: "mov", dst: "rax", imm: 49},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_tl_bad"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", imm: 128},
+      {op: "mov", dst: "rax", imm: 50},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_tl_bad"}
+    ],
+    new_handle(-40),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -48},
+      {op: "jmp", label: "rt_tl_out"}
+    ],
+    close_and_raise("rt_tl", -40, -56, -48),
+    [{op: "label", name: "rt_tl_out"}],
+    leave_with(-8, -48)
+  ]
+)
+
+@doc """
+RT_TCP_PORT: tcp_port natively: the port the handle in rdi (consumed) is bound to, read with getsockname, as a tagged number; an error (EBADF, -9) for a closed handle.
+
+    RT_TCP_PORT[0] #=> {op: "label", name: "rt_tcp_port"}
+"""
+RT_TCP_PORT = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_port"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "load", dst: "rcx", base: "rdi", disp: 24},
+      {op: "sar1", dst: "rcx"},
+      {op: "mov", dst: "rax", imm: -9},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "l", label: "rt_tp_bad"},
+      {op: "mov", dst: "rax", imm: 16},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -24},
+      {op: "mov", dst: "rdx", src: "rbp"},
+      {op: "add", dst: "rdx", imm: -32},
+      {op: "mov", dst: "rax", imm: 51},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_tp_bad"},
+      {op: "mov", dst: "rcx", src: "rbp"},
+      {op: "add", dst: "rcx", imm: -22},
+      {op: "load_byte", dst: "rax", base: "rcx"},
+      {op: "mov", dst: "rdx", imm: 256},
+      {op: "imul", dst: "rax", src: "rdx"},
+      {op: "mov", dst: "rcx", src: "rbp"},
+      {op: "add", dst: "rcx", imm: -21},
+      {op: "load_byte", dst: "rcx", base: "rcx"},
+      {op: "add", dst: "rax", src: "rcx"},
+      {op: "mov", dst: "rcx", src: "rax"},
+      {op: "add", dst: "rax", src: "rcx"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "jmp", label: "rt_tp_out"},
+      {op: "label", name: "rt_tp_bad"}
+    ],
+    error_from("rax"),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "label", name: "rt_tp_out"}
+    ],
+    leave_with(-8, -40)
+  ]
+)
+
+@doc """
+RT_TCP_ACCEPT: tcp_accept natively: the next waiting connection on the listening handle in rdi (consumed) as a new handle, by accept4, non-blocking and close-on-exec; nil when none is waiting or the handle is closed. It never blocks.
+
+    RT_TCP_ACCEPT[0] #=> {op: "label", name: "rt_tcp_accept"}
+"""
+RT_TCP_ACCEPT = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_accept"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rdi", disp: 24},
+      {op: "sar1", dst: "rcx"},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "l", label: "rt_ta_out"},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "mov", dst: "rsi", imm: 0},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "mov", dst: "r10", imm: 526_336},
+      {op: "mov", dst: "rax", imm: 288},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_ta_out"},
+      {op: "store", src: "rax", base: "rbp", disp: -16}
+    ],
+    new_handle(-16),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "label", name: "rt_ta_out"}
+    ],
+    leave_with(-8, -24)
+  ]
+)
+
+@doc """
+RT_TCP_OPEN: tcp_connect natively: a handle connected to the "host:port" string in rdi (consumed) within the tagged milliseconds in rsi: a non-blocking connect, poll for writable, SO_ERROR; an error carrying the negated errno when it cannot (EINVAL for an address that does not parse or resolve, ETIMEDOUT, -110, when the time runs out).
+
+    RT_TCP_OPEN[0] #=> {op: "label", name: "rt_tcp_open"}
+"""
+RT_TCP_OPEN = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_open"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 96},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "mov", dst: "rcx", imm: -1},
+      {op: "store", src: "rcx", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -32},
+      {op: "call_label", label: "rt_sockaddr"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_to_sock"},
+      {op: "mov", dst: "rax", imm: -22},
+      {op: "jmp", label: "rt_to_bad"},
+      {op: "label", name: "rt_to_sock"}
+    ],
+    socket_open("rt_to", -40),
+    [
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -32},
+      {op: "mov", dst: "rdx", imm: 16},
+      {op: "mov", dst: "rax", imm: 42},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_to_ok"},
+      {op: "cmp", dst: "rax", imm: -115},
+      {op: "j", cond: "ne", label: "rt_to_bad"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "movabs", dst: "rdx", imm: 4 * 4_294_967_296},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "store", src: "rcx", base: "rbp", disp: -64},
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -64},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "load", dst: "rdx", base: "rbp", disp: -16},
+      {op: "sar1", dst: "rdx"},
+      {op: "mov", dst: "rax", imm: 7},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_to_bad"},
+      {op: "j", cond: "g", label: "rt_to_check"},
+      {op: "mov", dst: "rax", imm: -110},
+      {op: "jmp", label: "rt_to_bad"},
+      {op: "label", name: "rt_to_check"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rbp", disp: -72},
+      {op: "mov", dst: "rax", imm: 4},
+      {op: "store", src: "rax", base: "rbp", disp: -80},
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", imm: 1},
+      {op: "mov", dst: "rdx", imm: 4},
+      {op: "mov", dst: "r10", src: "rbp"},
+      {op: "add", dst: "r10", imm: -72},
+      {op: "mov", dst: "r8", src: "rbp"},
+      {op: "add", dst: "r8", imm: -80},
+      {op: "mov", dst: "rax", imm: 55},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_to_bad"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -72},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_to_ok"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "sub", dst: "rax", src: "rcx"},
+      {op: "jmp", label: "rt_to_bad"},
+      {op: "label", name: "rt_to_ok"}
+    ],
+    new_handle(-40),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -48},
+      {op: "jmp", label: "rt_to_out"}
+    ],
+    close_and_raise("rt_to", -40, -56, -48),
+    [{op: "label", name: "rt_to_out"}],
+    leave_with(-8, -48)
+  ]
+)
+
+@doc """
+TCP_CHUNK: the most bytes one tcp_read or tcp_write moves, the size of the buffer in its frame.
+
+    TCP_CHUNK #=> 4096
+"""
+TCP_CHUNK = 4096
+
+@doc """
+RT_TCP_READ: tcp_read natively: at most the tagged max in rsi bytes (and at most TCP_CHUNK) from the handle in rdi (consumed), as a list of numbers built from the last byte back. None ready, a closed handle or a max below 1 answer nil, which is also the empty list natively; when the peer has closed, the handle is closed too (its descriptor -1), so net_wait reports it :closed.
+
+    RT_TCP_READ[0] #=> {op: "label", name: "rt_tcp_read"}
+"""
+RT_TCP_READ = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_read"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: TCP_CHUNK + 64},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rdi", disp: 24},
+      {op: "sar1", dst: "rcx"},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "l", label: "rt_tr_out"},
+      {op: "sar1", dst: "rsi"},
+      {op: "cmp", dst: "rsi", imm: 1},
+      {op: "j", cond: "l", label: "rt_tr_out"},
+      {op: "cmp", dst: "rsi", imm: TCP_CHUNK},
+      {op: "j", cond: "le", label: "rt_tr_sized"},
+      {op: "mov", dst: "rsi", imm: TCP_CHUNK},
+      {op: "label", name: "rt_tr_sized"},
+      {op: "mov", dst: "rdx", src: "rsi"},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "mov", dst: "rsi", src: "rbp"},
+      {op: "add", dst: "rsi", imm: -(TCP_CHUNK + 64)},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "g", label: "rt_tr_build"},
+      {op: "j", cond: "l", label: "rt_tr_out"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -8},
+      {op: "load", dst: "rdi", base: "rcx", disp: 24},
+      {op: "sar1", dst: "rdi"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -8},
+      {op: "mov", dst: "rax", imm: -1},
+      {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "jmp", label: "rt_tr_out"},
+      {op: "label", name: "rt_tr_build"},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "label", name: "rt_tr_byte"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_tr_out"},
+      {op: "sub", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "mov", dst: "rdx", src: "rbp"},
+      {op: "add", dst: "rdx", imm: -(TCP_CHUNK + 64)},
+      {op: "add", dst: "rdx", src: "rcx"},
+      {op: "load_byte", dst: "rcx", base: "rdx"},
+      {op: "mov", dst: "rdx", src: "rcx"},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -40}
+    ],
+    cell(-40, -24, -24),
+    [{op: "jmp", label: "rt_tr_byte"}, {op: "label", name: "rt_tr_out"}],
+    leave_with(-8, -24)
+  ]
+)
+
+@doc """
+RT_TCP_WRITE: tcp_write natively: the bytes in rsi (a string, or a list of numbers, at most TCP_CHUNK of them gathered in the frame; consumed) sent on the handle in rdi (consumed) without blocking and without SIGPIPE (send with MSG_NOSIGNAL): how many went out, tagged, 0 when the socket is full, closed or the peer is gone.
+
+    RT_TCP_WRITE[0] #=> {op: "label", name: "rt_tcp_write"}
+"""
+RT_TCP_WRITE = [
+  {op: "label", name: "rt_tcp_write"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: TCP_CHUNK + 64},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "store", src: "rsi", base: "rbp", disp: -16},
+  {op: "mov", dst: "rcx", imm: 1},
+  {op: "store", src: "rcx", base: "rbp", disp: -24},
+  {op: "load", dst: "rcx", base: "rdi", disp: 24},
+  {op: "sar1", dst: "rcx"},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "l", label: "rt_tw_out"},
+  {op: "store", src: "rcx", base: "rbp", disp: -32},
+  {op: "cmp", dst: "rsi", imm: 0},
+  {op: "j", cond: "e", label: "rt_tw_out"},
+  {op: "load", dst: "rax", base: "rsi", disp: 0},
+  {op: "cmp", dst: "rax", imm: 1},
+  {op: "j", cond: "ne", label: "rt_tw_list"},
+  {op: "load", dst: "rdx", base: "rsi", disp: 24},
+  {op: "add", dst: "rsi", imm: 32},
+  {op: "jmp", label: "rt_tw_send"},
+  {op: "label", name: "rt_tw_list"},
+  {op: "mov", dst: "r8", src: "rsi"},
+  {op: "mov", dst: "r10", src: "rbp"},
+  {op: "add", dst: "r10", imm: -(TCP_CHUNK + 64)},
+  {op: "mov", dst: "r9", imm: 0},
+  {op: "label", name: "rt_tw_gather"},
+  {op: "cmp", dst: "r8", imm: 0},
+  {op: "j", cond: "e", label: "rt_tw_gathered"},
+  {op: "cmp", dst: "r9", imm: TCP_CHUNK},
+  {op: "j", cond: "ge", label: "rt_tw_gathered"},
+  {op: "load", dst: "rcx", base: "r8", disp: 24},
+  {op: "sar1", dst: "rcx"},
+  {op: "mov", dst: "rdx", src: "r10"},
+  {op: "add", dst: "rdx", src: "r9"},
+  {op: "store_byte", src: "rcx", base: "rdx"},
+  {op: "add", dst: "r9", imm: 1},
+  {op: "load", dst: "r8", base: "r8", disp: 32},
+  {op: "jmp", label: "rt_tw_gather"},
+  {op: "label", name: "rt_tw_gathered"},
+  {op: "mov", dst: "rdx", src: "r9"},
+  {op: "mov", dst: "rsi", src: "r10"},
+  {op: "label", name: "rt_tw_send"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -32},
+  {op: "mov", dst: "r10", imm: 16384},
+  {op: "mov", dst: "r8", imm: 0},
+  {op: "mov", dst: "r9", imm: 0},
+  {op: "mov", dst: "rax", imm: 44},
+  {op: "syscall"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ge", label: "rt_tw_counted"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "label", name: "rt_tw_counted"},
+  {op: "mov", dst: "rcx", src: "rax"},
+  {op: "add", dst: "rax", src: "rcx"},
+  {op: "add", dst: "rax", imm: 1},
+  {op: "store", src: "rax", base: "rbp", disp: -24},
+  {op: "label", name: "rt_tw_out"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -16},
+  {op: "call_label", label: "rt_drop"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "call_label", label: "rt_drop"},
+  {op: "load", dst: "rax", base: "rbp", disp: -24},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+RT_TCP_CLOSE: tcp_close natively: the handle in rdi (consumed) closed and marked -1, so closing twice is done; nil.
+
+    RT_TCP_CLOSE[0] #=> {op: "label", name: "rt_tcp_close"}
+"""
+RT_TCP_CLOSE = append(
+  *[
+    [
+      {op: "label", name: "rt_tcp_close"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 16},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "load", dst: "rcx", base: "rdi", disp: 24},
+      {op: "sar1", dst: "rcx"},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "l", label: "rt_tx_out"},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "syscall"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -8},
+      {op: "mov", dst: "rax", imm: -1},
+      {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "label", name: "rt_tx_out"}
+    ],
+    leave_with(-8, -16)
+  ]
+)
+
+@doc """
+socket_programs: programs over the TCP words natively, with the exit status each must give: a listener's port, a connection to it accepted, written to and read from (2 bytes plus the first, 104), a peer's close read as nil, an address with no port and a refused connect raised, nothing waiting to accept, and a list of numbers written.
+
+    length(socket_programs) #=> 7
+"""
+def socket_programs()
+  pair = "(let ((l (tcp_listen \"127.0.0.1:0\"))) (let ((c (tcp_connect (concat \"127.0.0.1:\" (to_s (tcp_port l))) 1000))) (let ((a (tcp_accept l))) "
+  [
+    ["(let ((l (tcp_listen \"127.0.0.1:0\"))) (if (< 0 (tcp_port l)) 0 1))", 0],
+    [
+      "#{pair}(let ((n (tcp_write c \"hi\"))) (let ((r (tcp_read a 10))) (begin (tcp_close c) (tcp_close a) (tcp_close l) (+ n (first r))))))))",
+      106
+    ],
+    [
+      "#{pair}(begin (tcp_close c) (if (equal? (tcp_read a 10) nil) 0 1)))))",
+      0
+    ],
+    ["(try (tcp_listen \"nohost\") (catch (e) 7))", 7],
+    ["(try (tcp_connect \"127.0.0.1:1\" 500) (catch (e) 9))", 9],
+    [
+      "(let ((l (tcp_listen \"127.0.0.1:0\"))) (if (equal? (tcp_accept l) nil) 0 1))",
+      0
+    ],
+    [
+      "#{pair}(begin (tcp_write c (list 104 105)) (length (tcp_read a 10))))))",
+      2
+    ]
+  ]
+end
+
+test "the TCP words listen, accept, connect, read, write and close natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem network process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-sock"), "sock.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      socket_programs
+    )
+  end
+end
+
+test "each TCP word calls its routine, and the routines assemble with their callees"
+  assert last(tcp_op([], "tcp_port", [1])) ==
+    {op: "call_label", label: "rt_tcp_port"}
+  assert rc_op([], "tcp_close", [1]) == tcp_op([], "tcp_close", [1])
+  assert length(tcp_op([], "tcp_read", [1, 2])) == 3
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_hosts_lookup rt_dns_lookup],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  routines = append(
+    *[
+      RT_RESOLVE,
+      RT_SOCKADDR,
+      RT_TCP_LISTEN,
+      RT_TCP_PORT,
+      RT_TCP_ACCEPT,
+      RT_TCP_OPEN,
+      RT_TCP_READ,
+      RT_TCP_WRITE,
+      RT_TCP_CLOSE,
+      stand_ins
+    ]
+  )
+  assert length(assemble(routines)) > 0
+  assert new_handle(-40)[2] == {op: "mov", dst: "rcx", imm: HANDLE_KIND}
+  assert error_from("rax")[0] == {op: "push", src: "rax"}
+  assert close_and_raise("t", -40, -56, -48)[0] == {op: "label", name: "t_bad"}
+  assert last(leave_with(-8, -16)) == {op: "ret"}
+  assert last(socket_open("t", -40))[:disp] == -40
+  assert TCP_CHUNK == 4096
+  assert map((w) -> w[0], TCP_OPS) ==
+    %w[tcp_listen tcp_port tcp_accept tcp_connect tcp_read tcp_write tcp_close]
+  assert length(socket_programs) == 7
 end

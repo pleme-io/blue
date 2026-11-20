@@ -1037,6 +1037,8 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif op == "net_wait"
+    net_wait_op(slots, args)
   elsif member?(op, map((w) -> w[0], TCP_OPS))
     tcp_op(slots, op, args)
   elsif op == "put_int"
@@ -1693,7 +1695,8 @@ def runtime()
       RT_TCP_OPEN,
       RT_TCP_READ,
       RT_TCP_WRITE,
-      RT_TCP_CLOSE
+      RT_TCP_CLOSE,
+      RT_NET_WAIT
     ]
   )
 end
@@ -3995,11 +3998,20 @@ NETWORK_KEYWORDS: the keywords tcp_connect_ms answers with when a connect fails:
 NETWORK_KEYWORDS = %i[error refused timeout unreachable unresolved failed]
 
 @doc """
+NET_WAIT_KEYWORDS: the interests net_wait reads and the readiness it answers.
+
+    NET_WAIT_KEYWORDS #=> %i[read write both closed]
+"""
+NET_WAIT_KEYWORDS = %i[read write both closed]
+
+@doc """
 RUNTIME_KEYWORDS: every keyword a runtime routine answers with, placed in the data section of every program rc_whole builds.
 
-    length(RUNTIME_KEYWORDS) #=> 9
+    length(RUNTIME_KEYWORDS) #=> 13
 """
-RUNTIME_KEYWORDS = append(CAPTURE_KEYWORDS, NETWORK_KEYWORDS)
+RUNTIME_KEYWORDS = append(
+  *[CAPTURE_KEYWORDS, NETWORK_KEYWORDS, NET_WAIT_KEYWORDS]
+)
 
 @doc """
 split_fds: the instructions that split the two descriptors pipe wrote (two 32-bit words at rbp+at) into the read end at rbp+r and the write end at rbp+w.
@@ -5508,7 +5520,7 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
   assert member?({op: "mov", dst: "rax", imm: 55}, RT_TCP_CONNECT)
   assert length(classify_connect) > 10
   assert NETWORK_KEYWORDS[0] == :error
-  assert length(RUNTIME_KEYWORDS) == 9
+  assert length(RUNTIME_KEYWORDS) == 13
   stand_ins = [
     {op: "label", name: "rt_alloc"},
     {op: "ret"},
@@ -6585,4 +6597,309 @@ test "each TCP word calls its routine, and the routines assemble with their call
   assert map((w) -> w[0], TCP_OPS) ==
     %w[tcp_listen tcp_port tcp_accept tcp_connect tcp_read tcp_write tcp_close]
   assert length(socket_programs) == 7
+end
+
+@doc """
+net_events: the instructions that set rdx to the poll events the interest keyword in rcx asks for, against the keywords the call passed (rbp-112 :read, -120 :write, -128 :both): POLLIN (1) for :read, POLLOUT (4) for :write, both (5) for :both, none for any other.
+
+    length(net_events) #=> 16
+"""
+def net_events()
+  [
+    {op: "mov", dst: "rdx", imm: 0},
+    {op: "load", dst: "rax", base: "rbp", disp: -112},
+    {op: "cmp", dst: "rcx", src: "rax"},
+    {op: "j", cond: "ne", label: "rt_nw_not_read"},
+    {op: "mov", dst: "rdx", imm: 1},
+    {op: "label", name: "rt_nw_not_read"},
+    {op: "load", dst: "rax", base: "rbp", disp: -120},
+    {op: "cmp", dst: "rcx", src: "rax"},
+    {op: "j", cond: "ne", label: "rt_nw_not_write"},
+    {op: "mov", dst: "rdx", imm: 4},
+    {op: "label", name: "rt_nw_not_write"},
+    {op: "load", dst: "rax", base: "rbp", disp: -128},
+    {op: "cmp", dst: "rcx", src: "rax"},
+    {op: "j", cond: "ne", label: "rt_nw_not_both"},
+    {op: "mov", dst: "rdx", imm: 5},
+    {op: "label", name: "rt_nw_not_both"}
+  ]
+end
+
+@doc """
+net_pair: the instructions that cons [handle at rbp-80, the keyword at rbp+kw] onto the answer at rbp-40, the handle taking one more reference.
+
+    last(net_pair(-112))[:disp] #=> -40
+"""
+def net_pair(kw)
+  append(
+    *[
+      [
+        {op: "load", dst: "rcx", base: "rbp", disp: -80},
+        {op: "load", dst: "rdx", base: "rcx", disp: 8},
+        {op: "add", dst: "rdx", imm: 1},
+        {op: "store", src: "rdx", base: "rcx", disp: 8},
+        {op: "load", dst: "rcx", base: "rbp", disp: kw},
+        {op: "store", src: "rcx", base: "rbp", disp: -88}
+      ],
+      cell(-88, 0, -96),
+      cell(-80, -96, -96),
+      cell(-96, -40, -40)
+    ]
+  )
+end
+
+@doc """
+RT_NET_WAIT: net_wait natively (R4 of docs/PURE-BLUE.md), over poll(2) and level-triggered as the reference is: the interests in rdi ([[handle, :read | :write | :both], …], consumed) and the tagged milliseconds in rsi (nil waits as long as it takes, 0 only checks), with the keywords :read, :write, :both and :closed in rdx, rcx, r8 and r9 (the call site passes them, as the data section is the program's). The answer is [[handle, :read | :write | :closed], …] in the interests' order, a handle closed when poll says hung up or failed with nothing to read, or when it is already closed (its descriptor -1, which also makes the wait only check); nil, the empty list natively, when the time passed. A poll cut short by a signal is asked again. The pollfds and the handles live in one scratch block for the call.
+
+    RT_NET_WAIT[0] #=> {op: "label", name: "rt_net_wait"}
+"""
+RT_NET_WAIT = append(
+  *[
+    [
+      {op: "label", name: "rt_net_wait"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 144},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rdx", base: "rbp", disp: -112},
+      {op: "store", src: "rcx", base: "rbp", disp: -120},
+      {op: "store", src: "r8", base: "rbp", disp: -128},
+      {op: "store", src: "r9", base: "rbp", disp: -136},
+      {op: "mov", dst: "rcx", imm: -1},
+      {op: "cmp", dst: "rsi", imm: 0},
+      {op: "j", cond: "e", label: "rt_nw_timed"},
+      {op: "mov", dst: "rcx", src: "rsi"},
+      {op: "sar1", dst: "rcx"},
+      {op: "label", name: "rt_nw_timed"},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -40},
+      {op: "mov", dst: "r8", src: "rdi"},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "label", name: "rt_nw_count"},
+      {op: "cmp", dst: "r8", imm: 0},
+      {op: "j", cond: "e", label: "rt_nw_counted"},
+      {op: "add", dst: "r9", imm: 1},
+      {op: "load", dst: "r8", base: "r8", disp: 32},
+      {op: "jmp", label: "rt_nw_count"},
+      {op: "label", name: "rt_nw_counted"},
+      {op: "store", src: "r9", base: "rbp", disp: -32},
+      {op: "mov", dst: "rdi", src: "r9"},
+      {op: "add", dst: "rdi", src: "r9"},
+      {op: "add", dst: "rdi", imm: 4},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "load", dst: "r8", base: "rbp", disp: -8},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "label", name: "rt_nw_fill"},
+      {op: "cmp", dst: "r8", imm: 0},
+      {op: "j", cond: "e", label: "rt_nw_filled"},
+      {op: "store", src: "r8", base: "rbp", disp: -48},
+      {op: "store", src: "r9", base: "rbp", disp: -56},
+      {op: "load", dst: "r10", base: "r8", disp: 24},
+      {op: "load", dst: "r11", base: "r10", disp: 24},
+      {op: "store", src: "r11", base: "rbp", disp: -64},
+      {op: "load", dst: "rcx", base: "r10", disp: 32},
+      {op: "load", dst: "rcx", base: "rcx", disp: 24}
+    ],
+    net_events,
+    [
+      {op: "load", dst: "r11", base: "rbp", disp: -64},
+      {op: "load", dst: "rax", base: "r11", disp: 24},
+      {op: "sar1", dst: "rax"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ge", label: "rt_nw_open"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "movabs", dst: "rax", imm: 4_294_967_295},
+      {op: "label", name: "rt_nw_open"},
+      {op: "movabs", dst: "rcx", imm: 4_294_967_296},
+      {op: "imul", dst: "rdx", src: "rcx"},
+      {op: "add", dst: "rax", src: "rdx"},
+      {op: "load", dst: "r9", base: "rbp", disp: -56},
+      {op: "load", dst: "r10", base: "rbp", disp: -24},
+      {op: "mov", dst: "rcx", src: "r9"}
+    ],
+    times8("rcx"),
+    [
+      {op: "add", dst: "rcx", src: "r10"},
+      {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32}
+    ],
+    times8("rdx"),
+    [
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "store", src: "r11", base: "rcx", disp: 24},
+      {op: "add", dst: "r9", imm: 1},
+      {op: "load", dst: "r8", base: "rbp", disp: -48},
+      {op: "load", dst: "r8", base: "r8", disp: 32},
+      {op: "jmp", label: "rt_nw_fill"},
+      {op: "label", name: "rt_nw_filled"},
+      {op: "label", name: "rt_nw_poll"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "add", dst: "rdi", imm: 24},
+      {op: "load", dst: "rsi", base: "rbp", disp: -32},
+      {op: "load", dst: "rdx", base: "rbp", disp: -16},
+      {op: "mov", dst: "rax", imm: 7},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: -4},
+      {op: "j", cond: "e", label: "rt_nw_poll"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "store", src: "rcx", base: "rbp", disp: -56},
+      {op: "label", name: "rt_nw_answer"},
+      {op: "load", dst: "r9", base: "rbp", disp: -56},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "e", label: "rt_nw_out"},
+      {op: "sub", dst: "r9", imm: 1},
+      {op: "store", src: "r9", base: "rbp", disp: -56},
+      {op: "load", dst: "r10", base: "rbp", disp: -24},
+      {op: "mov", dst: "rcx", src: "r9"}
+    ],
+    times8("rcx"),
+    [
+      {op: "add", dst: "rcx", src: "r10"},
+      {op: "load", dst: "rax", base: "rcx", disp: 24},
+      {op: "store", src: "rax", base: "rbp", disp: -72},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32}
+    ],
+    times8("rdx"),
+    [
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "load", dst: "rcx", base: "rcx", disp: 24},
+      {op: "store", src: "rcx", base: "rbp", disp: -80},
+      {op: "load", dst: "rax", base: "rbp", disp: -72},
+      {op: "mov", dst: "rdx", src: "rax"},
+      {op: "and", dst: "rdx", imm: -2_147_483_648},
+      {op: "load", dst: "rcx", base: "rbp", disp: -80},
+      {op: "load", dst: "rcx", base: "rcx", disp: 24},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "l", label: "rt_nw_closed"}
+    ],
+    map((k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -104},
+      {op: "mov", dst: "rcx", src: "rax"},
+      {op: "and", dst: "rcx", imm: 1},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_nw_open_events"},
+      {op: "mov", dst: "rcx", src: "rax"},
+      {op: "and", dst: "rcx", imm: 56},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_nw_closed"},
+      {op: "label", name: "rt_nw_open_events"},
+      {op: "load", dst: "rax", base: "rbp", disp: -104},
+      {op: "and", dst: "rax", imm: 4},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_nw_no_write"}
+    ],
+    net_pair(-120),
+    [
+      {op: "label", name: "rt_nw_no_write"},
+      {op: "load", dst: "rax", base: "rbp", disp: -104},
+      {op: "and", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_nw_answer"}
+    ],
+    net_pair(-112),
+    [{op: "jmp", label: "rt_nw_answer"}, {op: "label", name: "rt_nw_closed"}],
+    net_pair(-136),
+    [
+      {op: "jmp", label: "rt_nw_answer"},
+      {op: "label", name: "rt_nw_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_drop"}
+    ],
+    leave_with(-8, -40)
+  ]
+)
+
+@doc """
+wait_programs: programs over net_wait natively, with the exit status each must give: a listener with a connection waiting reads as :read, an idle listener times out to nil, a fresh connection is writable, a peer's close reads as :closed after tcp_read sees it, an already closed handle is :closed at once, and :both answers :write for an idle connection.
+
+    length(wait_programs) #=> 6
+"""
+def wait_programs()
+  pair = "(let ((l (tcp_listen \"127.0.0.1:0\"))) (let ((c (tcp_connect (concat \"127.0.0.1:\" (to_s (tcp_port l))) 1000))) "
+  [
+    [
+      "#{pair}(if (equal? (first (rest (first (net_wait (list (list l :read)) 1000)))) :read) 0 1)))",
+      0
+    ],
+    [
+      "(let ((l (tcp_listen \"127.0.0.1:0\"))) (if (equal? (net_wait (list (list l :read)) 50) nil) 0 1))",
+      0
+    ],
+    [
+      "#{pair}(if (equal? (first (rest (first (net_wait (list (list c :write)) 1000)))) :write) 0 1)))",
+      0
+    ],
+    [
+      "#{pair}(let ((a (tcp_accept l))) (begin (tcp_close c) (tcp_read a 10) (if (equal? (first (rest (first (net_wait (list (list a :read)) 1000)))) :closed) 0 1)))))",
+      0
+    ],
+    [
+      "#{pair}(begin (tcp_close c) (length (net_wait (list (list c :read)))))))",
+      1
+    ],
+    [
+      "#{pair}(let ((a (tcp_accept l))) (if (equal? (first (rest (first (net_wait (list (list a :both)) 1000)))) :write) 0 1))))",
+      0
+    ]
+  ]
+end
+
+test "net_wait answers readiness, time-outs and closes natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem network process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-wait"), "wait.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      wait_programs
+    )
+  end
+end
+
+test "net_wait polls a scratch block of pollfds and conses its answer from the last"
+  stand_ins = flat_map(
+    append(%w[rt_alloc rt_drop], map(kw_label, NET_WAIT_KEYWORDS)),
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(RT_NET_WAIT, stand_ins))) > 0
+  assert length(net_events) == 16
+  assert last(net_pair(-112))[:disp] == -40
+  assert length(wait_programs) == 6
+  assert last(rc_op([], "net_wait", [1, 2])) ==
+    {op: "call_label", label: "rt_net_wait"}
+  assert length(net_wait_op([], [1])) == 7
+end
+
+@doc """
+net_wait_op: the instructions of net_wait: the interests in rdi, the timeout in rsi (nil when it is not given), the four keywords it reads and answers in rdx, rcx, r8 and r9, then a call to rt_net_wait.
+
+    last(net_wait_op([], [1])) #=> {op: "call_label", label: "rt_net_wait"}
+"""
+def net_wait_op(slots, args)
+  append(
+    *[
+      tagged_atom(slots, args[0], "rdi"),
+      if length(args) > 1
+        tagged_atom(slots, args[1], "rsi")
+      else
+        [{op: "mov", dst: "rsi", imm: 0}]
+      end,
+      map(
+        (p) -> {op: "lea_label", dst: p[1], label: kw_label(p[0])},
+        [[:read, "rdx"], [:write, "rcx"], [:both, "r8"], [:closed, "r9"]]
+      ),
+      [{op: "call_label", label: "rt_net_wait"}]
+    ]
+  )
 end

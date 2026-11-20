@@ -107,7 +107,8 @@ row(
       "[f(1, 2, 3), g(4, 5)]"
     ]
   ),
-  value("[[1, [2, 3]], [4, 5]]")
+  value("[[1, [2, 3]], [4, 5]]"),
+  pending("G28", "native")
 )
 
 row(
@@ -303,7 +304,8 @@ row(
       "spin(100000, 0)"
     ]
   ),
-  value("100000")
+  value("100000"),
+  pending("G27", "native")
 )
 
 row(
@@ -342,7 +344,8 @@ row(
     ]
   ),
   value(":caught"),
-  isolate()
+  isolate(),
+  pending("G27", "native")
 )
 
 # Under a declared step budget: blue's default is unbounded (long runs are
@@ -447,7 +450,12 @@ row(
   covers("builtin:filter")
 )
 
-row("fn.filter.empty", "filter(fn(_x) false end, [1])", value("[]"))
+row(
+  "fn.filter.empty",
+  "filter(fn(_x) false end, [1])",
+  value("[]"),
+  pending("G25", "native")
+)
 
 row(
   "fn.find",
@@ -673,7 +681,8 @@ row(
 row(
   "fn.rest_params",
   join_lines(["def f(a, *rest)", "  rest", "end", "", "f(1, 2, 3)"]),
-  value("[2, 3]")
+  value("[2, 3]"),
+  pending("G28", "native")
 )
 
 row(

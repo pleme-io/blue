@@ -1210,9 +1210,7 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
     let Expect::Value(want) = &row.expect else {
         return Obs::Blind("native observes a value as its exit status".into());
     };
-    if !want.parse::<i64>().is_ok_and(|v| (0..=255).contains(&v)) {
-        return Obs::Blind("native observes an Int from 0 to 255 as its exit status".into());
-    }
+    let by_status = want.parse::<i64>().is_ok_and(|v| (0..=255).contains(&v));
     if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
         return Obs::Blind("a project row is a view only the static door is handed".into());
     }
@@ -1243,7 +1241,8 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
             .arg(&driver)
             .arg("--")
             .arg(&lowered)
-            .arg(&exe),
+            .arg(&exe)
+            .args((!by_status).then_some("show")),
     ) {
         Ok(o) => o,
         Err(crashed) => return crashed,
@@ -1264,7 +1263,9 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
     }
     match output_within(&mut Command::new(&exe)) {
         Ok(o) => match o.status.code() {
-            Some(code) => Obs::Value(code.to_string()),
+            Some(code) if by_status => Obs::Value(code.to_string()),
+            Some(0) => Obs::Value(String::from_utf8_lossy(&o.stdout).into_owned()),
+            Some(code) => Obs::Crashed(format!("native: the show run exited {code}")),
             None => Obs::Crashed("native: the executable died by a signal".into()),
         },
         Err(crashed) => crashed,

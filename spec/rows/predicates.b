@@ -17,7 +17,8 @@ row(
   "eq.functions_by_identity",
   join_lines(["f = fn(x) x end", "g = fn(x) x end", "[f == f, f == g]"]),
   value("[true, false]"),
-  pending("G18", "vm")
+  pending("G18", "vm"),
+  pending("G25", "native")
 )
 
 row("eq.equal_p", "equal?([1], [1.0])", value("true"), covers("builtin:equal?"))

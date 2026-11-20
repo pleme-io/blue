@@ -16,7 +16,8 @@ row(
   "strings.interpolation",
   join_lines(["n = 3", "\"n = #\u{7b}n}!\""]),
   value("\"n = 3!\""),
-  covers("form:\"n = #\u{7b}n}!\"")
+  covers("form:\"n = #\u{7b}n}!\""),
+  pending("G27", "native")
 )
 
 row(
@@ -210,7 +211,8 @@ row(
 row(
   "strings.to_s.map_sorted",
   "to_s({b: 2, a: [1]})",
-  value("\"{a: [1], b: 2}\"")
+  value("\"{a: [1], b: 2}\""),
+  pending("G26", "native")
 )
 
 row("strings.trim", "trim(\"  x  \")", value("\"x\""), covers("builtin:trim"))

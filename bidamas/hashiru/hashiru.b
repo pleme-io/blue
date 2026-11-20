@@ -967,6 +967,18 @@ def rc_op(slots, op, args)
     )
   elsif member?(op, CLOCK_WORDS)
     clock_code(slots, op, args)
+  elsif op == "exec_ok?"
+    append(
+      *[
+        list_code(slots, args),
+        [
+          {op: "mov", dst: "rdi", src: "rax"},
+          {op: "call_label", label: "rt_exec_check"},
+          {op: "mov", dst: "rcx", imm: 1}
+        ],
+        tagged_compare("e")
+      ]
+    )
   elsif op == "exec_check"
     append(
       list_code(slots, args),
@@ -1039,8 +1051,8 @@ def rc_op(slots, op, args)
     )
   elsif op == "net_wait"
     net_wait_op(slots, args)
-  elsif member?(op, map((w) -> w[0], TCP_OPS))
-    tcp_op(slots, op, args)
+  elsif member?(op, map((w) -> w[0], ROUTINE_OPS))
+    routine_op(slots, op, args)
   elsif op == "put_int"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1098,6 +1110,8 @@ def rc_op(slots, op, args)
         {op: "syscall"}
       ]
     )
+  elsif member?(op, map((p) -> p[0], KIND_PREDICATES))
+    kind_predicate(slots, op, args)
   elsif op == "length"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1187,6 +1201,17 @@ def rc_gen(slots, term, into, n)
       [
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "sar1", dst: "rdi"},
+        {op: "mov", dst: "rax", imm: 60},
+        {op: "syscall"}
+      ]
+    elsif into == :show
+      [
+        {op: "push", src: "rax"},
+        {op: "mov", dst: "rdi", src: "rax"},
+        {op: "call_label", label: "rt_show"},
+        {op: "pop", dst: "rdi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "mov", dst: "rdi", imm: 0},
         {op: "mov", dst: "rax", imm: 60},
         {op: "syscall"}
       ]
@@ -1353,9 +1378,10 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 8}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 16}
       ],
       save_envp,
+      save_argv,
       main[0],
       fns[0],
       runtime
@@ -1696,7 +1722,20 @@ def runtime()
       RT_TCP_READ,
       RT_TCP_WRITE,
       RT_TCP_CLOSE,
-      RT_NET_WAIT
+      RT_NET_WAIT,
+      RT_SHOW,
+      RT_KIND_OF,
+      RT_ENV_LOOKUP,
+      RT_GETENV,
+      RT_ENV_REQUIRED,
+      RT_PATH_JOIN,
+      RT_PATH_BASENAME,
+      RT_PATH_DIRNAME,
+      RT_PATH_EXTENSION,
+      FS_ROUTINES,
+      PROCESS_ROUTINES,
+      RT_LS_RAW,
+      RT_STRING_LT
     ]
   )
 end
@@ -1761,7 +1800,7 @@ compile_whole: a program with global functions compiled through Perceus to a ref
     compile_whole(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_whole(form, mode)
-  executable(assemble(rc_whole(whole(form), mode)), true)
+  executable(assemble(rc_whole(whole(bare_calls(form)), mode)), true)
 end
 
 @doc """
@@ -2004,12 +2043,13 @@ def kw_label(k)
 end
 
 @doc """
-keyword_block: the bytes of a keyword's static block: kind 2, an immortal count, size 3; a keyword carries nothing but its identity.
+keyword_block: the bytes of a keyword's static block: laid out as a string block (its name's length and bytes) under kind 2, so rt_show can name it; a keyword is still compared by its address.
 
-    length(keyword_block) #=> 24
+    length(keyword_block(:ab)) #=> 40
 """
-def keyword_block()
-  append(*[le64(2), le64(IMMORTAL), le64(3)])
+def keyword_block(k)
+  b = string_block(to_s(k))
+  append(le64(2), slice(b, 8, length(b) - 8))
 end
 
 @doc """
@@ -2025,7 +2065,7 @@ def static_data(values)
         [
           {op: "align", to: 8},
           {op: "label", name: kw_label(v)},
-          {op: "bytes", bytes: keyword_block}
+          {op: "bytes", bytes: keyword_block(v)}
         ]
       else
         [
@@ -2182,7 +2222,8 @@ end
 
 test "keywords are static blocks by name, and a map is an association list"
   assert kw_label(:p) == "kw_70"
-  assert slice(keyword_block, 0, 8) == le64(2)
+  assert slice(keyword_block(:ab), 0, 8) == le64(2)
+  assert slice(keyword_block(:ab), 24, 8) == le64(2)
   assert static_data([:a, "x"])[4] == {op: "label", name: "str_78"}
   assert tagged_atom([], :a, "rsi") ==
     [{op: "lea_label", dst: "rsi", label: "kw_61"}]
@@ -2348,7 +2389,11 @@ PRELUDE = [
   "(define (reverse l) (reverse_onto l (list)))",
   "(define (map f l) (if (equal? (length l) 0) (list) (cons (f (first l)) (map f (rest l)))))",
   "(define (filter f l) (if (equal? (length l) 0) (list) (if (f (first l)) (cons (first l) (filter f (rest l))) (filter f (rest l)))))",
-  "(define (reduce f acc l) (if (equal? (length l) 0) acc (reduce f (f acc (first l)) (rest l))))"
+  "(define (reduce f acc l) (if (equal? (length l) 0) acc (reduce f (f acc (first l)) (rest l))))",
+  "(define (every? f l) (if (equal? (length l) 0) true (if (f (first l)) (every? f (rest l)) false)))",
+  "(define (any? f l) (if (equal? (length l) 0) false (if (f (first l)) true (any? f (rest l)))))",
+  "(define (insert_string s l) (if (equal? (length l) 0) (list s) (if (string_lt s (first l)) (cons s l) (cons (first l) (insert_string s (rest l))))))",
+  "(define (sort_strings l) (reduce (lambda (acc s) (insert_string s acc)) (list) l))"
 ]
 
 @doc """
@@ -5853,18 +5898,25 @@ TCP_OPS = [
 ]
 
 @doc """
-tcp_op: the instructions of one TCP word: its arguments in rdi and rsi, then a call to its routine.
+routine_op: the instructions of a word one runtime routine answers (ROUTINE_OPS): its arguments in rdi and rsi, then a call to its routine.
 
-    last(tcp_op([], "tcp_port", [1])) #=> {op: "call_label", label: "rt_tcp_port"}
+    last(routine_op([], "tcp_port", [1])) #=> {op: "call_label", label: "rt_tcp_port"}
 """
-def tcp_op(slots, op, args)
-  routine = filter((w) -> w[0] == op, TCP_OPS)[0][1]
+def routine_op(slots, op, args)
+  routine = filter((w) -> w[0] == op, ROUTINE_OPS)[0][1]
   append(
-    flat_map(
-      range(0, length(args)),
-      (i) -> tagged_atom(slots, args[i], %w[rdi rsi][i])
-    ),
-    [{op: "call_label", label: routine}]
+    *[
+      flat_map(
+        range(0, length(args)),
+        (i) -> tagged_atom(slots, args[i], %w[rdi rsi][i])
+      ),
+      if length(args) == 1
+        [{op: "mov", dst: "rsi", imm: 0}]
+      else
+        []
+      end,
+      [{op: "call_label", label: routine}]
+    ]
   )
 end
 
@@ -5888,7 +5940,7 @@ def new_handle(fd)
 end
 
 @doc """
-error_from: the instructions that make an error block whose payload is the tagged number in src (a negated errno), answered in rax.
+error_from: the instructions that make an error block whose payload is the errno whose negation is in src (a refused system call's return), as errno_block carries it, answered in rax.
 
     error_from("rax")[0] #=> {op: "push", src: "rax"}
 """
@@ -6565,10 +6617,10 @@ test "the TCP words listen, accept, connect, read, write and close natively on x
 end
 
 test "each TCP word calls its routine, and the routines assemble with their callees"
-  assert last(tcp_op([], "tcp_port", [1])) ==
+  assert last(routine_op([], "tcp_port", [1])) ==
     {op: "call_label", label: "rt_tcp_port"}
-  assert rc_op([], "tcp_close", [1]) == tcp_op([], "tcp_close", [1])
-  assert length(tcp_op([], "tcp_read", [1, 2])) == 3
+  assert rc_op([], "tcp_close", [1]) == routine_op([], "tcp_close", [1])
+  assert length(routine_op([], "tcp_read", [1, 2])) == 3
   stand_ins = flat_map(
     %w[rt_alloc rt_drop rt_hosts_lookup rt_dns_lookup],
     (n) -> [{op: "label", name: n}, {op: "ret"}]
@@ -6902,4 +6954,2183 @@ def net_wait_op(slots, args)
       [{op: "call_label", label: "rt_net_wait"}]
     ]
   )
+end
+
+@doc """
+put_text: the instructions that write the bytes of a text to standard output one rt_put_byte at a time.
+
+    length(put_text("ab")) #=> 4
+"""
+def put_text(s)
+  flat_map(
+    text_bytes(s),
+    fn(c)
+      [
+        {op: "mov", dst: "rdi", imm: 2 * c + 1},
+        {op: "call_label", label: "rt_put_byte"}
+      ]
+    end
+  )
+end
+
+@doc """
+SHOW_ESCAPES: each byte a shown string writes escaped, and the letter after its backslash.
+
+    SHOW_ESCAPES[2] #=> [10, "n"]
+"""
+SHOW_ESCAPES = [
+  [34, "\""],
+  [92, "\\"],
+  [10, "n"],
+  [9, "t"],
+  [13, "r"],
+  [0, "u{0}"]
+]
+
+@doc """
+show_escape: the instructions that, when the byte in rax is one of SHOW_ESCAPES, write it as a backslash and its letter and jump to done.
+
+    length(show_escape("t")) #=> 54
+"""
+def show_escape(done)
+  flat_map(
+    SHOW_ESCAPES,
+    fn(e)
+      skip = "rt_sh_esc_#{to_s(e[0])}"
+      append(
+        *[
+          [
+            {op: "cmp", dst: "rax", imm: e[0]},
+            {op: "j", cond: "ne", label: skip}
+          ],
+          put_text("\\#{e[1]}"),
+          [{op: "jmp", label: done}, {op: "label", name: skip}]
+        ]
+      )
+    end
+  )
+end
+
+@doc """
+RT_SHOW: a value written to standard output as blue writes its literal (to_s inside a list), the value in rdi borrowed: a number in decimal, nil, true, a string quoted with SHOW_ESCAPES, a keyword as :name, a list as [a, b] with each element shown in turn, an error as <error> and a function as <fn>. Natively false and the empty list are nil, so each shows as nil.
+
+    RT_SHOW[0] #=> {op: "label", name: "rt_show"}
+"""
+RT_SHOW = append(
+  *[
+    [
+      {op: "label", name: "rt_show"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rax", src: "rdi"},
+      {op: "and", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_sh_not_int"},
+      {op: "call_label", label: "rt_put_int"},
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_not_int"},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sh_not_nil"}
+    ],
+    put_text("nil"),
+    [
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_not_nil"},
+      {op: "cmp", dst: "rdi", imm: 2},
+      {op: "j", cond: "ne", label: "rt_sh_block"}
+    ],
+    put_text("true"),
+    [
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_block"},
+      {op: "load", dst: "rax", base: "rdi", disp: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_sh_list"},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "e", label: "rt_sh_string"},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "e", label: "rt_sh_keyword"},
+      {op: "cmp", dst: "rax", imm: 4},
+      {op: "j", cond: "e", label: "rt_sh_error"}
+    ],
+    put_text("<fn>"),
+    [{op: "jmp", label: "rt_sh_out"}, {op: "label", name: "rt_sh_error"}],
+    put_text("<error>"),
+    [{op: "jmp", label: "rt_sh_out"}, {op: "label", name: "rt_sh_keyword"}],
+    put_text(":"),
+    [
+      {op: "load", dst: "rsi", base: "rbp", disp: -8},
+      {op: "load", dst: "rdx", base: "rsi", disp: 24},
+      {op: "add", dst: "rsi", imm: 32},
+      {op: "mov", dst: "rdi", imm: 1},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "syscall"},
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_list"},
+      {op: "store", src: "rdi", base: "rbp", disp: -16},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -24}
+    ],
+    put_text("["),
+    [
+      {op: "label", name: "rt_sh_elem"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_sh_list_end"},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sh_first"}
+    ],
+    put_text(", "),
+    [
+      {op: "label", name: "rt_sh_first"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "mov", dst: "rax", src: "rcx"},
+      {op: "and", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sh_tail"},
+      {op: "cmp", dst: "rcx", imm: 2},
+      {op: "j", cond: "e", label: "rt_sh_tail"},
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sh_tail"},
+      {op: "load", dst: "rdi", base: "rcx", disp: 24},
+      {op: "call_label", label: "rt_show"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "load", dst: "rcx", base: "rcx", disp: 32},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "jmp", label: "rt_sh_elem"},
+      {op: "label", name: "rt_sh_tail"},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "call_label", label: "rt_show"},
+      {op: "label", name: "rt_sh_list_end"}
+    ],
+    put_text("]"),
+    [
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_string"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -16}
+    ],
+    put_text("\""),
+    [
+      {op: "label", name: "rt_sh_byte"},
+      {op: "load", dst: "rsi", base: "rbp", disp: -8},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "load", dst: "rdx", base: "rsi", disp: 24},
+      {op: "cmp", dst: "rcx", src: "rdx"},
+      {op: "j", cond: "e", label: "rt_sh_string_end"},
+      {op: "add", dst: "rsi", imm: 32},
+      {op: "add", dst: "rsi", src: "rcx"},
+      {op: "load_byte", dst: "rax", base: "rsi"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -16}
+    ],
+    show_escape("rt_sh_byte"),
+    [
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "add", dst: "rdi", src: "rax"},
+      {op: "add", dst: "rdi", imm: 1},
+      {op: "call_label", label: "rt_put_byte"},
+      {op: "jmp", label: "rt_sh_byte"},
+      {op: "label", name: "rt_sh_string_end"}
+    ],
+    put_text("\""),
+    [
+      {op: "label", name: "rt_sh_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+show_programs: programs compiled in :show mode, with what each must write: numbers, nil, true, a string with escapes, a keyword, nested lists, a concatenation, and a NUL.
+
+    length(show_programs) #=> 8
+"""
+def show_programs()
+  [
+    %w[-42 -42],
+    %w[nil nil],
+    %w[true true],
+    ["\"a\\\"b\\\\c\\nd\"", "\"a\\\"b\\\\c\\nd\""],
+    %w[:kw :kw],
+    ["(list 1 (list 2 3) \"x\" :k)", "[1, [2, 3], \"x\", :k]"],
+    ["(concat \"a\" \"b\")", "\"ab\""],
+    ["(concat \"a\" (concat \"\\u{0}\" \"b\"))", "\"a\\u{0}b\""]
+  ]
+end
+
+test "a program compiled to show writes its value as blue writes it, natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-show"), "show.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == 0
+        assert stdout_of(r) == p[1]
+      end,
+      show_programs
+    )
+  end
+end
+
+test "show escapes a string's quotes, backslashes and breaks, and ends a :show program in exit 0"
+  assert length(put_text("ab")) == 4
+  assert length(show_escape("t")) == 54
+  assert SHOW_ESCAPES[2] == [10, "n"]
+  stand_ins = flat_map(
+    %w[rt_put_int rt_put_byte],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(RT_SHOW, stand_ins))) > 0
+  assert member?(
+    {op: "call_label", label: "rt_show"},
+    rc_gen([], read_forms("(ret 3)")[0], :show, 0)[0]
+  )
+  assert length(show_programs) == 8
+end
+
+@doc """
+ZERO_ARITY_WORDS: the native words that take no argument, which blue's lowering writes as a bare name when the source calls them without parentheses.
+
+    ZERO_ARITY_WORDS[0] #=> "now"
+"""
+ZERO_ARITY_WORDS = %w[now now_ms now_ns self_exe read_line cwd argv]
+
+@doc """
+binders: every name a core form binds anywhere: let's names, lambda's parameters, and define's name and parameters.
+
+    binders(read_forms("(let ((now 1)) now)")[0]) #=> ["now"]
+"""
+def binders(form)
+  if not list?(form) or length(form) == 0
+    []
+  else
+    head = if symbol?(form[0])
+      to_s(form[0])
+    else
+      ""
+    end
+    own = if head == "let" and list?(form[1])
+      map((b) -> to_s(b[0]), filter((b) -> list?(b), form[1]))
+    elsif head == "lambda" and list?(form[1])
+      map((p) -> to_s(p), form[1])
+    elsif head == "define" and list?(form[1])
+      map((p) -> to_s(p), form[1])
+    elsif head == "define"
+      [to_s(form[1])]
+    else
+      []
+    end
+    append(own, flat_map(form, binders))
+  end
+end
+
+@doc """
+bare_calls: a core form with each bare name of a ZERO_ARITY_WORDS word the program never binds made a call of that word, so `now` compiles as `(now)`, and each path_join of more than two parts nested into joins of two.
+
+    bare_calls(read_forms("(integer? now)")[0]) == read_forms("(integer? (now))")[0] #=> true
+"""
+def bare_calls(form)
+  call_bare(form, binders(form))
+end
+
+@doc """
+call_bare: bare_calls over one form, given the names the program binds.
+
+    call_bare(read_forms("now")[0], ["now"]) == read_forms("now")[0] #=> true
+"""
+def call_bare(form, bound)
+  if symbol?(form)
+    if member?(to_s(form), ZERO_ARITY_WORDS) and not member?(to_s(form), bound)
+      [form]
+    else
+      form
+    end
+  elsif list?(form) and length(form) > 0
+    if symbol?(form[0]) and
+        to_s(form[0]) == "blue-field" and
+        keyword?(form[2]) and
+        member?(to_s(form[2]), map((p) -> p[0], KIND_PREDICATES))
+      [read_forms(to_s(form[2]))[0], call_bare(form[1], bound)]
+    elsif symbol?(form[0]) and
+        member?(to_s(form[0]), %w[or and]) and
+        length(form) == 3
+      call_bare(logical(to_s(form[0]), form[1], form[2]), bound)
+    elsif symbol?(form[0]) and
+        to_s(form[0]) == "ls" and
+        length(form) == 2 and
+        not member?("ls", bound)
+      [
+        read_forms("sort_strings")[0],
+        [read_forms("ls_raw")[0], call_bare(form[1], bound)]
+      ]
+    elsif symbol?(form[0]) and to_s(form[0]) == "path_join" and length(form) > 3
+      call_bare(
+        append([form[0], [form[0], form[1], form[2]]], rest(rest(rest(form)))),
+        bound
+      )
+    else
+      cons(
+        if symbol?(form[0])
+          form[0]
+        else
+          call_bare(form[0], bound)
+        end,
+        map((f) -> call_bare(f, bound), rest(form))
+      )
+    end
+  else
+    form
+  end
+end
+
+test "a bare zero-argument word becomes its call unless the program binds it"
+  assert bare_calls(read_forms("(integer? now)")[0]) ==
+    read_forms("(integer? (now))")[0]
+  assert bare_calls(read_forms("(let ((now 1)) now)")[0]) ==
+    read_forms("(let ((now 1)) now)")[0]
+  assert binders(read_forms("(define (f a) (lambda (b) a))")[0]) == %w[f a b]
+  assert binders(read_forms("(define x 1)")[0]) == ["x"]
+  assert bare_calls(read_forms("((f) now)")[0]) == read_forms("((f) (now))")[0]
+  assert ZERO_ARITY_WORDS[4] == "read_line"
+  assert call_bare(read_forms("now")[0], []) == read_forms("(now)")[0]
+  assert length(compile_whole(read_forms("(+ now 1)")[0], :exit)) > 0
+end
+
+@doc """
+RT_KIND_OF: the kind of the value in rdi (only read) in rax: 0 nil or false, 1 a number, 2 true, 3 a list cell, 4 a string, 5 a keyword, 6 an error, 7 anything else.
+
+    RT_KIND_OF[0] #=> {op: "label", name: "rt_kind_of"}
+"""
+RT_KIND_OF = [
+  {op: "label", name: "rt_kind_of"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "cmp", dst: "rdi", imm: 0},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", src: "rdi"},
+  {op: "and", dst: "rax", imm: 1},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ne", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 2},
+  {op: "cmp", dst: "rdi", imm: 2},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "load", dst: "rcx", base: "rdi", disp: 0},
+  {op: "mov", dst: "rax", imm: 3},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 4},
+  {op: "cmp", dst: "rcx", imm: 1},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 5},
+  {op: "cmp", dst: "rcx", imm: 2},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 6},
+  {op: "cmp", dst: "rcx", imm: 4},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 7},
+  {op: "label", name: "rt_ko_out"},
+  {op: "ret"}
+]
+
+@doc """
+KIND_PREDICATES: each type predicate native code answers and the kinds of rt_kind_of it accepts. Natively false is nil and the empty list is nil, so boolean? holds for nil and list? for nil.
+
+    KIND_PREDICATES[0] #=> ["integer?", [1]]
+"""
+KIND_PREDICATES = [
+  ["integer?", [1]],
+  ["string?", [4]],
+  ["keyword?", [5]],
+  ["list?", [0, 3]],
+  ["boolean?", [0, 2]],
+  ["nil?", [0]]
+]
+
+@doc """
+kind_predicate: the instructions of a type predicate: the kind of its argument from rt_kind_of, the argument dropped, true (2) when the kind is one the predicate accepts.
+
+    last(kind_predicate([], "integer?", [1]))[:src] #=> "rcx"
+"""
+def kind_predicate(slots, op, args)
+  kinds = filter((p) -> p[0] == op, KIND_PREDICATES)[0][1]
+  append(
+    *[
+      tagged_atom(slots, args[0], "rdi"),
+      [
+        {op: "push", src: "rdi"},
+        {op: "call_label", label: "rt_kind_of"},
+        {op: "pop", dst: "rdi"},
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rdx"},
+        {op: "mov", dst: "rcx", imm: 0}
+      ],
+      flat_map(
+        kinds,
+        fn(k)
+          [
+            {op: "mov", dst: "rax", src: "rdx"},
+            {op: "cmp", dst: "rax", imm: k},
+            {op: "set", cond: "e"},
+            {op: "movzx"},
+            {op: "add", dst: "rcx", src: "rax"}
+          ]
+        end
+      ),
+      [{op: "mov", dst: "rax", src: "rcx"}, {op: "add", dst: "rax", src: "rcx"}]
+    ]
+  )
+end
+
+@doc """
+kind_programs: programs over the type predicates, or, and and the prelude's every? natively, each must exit 0.
+
+    length(kind_programs) #=> 5
+"""
+def kind_programs()
+  [
+    "(if (integer? 5) (if (integer? \"a\") 1 0) 2)",
+    "(if (string? (concat \"a\" \"b\")) (if (keyword? :k) (if (list? (list 1)) 0 3) 4) 5)",
+    "(if (boolean? true) (if (nil? nil) (if (list? 3) 6 0) 7) 8)",
+    "(if (or nil true) (if (and 1 nil) 1 (if (and 1 2) 0 3)) 2)",
+    "(if (every? (lambda (b) (< b 3)) (list 1 2)) (if (every? (lambda (b) (< b 2)) (list 1 2)) 1 0) 2)"
+  ]
+end
+
+test "the type predicates answer natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-kind"), "kind.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p)[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+        write_bytes(path, compile_program(read_forms(p)[0], :leaks))
+        assert status_of(exec_capture(path)) == 0
+      end,
+      kind_programs
+    )
+  end
+end
+
+test "a type predicate asks rt_kind_of and sums its accepted kinds into a boolean"
+  assert length(assemble(append(RT_KIND_OF, []))) > 0
+  assert KIND_PREDICATES[3] == ["list?", [0, 3]]
+  assert member?(
+    {op: "call_label", label: "rt_kind_of"},
+    rc_op([], "string?", ["a"])
+  )
+  assert last(kind_predicate([], "integer?", [1]))[:src] == "rcx"
+  assert length(kind_programs) == 5
+end
+
+@doc """
+HOST_OPS: each native host word that one runtime routine answers, its arguments in rdi then rsi.
+
+    HOST_OPS[0] #=> ["getenv", "rt_getenv"]
+"""
+HOST_OPS = [
+  %w[getenv rt_getenv],
+  %w[env_required rt_env_required],
+  %w[path_join rt_path_join],
+  %w[path_basename rt_path_basename],
+  %w[path_dirname rt_path_dirname],
+  %w[path_extension rt_path_extension],
+  %w[mkdir rt_mkdir],
+  %w[mkdir_p rt_mkdir_p],
+  %w[rm rt_rm],
+  %w[rm_rf rt_rm_rf],
+  %w[rename_file rt_rename_file],
+  %w[path_exists rt_path_exists],
+  %w[is_dir? rt_is_dir],
+  %w[is_file? rt_is_file],
+  %w[file_size rt_file_size],
+  %w[file_mtime_ms rt_file_mtime_ms],
+  %w[write_file rt_write_file],
+  %w[append_file rt_append_file],
+  %w[read_bytes rt_read_bytes],
+  %w[cwd rt_cwd],
+  %w[argv rt_argv],
+  %w[argv_get rt_argv_get],
+  %w[random_bytes rt_random_bytes],
+  %w[ls_raw rt_ls_raw],
+  %w[string_lt rt_string_lt]
+]
+
+@doc """
+ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
+
+    length(ROUTINE_OPS) #=> 32
+"""
+ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
+
+@doc """
+RT_ENV_LOOKUP: the address of the value of the environment entry named by the string in rdi (only read), in the environment the program started with (r14 + ENVP_AT), or 0 when no entry is NAME=.
+
+    RT_ENV_LOOKUP[0] #=> {op: "label", name: "rt_env_lookup"}
+"""
+RT_ENV_LOOKUP = [
+  {op: "label", name: "rt_env_lookup"},
+  {op: "load", dst: "r9", base: "rdi", disp: 24},
+  {op: "mov", dst: "r8", src: "rdi"},
+  {op: "add", dst: "r8", imm: 32},
+  {op: "load", dst: "rsi", base: "r14", disp: ENVP_AT},
+  {op: "label", name: "rt_el_entry"},
+  {op: "load", dst: "rcx", base: "rsi", disp: 0},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "e", label: "rt_el_out"},
+  {op: "mov", dst: "r11", imm: 0},
+  {op: "label", name: "rt_el_byte"},
+  {op: "cmp", dst: "r11", src: "r9"},
+  {op: "j", cond: "e", label: "rt_el_named"},
+  {op: "mov", dst: "rax", src: "rcx"},
+  {op: "add", dst: "rax", src: "r11"},
+  {op: "load_byte", dst: "rax", base: "rax"},
+  {op: "mov", dst: "r10", src: "r8"},
+  {op: "add", dst: "r10", src: "r11"},
+  {op: "load_byte", dst: "r10", base: "r10"},
+  {op: "cmp", dst: "rax", src: "r10"},
+  {op: "j", cond: "ne", label: "rt_el_next"},
+  {op: "add", dst: "r11", imm: 1},
+  {op: "jmp", label: "rt_el_byte"},
+  {op: "label", name: "rt_el_named"},
+  {op: "mov", dst: "rax", src: "rcx"},
+  {op: "add", dst: "rax", src: "r9"},
+  {op: "load_byte", dst: "rdx", base: "rax"},
+  {op: "add", dst: "rax", imm: 1},
+  {op: "cmp", dst: "rdx", imm: 61},
+  {op: "j", cond: "e", label: "rt_el_out"},
+  {op: "label", name: "rt_el_next"},
+  {op: "add", dst: "rsi", imm: 8},
+  {op: "jmp", label: "rt_el_entry"},
+  {op: "label", name: "rt_el_out"},
+  {op: "ret"}
+]
+
+@doc """
+env_value: the instructions that, with the address of a NUL-ended value at rbp-24, measure it and make it a string at rbp-40.
+
+    last(env_value("t"))[:disp] #=> -40
+"""
+def env_value(tag)
+  append(
+    *[
+      [
+        {op: "load", dst: "rax", base: "rbp", disp: -24},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "label", name: "#{tag}_len"},
+        {op: "mov", dst: "rdx", src: "rax"},
+        {op: "add", dst: "rdx", src: "rcx"},
+        {op: "load_byte", dst: "rdx", base: "rdx"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_measured"},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "jmp", label: "#{tag}_len"},
+        {op: "label", name: "#{tag}_measured"},
+        {op: "store", src: "rcx", base: "rbp", disp: -32}
+      ],
+      string_from_buffer(-24, -32, -40, "#{tag}_copy"),
+      [{op: "store", src: "rax", base: "rbp", disp: -40}]
+    ]
+  )
+end
+
+@doc """
+RT_GETENV: getenv natively: the value of the environment entry named by the string in rdi as a new string, or the default in rsi when there is none; both consumed.
+
+    RT_GETENV[0] #=> {op: "label", name: "rt_getenv"}
+"""
+RT_GETENV = append(
+  *[
+    [
+      {op: "label", name: "rt_getenv"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "store", src: "rsi", base: "rbp", disp: -40},
+      {op: "call_label", label: "rt_env_lookup"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_ge_out"},
+      {op: "store", src: "rax", base: "rbp", disp: -24}
+    ],
+    env_value("rt_ge"),
+    [
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "label", name: "rt_ge_out"}
+    ],
+    leave_with(-8, -40)
+  ]
+)
+
+@doc """
+RT_ENV_REQUIRED: env_required natively: the value of the environment entry named by the string in rdi (consumed) as a new string, or an error (ENOENT, -2) when there is none.
+
+    RT_ENV_REQUIRED[0] #=> {op: "label", name: "rt_env_required"}
+"""
+RT_ENV_REQUIRED = append(
+  *[
+    [
+      {op: "label", name: "rt_env_required"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_env_lookup"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_er_found"},
+      {op: "mov", dst: "rax", imm: -2}
+    ],
+    error_from("rax"),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "jmp", label: "rt_er_out"},
+      {op: "label", name: "rt_er_found"},
+      {op: "store", src: "rax", base: "rbp", disp: -24}
+    ],
+    env_value("rt_er"),
+    [{op: "label", name: "rt_er_out"}],
+    leave_with(-8, -40)
+  ]
+)
+
+@doc """
+lookup_programs: programs over getenv and env_required natively, in :show mode, with what each must write: PATH found, an unset name's default, a required unset name raised, and PATH required.
+
+    length(lookup_programs) #=> 4
+"""
+def lookup_programs()
+  [
+    ["(string? (getenv \"PATH\" nil))", "true"],
+    ["(getenv \"BLUE_SPEC_SURELY_UNSET\" \"d\")", "\"d\""],
+    ["(try (env_required \"BLUE_SPEC_SURELY_UNSET\") (catch (e) 7))", "7"],
+    ["(string? (env_required \"PATH\"))", "true"]
+  ]
+end
+
+test "getenv and env_required read the environment natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-env"), "env.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      lookup_programs
+    )
+  end
+end
+
+test "the environment words look an entry up by name and copy its value"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  routines = append(*[RT_ENV_LOOKUP, RT_GETENV, RT_ENV_REQUIRED, stand_ins])
+  assert length(assemble(routines)) > 0
+  assert last(env_value("t"))[:disp] == -40
+  assert HOST_OPS[1] == %w[env_required rt_env_required]
+  assert length(ROUTINE_OPS) == 32
+  assert last(rc_op([], "getenv", %w[A b])) ==
+    {op: "call_label", label: "rt_getenv"}
+  assert length(lookup_programs) == 4
+end
+
+@doc """
+path_bounds: the instructions that read the path string at rbp-8: its bytes' address at rbp-48, the end of its last component (trailing slashes passed over) at rbp-16, and that component's start at rbp-24.
+
+    last(path_bounds("t"))[:disp] #=> -24
+"""
+def path_bounds(tag)
+  [
+    {op: "load", dst: "rcx", base: "rbp", disp: -8},
+    {op: "load", dst: "rdx", base: "rcx", disp: 24},
+    {op: "add", dst: "rcx", imm: 32},
+    {op: "store", src: "rcx", base: "rbp", disp: -48},
+    {op: "label", name: "#{tag}_trail"},
+    {op: "cmp", dst: "rdx", imm: 0},
+    {op: "j", cond: "e", label: "#{tag}_ended"},
+    {op: "mov", dst: "rax", src: "rcx"},
+    {op: "add", dst: "rax", src: "rdx"},
+    {op: "sub", dst: "rax", imm: 1},
+    {op: "load_byte", dst: "rax", base: "rax"},
+    {op: "cmp", dst: "rax", imm: 47},
+    {op: "j", cond: "ne", label: "#{tag}_ended"},
+    {op: "sub", dst: "rdx", imm: 1},
+    {op: "jmp", label: "#{tag}_trail"},
+    {op: "label", name: "#{tag}_ended"},
+    {op: "store", src: "rdx", base: "rbp", disp: -16},
+    {op: "label", name: "#{tag}_start"},
+    {op: "cmp", dst: "rdx", imm: 0},
+    {op: "j", cond: "e", label: "#{tag}_started"},
+    {op: "mov", dst: "rax", src: "rcx"},
+    {op: "add", dst: "rax", src: "rdx"},
+    {op: "sub", dst: "rax", imm: 1},
+    {op: "load_byte", dst: "rax", base: "rax"},
+    {op: "cmp", dst: "rax", imm: 47},
+    {op: "j", cond: "e", label: "#{tag}_started"},
+    {op: "sub", dst: "rdx", imm: 1},
+    {op: "jmp", label: "#{tag}_start"},
+    {op: "label", name: "#{tag}_started"},
+    {op: "store", src: "rdx", base: "rbp", disp: -24}
+  ]
+end
+
+@doc """
+path_part: the instructions that make the bytes from the index at rbp+from to the index at rbp+to of the path at rbp-8 a new string at rbp-40, then drop the path.
+
+    last(path_part("t", -24, -16))[:op] #=> "call_label"
+"""
+def path_part(tag, from, to)
+  append(
+    *[
+      [
+        {op: "load", dst: "rcx", base: "rbp", disp: from},
+        {op: "load", dst: "rdx", base: "rbp", disp: to},
+        {op: "sub", dst: "rdx", src: "rcx"},
+        {op: "store", src: "rdx", base: "rbp", disp: -32},
+        {op: "load", dst: "rax", base: "rbp", disp: -48},
+        {op: "add", dst: "rax", src: "rcx"},
+        {op: "store", src: "rax", base: "rbp", disp: -56}
+      ],
+      string_from_buffer(-56, -32, -40, "#{tag}_copy"),
+      [
+        {op: "load", dst: "rdi", base: "rbp", disp: -8},
+        {op: "call_label", label: "rt_drop"}
+      ]
+    ]
+  )
+end
+
+@doc """
+path_routine: a routine over one path string in rdi (consumed): its frame, path_bounds, the body, and the string at rbp-40 answered.
+
+    path_routine("rt_x", [])[0] #=> {op: "label", name: "rt_x"}
+"""
+def path_routine(name, body)
+  append(
+    *[
+      [
+        {op: "label", name:},
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sub", dst: "rsp", imm: 64},
+        {op: "store", src: "rdi", base: "rbp", disp: -8}
+      ],
+      path_bounds(name),
+      body,
+      [
+        {op: "load", dst: "rax", base: "rbp", disp: -40},
+        {op: "mov", dst: "rsp", src: "rbp"},
+        {op: "pop_rbp"},
+        {op: "ret"}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_PATH_BASENAME: path_basename natively: the last component of the path, trailing slashes passed over.
+
+    RT_PATH_BASENAME[0] #=> {op: "label", name: "rt_path_basename"}
+"""
+RT_PATH_BASENAME = path_routine(
+  "rt_path_basename",
+  path_part("rt_pb", -24, -16)
+)
+
+@doc """
+RT_PATH_DIRNAME: path_dirname natively: everything before the last component, its own trailing slashes passed over; "/" for a component at the root, "" for a lone one.
+
+    RT_PATH_DIRNAME[0] #=> {op: "label", name: "rt_path_dirname"}
+"""
+RT_PATH_DIRNAME = path_routine(
+  "rt_path_dirname",
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -64},
+        {op: "load", dst: "rdx", base: "rbp", disp: -24},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "rt_pd_cut"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -48},
+        {op: "label", name: "rt_pd_trail"},
+        {op: "cmp", dst: "rdx", imm: 1},
+        {op: "j", cond: "e", label: "rt_pd_cut"},
+        {op: "mov", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", src: "rdx"},
+        {op: "sub", dst: "rax", imm: 2},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "cmp", dst: "rax", imm: 47},
+        {op: "j", cond: "ne", label: "rt_pd_slash"},
+        {op: "sub", dst: "rdx", imm: 1},
+        {op: "jmp", label: "rt_pd_trail"},
+        {op: "label", name: "rt_pd_slash"},
+        {op: "sub", dst: "rdx", imm: 1},
+        {op: "label", name: "rt_pd_cut"},
+        {op: "store", src: "rdx", base: "rbp", disp: -16}
+      ],
+      path_part("rt_pd", -64, -16)
+    ]
+  )
+)
+
+@doc """
+RT_PATH_EXTENSION: path_extension natively: what follows the last dot of the last component, "" when it has none or its only dot leads it.
+
+    RT_PATH_EXTENSION[0] #=> {op: "label", name: "rt_path_extension"}
+"""
+RT_PATH_EXTENSION = path_routine(
+  "rt_path_extension",
+  append(
+    *[
+      [
+        {op: "load", dst: "rcx", base: "rbp", disp: -48},
+        {op: "load", dst: "rdx", base: "rbp", disp: -16},
+        {op: "label", name: "rt_px_dot"},
+        {op: "load", dst: "rax", base: "rbp", disp: -24},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "cmp", dst: "rdx", src: "rax"},
+        {op: "j", cond: "l", label: "rt_px_none"},
+        {op: "mov", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", src: "rdx"},
+        {op: "sub", dst: "rax", imm: 1},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "cmp", dst: "rax", imm: 46},
+        {op: "j", cond: "e", label: "rt_px_found"},
+        {op: "sub", dst: "rdx", imm: 1},
+        {op: "jmp", label: "rt_px_dot"},
+        {op: "label", name: "rt_px_found"},
+        {op: "load", dst: "rax", base: "rbp", disp: -24},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "cmp", dst: "rdx", src: "rax"},
+        {op: "j", cond: "g", label: "rt_px_at"},
+        {op: "label", name: "rt_px_none"},
+        {op: "load", dst: "rdx", base: "rbp", disp: -16},
+        {op: "label", name: "rt_px_at"},
+        {op: "store", src: "rdx", base: "rbp", disp: -24}
+      ],
+      path_part("rt_px", -24, -16)
+    ]
+  )
+)
+
+@doc """
+RT_PATH_JOIN: path_join of two parts natively (bare_calls nests more): the second when it is absolute or the first is empty, else the two with one slash between, as blue joins them; both consumed.
+
+    RT_PATH_JOIN[0] #=> {op: "label", name: "rt_path_join"}
+"""
+RT_PATH_JOIN = [
+  {op: "label", name: "rt_path_join"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: 32},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "store", src: "rsi", base: "rbp", disp: -16},
+  {op: "load", dst: "rcx", base: "rsi", disp: 24},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "e", label: "rt_pj_relative"},
+  {op: "mov", dst: "rax", src: "rsi"},
+  {op: "add", dst: "rax", imm: 32},
+  {op: "load_byte", dst: "rax", base: "rax"},
+  {op: "cmp", dst: "rax", imm: 47},
+  {op: "j", cond: "e", label: "rt_pj_second"},
+  {op: "label", name: "rt_pj_relative"},
+  {op: "load", dst: "rcx", base: "rdi", disp: 24},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "e", label: "rt_pj_second"},
+  {op: "mov", dst: "rax", src: "rdi"},
+  {op: "add", dst: "rax", imm: 31},
+  {op: "add", dst: "rax", src: "rcx"},
+  {op: "load_byte", dst: "rax", base: "rax"},
+  {op: "cmp", dst: "rax", imm: 47},
+  {op: "j", cond: "e", label: "rt_pj_concat"},
+  {op: "mov", dst: "rdi", imm: 5},
+  {op: "call_label", label: "rt_alloc"},
+  {op: "mov", dst: "rcx", imm: 1},
+  {op: "store", src: "rcx", base: "rax", disp: 0},
+  {op: "store", src: "rcx", base: "rax", disp: 24},
+  {op: "mov", dst: "rcx", imm: 47},
+  {op: "store", src: "rcx", base: "rax", disp: 32},
+  {op: "mov", dst: "rsi", src: "rax"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "call_label", label: "rt_concat"},
+  {op: "store", src: "rax", base: "rbp", disp: -8},
+  {op: "label", name: "rt_pj_concat"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "load", dst: "rsi", base: "rbp", disp: -16},
+  {op: "call_label", label: "rt_concat"},
+  {op: "jmp", label: "rt_pj_out"},
+  {op: "label", name: "rt_pj_second"},
+  {op: "call_label", label: "rt_drop"},
+  {op: "load", dst: "rax", base: "rbp", disp: -16},
+  {op: "label", name: "rt_pj_out"},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+path_programs: programs over the path words natively, in :show mode, with what each must write, as blue answers them.
+
+    length(path_programs) #=> 12
+"""
+def path_programs()
+  [
+    ["(path_join \"a\" \"b\" \"c.b\")", "\"a/b/c.b\""],
+    ["(path_join \"a\" \"/b\")", "\"/b\""],
+    ["(path_join \"a/\" \"b\")", "\"a/b\""],
+    ["(path_join \"\" \"b\")", "\"b\""],
+    ["(path_join \"a\" \"\")", "\"a/\""],
+    ["(path_basename \"/x/y.b\")", "\"y.b\""],
+    ["(path_basename \"/x/\")", "\"x\""],
+    ["(path_dirname \"/x/y.b\")", "\"/x\""],
+    ["(path_dirname \"y\")", "\"\""],
+    ["(path_dirname \"/y\")", "\"/\""],
+    ["(path_extension \"a.tar.gz\")", "\"gz\""],
+    ["(path_extension \".bashrc\")", "\"\""]
+  ]
+end
+
+test "the path words answer as blue does, natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-path"), "path.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      path_programs
+    )
+  end
+end
+
+test "the path words share one reading of the last component, and path_join nests"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_concat],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  routines = append(
+    *[
+      RT_PATH_JOIN,
+      RT_PATH_BASENAME,
+      RT_PATH_DIRNAME,
+      RT_PATH_EXTENSION,
+      stand_ins
+    ]
+  )
+  assert length(assemble(routines)) > 0
+  assert last(path_bounds("t"))[:disp] == -24
+  assert last(path_part("t", -24, -16))[:op] == "call_label"
+  assert path_routine("rt_x", [])[0] == {op: "label", name: "rt_x"}
+  assert bare_calls(read_forms("(path_join a b c)")[0]) ==
+    read_forms("(path_join (path_join a b) c)")[0]
+  assert length(path_programs) == 12
+end
+
+@doc """
+path_call: a routine over one path string in rdi (consumed): the path made a NUL-ended copy on the stack, the system call nr with that copy in rdi and extra (pairs of register and immediate) in the rest, its return at rbp-16; then answer, which leaves the routine's answer at rbp-24 from the return in rax. Its frame keeps 144 bytes at rbp-176 for a stat.
+
+    path_call("rt_x", 87, [], [])[0] #=> {op: "label", name: "rt_x"}
+"""
+def path_call(name, nr, extra, answer)
+  append(
+    *[
+      [
+        {op: "label", name:},
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sub", dst: "rsp", imm: 192},
+        {op: "store", src: "rdi", base: "rbp", disp: -8}
+      ],
+      path_on_stack("#{name}_path"),
+      [{op: "mov", dst: "rdi", src: "rsp"}],
+      map((e) -> e, extra),
+      [
+        {op: "mov", dst: "rax", imm: nr},
+        {op: "syscall"},
+        {op: "add", dst: "rsp", src: "r9"},
+        {op: "store", src: "rax", base: "rbp", disp: -16}
+      ],
+      answer,
+      leave_with(-8, -24)
+    ]
+  )
+end
+
+@doc """
+nil_or_error: an answer for path_call: nil when the call returned 0 (or the errno in ok, negated, such as EEXIST for mkdir), else an error carrying the errno.
+
+    last(nil_or_error("t", 0))[:op] #=> "label"
+"""
+def nil_or_error(tag, ok)
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -24},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_ok"},
+        {op: "cmp", dst: "rax", imm: ok},
+        {op: "j", cond: "e", label: "#{tag}_ok"}
+      ],
+      error_from("rax"),
+      [
+        {op: "store", src: "rax", base: "rbp", disp: -24},
+        {op: "label", name: "#{tag}_ok"}
+      ]
+    ]
+  )
+end
+
+@doc """
+STAT_AT: where path_call's frame keeps the stat a stat-reading word fills.
+
+    STAT_AT #=> -176
+"""
+STAT_AT = -176
+
+@doc """
+stat_extra: the second argument of stat(2), the buffer at STAT_AT.
+
+    stat_extra[0][:dst] #=> "rsi"
+"""
+def stat_extra()
+  [{op: "mov", dst: "rsi", src: "rbp"}, {op: "add", dst: "rsi", imm: STAT_AT}]
+end
+
+@doc """
+mode_is: an answer for a stat: true when the call succeeded and the file type bits of st_mode equal kind (0o040000 a directory, 0o100000 a regular file, 0 for anything at all).
+
+    length(mode_is("t", 0)) #=> 11
+"""
+def mode_is(tag, kind)
+  mask = if kind == 0
+    0
+  else
+    61440
+  end
+  [
+    {op: "mov", dst: "rcx", imm: 0},
+    {op: "store", src: "rcx", base: "rbp", disp: -24},
+    {op: "cmp", dst: "rax", imm: 0},
+    {op: "j", cond: "ne", label: "#{tag}_no"},
+    {op: "load", dst: "rax", base: "rbp", disp: STAT_AT + 24},
+    {op: "and", dst: "rax", imm: mask},
+    {op: "cmp", dst: "rax", imm: kind},
+    {op: "j", cond: "ne", label: "#{tag}_no"},
+    {op: "mov", dst: "rcx", imm: 2},
+    {op: "store", src: "rcx", base: "rbp", disp: -24},
+    {op: "label", name: "#{tag}_no"}
+  ]
+end
+
+@doc """
+stat_number: an answer for a stat: the tagged number the instructions in read leave in rax from the stat, or an error carrying the errno when the stat failed.
+
+    last(stat_number("t", []))[:name] #=> "t_done"
+"""
+def stat_number(tag, read)
+  append(
+    *[
+      [
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "#{tag}_read"}
+      ],
+      error_from("rax"),
+      [
+        {op: "store", src: "rax", base: "rbp", disp: -24},
+        {op: "jmp", label: "#{tag}_done"},
+        {op: "label", name: "#{tag}_read"}
+      ],
+      read,
+      [
+        {op: "mov", dst: "rcx", src: "rax"},
+        {op: "add", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "store", src: "rax", base: "rbp", disp: -24},
+        {op: "label", name: "#{tag}_done"}
+      ]
+    ]
+  )
+end
+
+@doc """
+MTIME_MS: the instructions that read st_mtime from the stat as Unix milliseconds in rax.
+
+    length(MTIME_MS) #=> 10
+"""
+MTIME_MS = [
+  {op: "load", dst: "rax", base: "rbp", disp: STAT_AT + 96},
+  {op: "cqo"},
+  {op: "mov", dst: "rcx", imm: 1_000_000},
+  {op: "idiv", src: "rcx"},
+  {op: "mov", dst: "r8", src: "rax"},
+  {op: "load", dst: "rax", base: "rbp", disp: STAT_AT + 88},
+  {op: "mov", dst: "rcx", imm: 1000},
+  {op: "imul", dst: "rax", src: "rcx"},
+  {op: "add", dst: "rax", src: "r8"},
+  {op: "mov", dst: "rcx", src: "rax"}
+]
+
+@doc """
+open_write: a routine writing the string in rsi (consumed) to the path in rdi (consumed), opened with flags (created 0o644): nil, or an error carrying the errno when it does not open.
+
+    open_write("rt_x", 577)[0] #=> {op: "label", name: "rt_x"}
+"""
+def open_write(name, flags)
+  append(
+    *[
+      [
+        {op: "label", name:},
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sub", dst: "rsp", imm: 48},
+        {op: "store", src: "rdi", base: "rbp", disp: -8},
+        {op: "store", src: "rsi", base: "rbp", disp: -32},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -24}
+      ],
+      path_on_stack("#{name}_path"),
+      [
+        {op: "mov", dst: "rdi", src: "rsp"},
+        {op: "mov", dst: "rsi", imm: flags},
+        {op: "mov", dst: "rdx", imm: 420},
+        {op: "mov", dst: "rax", imm: 2},
+        {op: "syscall"},
+        {op: "add", dst: "rsp", src: "r9"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "ge", label: "#{name}_opened"}
+      ],
+      error_from("rax"),
+      [
+        {op: "store", src: "rax", base: "rbp", disp: -24},
+        {op: "jmp", label: "#{name}_out"},
+        {op: "label", name: "#{name}_opened"},
+        {op: "store", src: "rax", base: "rbp", disp: -16},
+        {op: "mov", dst: "r8", imm: 0},
+        {op: "label", name: "#{name}_more"},
+        {op: "load", dst: "rsi", base: "rbp", disp: -32},
+        {op: "load", dst: "rdx", base: "rsi", disp: 24},
+        {op: "sub", dst: "rdx", src: "r8"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "le", label: "#{name}_close"},
+        {op: "add", dst: "rsi", imm: 32},
+        {op: "add", dst: "rsi", src: "r8"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -16},
+        {op: "store", src: "r8", base: "rbp", disp: -40},
+        {op: "mov", dst: "rax", imm: 1},
+        {op: "syscall"},
+        {op: "load", dst: "r8", base: "rbp", disp: -40},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "le", label: "#{name}_close"},
+        {op: "add", dst: "r8", src: "rax"},
+        {op: "jmp", label: "#{name}_more"},
+        {op: "label", name: "#{name}_close"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -16},
+        {op: "mov", dst: "rax", imm: 3},
+        {op: "syscall"},
+        {op: "label", name: "#{name}_out"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -32},
+        {op: "call_label", label: "rt_drop"}
+      ],
+      leave_with(-8, -24)
+    ]
+  )
+end
+
+@doc """
+RT_MKDIR_P: mkdir_p natively: the path in rdi (consumed) copied to the stack with a NUL ending, each prefix ending at a slash made a directory in turn and then the whole, an existing one passed by; nil, or an error carrying the errno of the first that fails otherwise.
+
+    RT_MKDIR_P[0] #=> {op: "label", name: "rt_mkdir_p"}
+"""
+RT_MKDIR_P = append(
+  *[
+    [
+      {op: "label", name: "rt_mkdir_p"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rdi", disp: 24},
+      {op: "store", src: "rcx", base: "rbp", disp: -32}
+    ],
+    path_on_stack("rt_mp_path"),
+    [
+      {op: "store", src: "r9", base: "rbp", disp: -40},
+      {op: "mov", dst: "r8", imm: 1},
+      {op: "label", name: "rt_mp_scan"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "r8", src: "rcx"},
+      {op: "j", cond: "ge", label: "rt_mp_last"},
+      {op: "mov", dst: "rax", src: "rsp"},
+      {op: "add", dst: "rax", src: "r8"},
+      {op: "load_byte", dst: "rcx", base: "rax"},
+      {op: "cmp", dst: "rcx", imm: 47},
+      {op: "j", cond: "ne", label: "rt_mp_next"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store_byte", src: "rcx", base: "rax"},
+      {op: "store", src: "r8", base: "rbp", disp: -48},
+      {op: "mov", dst: "rdi", src: "rsp"},
+      {op: "mov", dst: "rsi", imm: 511},
+      {op: "mov", dst: "rax", imm: 83},
+      {op: "syscall"},
+      {op: "load", dst: "r8", base: "rbp", disp: -48},
+      {op: "mov", dst: "rcx", src: "rsp"},
+      {op: "add", dst: "rcx", src: "r8"},
+      {op: "mov", dst: "rdx", imm: 47},
+      {op: "store_byte", src: "rdx", base: "rcx"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_mp_next"},
+      {op: "cmp", dst: "rax", imm: -17},
+      {op: "j", cond: "ne", label: "rt_mp_bad"},
+      {op: "label", name: "rt_mp_next"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "jmp", label: "rt_mp_scan"},
+      {op: "label", name: "rt_mp_last"},
+      {op: "mov", dst: "rdi", src: "rsp"},
+      {op: "mov", dst: "rsi", imm: 511},
+      {op: "mov", dst: "rax", imm: 83},
+      {op: "syscall"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_mp_done"},
+      {op: "cmp", dst: "rax", imm: -17},
+      {op: "j", cond: "e", label: "rt_mp_done"},
+      {op: "label", name: "rt_mp_bad"}
+    ],
+    error_from("rax"),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "label", name: "rt_mp_done"},
+      {op: "load", dst: "r9", base: "rbp", disp: -40},
+      {op: "add", dst: "rsp", src: "r9"}
+    ],
+    leave_with(-8, -24)
+  ]
+)
+
+@doc """
+RT_RENAME_FILE: rename_file natively: the path in rdi renamed to the path in rsi (both consumed) by rename(2), atomic on one filesystem; nil, or an error carrying the errno.
+
+    RT_RENAME_FILE[0] #=> {op: "label", name: "rt_rename_file"}
+"""
+RT_RENAME_FILE = append(
+  *[
+    [
+      {op: "label", name: "rt_rename_file"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -32}
+    ],
+    path_on_stack("rt_rn_from"),
+    [
+      {op: "store", src: "rsp", base: "rbp", disp: -40},
+      {op: "store", src: "r9", base: "rbp", disp: -48},
+      {op: "load", dst: "rdi", base: "rbp", disp: -32}
+    ],
+    path_on_stack("rt_rn_to"),
+    [
+      {op: "load", dst: "rdi", base: "rbp", disp: -40},
+      {op: "mov", dst: "rsi", src: "rsp"},
+      {op: "mov", dst: "rax", imm: 82},
+      {op: "syscall"},
+      {op: "add", dst: "rsp", src: "r9"},
+      {op: "load", dst: "r9", base: "rbp", disp: -48},
+      {op: "add", dst: "rsp", src: "r9"},
+      {op: "store", src: "rax", base: "rbp", disp: -16}
+    ],
+    nil_or_error("rt_rn", 0),
+    [
+      {op: "load", dst: "rdi", base: "rbp", disp: -32},
+      {op: "call_label", label: "rt_drop"}
+    ],
+    leave_with(-8, -24)
+  ]
+)
+
+@doc """
+RT_RM_TREE: the entry named by the NUL-ended name at rsi in the directory open as rdi removed, and, when it is a directory, everything in it first: unlinkat, else openat, getdents64 over its entries (passing . and ..) each removed in turn, close, and unlinkat as a directory. rax is 0, or the negated errno of the step that failed; an absent entry is 0.
+
+    RT_RM_TREE[0] #=> {op: "label", name: "rt_rm_tree"}
+"""
+RT_RM_TREE = [
+  {op: "label", name: "rt_rm_tree"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: 4160},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "store", src: "rsi", base: "rbp", disp: -16},
+  {op: "mov", dst: "rdx", imm: 0},
+  {op: "mov", dst: "rax", imm: 263},
+  {op: "syscall"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "e", label: "rt_rt_out"},
+  {op: "cmp", dst: "rax", imm: -2},
+  {op: "j", cond: "e", label: "rt_rt_gone"},
+  {op: "cmp", dst: "rax", imm: -21},
+  {op: "j", cond: "e", label: "rt_rt_dir"},
+  {op: "cmp", dst: "rax", imm: -1},
+  {op: "j", cond: "ne", label: "rt_rt_out"},
+  {op: "label", name: "rt_rt_dir"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "load", dst: "rsi", base: "rbp", disp: -16},
+  {op: "mov", dst: "rdx", imm: 589_824},
+  {op: "mov", dst: "rax", imm: 257},
+  {op: "syscall"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "l", label: "rt_rt_out"},
+  {op: "store", src: "rax", base: "rbp", disp: -24},
+  {op: "label", name: "rt_rt_read"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rsi", src: "rbp"},
+  {op: "add", dst: "rsi", imm: -4160},
+  {op: "mov", dst: "rdx", imm: 4096},
+  {op: "mov", dst: "rax", imm: 217},
+  {op: "syscall"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "le", label: "rt_rt_closed"},
+  {op: "store", src: "rax", base: "rbp", disp: -32},
+  {op: "mov", dst: "rcx", imm: 0},
+  {op: "label", name: "rt_rt_entry"},
+  {op: "load", dst: "rax", base: "rbp", disp: -32},
+  {op: "cmp", dst: "rcx", src: "rax"},
+  {op: "j", cond: "ge", label: "rt_rt_read"},
+  {op: "store", src: "rcx", base: "rbp", disp: -40},
+  {op: "mov", dst: "rsi", src: "rbp"},
+  {op: "add", dst: "rsi", imm: -4160},
+  {op: "add", dst: "rsi", src: "rcx"},
+  {op: "mov", dst: "rax", src: "rsi"},
+  {op: "add", dst: "rax", imm: 16},
+  {op: "load_byte", dst: "rdx", base: "rax"},
+  {op: "add", dst: "rsi", imm: 19},
+  {op: "load_byte", dst: "rax", base: "rsi"},
+  {op: "cmp", dst: "rax", imm: 46},
+  {op: "j", cond: "ne", label: "rt_rt_remove"},
+  {op: "mov", dst: "rax", src: "rsi"},
+  {op: "add", dst: "rax", imm: 1},
+  {op: "load_byte", dst: "rax", base: "rax"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "e", label: "rt_rt_skip"},
+  {op: "cmp", dst: "rax", imm: 46},
+  {op: "j", cond: "ne", label: "rt_rt_remove"},
+  {op: "mov", dst: "rax", src: "rsi"},
+  {op: "add", dst: "rax", imm: 2},
+  {op: "load_byte", dst: "rax", base: "rax"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "e", label: "rt_rt_skip"},
+  {op: "label", name: "rt_rt_remove"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "call_label", label: "rt_rm_tree"},
+  {op: "cmp", dst: "rax", imm: 0},
+  {op: "j", cond: "ne", label: "rt_rt_close_fail"},
+  {op: "label", name: "rt_rt_skip"},
+  {op: "load", dst: "rcx", base: "rbp", disp: -40},
+  {op: "mov", dst: "rax", src: "rbp"},
+  {op: "add", dst: "rax", imm: -4160},
+  {op: "add", dst: "rax", src: "rcx"},
+  {op: "add", dst: "rax", imm: 16},
+  {op: "load_byte", dst: "rdx", base: "rax"},
+  {op: "add", dst: "rax", imm: 1},
+  {op: "load_byte", dst: "rax", base: "rax"},
+  {op: "mov", dst: "r8", imm: 256},
+  {op: "imul", dst: "rax", src: "r8"},
+  {op: "add", dst: "rax", src: "rdx"},
+  {op: "add", dst: "rcx", src: "rax"},
+  {op: "jmp", label: "rt_rt_entry"},
+  {op: "label", name: "rt_rt_close_fail"},
+  {op: "store", src: "rax", base: "rbp", disp: -32},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rax", imm: 3},
+  {op: "syscall"},
+  {op: "load", dst: "rax", base: "rbp", disp: -32},
+  {op: "jmp", label: "rt_rt_out"},
+  {op: "label", name: "rt_rt_closed"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rax", imm: 3},
+  {op: "syscall"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "load", dst: "rsi", base: "rbp", disp: -16},
+  {op: "mov", dst: "rdx", imm: 512},
+  {op: "mov", dst: "rax", imm: 263},
+  {op: "syscall"},
+  {op: "jmp", label: "rt_rt_out"},
+  {op: "label", name: "rt_rt_gone"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "label", name: "rt_rt_out"},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+RT_READ_BYTES: read_bytes natively (the one-argument form): the file at the path in rdi (consumed) read with rt_read_file, then its bytes as a list of numbers built from the last back; the error when it cannot be read.
+
+    RT_READ_BYTES[0] #=> {op: "label", name: "rt_read_bytes"}
+"""
+RT_READ_BYTES = append(
+  *[
+    [
+      {op: "label", name: "rt_read_bytes"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "call_label", label: "rt_read_file"},
+      {op: "store", src: "rax", base: "rbp", disp: -8},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rax", disp: 0},
+      {op: "cmp", dst: "rcx", imm: 4},
+      {op: "j", cond: "e", label: "rt_rb_raise"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rax", disp: 24},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "label", name: "rt_rb_byte"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_rb_out"},
+      {op: "sub", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "add", dst: "rdx", imm: 32},
+      {op: "add", dst: "rdx", src: "rcx"},
+      {op: "load_byte", dst: "rcx", base: "rdx"},
+      {op: "mov", dst: "rdx", src: "rcx"},
+      {op: "add", dst: "rcx", src: "rdx"},
+      {op: "add", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -40}
+    ],
+    cell(-40, -24, -24),
+    [{op: "jmp", label: "rt_rb_byte"}, {op: "label", name: "rt_rb_out"}],
+    leave_with(-8, -24),
+    [
+      {op: "label", name: "rt_rb_raise"},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_RM_RF: rm_rf natively: the path in rdi (consumed) removed with everything under it, through rt_rm_tree from the working directory (AT_FDCWD); nil, also when there is nothing, or an error carrying the errno.
+
+    RT_RM_RF[0] #=> {op: "label", name: "rt_rm_rf"}
+"""
+RT_RM_RF = append(
+  *[
+    [
+      {op: "label", name: "rt_rm_rf"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8}
+    ],
+    path_on_stack("rt_rr_path"),
+    [
+      {op: "store", src: "r9", base: "rbp", disp: -40},
+      {op: "mov", dst: "rdi", imm: -100},
+      {op: "mov", dst: "rsi", src: "rsp"},
+      {op: "call_label", label: "rt_rm_tree"},
+      {op: "load", dst: "r9", base: "rbp", disp: -40},
+      {op: "add", dst: "rsp", src: "r9"},
+      {op: "store", src: "rax", base: "rbp", disp: -16}
+    ],
+    nil_or_error("rt_rr", 0),
+    leave_with(-8, -24)
+  ]
+)
+
+@doc """
+FS_ROUTINES: the filesystem words natively, each one routine: mkdir, mkdir_p, rm, rm_rf (over rt_rm_tree), rename_file, the stat words path_exists, is_dir?, is_file?, file_size and file_mtime_ms, write_file, append_file, and read_bytes.
+
+    FS_ROUTINES[0] #=> {op: "label", name: "rt_mkdir"}
+"""
+FS_ROUTINES = append(
+  *[
+    path_call(
+      "rt_mkdir",
+      83,
+      [{op: "mov", dst: "rsi", imm: 511}],
+      nil_or_error("rt_md", -17)
+    ),
+    RT_MKDIR_P,
+    path_call("rt_rm", 87, [], nil_or_error("rt_ul", 0)),
+    RT_RM_TREE,
+    RT_RM_RF,
+    RT_RENAME_FILE,
+    path_call("rt_path_exists", 4, stat_extra, mode_is("rt_pe", 0)),
+    path_call("rt_is_dir", 4, stat_extra, mode_is("rt_id", 16384)),
+    path_call("rt_is_file", 4, stat_extra, mode_is("rt_if", 32768)),
+    path_call(
+      "rt_file_size",
+      4,
+      stat_extra,
+      stat_number(
+        "rt_fs",
+        [{op: "load", dst: "rax", base: "rbp", disp: STAT_AT + 48}]
+      )
+    ),
+    path_call(
+      "rt_file_mtime_ms",
+      4,
+      stat_extra,
+      stat_number("rt_fm", MTIME_MS)
+    ),
+    open_write("rt_write_file", 577),
+    open_write("rt_append_file", 1089),
+    RT_READ_BYTES
+  ]
+)
+
+@doc """
+fs_programs: programs over the filesystem words natively, in :show mode, under a directory of the program's own, with what each must write.
+
+    length(fs_programs) #=> 6
+"""
+def fs_programs()
+  d = "(path_join (getenv \"TMPDIR\" \"/tmp\") \"hashiru-fs\")"
+  [
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p (path_join d \"x/y\")) (write_file (path_join d \"x/y/a.txt\") \"one\") (append_file (path_join d \"x/y/a.txt\") \" two\") (let ((r (read_file (path_join d \"x/y/a.txt\")))) (begin (rm_rf d) r))))",
+      "\"one two\""
+    ],
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"f\") \"abc\") (let ((r (list (path_exists d) (is_dir? d) (is_file? d) (is_file? (path_join d \"f\")) (file_size (path_join d \"f\")) (integer? (file_mtime_ms (path_join d \"f\")))))) (begin (rm_rf d) r))))",
+      "[true, true, nil, true, 3, true]"
+    ],
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"a\") \"z\") (rename_file (path_join d \"a\") (path_join d \"b\")) (let ((r (list (path_exists (path_join d \"a\")) (path_exists (path_join d \"b\"))))) (begin (rm (path_join d \"b\")) (let ((s (path_exists (path_join d \"b\")))) (begin (rm_rf d) (list r s)))))))",
+      "[[nil, true], nil]"
+    ],
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"b\") \"AB\") (let ((r (read_bytes (path_join d \"b\")))) (begin (rm_rf d) r))))",
+      "[65, 66]"
+    ],
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir d) (let ((r (try (rm (path_join d \"none\")) (catch (e) 7)))) (begin (rm_rf d) (list r (path_exists d))))))",
+      "[7, nil]"
+    ],
+    ["(rm_rf \"/nonexistent/hashiru-none\")", "nil"]
+  ]
+end
+
+test "the filesystem words make, write, read, stat, rename and remove natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-fs-run"), "fs.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      fs_programs
+    )
+  end
+end
+
+test "the filesystem routines assemble, and a field call of a predicate becomes the predicate"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_read_file],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(FS_ROUTINES, stand_ins))) > 0
+  assert path_call("rt_x", 87, [], [])[0] == {op: "label", name: "rt_x"}
+  assert last(nil_or_error("t", 0))[:op] == "label"
+  assert STAT_AT == -176
+  assert stat_extra[0][:dst] == "rsi"
+  assert length(mode_is("t", 0)) == 11
+  assert last(stat_number("t", []))[:name] == "t_done"
+  assert length(MTIME_MS) == 10
+  assert open_write("rt_x", 577)[0] == {op: "label", name: "rt_x"}
+  assert RT_MKDIR_P[0] == {op: "label", name: "rt_mkdir_p"}
+  assert RT_RENAME_FILE[0] == {op: "label", name: "rt_rename_file"}
+  assert RT_RM_TREE[0] == {op: "label", name: "rt_rm_tree"}
+  assert RT_READ_BYTES[0] == {op: "label", name: "rt_read_bytes"}
+  assert RT_RM_RF[0] == {op: "label", name: "rt_rm_rf"}
+  assert bare_calls(read_forms("(blue-field x :nil?)")[0]) ==
+    read_forms("(nil? x)")[0]
+  assert length(fs_programs) == 6
+end
+
+@doc """
+ARGV_AT: where the program keeps the address of the argument vector the kernel passed at entry, as an offset from r14: the word after the environment pointer.
+
+    ARGV_AT #=> 520
+"""
+ARGV_AT = ENVP_AT + 8
+
+@doc """
+save_argv: the instructions that keep the address of argv[0] (rbp + 16 at entry) at r14 + ARGV_AT.
+
+    last(save_argv)[:disp] #=> ARGV_AT
+"""
+def save_argv()
+  [
+    {op: "mov", dst: "rcx", src: "rbp"},
+    {op: "add", dst: "rcx", imm: 16},
+    {op: "store", src: "rcx", base: "r14", disp: ARGV_AT}
+  ]
+end
+
+@doc """
+frame_routine: a routine with a frame of size bytes around body, answering the word at rbp-40.
+
+    frame_routine("rt_x", 48, [])[0] #=> {op: "label", name: "rt_x"}
+"""
+def frame_routine(name, size, body)
+  append(
+    *[
+      [
+        {op: "label", name:},
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sub", dst: "rsp", imm: size}
+      ],
+      body,
+      [
+        {op: "load", dst: "rax", base: "rbp", disp: -40},
+        {op: "mov", dst: "rsp", src: "rbp"},
+        {op: "pop_rbp"},
+        {op: "ret"}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_ARGV: argv natively: the program's own arguments, argv[1] on, as a list of strings, built from the last back.
+
+    RT_ARGV[0] #=> {op: "label", name: "rt_argv"}
+"""
+RT_ARGV = frame_routine(
+  "rt_argv",
+  64,
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -48},
+        {op: "load", dst: "rsi", base: "r14", disp: ARGV_AT},
+        {op: "mov", dst: "rcx", imm: 1},
+        {op: "label", name: "rt_av_count"},
+        {op: "mov", dst: "rax", src: "rcx"}
+      ],
+      times8("rax"),
+      [
+        {op: "add", dst: "rax", src: "rsi"},
+        {op: "load", dst: "rax", base: "rax", disp: 0},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "rt_av_counted"},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "jmp", label: "rt_av_count"},
+        {op: "label", name: "rt_av_counted"},
+        {op: "store", src: "rcx", base: "rbp", disp: -56},
+        {op: "label", name: "rt_av_next"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -56},
+        {op: "sub", dst: "rcx", imm: 1},
+        {op: "cmp", dst: "rcx", imm: 1},
+        {op: "j", cond: "l", label: "rt_av_done"},
+        {op: "store", src: "rcx", base: "rbp", disp: -56},
+        {op: "load", dst: "rax", base: "r14", disp: ARGV_AT}
+      ],
+      times8("rcx"),
+      [
+        {op: "add", dst: "rax", src: "rcx"},
+        {op: "load", dst: "rax", base: "rax", disp: 0},
+        {op: "store", src: "rax", base: "rbp", disp: -24}
+      ],
+      env_value("rt_av"),
+      cell(-40, -48, -48),
+      [
+        {op: "jmp", label: "rt_av_next"},
+        {op: "label", name: "rt_av_done"},
+        {op: "load", dst: "rax", base: "rbp", disp: -48},
+        {op: "store", src: "rax", base: "rbp", disp: -40}
+      ]
+    ]
+  )
+)
+
+@doc """
+RT_ARGV_GET: argv_get natively: argument i (the tagged number in rdi, from 0 for argv[1]) as a new string, or the default in rsi (nil when not given) when there is none; the default is consumed when the argument is taken.
+
+    RT_ARGV_GET[0] #=> {op: "label", name: "rt_argv_get"}
+"""
+RT_ARGV_GET = frame_routine(
+  "rt_argv_get",
+  48,
+  append(
+    *[
+      [
+        {op: "store", src: "rsi", base: "rbp", disp: -40},
+        {op: "store", src: "rsi", base: "rbp", disp: -16},
+        {op: "sar1", dst: "rdi"},
+        {op: "cmp", dst: "rdi", imm: 0},
+        {op: "j", cond: "l", label: "rt_ag_out"},
+        {op: "load", dst: "rsi", base: "r14", disp: ARGV_AT},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "label", name: "rt_ag_walk"},
+        {op: "add", dst: "rsi", imm: 8},
+        {op: "load", dst: "rax", base: "rsi", disp: 0},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "rt_ag_out"},
+        {op: "cmp", dst: "rcx", src: "rdi"},
+        {op: "j", cond: "e", label: "rt_ag_found"},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "jmp", label: "rt_ag_walk"},
+        {op: "label", name: "rt_ag_found"},
+        {op: "store", src: "rax", base: "rbp", disp: -24}
+      ],
+      env_value("rt_ag"),
+      [
+        {op: "load", dst: "rdi", base: "rbp", disp: -16},
+        {op: "call_label", label: "rt_drop"},
+        {op: "label", name: "rt_ag_out"}
+      ]
+    ]
+  )
+)
+
+@doc """
+RT_CWD: cwd natively: the working directory by getcwd(2) into the frame, as a new string; nil when it cannot be read.
+
+    RT_CWD[0] #=> {op: "label", name: "rt_cwd"}
+"""
+RT_CWD = frame_routine(
+  "rt_cwd",
+  4160,
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -40},
+        {op: "mov", dst: "rdi", src: "rbp"},
+        {op: "add", dst: "rdi", imm: -4160},
+        {op: "mov", dst: "rsi", imm: 4096},
+        {op: "mov", dst: "rax", imm: 79},
+        {op: "syscall"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "l", label: "rt_cw_out"},
+        {op: "mov", dst: "rax", src: "rbp"},
+        {op: "add", dst: "rax", imm: -4160},
+        {op: "store", src: "rax", base: "rbp", disp: -24}
+      ],
+      env_value("rt_cw"),
+      [{op: "label", name: "rt_cw_out"}]
+    ]
+  )
+)
+
+@doc """
+RT_RANDOM_BYTES: random_bytes natively: the tagged count in rdi of random bytes from getrandom(2), as a list of numbers, filled 4096 at a time in the frame; an error (EINVAL) when the count is not 0 to 1048576, and the errno when the source cannot be read.
+
+    RT_RANDOM_BYTES[0] #=> {op: "label", name: "rt_random_bytes"}
+"""
+RT_RANDOM_BYTES = frame_routine(
+  "rt_random_bytes",
+  4160,
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -40},
+        {op: "sar1", dst: "rdi"},
+        {op: "store", src: "rdi", base: "rbp", disp: -8},
+        {op: "mov", dst: "rax", imm: -22},
+        {op: "cmp", dst: "rdi", imm: 0},
+        {op: "j", cond: "l", label: "rt_rd_bad"},
+        {op: "cmp", dst: "rdi", imm: 1_048_576},
+        {op: "j", cond: "g", label: "rt_rd_bad"},
+        {op: "label", name: "rt_rd_chunk"},
+        {op: "load", dst: "rsi", base: "rbp", disp: -8},
+        {op: "cmp", dst: "rsi", imm: 0},
+        {op: "j", cond: "e", label: "rt_rd_out"},
+        {op: "cmp", dst: "rsi", imm: 4096},
+        {op: "j", cond: "le", label: "rt_rd_sized"},
+        {op: "mov", dst: "rsi", imm: 4096},
+        {op: "label", name: "rt_rd_sized"},
+        {op: "mov", dst: "rdi", src: "rbp"},
+        {op: "add", dst: "rdi", imm: -4160},
+        {op: "mov", dst: "rdx", imm: 0},
+        {op: "mov", dst: "rax", imm: 318},
+        {op: "syscall"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "le", label: "rt_rd_failed"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -8},
+        {op: "sub", dst: "rcx", src: "rax"},
+        {op: "store", src: "rcx", base: "rbp", disp: -8},
+        {op: "store", src: "rax", base: "rbp", disp: -16},
+        {op: "label", name: "rt_rd_byte"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -16},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "rt_rd_chunk"},
+        {op: "sub", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rbp", disp: -16},
+        {op: "mov", dst: "rdx", src: "rbp"},
+        {op: "add", dst: "rdx", imm: -4160},
+        {op: "add", dst: "rdx", src: "rcx"},
+        {op: "load_byte", dst: "rcx", base: "rdx"},
+        {op: "mov", dst: "rdx", src: "rcx"},
+        {op: "add", dst: "rcx", src: "rdx"},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rbp", disp: -24}
+      ],
+      cell(-24, -40, -40),
+      [
+        {op: "jmp", label: "rt_rd_byte"},
+        {op: "label", name: "rt_rd_failed"},
+        {op: "push", src: "rax"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -40},
+        {op: "call_label", label: "rt_drop"},
+        {op: "pop", dst: "rax"},
+        {op: "label", name: "rt_rd_bad"}
+      ],
+      error_from("rax"),
+      [
+        {op: "store", src: "rax", base: "rbp", disp: -40},
+        {op: "label", name: "rt_rd_out"}
+      ]
+    ]
+  )
+)
+
+@doc """
+PROCESS_ROUTINES: the process words natively, each one routine: argv, argv_get, cwd and random_bytes.
+
+    PROCESS_ROUTINES[0] #=> {op: "label", name: "rt_argv"}
+"""
+PROCESS_ROUTINES = append(*[RT_ARGV, RT_ARGV_GET, RT_CWD, RT_RANDOM_BYTES])
+
+@doc """
+process_programs: programs over the process words natively, in :show mode, with what each must write.
+
+    length(process_programs) #=> 6
+"""
+def process_programs()
+  [
+    ["(string? cwd)", "true"],
+    ["(list? argv)", "true"],
+    ["(argv_get 999 :none)", ":none"],
+    ["(length (random_bytes 16))", "16"],
+    ["(try (random_bytes -1) (catch (e) 7))", "7"],
+    ["(list (exec_ok? \"true\") (exec_ok? \"false\"))", "[true, nil]"]
+  ]
+end
+
+test "argv, argv_get, cwd, random_bytes and exec_ok? answer natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-proc"), "proc.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      process_programs
+    )
+  end
+end
+
+test "the process routines assemble, and the table keeps argv beside the environment"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(PROCESS_ROUTINES, stand_ins))) > 0
+  assert ARGV_AT == ENVP_AT + 8
+  assert last(save_argv)[:disp] == ARGV_AT
+  assert frame_routine("rt_x", 48, [])[0] == {op: "label", name: "rt_x"}
+  assert RT_ARGV[0] == {op: "label", name: "rt_argv"}
+  assert RT_ARGV_GET[0] == {op: "label", name: "rt_argv_get"}
+  assert RT_CWD[0] == {op: "label", name: "rt_cwd"}
+  assert RT_RANDOM_BYTES[0] == {op: "label", name: "rt_random_bytes"}
+  assert member?(
+    {op: "call_label", label: "rt_exec_check"},
+    rc_op([], "exec_ok?", ["true"])
+  )
+  assert last(routine_op([], "argv_get", [1])) ==
+    {op: "call_label", label: "rt_argv_get"}
+  assert length(process_programs) == 6
+end
+
+@doc """
+logical: or and and of two forms as a let and an if, so the first is evaluated once: or answers the first when it holds, else the second; and answers the first when it does not hold, else the second.
+
+    logical("or", 1, 2) == read_forms("(let ((__logical 1)) (if __logical __logical 2))")[0] #=> true
+"""
+def logical(op, a, b)
+  t = read_forms("__logical")[0]
+  branch = if op == "or"
+    [read_forms("if")[0], t, t, b]
+  else
+    [read_forms("if")[0], t, b, t]
+  end
+  [read_forms("let")[0], [[t, a]], branch]
+end
+
+test "or and and lower to a let and an if, and compile"
+  assert bare_calls(read_forms("(or nil 3)")[0]) ==
+    read_forms("(let ((__logical nil)) (if __logical __logical 3))")[0]
+  assert logical("and", 1, 2) ==
+    read_forms("(let ((__logical 1)) (if __logical 2 __logical))")[0]
+  assert length(compile_whole(read_forms("(or nil 3)")[0], :exit)) > 0
+  assert length(
+    compile_program(
+      read_forms("(every? (lambda (b) (< b 3)) (list 1 2))")[0],
+      :exit
+    )
+  ) > 0
+end
+
+@doc """
+RT_STRING_LT: string_lt natively, the prelude's order for sort_strings: true when the string in rdi sorts before the string in rsi byte by byte (a prefix first); both consumed.
+
+    RT_STRING_LT[0] #=> {op: "label", name: "rt_string_lt"}
+"""
+RT_STRING_LT = frame_routine(
+  "rt_string_lt",
+  48,
+  [
+    {op: "store", src: "rdi", base: "rbp", disp: -8},
+    {op: "store", src: "rsi", base: "rbp", disp: -16},
+    {op: "mov", dst: "rcx", imm: 0},
+    {op: "store", src: "rcx", base: "rbp", disp: -40},
+    {op: "load", dst: "r8", base: "rdi", disp: 24},
+    {op: "load", dst: "r9", base: "rsi", disp: 24},
+    {op: "mov", dst: "r10", imm: 0},
+    {op: "label", name: "rt_sl_byte"},
+    {op: "cmp", dst: "r10", src: "r9"},
+    {op: "j", cond: "e", label: "rt_sl_done"},
+    {op: "cmp", dst: "r10", src: "r8"},
+    {op: "j", cond: "e", label: "rt_sl_less"},
+    {op: "mov", dst: "rax", src: "rdi"},
+    {op: "add", dst: "rax", imm: 32},
+    {op: "add", dst: "rax", src: "r10"},
+    {op: "load_byte", dst: "rax", base: "rax"},
+    {op: "mov", dst: "rdx", src: "rsi"},
+    {op: "add", dst: "rdx", imm: 32},
+    {op: "add", dst: "rdx", src: "r10"},
+    {op: "load_byte", dst: "rdx", base: "rdx"},
+    {op: "cmp", dst: "rax", src: "rdx"},
+    {op: "j", cond: "l", label: "rt_sl_less"},
+    {op: "j", cond: "g", label: "rt_sl_done"},
+    {op: "add", dst: "r10", imm: 1},
+    {op: "jmp", label: "rt_sl_byte"},
+    {op: "label", name: "rt_sl_less"},
+    {op: "mov", dst: "rcx", imm: 2},
+    {op: "store", src: "rcx", base: "rbp", disp: -40},
+    {op: "label", name: "rt_sl_done"},
+    {op: "load", dst: "rdi", base: "rbp", disp: -8},
+    {op: "call_label", label: "rt_drop"},
+    {op: "load", dst: "rdi", base: "rbp", disp: -16},
+    {op: "call_label", label: "rt_drop"}
+  ]
+)
+
+@doc """
+RT_LS_RAW: ls_raw natively, the listing ls sorts: the entries of the directory named by the string in rdi (consumed), . and .. passed over, each as the full path dir/name, by openat and getdents64 into the frame; an error carrying the errno when it does not open.
+
+    RT_LS_RAW[0] #=> {op: "label", name: "rt_ls_raw"}
+"""
+RT_LS_RAW = frame_routine(
+  "rt_ls_raw",
+  4224,
+  append(
+    *[
+      [
+        {op: "store", src: "rdi", base: "rbp", disp: -8},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -40},
+        {op: "store", src: "rcx", base: "rbp", disp: -48}
+      ],
+      path_on_stack("rt_lr_path"),
+      [
+        {op: "mov", dst: "rdi", imm: -100},
+        {op: "mov", dst: "rsi", src: "rsp"},
+        {op: "mov", dst: "rdx", imm: 589_824},
+        {op: "mov", dst: "rax", imm: 257},
+        {op: "syscall"},
+        {op: "add", dst: "rsp", src: "r9"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "ge", label: "rt_lr_open"}
+      ],
+      error_from("rax"),
+      [
+        {op: "store", src: "rax", base: "rbp", disp: -40},
+        {op: "jmp", label: "rt_lr_out"},
+        {op: "label", name: "rt_lr_open"},
+        {op: "store", src: "rax", base: "rbp", disp: -16},
+        {op: "label", name: "rt_lr_read"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -16},
+        {op: "mov", dst: "rsi", src: "rbp"},
+        {op: "add", dst: "rsi", imm: -4224},
+        {op: "mov", dst: "rdx", imm: 4096},
+        {op: "mov", dst: "rax", imm: 217},
+        {op: "syscall"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "le", label: "rt_lr_closed"},
+        {op: "store", src: "rax", base: "rbp", disp: -56},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "label", name: "rt_lr_entry"},
+        {op: "load", dst: "rax", base: "rbp", disp: -56},
+        {op: "cmp", dst: "rcx", src: "rax"},
+        {op: "j", cond: "ge", label: "rt_lr_read"},
+        {op: "store", src: "rcx", base: "rbp", disp: -64},
+        {op: "mov", dst: "rsi", src: "rbp"},
+        {op: "add", dst: "rsi", imm: -4224},
+        {op: "add", dst: "rsi", src: "rcx"},
+        {op: "add", dst: "rsi", imm: 19},
+        {op: "load_byte", dst: "rax", base: "rsi"},
+        {op: "cmp", dst: "rax", imm: 46},
+        {op: "j", cond: "ne", label: "rt_lr_take"},
+        {op: "mov", dst: "rax", src: "rsi"},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "rt_lr_skip"},
+        {op: "cmp", dst: "rax", imm: 46},
+        {op: "j", cond: "ne", label: "rt_lr_take"},
+        {op: "mov", dst: "rax", src: "rsi"},
+        {op: "add", dst: "rax", imm: 2},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "e", label: "rt_lr_skip"},
+        {op: "label", name: "rt_lr_take"},
+        {op: "store", src: "rsi", base: "rbp", disp: -24}
+      ],
+      env_value("rt_lr"),
+      [
+        {op: "load", dst: "rdi", base: "rbp", disp: -8},
+        {op: "load", dst: "rcx", base: "rdi", disp: 8},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rdi", disp: 8},
+        {op: "load", dst: "rsi", base: "rbp", disp: -40},
+        {op: "call_label", label: "rt_path_join"},
+        {op: "store", src: "rax", base: "rbp", disp: -72}
+      ],
+      cell(-72, -48, -48),
+      [
+        {op: "label", name: "rt_lr_skip"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -64},
+        {op: "mov", dst: "rax", src: "rbp"},
+        {op: "add", dst: "rax", imm: -4224},
+        {op: "add", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", imm: 16},
+        {op: "load_byte", dst: "rdx", base: "rax"},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "load_byte", dst: "rax", base: "rax"},
+        {op: "mov", dst: "r8", imm: 256},
+        {op: "imul", dst: "rax", src: "r8"},
+        {op: "add", dst: "rax", src: "rdx"},
+        {op: "add", dst: "rcx", src: "rax"},
+        {op: "jmp", label: "rt_lr_entry"},
+        {op: "label", name: "rt_lr_closed"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -16},
+        {op: "mov", dst: "rax", imm: 3},
+        {op: "syscall"},
+        {op: "load", dst: "rax", base: "rbp", disp: -48},
+        {op: "store", src: "rax", base: "rbp", disp: -40},
+        {op: "label", name: "rt_lr_out"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -8},
+        {op: "call_label", label: "rt_drop"}
+      ]
+    ]
+  )
+)
+
+@doc """
+ls_programs: programs over ls natively (compiled with the prelude, which sorts), in :show mode, with what each must write.
+
+    length(ls_programs) #=> 2
+"""
+def ls_programs()
+  d = "(path_join (getenv \"TMPDIR\" \"/tmp\") \"hashiru-ls\")"
+  [
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"b\") \"\") (write_file (path_join d \"a\") \"\") (mkdir (path_join d \"c\")) (let ((r (map (lambda (p) (path_basename p)) (ls d)))) (begin (rm_rf d) r))))",
+      "[\"a\", \"b\", \"c\"]"
+    ],
+    ["(try (ls \"/nonexistent/hashiru\") (catch (e) 7))", "7"]
+  ]
+end
+
+test "ls lists a directory's full paths, sorted, natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-ls-run"), "ls.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      ls_programs
+    )
+  end
+end
+
+test "ls is ls_raw sorted by the prelude over string_lt"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_path_join],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(append(RT_LS_RAW, RT_STRING_LT), stand_ins))) >
+    0
+  assert bare_calls(read_forms("(ls d)")[0]) ==
+    read_forms("(sort_strings (ls_raw d))")[0]
+  assert length(ls_programs) == 2
+end
+
+@doc """
+tcp_op: the former name of routine_op, from when only the TCP words went through it; it answers what routine_op answers.
+
+    tcp_op([], "tcp_port", [1]) == routine_op([], "tcp_port", [1]) #=> true
+"""
+def tcp_op(slots, op, args)
+  routine_op(slots, op, args)
+end
+
+test "tcp_op answers what routine_op answers"
+  assert tcp_op([], "getenv", %w[A b]) == routine_op([], "getenv", %w[A b])
 end

@@ -6,43 +6,49 @@ row(
   "maps.literal",
   "{a: 1, \"k\" => 2}",
   value("{\"k\" => 2, a: 1}"),
-  covers("form:{a: 1, \"k\" => 2}")
+  covers("form:{a: 1, \"k\" => 2}"),
+  pending("G26", "native")
 )
 
 row(
   "maps.pun",
   join_lines(["a = 1", "b = 2", "{a:, b:}"]),
   value("{a: 1, b: 2}"),
-  covers("form:{a:, b:}")
+  covers("form:{a:, b:}"),
+  pending("G26", "native")
 )
 
 row(
   "maps.pun.mixed",
   join_lines(["a = 1", "{a:, n: 3, \"k\" => a}"]),
-  value("{\"k\" => 1, a: 1, n: 3}")
+  value("{\"k\" => 1, a: 1, n: 3}"),
+  pending("G26", "native")
 )
 
 row(
   "maps.pun.multiline",
   join_lines(["a = 1", "b = 2", "{", "  a:,", "  b:", "}"]),
-  value("{a: 1, b: 2}")
+  value("{a: 1, b: 2}"),
+  pending("G26", "native")
 )
 
 row(
   "maps.pun.predicate",
   join_lines(["ok? = true", "{ok?:}"]),
-  value("{ok?: true}")
+  value("{ok?: true}"),
+  pending("G26", "native")
 )
 
 row("maps.pun.unbound", "{missing:}", fails(:check, "B0001"))
 
-row("maps.empty", "{}", value("{}"))
+row("maps.empty", "{}", value("{}"), pending("G25", "native"))
 
 row(
   "maps.equality",
   "{a: 1, b: 2} == {b: 2, a: 1}",
   value("true"),
-  covers("okite:D0001", "op:==")
+  covers("okite:D0001", "op:=="),
+  pending("G26", "native")
 )
 
 row(
@@ -62,10 +68,16 @@ row(
   "maps.assoc",
   "assoc({a: 1}, :b, 2)",
   value("{a: 1, b: 2}"),
-  covers("builtin:assoc")
+  covers("builtin:assoc"),
+  pending("G26", "native")
 )
 
-row("maps.assoc.replace", "assoc({a: 1}, :a, 9)", value("{a: 9}"))
+row(
+  "maps.assoc.replace",
+  "assoc({a: 1}, :a, 9)",
+  value("{a: 9}"),
+  pending("G26", "native")
+)
 
 row(
   "maps.dissoc",

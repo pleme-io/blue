@@ -8,7 +8,7 @@ row(
   covers("form:[1, \"a\"]")
 )
 
-row("lists.empty", "[]", value("[]"))
+row("lists.empty", "[]", value("[]"), pending("G25", "native"))
 row("lists.nested", "[[1], [2, [3]]]", value("[[1], [2, [3]]]"))
 row("lists.equality", "[1, 2] == [1.0, 2.0]", value("true"))
 
@@ -32,7 +32,8 @@ row("lists.nil.length_raises", "length(nil)", fails(:eval, "got nil"))
 row(
   "lists.index",
   join_lines(["xs = [1, 2]", "[xs[0], xs[5], xs[-1]]"]),
-  value("[1, nil, nil]")
+  value("[1, nil, nil]"),
+  pending("G27", "native")
 )
 
 row("lists.index.spaced", "y = xs [0]", fails(:parse, "`xs[0]`"))
@@ -45,7 +46,13 @@ row(
 )
 
 row("lists.append.none", "append()", value("[]"), covers("okite:D0011"))
-row("lists.append.empty", "append([], [])", value("[]"))
+
+row(
+  "lists.append.empty",
+  "append([], [])",
+  value("[]"),
+  pending("G25", "native")
+)
 
 row(
   "lists.butlast",
@@ -91,8 +98,15 @@ row(
   value("[nil, \"a\", :a, 0, [1]]")
 )
 
-row("lists.drop", "drop(1, [1, 2, 3])", value("[2, 3]"), covers("builtin:drop"))
-row("lists.drop.all", "drop(1, [1])", value("[]"))
+row(
+  "lists.drop",
+  "drop(1, [1, 2, 3])",
+  value("[2, 3]"),
+  covers("builtin:drop"),
+  pending("G28", "native")
+)
+
+row("lists.drop.all", "drop(1, [1])", value("[]"), pending("G28", "native"))
 row("lists.first", "first([7, 8])", value("7"), covers("builtin:first"))
 row("lists.first.empty", "first([])", fails(:eval, "car of empty list"))
 
@@ -157,7 +171,13 @@ row(
 )
 
 row("lists.nth", "nth(1, [:a, :b])", value(":b"), covers("builtin:nth"))
-row("lists.nth.out_of_range", "nth(5, [1])", value("nil"))
+
+row(
+  "lists.nth.out_of_range",
+  "nth(5, [1])",
+  value("nil"),
+  pending("G27", "native")
+)
 
 row(
   "lists.partition",
@@ -190,7 +210,13 @@ row(
   covers("builtin:repeatedly")
 )
 
-row("lists.rest", "rest([1])", value("[]"), covers("builtin:rest"))
+row(
+  "lists.rest",
+  "rest([1])",
+  value("[]"),
+  covers("builtin:rest"),
+  pending("G25", "native")
+)
 
 row(
   "lists.reverse",
@@ -251,4 +277,4 @@ row(
   value("[\"a\", \"b\"]")
 )
 
-row("lists.words.empty", "%i[]", value("[]"))
+row("lists.words.empty", "%i[]", value("[]"), pending("G25", "native"))

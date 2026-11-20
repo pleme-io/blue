@@ -10,6 +10,15 @@ refuses. It also owns the operator table both lexers read.
 
 use("deeta", %i[code_point_text radix_value run_end space_byte? text_of])
 
+legacy_names(
+  "0.1.0",
+  [
+    ["text_of", "deeta::text_of", ""],
+    ["run_end", "deeta::run_end", ""],
+    ["gap?", "deeta::space_byte?", ""]
+  ]
+)
+
 use("kazu")
 
 use("kyohi")

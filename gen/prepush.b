@@ -17,7 +17,7 @@ push whose paths it reads; a land gate also needs the push to name main or a
 land ref; a heavy gate runs with BLUE_PREPUSH_FULL=1, and otherwise CI runs it
 when the push lands. The none weight names paths that no gate reads.
 
-    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes", "heni-finds"]
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes", "heni-finds", "ledgers"]
     map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse", "bench", "regen"]
 """
 def gate_table()
@@ -58,6 +58,19 @@ def gate_table()
       label: "every mutation of a changed package still finds its text",
       weight: :light,
       inputs: %w[bidamas/** gen/heni-gate.b]
+    },
+    {
+      id: "ledgers",
+      label: "the moved-names ledger and the 80-column width corpus",
+      weight: :light,
+      inputs: %w[
+        **/*.b
+        bidamas/**
+        spec/**
+        crates/blue-lang-fmt/**
+        crates/blue-lang-pkg/**
+        crates/blue-lang-syntax/**
+      ]
     },
     {
       id: "census",
@@ -387,7 +400,7 @@ selects every gate, or a path no gate names, selects every gate: an unknown
 path fails closed. The answer holds the gate ids in table order, and a reason
 that is empty when the paths chose the gates one by one.
 
-    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "retired", "heni-finds", "census", "reuse", "regen", "consumers", "test-beside", "tests", "conformance"]
+    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "retired", "heni-finds", "ledgers", "census", "reuse", "regen", "consumers", "test-beside", "tests", "conformance"]
     get(selection(["README.md"], gate_table), :ids) #=> []
 """
 def selection(changed, table)
@@ -431,7 +444,7 @@ lands.
 
     planned(["blue-fmt", "census", "regen"], {full: false, landing: false}, gate_table) #=> ["blue-fmt"]
     planned(["blue-fmt", "census", "regen"], {full: false, landing: true}, gate_table) #=> ["blue-fmt", "census", "regen"]
-    count(planned([], {full: true, landing: false}, gate_table)) #=> 18
+    count(planned([], {full: true, landing: false}, gate_table)) #=> 19
 """
 def planned(ids, push, table)
   weights = if push[:landing]
@@ -1311,6 +1324,32 @@ def main()
         end
       ]
     ],
+    "ledgers" => [
+      [
+        "the moved-names ledger and the 80-column width corpus",
+        fn()
+          verdict(
+            exec_capture(
+              "cargo",
+              "test",
+              "-q",
+              "--no-fail-fast",
+              "-p",
+              "blue-lang-pkg",
+              "-p",
+              "blue-lang-fmt",
+              "--test",
+              "distribution",
+              "--test",
+              "corpus",
+              "--",
+              "every_moved_name_is_in_the_ledger",
+              "no_formatted_line_is_wider_than_the_width_unless_it_must_be"
+            )
+          )
+        end
+      ]
+    ],
     "census" => [
       [
         "the census holds its ratchets",
@@ -1551,11 +1590,11 @@ test "a project's declared tool missing from PATH comes from its toolchain, and 
   assert toolchain_step([], () -> raise(:unused, "never built")) == [:path, ""]
 end
 
-test "a .b-only change selects the .b gates and no Rust gate"
+test "a .b-only change selects the .b gates and the ledgers, no test target"
   s = selection(%w[bidamas/shuugou/shuugou.b gen/regen.b], gate_table)
   assert s[:reason] == ""
   assert planned(s[:ids], plain_push, gate_table) ==
-    %w[blue-fmt locks retired heni-finds]
+    %w[blue-fmt locks retired heni-finds ledgers]
   assert not member?("test-targets", s[:ids])
 end
 
@@ -1613,8 +1652,17 @@ test "a Cargo.lock change selects every gate"
   s = selection(["Cargo.lock"], gate_table)
   assert s[:reason] == "Cargo.lock selects every gate"
   assert planned(s[:ids], plain_push, gate_table) ==
-    %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes heni-finds]
-  assert count(s[:ids]) == 18
+    %w[
+      cargo-fmt
+      blue-fmt
+      locks
+      retired
+      gen-confirm
+      swept-codes
+      heni-finds
+      ledgers
+    ]
+  assert count(s[:ids]) == 19
 end
 
 test "only prose a code path never reads scopes a landing as prose, and an unknown path fails closed"
@@ -1676,13 +1724,26 @@ end
 test "an unknown path selects every gate"
   s = selection(%w[bidamas/retsu/retsu.b tools/new.toml], gate_table)
   assert s[:reason] == "no gate names tools/new.toml, so every gate runs"
-  assert count(s[:ids]) == 18
+  assert count(s[:ids]) == 19
 end
 
 test "a Rust change selects cargo fmt, the swept codes and the heavy gates"
   s = selection(["crates/blue-lang-fmt/src/lib.rs"], gate_table)
-  assert planned(s[:ids], plain_push, gate_table) == %w[cargo-fmt swept-codes]
+  assert planned(s[:ids], plain_push, gate_table) ==
+    %w[cargo-fmt swept-codes ledgers]
   assert member?("tests", s[:ids])
+end
+
+test "a ledger or a .b change runs the ledgers gate before the push"
+  n = selection(["bidamas/NAMES.md"], gate_table)
+  assert n[:reason] == ""
+  assert member?("ledgers", planned(n[:ids], plain_push, gate_table))
+  b = selection(["gen/land.b"], gate_table)
+  assert member?("ledgers", planned(b[:ids], plain_push, gate_table))
+  f = selection(["crates/blue-lang-fmt/src/lib.rs"], gate_table)
+  assert member?("ledgers", planned(f[:ids], plain_push, gate_table))
+  assert not member?("ledgers", selection(["README.md"], gate_table)[:ids])
+  assert skipped("ledgers", gate_table) == ["ledgers"]
 end
 
 test "a manifest change runs gen confirm before the push, not only in CI"
@@ -1752,8 +1813,8 @@ test "the Bluefile's push rows are pre-push gates, and no row of another stage i
   )
 end
 
-test "the host gates hold at 18 and only fall: a gate leaves gate_table when a Bluefile check row with stage push runs it"
-  assert count(reject((g) -> g[:weight] == :none, gate_table)) == 18
+test "the host gates hold at 19 and only fall: a gate leaves gate_table when a Bluefile check row with stage push runs it"
+  assert count(reject((g) -> g[:weight] == :none, gate_table)) == 19
 end
 
 def source_fixture_tree()

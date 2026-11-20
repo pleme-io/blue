@@ -73,7 +73,7 @@ to dissolve.
 | `rule(code, file, def)` | `docs/DIAGNOSTICS.md` "Project rules" | a blue definition run by `blue check` on every top-level form, under a pure frame |
 | `generate(name, out, program)` | `bluefile.rs:540` | a committed file and its program, gated fresh |
 | `service(...)` | `nix/service.nix`, `docs/SERVICE-ARCHITECTURE.md` | chart, values schema, migrations; `checks.service-<name>-{fresh,chart,serves}` |
-| pre-push gate | `.githooks/pre-push` (4 lines of sh), `gen/prepush.b` `gate_table` | a gate table in blue, scoped to the pushed paths; light gates by default, `BLUE_PREPUSH_FULL=1` all, `BLUE_PREPUSH_OFF=1` none |
+| pre-push gate | `.githooks/pre-push` (4 lines of sh), `gen/prepush.b` `gate_table` | a gate table in blue, scoped to the pushed paths; light gates by default, `BLUE_PREPUSH_FULL=1` all, `BLUE_PREPUSH_OFF=1` none. The light `ledgers` gate runs `distribution`'s `every_moved_name_is_in_the_ledger` (bidamas/NAMES.md) and the fmt `corpus`'s 80-column width law when a `.b`, `bidamas/`, `spec/` or the fmt, pkg or syntax crate changes; `BLUE_PREPUSH_SKIP=ledgers` turns it off |
 | CI | `.github/workflows/ci.yml` | a `blue` job builds blue once, reads the suite proof (`gen/proof.b --verify`) and exports the closure; substrate's `cargo-ci.yml`, `consumers` and, on a land, `stop-on-red` import it; flake-check runs as 6 parallel jobs (`flake-check-shards`, repository variable `BLUE_FLAKE_CHECK_SHARDS`, 1 is one job) |
 | package fidelity | `nix/package-fidelity.nix`, `nix/package-gate.b`; `checks.package-fidelity`, so every land runs it | packages every crate as `cargo publish` would, runs blue-lang-pkg's `build.rs` walk over the checkout and the unpacked `.crate` and names each embedded file the package lacks; then a blue built from the tarballs alone must resolve `todokede/motenashi` and the deepest level of every tree |
 | capabilities | `docs/SAFETY.md` row 8 | thirteen host effects (process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out, audio-in, display); `blue run --allow` |
@@ -363,7 +363,7 @@ name for "run the declared tests".
 | Runner | Today | Destination |
 |---|---|---|
 | nix | `checks.<name>` = `blue test file`, one derivation per row, cached | unchanged: nix is the hermetic, cached executor of each row |
-| pre-push | `gen/prepush.b`: the Bluefile's `:push` rows (`declared_gates`, from the lock) after the 18 host gates of `gate_table`, which hold at 18 and only fall | `blue test . --stage push`; each host gate (cargo fmt, gen tie) becomes a `check` row |
+| pre-push | `gen/prepush.b`: the Bluefile's `:push` rows (`declared_gates`, from the lock) after the 19 host gates of `gate_table`, which hold at 19 and only fall (the `ledgers` gate raised it from 18 on 2026-11-20: two reds reached main because the land ran neither test) | `blue test . --stage push`; each host gate (cargo fmt, gen tie) becomes a `check` row |
 | CI | `.github/workflows/ci.yml`, rendered by `gen/ci.b` (`generate("ci", …)`, gated fresh); its `check` job is substrate's `cargo-ci.yml`, which runs `nix flake check`, every `check` row whatever its stage | unchanged; the logic of each job moves into a `check` row |
 | release | `auto-release.yml` uses substrate's `rust-auto-release.yml` | the same rendering, with `--stage release` gates before the substrate flow |
 

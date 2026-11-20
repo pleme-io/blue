@@ -138,30 +138,34 @@ end
 direct_land: Land HEAD on main directly, for while another agent pushes main
 directly and the queue's turns keep being reset: rebase onto main, push through the
 pre-push gates, and on a failure do what direct_next says, up to `tries` times.
+`held` is the machine's land lock (take_machine), let go at every end. Land reads
+no stdin; start it with stdin closed (`git land --direct < /dev/null`) when it
+runs in the background, as a land started with `&` and stdin open died on
+2026-11-20.
 """
-def direct_land(tries)
+def direct_land(tries, held)
   if tries == 0
     tell("main kept moving under the push; land again")
-    exit_with(1)
+    direct_exit(held, 1)
   end
   fetch_main
   rebased = git_at(".", %w[rebase origin/main])
   if status_of(rebased) != 0
     git_at(".", %w[rebase --abort])
     tell("the rebase onto main conflicts; resolve it, then land again")
-    exit_with(1)
+    direct_exit(held, 1)
   end
   pushed = git_at(".", %w[push origin HEAD:main])
   if status_of(pushed) == 0
     say("on main: #{trim(ask(%w[rev-parse --short HEAD]))}")
-    exit_with(0)
+    direct_exit(held, 0)
   end
   said = "#{stdout_of(pushed)}#{stderr_of(pushed)}"
   regenerated = changed_generated
   next = direct_next(said, regenerated != [])
   if next == :stop
     tell(said)
-    exit_with(1)
+    direct_exit(held, 1)
   elsif next == :commit_regen
     git_at(".", append(%w[add --], regenerated))
     git_at(".", %w[commit -qm regen])
@@ -169,7 +173,19 @@ def direct_land(tries)
   else
     say("main moved first; rebasing and pushing again")
   end
-  direct_land(tries - 1)
+  direct_land(tries - 1, held)
+end
+
+@doc """
+direct_exit: End a direct land with a code, letting go of the machine's land
+lock it holds first, so the next land of the machine takes it without waiting
+for this pid to be gone.
+
+    let_go_machine(nil, "1") #=> nil
+"""
+def direct_exit(held, code)
+  let_go_machine(held, own_pid)
+  exit_with(code)
 end
 
 @doc """
@@ -3115,7 +3131,7 @@ def main()
     exit_with(1)
   end
   if member?("--direct", argv)
-    direct_land(8)
+    direct_land(8, take_machine)
   end
   left = requeue_of(argv)
   minutes = count_flag(argv, "--queue-minutes=", 240)
@@ -3249,6 +3265,269 @@ def watch_log(dir, pid, seen)
       "the land it attached to ended with #{to_s(ended[:code])}: #{ended[:why]}"
     )
     exit_with(ended[:code])
+  end
+end
+
+@doc """
+single_flight_of: Whether a direct land waits for the other direct land of its
+clone on this machine, from BLUE_LAND_SINGLE_FLIGHT: unset, empty or on is :on,
+off is :off, and any other value is refused with that value, so a misspelt off
+never lets two lands run at once silently.
+
+    single_flight_of(nil) #=> :on
+    single_flight_of("on") #=> :on
+    single_flight_of("off") #=> :off
+    single_flight_of("of") #=> {refused: "of"}
+"""
+def single_flight_of(v)
+  if v.nil? or v == "" or v == "on"
+    :on
+  elsif v == "off"
+    :off
+  else
+    {refused: v}
+  end
+end
+
+@doc """
+machine_minutes_of: How long a direct land waits for the other direct land of
+its clone on this machine before it refuses, from BLUE_LAND_MACHINE_MINUTES: 60
+when unset, else the count it gives; nil for a value that is no count, which
+land refuses.
+
+    machine_minutes_of(nil) #=> 60
+    machine_minutes_of("5") #=> 5
+    machine_minutes_of("soon") #=> nil
+"""
+def machine_minutes_of(v)
+  if v.nil? or v == ""
+    60
+  else
+    n = to_int(v)
+    if n.nil? or n < 0
+      nil
+    else
+      n
+    end
+  end
+end
+
+@doc """
+state_home: The user's state directory: XDG_STATE_HOME, else ~/.local/state. It
+is one directory for every session of the user, where a temporary directory can
+be one per session.
+
+    state_home != "" #=> true
+"""
+def state_home()
+  xdg = getenv("XDG_STATE_HOME", "")
+  if xdg == ""
+    path_join(getenv("HOME", "/tmp"), ".local/state")
+  else
+    xdg
+  end
+end
+
+@doc """
+machine_dir: Where the one direct land of a clone on this machine keeps its
+lock: under the state directory, at a key of the clone's common git directory,
+so every worktree of one clone meets one lock and two clones never share one.
+
+    machine_dir("/s", "/r/.git") == machine_dir("/s", "/r/.git") #=> true
+    machine_dir("/s", "/r/.git") == machine_dir("/s", "/q/.git") #=> false
+    starts_with?(machine_dir("/s", "/r/.git"), "/s/blue/land/") #=> true
+"""
+def machine_dir(state, common)
+  path_join(state, "blue/land/#{take_chars(blake3_hex(common), 16)}")
+end
+
+@doc """
+machine_holder_of: The direct land that holds the machine's lock, as its file
+reads: holder_of's pid and time, and the worktree it lands from; nil for a file
+that names none.
+
+    machine_holder_of(unlines(["812", "1762900000000", "/w/a"])) #=> {pid: "812", since: 1_762_900_000_000, where: "/w/a"}
+    machine_holder_of(unlines(["812"])) #=> {pid: "812", since: nil, where: ""}
+    machine_holder_of("") #=> nil
+"""
+def machine_holder_of(text)
+  h = holder_of(text)
+  if not h.nil?
+    ls = moji::lines(text)
+    assoc(
+      h,
+      :where,
+      if count(ls) > 2
+        trim(ls[2])
+      else
+        ""
+      end
+    )
+  end
+end
+
+@doc """
+machine_step: What a direct land does about the machine's lock, from the land
+that holds it (nil while its record is not written yet), whether that land still
+runs, this land's pid, the time and the deadline: :take a lock it holds itself,
+:take_over one whose land no longer runs, :refuse past the deadline, else :wait.
+
+    machine_step({pid: "7"}, true, "7", 5, 10) #=> :take
+    machine_step({pid: "8"}, false, "7", 5, 10) #=> :take_over
+    machine_step(nil, false, "7", 5, 10) #=> :take_over
+    machine_step({pid: "8"}, true, "7", 11, 10) #=> :refuse
+    machine_step({pid: "8"}, true, "7", 5, 10) #=> :wait
+    machine_step(nil, true, "7", 11, 10) #=> :wait
+"""
+def machine_step(h, alive, mine, now, deadline)
+  if not h.nil? and h[:pid] == mine
+    :take
+  elsif not alive
+    :take_over
+  elsif h.nil?
+    :wait
+  elsif now > deadline
+    :refuse
+  else
+    :wait
+  end
+end
+
+@doc """
+machine_wait_text: What a direct land says while another direct land of its
+clone holds the machine's lock: that land's pid and worktree, the wait's limit
+and the switch that lands beside it.
+
+    machine_wait_text({pid: "812", where: "/w/a"}, 60) #=> "another direct land of this clone runs on this machine as pid 812 (/w/a); waiting for it, up to 60 min (BLUE_LAND_MACHINE_MINUTES); BLUE_LAND_SINGLE_FLIGHT=off lands beside it"
+"""
+def machine_wait_text(h, minutes)
+  "another direct land of this clone runs on this machine as pid #{h[:pid]} (#{h[:where]}); waiting for it, up to #{to_s(minutes)} min (BLUE_LAND_MACHINE_MINUTES); BLUE_LAND_SINGLE_FLIGHT=off lands beside it"
+end
+
+@doc """
+machine_refusal_text: Why a direct land stops at its deadline: the land that
+still holds the machine's lock, and how long this one waited.
+
+    machine_refusal_text({pid: "812", where: "/w/a"}, 60) #=> "deadline: another direct land of this clone still runs on this machine as pid 812 (/w/a) after 60 min (BLUE_LAND_MACHINE_MINUTES); stop it, or land again when it ends"
+"""
+def machine_refusal_text(h, minutes)
+  "deadline: another direct land of this clone still runs on this machine as pid #{h[:pid]} (#{h[:where]}) after #{to_s(minutes)} min (BLUE_LAND_MACHINE_MINUTES); stop it, or land again when it ends"
+end
+
+@doc """
+hold_machine: MACHINE R2, one direct land per clone per machine, as two direct
+lands of 2026-11-20 in two worktrees of one clone held each other for hours with
+no word. Take the lock in `dir`, a directory `held` that only one mkdir can
+make, naming this land's pid, the time and its worktree. While a live land
+holds it, say who once and wait `poll` seconds apart until it ends, or refuse
+when `deadline` (ms) passes. A lock whose land no longer runs, or that names no
+land 5 s after it was made, is taken over, saying so. :held, or {refused: why}.
+
+    machine_step({pid: "999999"}, false, "7", 0, 0) #=> :take_over
+"""
+def hold_machine(dir, mine, where, deadline, minutes, poll, told)
+  lock = held_dir(dir)
+  file = path_join(lock, "pid")
+  mkdir_p(dir)
+  if exec_ok?("mkdir", lock)
+    write_file(file, unlines([mine, to_s(now_ms), where]))
+    :held
+  else
+    h = if path_exists(file)
+      machine_holder_of(read_file(file))
+    end
+    alive = if h.nil?
+      path_exists(lock) and now_ms - file_mtime_ms(lock) < 5000
+    else
+      running?(h[:pid])
+    end
+    step = machine_step(h, alive, mine, now_ms, deadline)
+    if step == :take
+      :held
+    elsif step == :take_over
+      if not h.nil?
+        tell(
+          "took over the machine's land lock of pid #{h[:pid]}, which no longer runs"
+        )
+      end
+      rm_rf(lock)
+      hold_machine(dir, mine, where, deadline, minutes, poll, told)
+    elsif step == :refuse
+      {refused: machine_refusal_text(h, minutes)}
+    else
+      shown = if h.nil?
+        told
+      else
+        h[:pid]
+      end
+      if shown != told
+        tell(machine_wait_text(h, minutes))
+      end
+      sleep(poll)
+      hold_machine(dir, mine, where, deadline, minutes, poll, shown)
+    end
+  end
+end
+
+@doc """
+let_go_machine: Remove the machine's land lock in `dir` when this land holds it;
+a lock another land holds is left alone, and a nil `dir` (single flight off) is
+nothing to let go.
+
+    let_go_machine(nil, "7") #=> nil
+"""
+def let_go_machine(dir, mine)
+  if not dir.nil?
+    file = path_join(held_dir(dir), "pid")
+    if path_exists(file)
+      h = machine_holder_of(read_file(file))
+      if not h.nil? and h[:pid] == mine
+        rm_rf(held_dir(dir))
+      end
+    end
+  end
+  nil
+end
+
+@doc """
+take_machine: Take the machine's land lock for a direct land, unless
+BLUE_LAND_SINGLE_FLIGHT=off: the lock's directory, or nil when off. A setting
+that is neither on nor off, or a BLUE_LAND_MACHINE_MINUTES that is no count,
+ends the land with 2; the deadline ends it with deadline_code and who holds the
+lock.
+
+    machine_minutes_of("") #=> 60
+"""
+def take_machine()
+  on = single_flight_of(getenv("BLUE_LAND_SINGLE_FLIGHT"))
+  minutes = machine_minutes_of(getenv("BLUE_LAND_MACHINE_MINUTES"))
+  if map?(on)
+    tell("BLUE_LAND_SINGLE_FLIGHT is \"#{on[:refused]}\"; it takes on or off")
+    exit_with(2)
+  end
+  if minutes.nil?
+    tell("BLUE_LAND_MACHINE_MINUTES takes a count of minutes, as 60")
+    exit_with(2)
+  end
+  if on == :on
+    dir = machine_dir(
+      state_home,
+      ask(%w[rev-parse --path-format=absolute --git-common-dir])
+    )
+    got = hold_machine(
+      dir,
+      own_pid,
+      ask(%w[rev-parse --show-toplevel]),
+      now_ms + minutes * 60000,
+      minutes,
+      min(poll_seconds, 10),
+      ""
+    )
+    if got != :held
+      tell(got[:refused])
+      exit_with(deadline_code)
+    end
+    dir
   end
 end
 
@@ -5058,6 +5337,80 @@ test "a lock whose land no longer runs is taken over and the land goes on"
     assert not path_exists(held_dir(dir))
     rm_rf(root)
   end
+end
+
+def machine_fixture(pid)
+  dir = temp_dir("machine")
+  mkdir_p(held_dir(dir))
+  write_file(
+    path_join(held_dir(dir), "pid"),
+    unlines([pid, to_s(now_ms), "/w/a"])
+  )
+  dir
+end
+
+def live_pid(seconds)
+  trim(
+    stdout_of(
+      exec_capture(
+        "sh",
+        "-c",
+        "sleep #{to_s(seconds)} >/dev/null 2>&1 & echo $!"
+      )
+    )
+  )
+end
+
+def machine_pid(dir)
+  machine_holder_of(read_file(path_join(held_dir(dir), "pid")))[:pid]
+end
+
+test "a direct land waits for the other land of the machine, then takes its lock"
+  dir = machine_fixture(live_pid(2))
+  started = now_ms
+  assert hold_machine(dir, "me", "/w/b", now_ms + 30000, 1, 1, "") == :held
+  assert now_ms - started >= 1000
+  assert machine_pid(dir) == "me"
+end
+
+test "a direct land refuses at its deadline, naming the land that holds the lock"
+  pid = live_pid(8)
+  dir = machine_fixture(pid)
+  r = hold_machine(dir, "me", "/w/b", now_ms - 1, 60, 1, "")
+  assert map?(r)
+  assert contains?(r[:refused], "pid #{pid} (/w/a)")
+  assert starts_with?(r[:refused], "deadline: ")
+  assert machine_pid(dir) == pid
+end
+
+test "a machine lock whose land no longer runs is taken over at once"
+  dir = machine_fixture("999999")
+  assert hold_machine(dir, "me", "/w/b", now_ms - 1, 60, 1, "") == :held
+  assert machine_pid(dir) == "me"
+end
+
+test "a machine lock that names no land 5 s after it was made is taken over"
+  dir = temp_dir("machine")
+  mkdir_p(held_dir(dir))
+  exec_capture("touch", "-t", "2001010000", held_dir(dir))
+  assert hold_machine(dir, "me", "/w/b", now_ms - 1, 60, 1, "") == :held
+  assert machine_pid(dir) == "me"
+end
+
+test "a land lets go of its own machine lock and never of another land's"
+  dir = machine_fixture("812")
+  assert let_go_machine(dir, "me").nil?
+  assert machine_pid(dir) == "812"
+  let_go_machine(dir, "812")
+  assert not path_exists(held_dir(dir))
+  assert hold_machine(dir, "me", "/w/b", now_ms, 60, 1, "") == :held
+end
+
+test "single flight is on unless set off, and a misspelt setting is refused"
+  assert single_flight_of(nil) == :on
+  assert single_flight_of("off") == :off
+  assert single_flight_of("0") == {refused: "0"}
+  assert machine_minutes_of("-1").nil?
 end
 
 test "two lands that join while a batch runs leave its run untouched, wait without pushing, and form the next batch together"

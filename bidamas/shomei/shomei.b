@@ -1645,3 +1645,181 @@ test "each step of blake3 does its own part", {kind: :unit}
   assert zeros(0) == []
   assert count(blake3_iv) == 8
 end
+
+@doc """
+sha256: The SHA-256 digest of data (text or a list of bytes) as 64 lowercase
+hex characters, computed by blue itself (R6a of docs/PURE-BLUE.md): the digest
+digest_hex(:sha256, data) gives.
+
+    sha256("abc") #=> digest_hex(:sha256, "abc")
+"""
+def sha256(data)
+  bytes = if string?(data)
+    text_bytes(data)
+  else
+    data
+  end
+  hex_encode(
+    flatten(
+      map(be_bytes, reduce(sha_block, sha_h0, pieces(sha_pad(bytes), 64)))
+    )
+  )
+end
+
+@doc """
+sha_h0: SHA-256's eight initial words.
+
+    sha_h0[7] #=> 1541459225
+"""
+def sha_h0()
+  blake3_iv
+end
+
+@doc """
+sha_k: SHA-256's 64 round constants, the cube-root words.
+
+    sha_k[0] #=> 1116352408
+"""
+def sha_k()
+  be_words(
+    hex_decode(
+      join(
+        %w[
+          428a2f9871374491b5c0fbcfe9b5dba53956c25b59f111f1923f82a4ab1c5ed5
+          d807aa9812835b01243185be550c7dc372be5d7480deb1fe9bdc06a7c19bf174
+          e49b69c1efbe47860fc19dc6240ca1cc2de92c6f4a7484aa5cb0a9dc76f988da
+          983e5152a831c66db00327c8bf597fc7c6e00bf3d5a7914706ca635114292967
+          27b70a852e1b21384d2c6dfc53380d13650a7354766a0abb81c2c92e92722c85
+          a2bfe8a1a81a664bc24b8b70c76c51a3d192e819d6990624f40e3585106aa070
+          19a4c1161e376c082748774c34b0bcb5391c0cb34ed8aa4a5b9cca4f682e6ff3
+          748f82ee78a5636f84c878148cc7020890befffaa4506cebbef9a3f7c67178f2
+        ],
+        ""
+      )
+    )
+  )
+end
+
+@doc """
+be_words: Bytes as big-endian 32-bit words, four bytes each.
+
+    be_words([0, 0, 1, 2]) #=> [258]
+"""
+def be_words(bytes)
+  map(
+    fn(q)
+      shift_left(q[0], 24) + shift_left(q[1], 16) + shift_left(q[2], 8) + q[3]
+    end,
+    pieces(bytes, 4)
+  )
+end
+
+@doc """
+be_bytes: A 32-bit word as its four big-endian bytes.
+
+    be_bytes(258) #=> [0, 0, 1, 2]
+"""
+def be_bytes(w)
+  map((k) -> bit_and(shift_right(w, 8 * (3 - k)), 255), range(0, 4))
+end
+
+@doc """
+sha_pad: A message padded as SHA-256 pads it: a one bit, zeros to 56 bytes
+past a multiple of 64, then the bit length as eight big-endian bytes.
+
+    count(sha_pad([])) #=> 64
+"""
+def sha_pad(bytes)
+  n = count(bytes)
+  fill = (119 - n % 64) % 64
+  bits = n * 8
+  flatten(
+    [
+      bytes,
+      [128],
+      zeros(fill),
+      be_bytes(shift_right(bits, 32)),
+      be_bytes(word32(bits))
+    ]
+  )
+end
+
+@doc """
+schedule: The 64-word message schedule of one block's sixteen words, as a map
+from round to word.
+
+    get(schedule(range(0, 16)), 15) #=> 15
+"""
+def schedule(ws)
+  reduce(
+    fn(w, t)
+      a = get(w, t - 15)
+      b = get(w, t - 2)
+      s0 = bit_xor(bit_xor(rotr32(a, 7), rotr32(a, 18)), shift_right(a, 3))
+      s1 = bit_xor(bit_xor(rotr32(b, 17), rotr32(b, 19)), shift_right(b, 10))
+      assoc(w, t, word32(get(w, t - 16) + s0 + get(w, t - 7) + s1))
+    end,
+    state_of(ws),
+    range(16, 64)
+  )
+end
+
+@doc """
+sha_step: The eight working words after one SHA-256 round with constant k and
+schedule word w.
+
+    count(sha_step(sha_h0, 0, 0)) #=> 8
+"""
+def sha_step(v, k, w)
+  e = v[4]
+  a = v[0]
+  big1 = bit_xor(bit_xor(rotr32(e, 6), rotr32(e, 11)), rotr32(e, 25))
+  choose = bit_xor(bit_and(e, v[5]), bit_and(bit_not(e), v[6]))
+  t1 = v[7] + big1 + choose + k + w
+  big0 = bit_xor(bit_xor(rotr32(a, 2), rotr32(a, 13)), rotr32(a, 22))
+  major = bit_xor(
+    bit_xor(bit_and(a, v[1]), bit_and(a, v[2])),
+    bit_and(v[1], v[2])
+  )
+  [word32(t1 + big0 + major), a, v[1], v[2], word32(v[3] + t1), e, v[5], v[6]]
+end
+
+@doc """
+sha_block: The hash words after one 64-byte block.
+
+    count(sha_block(sha_h0, zeros(64))) #=> 8
+"""
+def sha_block(h, block)
+  w = schedule(be_words(block))
+  k = sha_k
+  v = reduce((acc, t) -> sha_step(acc, k[t], get(w, t)), h, range(0, 64))
+  map((i) -> word32(h[i] + v[i]), range(0, 8))
+end
+
+test "sha256 gives digest_hex's SHA-256 across padding and block shapes", {
+  kind: :unit
+}
+  lengths = [0, 1, 55, 56, 63, 64, 65, 119, 120, 128, 1000]
+  differ = filter(
+    fn(n)
+      data = map((i) -> i % 251, range(0, n))
+      sha256(data) != digest_hex(:sha256, data)
+    end,
+    lengths
+  )
+  assert differ == []
+  assert sha256("abc") ==
+    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+end
+
+test "each step of sha256 does its own part", {kind: :unit}
+  assert sha_h0[0] == 1_779_033_703
+  assert count(sha_k) == 64
+  assert sha_k[63] == 3_329_325_298
+  assert be_words([1, 0, 0, 0]) == [16_777_216]
+  assert be_bytes(1) == [0, 0, 0, 1]
+  assert count(sha_pad(zeros(56))) == 128
+  assert count(map_entries(schedule(zeros(16)))) == 64
+  assert sha_step(zeros(8), 0, 0) == zeros(8)
+  assert count(sha_block(zeros(8), zeros(64))) == 8
+end

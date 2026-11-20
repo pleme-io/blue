@@ -1,4 +1,3 @@
-control.while	vm	14398
 host.temp_dir	vm	488
 host.temp_dir	walker	488
 lisp.defstrategy	vm	16973
@@ -11,7 +10,7 @@ processes.spawn_server	vm	63960
 processes.spawn_server	walker	63960
 processes.spawn_server.dispatch_steps_refuses_a_long_message_and_keeps_the_state	vm	78007
 processes.spawn_server.dispatch_steps_refuses_a_long_message_and_keeps_the_state	walker	78007
-processes.spawn_server.idle_answers_as_normal_does	vm	55272
+processes.spawn_server.idle_answers_as_normal_does	vm	53272
 processes.spawn_server.idle_answers_as_normal_does	walker	53272
 wire.evict.a_partner_that_traps_exits_hears_the_link_break	vm	59954
 wire.evict.a_partner_that_traps_exits_hears_the_link_break	walker	59954

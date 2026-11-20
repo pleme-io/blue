@@ -383,3 +383,25 @@ test "a lambda written in place for map, filter or reduce runs natively", {
     swapped(work, "scaled", "scaled_up")
   ) == unlines(["[4, 7]"])
 end
+
+test "a lambda held in a local, called or passed to map or filter, runs natively", {
+  kind: :integration
+}
+  work = temp_dir("native-held")
+  calls = [
+    ["held", [[1, -2, 3], 4]],
+    ["held", [[], 4]],
+    ["picked", [[5, -1, 9, 2], 2]],
+    ["picked", [[], 0]],
+    ["applied", [3, 10]],
+    ["applied", [-4, 0]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "held", [[1, 2], 3], off) == unlines(["[3, 6]"])
+  assert interpreted(
+    work,
+    "held",
+    [[1, 2], 3],
+    swapped(work, "held", "held_up")
+  ) == unlines(["[4, 7]"])
+end

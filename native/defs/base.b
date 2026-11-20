@@ -209,3 +209,23 @@ end
 def nudged(ps: List(pt), d: Int) -> List(pt)
   map((q) -> pt(q.x + d, q.y), ps)
 end
+
+def held(xs: List(Int), k: Int) -> List(Int)
+  f = (x) -> x * k
+  map(f, xs)
+end
+
+def held_up(xs: List(Int), k: Int) -> List(Int)
+  f = (x) -> x * k + 1
+  map(f, xs)
+end
+
+def picked(xs: List(Int), k: Int) -> List(Int)
+  over = (x) -> x > k
+  filter(over, xs)
+end
+
+def applied(a: Int, k: Int) -> Int
+  f = (x) -> x + k
+  f(a) + f(a * 2)
+end

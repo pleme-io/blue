@@ -754,8 +754,10 @@ def cz_ty(n, ctx)
     cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
   elsif h == "begin"
     cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
-  elsif cz_inline_fn?(h, rest(n), ctx)
-    cz_inline_ty(h, rest(n), ctx)
+  elsif cz_held_call?(n, ctx)
+    cz_held_call_ty(n, ctx)
+  elsif cz_inline_fn?(h, cz_unheld(rest(n), ctx), ctx)
+    cz_inline_ty(h, cz_unheld(rest(n), ctx), ctx)
   elsif cz_items_op?(h, rest(n), ctx)
     cz_items_ty(h, rest(n), ctx)
   elsif h == "list" or h == "append" or h == "rest"
@@ -1134,6 +1136,10 @@ def cz_expr(n, ctx)
       cz_refuse(
         "`#{cz_local(s)}` is computed when the top level runs; a definition reads constants and its parameters only"
       )
+    elsif cz_lookup(s, ctx[:lambdas] or []) != nil
+      cz_refuse(
+        "`#{cz_local(s)}` holds a lambda; a held lambda is called, or passed to map, filter or reduce, and as a value it has no native form yet"
+      )
     else
       cz_refuse("`#{s}` is not a parameter or a constant here")
     end
@@ -1313,7 +1319,9 @@ def cz_call(n, ctx)
   arith = cz_lookup(h, cz_arith)
   cmp = cz_lookup(h, cz_compare)
   logic = cz_lookup(h, cz_logic)
-  if h.nil?
+  if cz_held_call?(n, ctx)
+    cz_held_apply(n, ctx)
+  elsif h.nil?
     cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
   elsif (arith != nil or h == "/") and cz_ty(n, ctx) == :float
     cz_float_arith(h, arith, args, ctx)
@@ -1449,8 +1457,8 @@ def cz_call(n, ctx)
     cz_member(first(args), second(args), ctx)
   elsif cz_map_op?(h, args, ctx)
     cz_map_op(h, args, ctx)
-  elsif cz_inline_fn?(h, args, ctx)
-    cz_inline_fn(h, args, ctx)
+  elsif cz_inline_fn?(h, cz_unheld(args, ctx), ctx)
+    cz_inline_fn(h, cz_unheld(args, ctx), ctx)
   elsif cz_items_op?(h, args, ctx)
     cz_items_op(h, args, ctx)
   elsif member?(h, %w[first count rest]) and
@@ -1910,6 +1918,131 @@ def cz_lambda?(n, arity)
     list?(second(n)) and
     count(second(n)) == arity and
     every?(cz_sym?, second(n))
+end
+
+@doc """
+cz_lambda_local?: Whether `f` binds a local to a lambda, `f = (x) -> …`, one body form.
+
+    cz_lambda_local?(first(cz_read("(define f (lambda (x) (* x 2)))"))) #=> true
+    cz_lambda_local?(first(cz_read("(define k 3)"))) #=> false
+"""
+def cz_lambda_local?(f)
+  v = third(f)
+  cz_head(v) == "lambda" and
+    count(v) == 3 and
+    list?(second(v)) and
+    every?(cz_sym?, second(v))
+end
+
+@doc """
+cz_held: The lambda a local holds when `n` names one, else `n` itself.
+
+    cz_held({sym: "f"}, {lambdas: [["f", 1]]}) #=> 1
+    cz_held({sym: "g"}, {lambdas: [["f", 1]]}) #=> {sym: "g"}
+"""
+def cz_held(n, ctx)
+  held = if cz_sym?(n)
+    cz_lookup(cz_sym(n), ctx[:lambdas] or [])
+  end
+  held or n
+end
+
+@doc """
+cz_unheld: Call arguments with a first argument that names a held lambda replaced by
+the lambda, so `map(f, xs)` with `f = (x) -> …` is `map` with the lambda in
+place.
+
+    cz_unheld(cz_read("f xs"), {lambdas: [["f", 1]]}) #=> [1, {sym: "xs"}]
+    cz_unheld([], {lambdas: []}) #=> []
+"""
+def cz_unheld(args, ctx)
+  if count(args) == 0
+    args
+  else
+    append([cz_held(first(args), ctx)], rest(args))
+  end
+end
+
+@doc """
+cz_held_call?: Whether `n` calls a lambda a local holds, `f(a)`.
+
+    cz_held_call?(first(cz_read("(f 3)")), {lambdas: [["f", 1]]}) #=> true
+    cz_held_call?(first(cz_read("(g 3)")), {lambdas: [["f", 1]]}) #=> false
+"""
+def cz_held_call?(n, ctx)
+  h = cz_head(n)
+  h != nil and cz_lookup(h, ctx[:lambdas] or []) != nil
+end
+
+@doc """
+cz_held_bound: Each parameter of the held lambda that `n` calls, with the type of its
+argument; refused when the counts differ.
+
+    cz_held_bound(first(cz_read("(f 3)")), {lambdas: [["f", first(cz_read("(lambda (x) x)"))]], types: []}) #=> [["x", :word]]
+"""
+def cz_held_bound(n, ctx)
+  lam = cz_lookup(cz_head(n), ctx[:lambdas])
+  names = map(cz_sym, second(lam))
+  args = rest(n)
+  if count(args) != count(names)
+    cz_refuse(
+      "`#{cz_local(cz_head(n))}` holds a lambda of #{count(names)} parameters, given #{count(args)}"
+    )
+  end
+  map((i) -> [names[i], cz_ty(args[i], ctx)], range(count(args)))
+end
+
+@doc """
+cz_held_call_ty: The type a call of a held lambda answers: its body's, with each parameter
+typed by its argument.
+
+    cz_held_call_ty(first(cz_read("(f 3)")), {lambdas: [["f", first(cz_read("(lambda (x) (< x 2))"))]], types: []}) #=> :bool
+"""
+def cz_held_call_ty(n, ctx)
+  lam = cz_lookup(cz_head(n), ctx[:lambdas])
+  cz_ty(third(lam), cz_inline_scope(cz_held_bound(n, ctx), ctx))
+end
+
+@doc """
+cz_held_apply: A call of a held lambda, lowered in place: a block that binds each
+parameter to its argument and answers the body. The lambda reads its
+captures as the definition's own locals, so no closure is made.
+
+    cz_held_apply(first(cz_read("(f 3)")), {lambdas: [["f", first(cz_read("(lambda (x) x)"))]], params: [], types: [], word: 64})[:kind] #=> "block"
+"""
+def cz_held_apply(n, ctx)
+  lam = cz_lookup(cz_head(n), ctx[:lambdas])
+  bound = cz_held_bound(n, ctx)
+  args = rest(n)
+  lets = map(
+    fn(i)
+      {
+        kind: "local",
+        name: cz_param_name(first(bound[i])),
+        value: cz_as(args[i], second(bound[i]), ctx)
+      }
+    end,
+    range(count(args))
+  )
+  rs_seq(lets, cz_expr(third(lam), cz_inline_scope(bound, ctx)))
+end
+
+@doc """
+cz_rebinds?: Whether `n` binds again, anywhere inside it, one of `names`.
+
+    cz_rebinds?(first(cz_read("(if c (define k 2) 0)")), ["k"]) #=> true
+    cz_rebinds?(first(cz_read("(define j 2)")), ["k"]) #=> false
+"""
+def cz_rebinds?(n, names)
+  if not list?(n) or count(n) == 0
+    false
+  elsif cz_head(n) == "define" and
+      cz_sym?(second(n)) and
+      member?(cz_sym(second(n)), names)
+    true
+  else
+    any?((a) -> cz_rebinds?(a, names), n)
+  end
 end
 
 @doc """
@@ -2514,7 +2647,12 @@ cz_scope: `ctx` with the locals `forms` bind, each typed by its value.
 def cz_scope(forms, ctx)
   reduce(
     fn(acc, f)
-      if cz_local_def?(f)
+      if cz_local_def?(f) and cz_lambda_local?(f)
+        {
+          **acc,
+          lambdas: append(acc[:lambdas] or [], [[cz_sym(second(f)), third(f)]])
+        }
+      elsif cz_local_def?(f)
         x = cz_sym(second(f))
         {
           **acc,
@@ -2543,7 +2681,19 @@ def cz_lead(forms, ctx)
   reduce(
     fn(acc, i)
       f = lead[i]
-      if cz_local_def?(f)
+      if cz_local_def?(f) and cz_lambda_local?(f)
+        x = cz_sym(second(f))
+        caught = filter(
+          (p) -> cz_uses(third(f), p) > 0,
+          append([x], acc[:ctx][:params] or [])
+        )
+        if any?((g) -> cz_rebinds?(g, caught), drop(i + 1, forms))
+          cz_refuse(
+            "`#{cz_local(x)}` holds a lambda, and a name it reads is bound again after it; a held lambda reads what it captures in place"
+          )
+        end
+        {stmts: acc[:stmts], ctx: cz_scope([f], acc[:ctx])}
+      elsif cz_local_def?(f)
         x = cz_sym(second(f))
         c = cz_scope([f], acc[:ctx])
         later = reduce((n, g) -> n + cz_uses(g, x), 0, drop(i + 1, forms))
@@ -5204,4 +5354,29 @@ test "a lambda written in place for map, filter or reduce is a loop over the lis
   arena = assoc(ctx, :strategy, :arena)
   assert (cz_inline_fn("map", cz_read("(lambda (x) x) xs"), arena) rescue
     :refused) == :refused
+end
+
+test "a lambda held in a local is called in place or passed to map, filter or reduce; as a value, or with a capture bound again, it is refused"
+  passed = "(define-typed (%root/s (xs (List Int)) (k Int)) (List Int) (begin (define f (lambda (x) (* x k))) (map f xs)))"
+  assert cz_def_native(passed, "%root/s").nil?
+  called = "(define-typed (%root/c (a Int) (k Int)) Int (begin (define f (lambda (x) (+ x k))) (+ (f a) (f (* a 2)))))"
+  assert cz_def_native(called, "%root/c").nil?
+  tested = "(define-typed (%root/t (a Int)) Bool (begin (define pos (lambda (x) (> x 0))) (pos a)))"
+  assert cz_def_native(tested, "%root/t").nil?
+  answered = "(define-typed (%root/a (k Int)) Int (begin (define f (lambda (x) (* x k))) f))"
+  assert cz_def_native(answered, "%root/a") != nil
+  moved = "(define-typed (%root/m (a Int) (k Int)) Int (begin (define f (lambda (x) (+ x k))) (define k 9) (f a)))"
+  assert cz_def_native(moved, "%root/m") != nil
+  short = "(define-typed (%root/w (a Int)) Int (begin (define f (lambda (x y) (+ x y))) (f a)))"
+  assert cz_def_native(short, "%root/w") != nil
+  lam = first(cz_read("(lambda (x) (< x 2))"))
+  ctx = {lambdas: [["f", lam]], params: [], types: [], word: 64}
+  assert cz_lambda_local?(first(cz_read("(define f (lambda (x) x))")))
+  assert cz_held({sym: "f"}, ctx) == lam
+  assert cz_unheld(cz_read("f xs"), ctx) == [lam, {sym: "xs"}]
+  assert cz_held_call?(first(cz_read("(f 1)")), ctx)
+  assert cz_held_bound(first(cz_read("(f 1)")), ctx) == [["x", :word]]
+  assert cz_held_call_ty(first(cz_read("(f 1)")), ctx) == :bool
+  assert cz_held_apply(first(cz_read("(f 1)")), ctx)[:kind] == "block"
+  assert cz_rebinds?(first(cz_read("(begin (define k 1))")), ["k"])
 end

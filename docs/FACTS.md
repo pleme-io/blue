@@ -344,9 +344,27 @@ Each wave lists defaults in the order their gain is known. Each default meets
     artifact swapped in for `scaled` answers `[4, 7]` where the
     interpreter answers `[3, 6]`, so the artifact answered), 15 tests
     passing on macOS.
-  - Next: a lambda as a value (stored, passed to a definition, answered),
-    defunctionalized: one enum variant per lambda holding its captures, and
-    one `apply` that matches them, which the Rust AST already expresses.
+  - ✅ A lambda held in a local, natively: `f = (x) -> x * k`, then
+    `f(a)` or `map(f, xs)` (also `filter`, `reduce`). The local makes no
+    value: each call is a block that binds the lambda's parameters to its
+    arguments and answers its body, and `map(f, xs)` is the loop of a
+    lambda written in place. What it captures is read in place, which
+    means what it meant when bound only while no capture is bound again,
+    so a capture (or the local) bound again after it is refused, as are a
+    call with the wrong count and the local read as a value. Locks:
+    chuuzou 164 tests ("a lambda held in a local is called in place or
+    passed to map, filter or reduce; …"); `checks.native-defs` "a lambda
+    held in a local, called or passed to map or filter, runs natively"
+    (`held`, `picked`, `applied` agree with the interpreter; `held_up`'s
+    artifact swapped in for `held` answers `[4, 7]`).
+  - Next: a lambda as a value that leaves its definition (passed to
+    another, answered). blue has no function type: the checker reads an
+    unknown constructor such as `Fn(Int)` as dyn, so no signature names a
+    lambda and the slice
+    cannot type one. The type is a language row first (the blue-roadmap
+    procedure: spec rows, the checker, mondou's signature), then the
+    lowering: one enum variant per lambda holding its captures and one
+    `apply` that matches them, which the Rust AST already expresses.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

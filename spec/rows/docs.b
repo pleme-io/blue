@@ -129,8 +129,7 @@ row(
     ]
   ),
   value("[false]"),
-  doctests(),
-  pending("G25", "native")
+  doctests()
 )
 
 row(

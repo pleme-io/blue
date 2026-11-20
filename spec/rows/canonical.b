@@ -429,13 +429,7 @@ row(
   covers("rule:B0041")
 )
 
-row(
-  "ops.and",
-  "true and false",
-  value("false"),
-  covers("op:and"),
-  pending("G25", "native")
-)
+row("ops.and", "true and false", value("false"), covers("op:and"))
 
 row("ops.or", "false or 2", value("2"), covers("op:or"))
 

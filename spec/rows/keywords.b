@@ -2,8 +2,7 @@ row(
   "keywords.not_a_string",
   "[\"a\" == :a, {\"a\" => 1} == {a: 1}, get({a: 1}, \"a\")]",
   value("[false, false, nil]"),
-  covers("okite:D0015"),
-  pending("G25", "native")
+  covers("okite:D0015")
 )
 
 row(

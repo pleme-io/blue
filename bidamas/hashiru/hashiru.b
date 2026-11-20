@@ -816,15 +816,19 @@ def tagged_atom(slots, a, r)
     [{op: "lea_label", dst: r, label: kw_label(a)}]
   elsif string?(a)
     [{op: "lea_label", dst: r, label: str_label(a)}]
-  elsif symbol?(a) and member?(to_s(a), %w[nil false])
+  elsif symbol?(a) and to_s(a) == "nil"
     [{op: "mov", dst: r, imm: 0}]
+  elsif symbol?(a) and to_s(a) == "false"
+    [{op: "mov", dst: r, imm: FALSE}]
   elsif symbol?(a) and to_s(a) == "true"
     [{op: "mov", dst: r, imm: 2}]
   elsif symbol?(a)
     [{op: "load", dst: r, disp: slot(slots, to_s(a))}]
   elsif a == true
     [{op: "mov", dst: r, imm: 2}]
-  elsif a == false or a.nil?
+  elsif a == false
+    [{op: "mov", dst: r, imm: FALSE}]
+  elsif a.nil?
     [{op: "mov", dst: r, imm: 0}]
   elsif 2 * a + 1 > 2_147_483_647 or 2 * a + 1 < -2_147_483_648
     [{op: "movabs", dst: r, imm: 2 * a + 1}]
@@ -834,13 +838,34 @@ def tagged_atom(slots, a, r)
 end
 
 @doc """
-tagged_compare: a comparison of rax with rcx left in rax as true (2) or false (0).
+tagged_compare: a comparison of rax with rcx left in rax as true (2) or false (FALSE).
 
-    last(tagged_compare("e")) #=> {op: "add", dst: "rax", src: "rax"}
+    last(tagged_compare("e")) #=> {op: "mov", dst: "rax", src: "rcx"}
 """
 def tagged_compare(code)
-  append(compare(code), [{op: "add", dst: "rax", src: "rax"}])
+  append(
+    append(compare(code), [{op: "add", dst: "rax", src: "rax"}]),
+    AS_BOOLEAN
+  )
 end
+
+@doc """
+FALSE: false natively, a word no number (odd) and no block (an address past 4096) can be, so false is not nil.
+
+    FALSE #=> 4
+"""
+FALSE = 4
+
+@doc """
+AS_BOOLEAN: the instructions that turn a runtime answer of 2 or 0 in rax into blue's true (2) or false (FALSE), as 4 - rax.
+
+    length(AS_BOOLEAN) #=> 3
+"""
+AS_BOOLEAN = [
+  {op: "mov", dst: "rcx", imm: FALSE},
+  {op: "sub", dst: "rcx", src: "rax"},
+  {op: "mov", dst: "rax", src: "rcx"}
+]
 
 @doc """
 rc_op: the instructions for a primitive over tagged values, answering in rax: arithmetic corrects for the tag, a comparison answers a boolean, dup and drop call the runtime.
@@ -893,7 +918,10 @@ def rc_op(slots, op, args)
         {op: "call_label", label: "rt_drop"},
         {op: "pop", dst: "rdi"},
         {op: "call_label", label: "rt_drop"},
-        {op: "pop", dst: "rax"}
+        {op: "pop", dst: "rax"},
+        {op: "mov", dst: "rcx", imm: FALSE},
+        {op: "sub", dst: "rcx", src: "rax"},
+        {op: "mov", dst: "rax", src: "rcx"}
       ]
     )
   elsif op == "concat"
@@ -1066,7 +1094,7 @@ def rc_op(slots, op, args)
   elsif op == "is_terminal"
     append(
       tagged_atom(slots, args[0], "rdi"),
-      [{op: "call_label", label: "rt_is_terminal"}]
+      append([{op: "call_label", label: "rt_is_terminal"}], AS_BOOLEAN)
     )
   elsif op == "read_line"
     [{op: "call_label", label: "rt_read_line"}]
@@ -1272,7 +1300,7 @@ def rc_gen(slots, term, into, n)
         append(
           *[
             tagged_atom(slots, rhs[1], "rax"),
-            [{op: "cmp", dst: "rax", imm: 0}, {op: "j", cond: "e", label: no}],
+            falsy_jump(no),
             yes[0],
             [{op: "jmp", label: out}, {op: "label", name: no}],
             other[0],
@@ -1428,7 +1456,7 @@ end
 
 test "the reference-counted code tags, allocates and calls the runtime"
   assert tagged_atom([], 20, "rax") == [{op: "mov", dst: "rax", imm: 41}]
-  assert tagged_atom([], false, "rax") == [{op: "mov", dst: "rax", imm: 0}]
+  assert tagged_atom([], nil, "rax") == [{op: "mov", dst: "rax", imm: 0}]
   assert tagged_atom([], true, "rax") == [{op: "mov", dst: "rax", imm: 2}]
   assert last(rc_op([], "+", [1, 2])) == {op: "sub", dst: "rax", imm: 1}
   assert last(rc_op(["x"], "drop", [read_forms("x")[0]])) ==
@@ -1456,7 +1484,7 @@ test "the reference-counted code tags, allocates and calls the runtime"
   assert RT_DROP[0] == {op: "label", name: "rt_drop"}
   assert length(not_a_block("x")) == 6
   assert times8("rcx")[0] == {op: "add", dst: "rcx", src: "rcx"}
-  assert last(tagged_compare("l")) == {op: "add", dst: "rax", src: "rax"}
+  assert last(tagged_compare("l")) == {op: "mov", dst: "rax", src: "rcx"}
   assert nth(
     0,
     rc_program(perceus_program(closure_convert(anf(read_forms("1")[0]))), :exit)
@@ -5723,14 +5751,16 @@ end
 
 test "is_terminal asks TCGETS, and read_line reads a byte at a time into a mapping"
   assert member?({op: "mov", dst: "rsi", imm: 21505}, IS_TERMINAL)
-  assert last(rc_op([], "is_terminal", [1])) ==
-    {op: "call_label", label: "rt_is_terminal"}
+  assert member?(
+    {op: "call_label", label: "rt_is_terminal"},
+    rc_op([], "is_terminal", [1])
+  )
   assert tagged_atom([], read_forms("nil")[0], "rax") ==
     [{op: "mov", dst: "rax", imm: 0}]
   assert tagged_atom([], read_forms("true")[0], "rax") ==
     [{op: "mov", dst: "rax", imm: 2}]
   assert tagged_atom([], read_forms("false")[0], "rax") ==
-    [{op: "mov", dst: "rax", imm: 0}]
+    [{op: "mov", dst: "rax", imm: FALSE}]
   assert last(rc_op([], "read_line", [])) ==
     {op: "call_label", label: "rt_read_line"}
   assert member?({op: "mov", dst: "rdx", imm: 1}, RT_READ_LINE)
@@ -7039,9 +7069,16 @@ RT_SHOW = append(
       {op: "jmp", label: "rt_sh_out"},
       {op: "label", name: "rt_sh_not_nil"},
       {op: "cmp", dst: "rdi", imm: 2},
-      {op: "j", cond: "ne", label: "rt_sh_block"}
+      {op: "j", cond: "ne", label: "rt_sh_not_true"}
     ],
     put_text("true"),
+    [
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_not_true"},
+      {op: "cmp", dst: "rdi", imm: FALSE},
+      {op: "j", cond: "ne", label: "rt_sh_block"}
+    ],
+    put_text("false"),
     [
       {op: "jmp", label: "rt_sh_out"},
       {op: "label", name: "rt_sh_block"},
@@ -7311,7 +7348,7 @@ test "a bare zero-argument word becomes its call unless the program binds it"
 end
 
 @doc """
-RT_KIND_OF: the kind of the value in rdi (only read) in rax: 0 nil or false, 1 a number, 2 true, 3 a list cell, 4 a string, 5 a keyword, 6 an error, 7 anything else.
+RT_KIND_OF: the kind of the value in rdi (only read) in rax: 0 nil, 8 false, 1 a number, 2 true, 3 a list cell, 4 a string, 5 a keyword, 6 an error, 7 anything else.
 
     RT_KIND_OF[0] #=> {op: "label", name: "rt_kind_of"}
 """
@@ -7319,6 +7356,9 @@ RT_KIND_OF = [
   {op: "label", name: "rt_kind_of"},
   {op: "mov", dst: "rax", imm: 0},
   {op: "cmp", dst: "rdi", imm: 0},
+  {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 8},
+  {op: "cmp", dst: "rdi", imm: FALSE},
   {op: "j", cond: "e", label: "rt_ko_out"},
   {op: "mov", dst: "rax", src: "rdi"},
   {op: "and", dst: "rax", imm: 1},
@@ -7346,7 +7386,7 @@ RT_KIND_OF = [
 ]
 
 @doc """
-KIND_PREDICATES: each type predicate native code answers and the kinds of rt_kind_of it accepts. Natively false is nil and the empty list is nil, so boolean? holds for nil and list? for nil.
+KIND_PREDICATES: each type predicate native code answers and the kinds of rt_kind_of it accepts. Natively the empty list is nil, so list? holds for nil.
 
     KIND_PREDICATES[0] #=> ["integer?", [1]]
 """
@@ -7355,7 +7395,7 @@ KIND_PREDICATES = [
   ["string?", [4]],
   ["keyword?", [5]],
   ["list?", [0, 3]],
-  ["boolean?", [0, 2]],
+  ["boolean?", [2, 8]],
   ["nil?", [0]]
 ]
 
@@ -7390,7 +7430,11 @@ def kind_predicate(slots, op, args)
           ]
         end
       ),
-      [{op: "mov", dst: "rax", src: "rcx"}, {op: "add", dst: "rax", src: "rcx"}]
+      [
+        {op: "mov", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", src: "rcx"}
+      ],
+      AS_BOOLEAN
     ]
   )
 end
@@ -8039,7 +8083,7 @@ def mode_is(tag, kind)
     61440
   end
   [
-    {op: "mov", dst: "rcx", imm: 0},
+    {op: "mov", dst: "rcx", imm: FALSE},
     {op: "store", src: "rcx", base: "rbp", disp: -24},
     {op: "cmp", dst: "rax", imm: 0},
     {op: "j", cond: "ne", label: "#{tag}_no"},
@@ -8529,11 +8573,11 @@ def fs_programs()
     ],
     [
       "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"f\") \"abc\") (let ((r (list (path_exists d) (is_dir? d) (is_file? d) (is_file? (path_join d \"f\")) (file_size (path_join d \"f\")) (integer? (file_mtime_ms (path_join d \"f\")))))) (begin (rm_rf d) r))))",
-      "[true, true, nil, true, 3, true]"
+      "[true, true, false, true, 3, true]"
     ],
     [
       "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"a\") \"z\") (rename_file (path_join d \"a\") (path_join d \"b\")) (let ((r (list (path_exists (path_join d \"a\")) (path_exists (path_join d \"b\"))))) (begin (rm (path_join d \"b\")) (let ((s (path_exists (path_join d \"b\")))) (begin (rm_rf d) (list r s)))))))",
-      "[[nil, true], nil]"
+      "[[false, true], false]"
     ],
     [
       "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_file (path_join d \"b\") \"AB\") (let ((r (read_bytes (path_join d \"b\")))) (begin (rm_rf d) r))))",
@@ -8541,7 +8585,7 @@ def fs_programs()
     ],
     [
       "(let ((d #{d})) (begin (rm_rf d) (mkdir d) (let ((r (try (rm (path_join d \"none\")) (catch (e) 7)))) (begin (rm_rf d) (list r (path_exists d))))))",
-      "[7, nil]"
+      "[7, false]"
     ],
     ["(rm_rf \"/nonexistent/hashiru-none\")", "nil"]
   ]
@@ -8849,7 +8893,7 @@ def process_programs()
     ["(argv_get 999 :none)", ":none"],
     ["(length (random_bytes 16))", "16"],
     ["(try (random_bytes -1) (catch (e) 7))", "7"],
-    ["(list (exec_ok? \"true\") (exec_ok? \"false\"))", "[true, nil]"]
+    ["(list (exec_ok? \"true\") (exec_ok? \"false\"))", "[true, false]"]
   ]
 end
 
@@ -8932,7 +8976,7 @@ RT_STRING_LT = frame_routine(
   [
     {op: "store", src: "rdi", base: "rbp", disp: -8},
     {op: "store", src: "rsi", base: "rbp", disp: -16},
-    {op: "mov", dst: "rcx", imm: 0},
+    {op: "mov", dst: "rcx", imm: FALSE},
     {op: "store", src: "rcx", base: "rbp", disp: -40},
     {op: "load", dst: "r8", base: "rdi", disp: 24},
     {op: "load", dst: "r9", base: "rsi", disp: 24},
@@ -9133,4 +9177,28 @@ end
 
 test "tcp_op answers what routine_op answers"
   assert tcp_op([], "getenv", %w[A b]) == routine_op([], "getenv", %w[A b])
+end
+
+@doc """
+falsy_jump: the instructions that jump to label when the value in rax is nil (0) or false (FALSE), the two values an if takes as not holding.
+
+    length(falsy_jump("no")) #=> 4
+"""
+def falsy_jump(label)
+  [
+    {op: "cmp", dst: "rax", imm: 0},
+    {op: "j", cond: "e", label:},
+    {op: "cmp", dst: "rax", imm: FALSE},
+    {op: "j", cond: "e", label:}
+  ]
+end
+
+test "false is its own word natively: not nil, taken as not holding by an if, shown as false"
+  assert FALSE == 4
+  assert tagged_atom([], false, "rax") == [{op: "mov", dst: "rax", imm: FALSE}]
+  assert load_atom([], false, "rax") == [{op: "mov", dst: "rax", imm: 0}]
+  assert length(AS_BOOLEAN) == 3
+  assert falsy_jump("no")[2] == {op: "cmp", dst: "rax", imm: FALSE}
+  assert member?({op: "cmp", dst: "rdi", imm: FALSE}, RT_SHOW)
+  assert KIND_PREDICATES[4] == ["boolean?", [2, 8]]
 end

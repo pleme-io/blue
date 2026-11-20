@@ -93,8 +93,7 @@ row(
   ),
   value("[true, true, true, false]"),
   covers("builtin:path_exists", "builtin:is_file?", "builtin:is_dir?"),
-  host(),
-  pending("G25", "native")
+  host()
 )
 
 row(
@@ -206,8 +205,7 @@ row(
   ),
   value("[false, true, false]"),
   covers("builtin:rename_file", "builtin:rm"),
-  host(),
-  pending("G25", "native")
+  host()
 )
 
 row(
@@ -226,8 +224,7 @@ row(
   "[is_terminal(7), boolean?(is_terminal(0))]",
   value("[false, true]"),
   covers("builtin:is_terminal"),
-  host(),
-  pending("G25", "native")
+  host()
 )
 
 row(
@@ -297,8 +294,7 @@ row(
   "[exec_ok?(\"true\"), exec_ok?(\"false\")]",
   value("[true, false]"),
   covers("builtin:exec_ok?"),
-  host(),
-  pending("G25", "native")
+  host()
 )
 
 row(

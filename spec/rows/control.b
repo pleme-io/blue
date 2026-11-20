@@ -64,8 +64,7 @@ row(
   "control.true_false",
   "[true, false]",
   value("[true, false]"),
-  covers("keyword:true", "keyword:false"),
-  pending("G25", "native")
+  covers("keyword:true", "keyword:false")
 )
 
 row(

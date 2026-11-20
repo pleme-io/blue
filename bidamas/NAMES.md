@@ -120,6 +120,9 @@ replacement (`docs/COMPOUNDING.md`).
 | `gamen` | `writer` | `shisutemu::writer` | 0.1.2 |
 | `gitto` | `raised` | `kyohi::raised` | 0.1.3 |
 | `happa` | `text_of` | `moji::text_of` | 0.1.1 |
+| `yomi` | `text_of` | `deeta::text_of` | 0.1.0 |
+| `yomi` | `run_end` | `deeta::run_end` | 0.1.0 |
+| `yomi` | `gap?` | `deeta::space_byte?` | 0.1.0 |
 | `eigyou/heddaa` | `merge_state` | `jisho::merge` | 0.1.1 |
 | `todokede/jitaku` | `unrefused` | `kyohi::standing` | 0.1.1 |
 | `kaaneru` | `map_kinds` | `kaaneru::bpf::map_kinds` | 0.1.0 |

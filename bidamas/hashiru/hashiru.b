@@ -6599,7 +6599,7 @@ def socket_programs()
   ]
 end
 
-test "the TCP words listen, accept, connect, read, write and close natively on x86-64", {
+test "the TCP words listen, connect, read and write natively", {
   kind: :integration,
   allow: %i[filesystem network process]
 }
@@ -7167,7 +7167,7 @@ def show_programs()
   ]
 end
 
-test "a program compiled to show writes its value as blue writes it, natively on x86-64", {
+test "a :show program writes its value as blue does natively", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -8547,7 +8547,7 @@ def fs_programs()
   ]
 end
 
-test "the filesystem words make, write, read, stat, rename and remove natively on x86-64", {
+test "the filesystem words work natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }
@@ -8853,7 +8853,7 @@ def process_programs()
   ]
 end
 
-test "argv, argv_get, cwd, random_bytes and exec_ok? answer natively on x86-64", {
+test "the process words answer natively on x86-64", {
   kind: :integration,
   allow: %i[filesystem process]
 }

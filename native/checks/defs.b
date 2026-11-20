@@ -384,7 +384,7 @@ test "a lambda written in place for map, filter or reduce runs natively", {
   ) == unlines(["[4, 7]"])
 end
 
-test "a lambda held in a local, called or passed to map or filter, runs natively", {
+test "a lambda in a local, called or mapped, runs natively", {
   kind: :integration
 }
   work = temp_dir("native-held")

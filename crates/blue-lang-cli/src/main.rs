@@ -461,6 +461,11 @@ enum Cmd {
         /// Print the ownership facts kuzushi reads from FILE, one per line (M2).
         #[arg(long, value_name = "FILE")]
         memory: Option<PathBuf>,
+        /// With `--memory`, print each fact as a JSON hint placed at the
+        /// local it is about: `{"line", "column", "label"}`, one per line, the
+        /// form the language server serves as inlay hints.
+        #[arg(long, requires = "memory")]
+        hints: bool,
     },
     /// Check the file (as `blue check` does), then run its `test` blocks. A
     /// directory runs every `.b` file under it holding a `test` block, in
@@ -1579,9 +1584,18 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             )
         }
 
-        Cmd::Explain { code, list, memory } => {
+        Cmd::Explain {
+            code,
+            list,
+            memory,
+            hints,
+        } => {
             if let Some(file) = memory {
-                return embedded("memory.b", MEMORY, vec![file.display().to_string()]);
+                let mut args = vec![file.display().to_string()];
+                if hints {
+                    args.push("--hints".to_owned());
+                }
+                return embedded("memory.b", MEMORY, args);
             }
             if list {
                 for r in blue_lang_check::RULES {

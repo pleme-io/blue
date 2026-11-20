@@ -515,6 +515,7 @@ struct LocalReadJson {
 struct DefinitionJson {
     #[serde(flatten)]
     at: Location,
+    top_level: usize,
     name: String,
 }
 
@@ -600,9 +601,14 @@ pub fn resolved_json(
             .iter()
             .enumerate()
             .filter(|(i, _)| entry(*i))
-            .flat_map(|(_, f)| blue_lang_check::names::definitions_of(f))
-            .map(|(name, span, _)| DefinitionJson {
+            .flat_map(|(i, f)| {
+                blue_lang_check::names::definitions_of(f)
+                    .into_iter()
+                    .map(move |(name, span, _)| (i, name, span))
+            })
+            .map(|(i, name, span)| DefinitionJson {
                 at: Location::of(file, span),
+                top_level: i,
                 name,
             })
             .collect(),

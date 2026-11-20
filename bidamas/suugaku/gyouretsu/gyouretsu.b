@@ -569,7 +569,7 @@ def gauss_eliminate(a, k, n)
     []
   else
     p = gauss_pivot_row(a, k, n)
-    if abs(a[p][k]) < 0.000000000001
+    if abs(a[p][k]) < 1.0e-12
       []
     else
       swapped = update_at(update_at(a, k, a[p]), p, a[k])
@@ -687,7 +687,7 @@ test "arccos on acos agrees with the bisection it replaced"
         near_within(
           arccos(x),
           arccos_bisect(x, 0, 3.141592653589793, 60),
-          0.000000001
+          1.0e-9
         )
     end,
     true,
@@ -702,7 +702,7 @@ test "arccos on acos agrees with the bisection it replaced"
   assert near_within(
     arccos_bisect(-1, 0, 3.141592653589793, 60),
     3.141592653589793,
-    0.000000001
+    1.0e-9
   ) == false
   # The saturation the bisection gave for free, now stated as a clamp.
   assert near(arccos(1.0000000002), 0) == true

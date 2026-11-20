@@ -2323,8 +2323,19 @@ pub fn render_literal(a: &Atom) -> String {
     pretty(&atom(a), usize::MAX / 4)
 }
 
-/// A float must render so it lexes back as a float — `1.0`, never `1`.
+/// A float must render so it lexes back as a float — `1.0`, never `1`. A
+/// magnitude at or past 1e21, or under 1e-7, keeps its exponent (`1.5e307`),
+/// where ECMAScript's `Number::toString` keeps it: its decimal form pads
+/// zeros past the 17 digits an f64 holds, which no reader can count.
 fn render_float(f: f64) -> String {
+    let a = f.abs();
+    if f.is_finite() && a != 0.0 && !(1e-7..1e21).contains(&a) {
+        let e = format!("{f:e}");
+        return match e.split_once('e') {
+            Some((m, x)) if !m.contains('.') => format!("{m}.0e{x}"),
+            _ => e,
+        };
+    }
     let s = format!("{f}");
     if s.contains('.') || s.contains('e') || s.contains("inf") || s.contains("NaN") {
         s
@@ -2605,6 +2616,33 @@ mod tests {
     #[test]
     fn floats_render_so_they_lex_back_as_floats() {
         assert_eq!(f("1.0").trim(), "1.0");
+    }
+
+    #[test]
+    fn a_float_past_what_an_f64_holds_in_digits_keeps_its_exponent() {
+        assert_eq!(render_float(1.5e307), "1.5e307");
+        assert_eq!(render_float(1e300), "1.0e300");
+        assert_eq!(render_float(-1.25e21), "-1.25e21");
+        assert_eq!(render_float(5e-324), "5.0e-324");
+        assert_eq!(render_float(1e20), "100000000000000000000.0");
+        assert_eq!(render_float(1e-7), "0.0000001");
+        assert_eq!(render_float(0.0), "0.0");
+        assert_eq!(render_float(1000.0), "1000.0");
+        for x in [
+            1.5e307,
+            1e300,
+            -1.25e21,
+            5e-324,
+            1e-8,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+        ] {
+            let text = render_float(x);
+            assert!(text.len() <= 24, "{text}");
+            let back: f64 = text.parse().expect("parses");
+            assert_eq!(back.to_bits(), x.to_bits(), "{text}");
+            assert_eq!(f(&text).trim(), text, "the formatter keeps {text}");
+        }
     }
 
     #[test]

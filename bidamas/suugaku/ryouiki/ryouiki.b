@@ -152,10 +152,7 @@ def prim(points, ys, alpha, min_support)
       [
         step,
         size(ids) / n,
-        if_zero_total(
-          total,
-          sum(map((i) -> ys[i], ids)) / max(total, 0.000000001)
-        ),
+        if_zero_total(total, sum(map((i) -> ys[i], ids)) / max(total, 1.0e-9)),
         mean_target(ids, ys),
         box
       ]
@@ -167,7 +164,7 @@ def prim(points, ys, alpha, min_support)
       if is_empty(cands) or size(ids) / n <= min_support
         acc
       else
-        best = first(sort_by((c) -> -c[2] + size(c[1]) * 0.000000001, cands))
+        best = first(sort_by((c) -> -c[2] + size(c[1]) * 1.0e-9, cands))
         if size(best[1]) / n < min_support
           acc
         else
@@ -202,7 +199,7 @@ def prim_box(trajectory, density)
   if is_empty(ok)
     nil
   else
-    first(sort_by((r) -> -r[2] + r[0] * 0.000000001, ok))
+    first(sort_by((r) -> -r[2] + r[0] * 1.0e-9, ok))
   end
 end
 

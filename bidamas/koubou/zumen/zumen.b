@@ -596,8 +596,8 @@ test "numbers: six decimals at most, no exponent, no negative zero"
   assert num(1.5) == "1.5"
   assert num(1.0 / 3) == "0.333333"
   assert num(-2.25) == "-2.25"
-  assert num(0.0000000001) == "0"
-  assert num(-0.0000000001) == "0"
+  assert num(1.0e-10) == "0"
+  assert num(-1.0e-10) == "0"
   # A value that prints with an exponent by default does not here.
   assert num(123456789.125) == "123456789.125"
 end

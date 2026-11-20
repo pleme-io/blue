@@ -2645,7 +2645,7 @@ test "write and stringify give the text json_write and json_stringify give", {
     0.0001,
     123456.789,
     0.00000012345,
-    1250000000000000000000.0,
+    1.25e21,
     to_float("1.5e300"),
     to_float("2.5e-300"),
     0.0,
@@ -2684,4 +2684,34 @@ test "each step of write gives its own part of the text", {kind: :unit}
   assert ryu_text(chars("1"), 21) == "1e+20"
   assert count_leading((c) -> c == "0", chars("0a")) == 1
   assert zero_text(0) == ""
+end
+
+test "read refuses each malformed JSON at the step that meets it, and reads each edge"
+  bad = [
+    "",
+    "tru",
+    "nul",
+    "{",
+    "{1: 2}",
+    "{\"a\" 1}",
+    "{\"a\": 1 2}",
+    "\"abc",
+    "\"\\",
+    "\"\\q\"",
+    "\"\\u12G4\"",
+    "x"
+  ]
+  assert map((t) -> read(t) rescue :refused, bad) == map((_t) -> :refused, bad)
+  assert read("{}") == {}
+  assert read("\"\\u0041\\n\"") == unlines(["A"])
+  assert read("-1.5e2") == -150.0
+  ran = now_ms > 0
+  zero = to_float(now_ms * 0)
+  assert write(ran) == "true"
+  assert write(zero) == "0.0"
+  assert write(zero) == json_write(zero)
+  huge = exp(to_float(now_ms))
+  assert write(huge) == "null"
+  assert write(huge) == json_write(huge)
+  assert write(() -> now_ms) == "null"
 end

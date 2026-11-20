@@ -97,7 +97,7 @@ def recorded()
       "unbranched: baito 7",
       "unbranched: bunsho 67",
       "unbranched: chozou 63",
-      "unbranched: deeta 95",
+      "unbranched: deeta 94",
       "unbranched: eigyou 52",
       "unbranched: fairu 1",
       "unbranched: gamen 18",

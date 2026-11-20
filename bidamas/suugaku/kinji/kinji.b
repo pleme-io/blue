@@ -261,8 +261,8 @@ def ode(f, t0, y0, t1, opts)
     {samples: [[t0, y0]], steps: 0, rejected: 0, refusals: []}
   else
     rtol = get_or(opts, :rtol, 0.000001)
-    atol = get_or(opts, :atol, 0.000000001)
-    hmin = get_or(opts, :hmin, span * 0.000000000001)
+    atol = get_or(opts, :atol, 1.0e-9)
+    hmin = get_or(opts, :hmin, span * 1.0e-12)
     start = {
       t: t0,
       y: y0,
@@ -317,7 +317,7 @@ def ode_tick(f, t1, rtol, atol, hmin, acc)
       )
     elsif e <= 1
       tn = t + h
-      grow = clamp(0.9 * exp(-0.2 * log(max(e, 0.0000000001))), 0.2, 5.0)
+      grow = clamp(0.9 * exp(-0.2 * log(max(e, 1.0e-10))), 0.2, 5.0)
       {
         t: tn,
         y: ynew,
@@ -325,7 +325,7 @@ def ode_tick(f, t1, rtol, atol, hmin, acc)
         back: concat_lists([[tn, ynew]], acc[:back]),
         steps: acc[:steps] + 1,
         rejected: acc[:rejected],
-        done: tn >= t1 - abs(t1) * 0.000000000001,
+        done: tn >= t1 - abs(t1) * 1.0e-12,
         refusals: []
       }
     else
@@ -635,8 +635,8 @@ def nm_f(v)
 end
 
 def nelder_mead(f, x0, step, opts)
-  ftol = get_or(opts, :ftol, 0.000000001)
-  xtol = get_or(opts, :xtol, 0.000000001)
+  ftol = get_or(opts, :ftol, 1.0e-9)
+  xtol = get_or(opts, :xtol, 1.0e-9)
   max_iter = get_or(opts, :max_iter, 2000)
   corners = map((i) -> update_at(x0, i, x0[i] + step), indexes(x0))
   simplex = map((x) -> nm_vertex(x, f(x)), concat_lists([x0], corners))
@@ -942,8 +942,8 @@ test "decay matches exp(-t), by fixed and adaptive steps"
   assert size(value(rk, :samples)) == 101
   assert near_within(sample_y(last(rk[:samples]))[0], exp(-1.0), 0.0000001) ==
     true
-  dp = ode(decay, 0.0, [1.0], 1.0, {rtol: 0.000000001, atol: 0.000000000001})
-  assert near_within(final(dp)[0], exp(-1.0), 0.00000001) == true
+  dp = ode(decay, 0.0, [1.0], 1.0, {rtol: 1.0e-9, atol: 1.0e-12})
+  assert near_within(final(dp)[0], exp(-1.0), 1.0e-8) == true
   # The adaptive solver takes far fewer steps than the fixed one for this.
   assert dp[:steps] < 100
   # Samples interpolate: halfway in time lands near exp(-0.5).
@@ -953,15 +953,9 @@ end
 test "an oscillator keeps its energy"
   # An identity: x'' = -x conserves x^2 + v^2; after one period it is back.
   two_pi = 2 * 3.141592653589793
-  r = ode(
-    oscillator,
-    0.0,
-    [1.0, 0.0],
-    two_pi,
-    {rtol: 0.0000000001, atol: 0.0000000001}
-  )
+  r = ode(oscillator, 0.0, [1.0, 0.0], two_pi, {rtol: 1.0e-10, atol: 1.0e-10})
   y = final(r)
-  assert near_within(square(y[0]) + square(y[1]), 1.0, 0.00000001) == true
+  assert near_within(square(y[0]) + square(y[1]), 1.0, 1.0e-8) == true
   assert vector_near(y, [1.0, 0.0]) == true
 end
 
@@ -988,22 +982,20 @@ test "an ODE that blows up is refused, not answered"
 end
 
 test "roots: sqrt(2), the Dottie number, and a refused bracket"
-  sq = brent((x) -> x * x - 2, 0.0, 2.0, 0.000000000001, 100)
-  assert near_within(value(sq, :root), sqrt(2.0), 0.0000000001) == true
+  sq = brent((x) -> x * x - 2, 0.0, 2.0, 1.0e-12, 100)
+  assert near_within(value(sq, :root), sqrt(2.0), 1.0e-10) == true
   # cos(x) = x at 0.7390851332151607 (the Dottie number).
-  dottie = brent((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 100)
-  assert near_within(value(dottie, :root), 0.7390851332151607, 0.0000000001) ==
-    true
-  bi = bisect((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 100)
-  assert near_within(value(bi, :root), 0.7390851332151607, 0.0000000001) == true
+  dottie = brent((x) -> cos(x) - x, 0.0, 1.0, 1.0e-12, 100)
+  assert near_within(value(dottie, :root), 0.7390851332151607, 1.0e-10) == true
+  bi = bisect((x) -> cos(x) - x, 0.0, 1.0, 1.0e-12, 100)
+  assert near_within(value(bi, :root), 0.7390851332151607, 1.0e-10) == true
   # Brent's point: the same answer in fewer evaluations.
   assert dottie[:iterations] < bi[:iterations]
   # The controls: no sign change, and too few iterations.
   assert refusal_kinds(brent((x) -> x * x + 1, -1.0, 1.0, 0.000001, 100)) ==
     [:kinji_no_bracket]
-  assert refusal_kinds(
-    bisect((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 5)
-  ) == [:kinji_iterations]
+  assert refusal_kinds(bisect((x) -> cos(x) - x, 0.0, 1.0, 1.0e-12, 5)) ==
+    [:kinji_iterations]
 end
 
 test "Nelder–Mead finds the Rosenbrock minimum"

@@ -82,7 +82,7 @@ laplace_draw: A draw from Laplace(0, scale), by the inverse CDF.
 """
 def laplace_draw(scale, seed)
   u = next_float(seed) - 0.5
-  tail = max(1 - 2 * abs(u), 0.000000001)
+  tail = max(1 - 2 * abs(u), 1.0e-9)
   if u < 0
     scale * log(tail)
   else

@@ -391,7 +391,7 @@ def mesh_refusals(m)
 end
 
 def closed_refusals(m)
-  degenerate = size(filter((f) -> face_area(m, f) <= 0.0000000001, faces(m)))
+  degenerate = size(filter((f) -> face_area(m, f) <= 1.0e-10, faces(m)))
   directed = directed_edges(m)
   seen = count_keys(directed)
   present = key_set(seen)
@@ -732,9 +732,9 @@ reflex, 0 straight.
 def turn(pts, poly, k)
   n = size(poly)
   c = cross(pts[poly[(k + n - 1) % n]], pts[poly[k]], pts[poly[(k + 1) % n]])
-  if c > 0.0000000001
+  if c > 1.0e-10
     1
-  elsif c < -0.0000000001
+  elsif c < -1.0e-10
     -1
   else
     0
@@ -1115,7 +1115,7 @@ end
 
 test "turn is 0 on a straight run and within the tolerance of one, and not beyond it"
   assert turn([[0, 0], [1, 0], [2, 0]], [0, 1, 2], 1) == 0
-  assert turn([[0, 0], [1, 0], [2, 0.00000000001]], [0, 1, 2], 1) == 0
+  assert turn([[0, 0], [1, 0], [2, 1.0e-11]], [0, 1, 2], 1) == 0
   assert turn([[0, 0], [1, 0], [2, 0.001]], [0, 1, 2], 1) == 1
   assert turn([[0, 0], [1, 0], [2, -0.001]], [0, 1, 2], 1) == -1
   assert turn([[0, 0], [0, 0], [0, 0]], [0, 1, 2], 1) == 0

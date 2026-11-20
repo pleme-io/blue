@@ -1,0 +1,6 @@
+package("yomi", "0.1.0")
+tier(:foundation)
+needs("deeta", "^0.1")
+needs("kazu", "^0.1")
+needs("kyohi", "^0.1")
+needs("retsu", "^0.1")

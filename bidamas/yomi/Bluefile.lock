@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:3407a5a8edb76ee4494ecfa2b4c09849d6b0f9cd09801e0e7db26f9a9bace577",
+  "manifest": {
+    "schema": 1,
+    "name": "yomi",
+    "version": "0.1.0",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kazu": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "foundation"
+  },
+  "sources": {}
+}

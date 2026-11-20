@@ -62,6 +62,7 @@ Built and on main, each with its lock:
 | R6a (BLAKE3) | `shomei::blake3`, BLAKE3 hash mode in blue: chunks of 1024 bytes in 64-byte blocks, the seven-round compression over a 16-word state, the parent tree with the largest power-of-two left subtree; it gives `blake3_hex`'s digest at every length from 0 to 4097 bytes across the chunk and tree boundaries | `bidamas/shomei/shomei.b` |
 | R6a (SHA-256) | `shomei::sha256`, SHA-256 in blue: the standard padding, the 64-word schedule, the 64 rounds with the round constants read from their hex text; it gives `digest_hex(:sha256, …)` at every length across the 55/56-byte padding edge and one, two and many blocks | `bidamas/shomei/shomei.b` |
 | R6a (SHA-512) | `shomei::sha512`, SHA-512 in blue with each 64-bit word a [high, low] pair of 32-bit halves (blue's Int is signed 64-bit and checks overflow): 64-bit add with carry, rotate and shift across the halves, the 80-word schedule and 80 rounds; it gives `digest_hex(:sha512, …)` at every length across the 111/112-byte padding edge and one, two and many blocks | `bidamas/shomei/shomei.b` |
+| F1 (lexer) | `yomi`, blue's reader in blue: `yomi::lex` gives the tokens and byte spans of `blue-lang-syntax`'s lexer (strings with escapes and interpolation, heredoc docs, word lists, labels, symbols, numbers, operators and their typographic aliases) and refuses what it refuses; `yomi` owns the operator table, which `kigou.b` now renders from it | `bidamas/yomi/yomi.b`, `crates/blue-lang-kiwari/tests/reader_in_blue.rs` |
 | C1 | the native conformance column: every value row compiled by blue's own backend and judged against the walker, its passing count a ratchet (18 rows on 2026-11-18); a call to a global function with the wrong number of arguments is refused before code is made | `crates/blue-lang-test/tests/conformance`, `gen/native-row.b`, `spec/native.baseline`, `checks.conformance-three-way` |
 | C2 (first slice) | the `leaks(N)` expectation: the bytes one run leaves live, read from the counting allocator on the walker and the VM (a warm-up run, then the mean of three); 3 rows hold `leaks(0)` (a built list, a closure and its captures, a replaced cell), and a probe that keeps its runs live reads 65-67 bytes, so the rows can fail | `crates/blue-lang-test/tests/conformance`, `spec/rows/memory.b` |
 
@@ -80,8 +81,7 @@ and recompute this list from §7.
 2. **R4, the rest** (§R4): time, processes, sockets, epoll, the terminal, then `put_int` and
    `put_byte`, which C3 needs. Critical path: R4 → R6a → S1.
 3. **R6a** is done (JSON reader and writers, BLAKE3, SHA-256, SHA-512, each differential against its Rust word). Its exit, the json and hash rows passing natively, waits on the native backend (R4).
-4. **F1** (`pure-blue/front-tower-conformance.md` §F1): the reader in blue. No dependencies, the
-   heaviest front-end rung, and S1 needs it.
+4. **F1, the rest** (`pure-blue/front-tower-conformance.md` §F1): the parser in blue over `yomi::lex`, then `blue ast --tree-json` as the oracle and `checks.reader-differential`. The lexer landed and agrees over every `.b` file.
 5. **M2, the rest** (`pure-blue/language-memory.md` §M2): the static memory hints in the LSP's inlay hints, served without live evaluation; `blue explain --memory` landed.
 6. **C2, the rest** (§C2): `closes_at`, cycle-through-cell, move vs copy; then
    `checks.no-leak` (I3) once `spec/leaks.baseline` is near empty.
@@ -91,11 +91,11 @@ and recompute this list from §7.
 
 Waiting on others' rungs: M3 (M1, C2), M4, M5, R5 (M4), R6b, R7, F2-F4, S1-S5, B5, D6.
 
-In flight (2026-11-19, for the next session):
+In flight (2026-11-20, for the next session):
 
-- **tatara-lisp main, unpublished.** M3a (`eefe94d`: early reuse behind `Interpreter::set_early_reuse`, off by default), `Interpreter::on_release` (`dd312f4`), and a release fix so a closure that keeps a function argument dies with its interpreter (`598927d`; memoize and every higher-order constructor leaked 12-15 KB per run). They publish as tatara-lisp-eval 0.4.24 when tatara's auto-release passes; its release job runs blue's suite, so blue main must be green first. Then record M3a here.
-- **blue, local branch `runtime/release-hooks` (worktree `../blue-rh`, commit `4df8bdd8`).** The dispatch registry empties its handlers on `on_release`, with `leaks(0)` rows for a dispatch closure, `memoize` and a closure argument; all green against local tatara. It lands with the `Cargo.lock` bump to 0.4.24 (the pre-push gate cannot build it before).
-- **C2 sweep.** `BLUE_CONFORMANCE_LEAKS=1` measures every value row on the walker and the VM against `spec/leaks.baseline` (record with `BLUE_CONFORMANCE_LEAKS_RECORD=1`; release build, stdin closed: 1,234 row-runs in 28 s). 49 leak today: 22 dispatch (fixed by the branch above), 8 processes, 8 lisp, 6 wire, 2 host, 2 fn, 1 control. In a release build the `leaks(0)` rows read 22-43 bytes per run, every run (debug reads 0): a small per-run residue, cause not yet found. The ledger only shrinks; a gate (`checks.no-leak`, I3) follows once it is near empty.
+- **Landed since 2026-11-19.** tatara-lisp-eval 0.4.24 (M3a early reuse, `Interpreter::on_release`, the closure-argument release) is published and blue requires it; dispatch empties its handlers on release, and the leak ledger fell from 49 to 21 entries. The leak sweep no longer measures into itself (`leaks()` marks its thread). The memo retires a definition on its keying time (`Policy::key_budget`), so recursion that passes a large value is no longer quadratic under `blue run`.
+- **C2 sweep.** `BLUE_CONFORMANCE_LEAKS=1` measures every value row on the walker and the VM against `spec/leaks.baseline` (record with `BLUE_CONFORMANCE_LEAKS_RECORD=1`; release build, stdin closed). 21 entries remain: processes, wire eviction, control.while and the lisp strategy/visitor forms.
+- **F1.** `yomi::lex` agrees with the Rust lexer token for token over every `.b` file in the repo; the parser in blue is next.
 
 ## 2. Ground truth (measured 2026-11-17)
 

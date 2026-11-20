@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:57dd13ab3eb006c199c4b3cc4a83335b88ebed1b7886c3e744696a628e830aaa",
+  "bluefile_b3": "b3:5d9b4a88768199c46afe43b6ef2ea3fdb35f12b400efa1b99fc8a315d0f36ea7",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -82,7 +82,8 @@
       "ugoki": "^0.1.0",
       "ukai": "^0.1.0",
       "umu": "^0.1.0",
-      "utsushi": "^0.1.0"
+      "utsushi": "^0.1.0",
+      "yomi": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

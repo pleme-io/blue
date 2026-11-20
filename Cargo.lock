@@ -512,6 +512,8 @@ dependencies = [
 name = "blue-lang-kiwari"
 version = "0.0.192"
 dependencies = [
+ "blue-lang-host",
+ "blue-lang-pkg",
  "blue-lang-syntax",
  "libc",
  "serde",

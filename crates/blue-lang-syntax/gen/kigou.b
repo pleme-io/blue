@@ -3,6 +3,8 @@ use("retsu", [:is_empty])
 
 use("sabi", %i[render_rust rs_const])
 
+use("yomi", [:operator_aliases])
+
 # The character tables of blue-lang-syntax's `kigou` module, authored in blue.
 #
 # This file is the source of truth for OPERATOR_ALIASES and WELCOME. Running it
@@ -16,25 +18,6 @@ use("sabi", %i[render_rust rs_const])
 #
 # Blue compiling part of blue's own Rust: the curation is authored as data in
 # blue, and the Rust compiler then checks the result like any other source.
-
-# [symbol, the ASCII operator it spells, what it means].
-#
-# Curated: every row is a symbol that mathematics or ordinary typography already
-# uses for exactly this operator, so a reader needs no lookup.
-def operator_aliases()
-  [
-    ["≠", "!=", "not equal"],
-    ["≤", "<=", "less than or equal"],
-    ["≥", ">=", "greater than or equal"],
-    %w[× * multiplication],
-    %w[÷ / division],
-    ["−", "-", "minus sign (U+2212, not the ASCII hyphen)"],
-    ["∧", "&&", "logical and"],
-    ["∨", "||", "logical or"],
-    ["¬", "!", "logical not"],
-    ["≡", "==", "identical to"]
-  ]
-end
 
 # [symbol, what it names], the symbols welcome inside identifiers.
 def welcome()

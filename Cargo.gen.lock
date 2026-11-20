@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "8baa014e7b733e25092638ecd572ac963975e3d0712c9d9e7cfd42989addd14b",
+  "cargo_lock_sha256": "b36f9d396b24655172ae3e3caf18d75125e3949f840f7ea1620c80a2a5637626",
   "manifest_sha256": {
     "Cargo.toml": "0269ff0030599b46742ed98cae1c19fa66f6feded2866ca7094906c140803c87",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
@@ -15,7 +15,7 @@
     "crates/blue-lang-host/Cargo.toml": "397f5d3f4efe6ea7ad812e187bb8c35f2db0c67d66182c2b49b92af8fd3debd7",
     "crates/blue-lang-ios/Cargo.toml": "21c49295c9761896613ed93a938a165cf62e3e5d2119462ee670fc6335a7bf88",
     "crates/blue-lang-kernel/Cargo.toml": "ade0db0e2d949194ab8c8441e2e8d6dba03a4b60e1587dda9a92441fe4043ba6",
-    "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
+    "crates/blue-lang-kiwari/Cargo.toml": "0fc2e8eebc9c29350a8e8ec7ad48771ade15f1b72638b78daf1740317b460b66",
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
     "crates/blue-lang-mondou/Cargo.toml": "7fa130dd926e7a2b77bd815089e3a115a2ce6ff9edb041afb4da5a323c6c96aa",
     "crates/blue-lang-pkg/Cargo.toml": "4748e901a3daea02d320297a956284dcb4aeee913c1c3df074d0722fda893d3c",

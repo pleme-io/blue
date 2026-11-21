@@ -44,7 +44,31 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   `null`; `crates/blue-lang-syntax/tests/reader_in_blue.rs`.
 - **First commit.** The lexer: blue `lex(src)` → kinds and spans, equal to `lex::lex` over
   `spec/rows/*.b`.
-- **Landed (2026-11-20).** The lexer (`yomi::lex`, every `.b` file in the repo agrees with `lex::lex`), and the oracle: `blue ast --tree-json FILE` writes `parse_program_tree`'s tree as `[start, end, kind, payload]` per node (`tests/ast_tree_json.rs`). Next: the parser in blue over `yomi::lex`, compared node for node with that JSON.
+- **Landed (2026-11-20).** The lexer (`yomi::lex`, every `.b` file in the repo agrees with `lex::lex`), and the oracle: `blue ast --tree-json FILE` writes `parse_program_tree`'s tree as `[start, end, kind, payload]` per node (`tests/ast_tree_json.rs`).
+- **Landed (2026-11-20), the parser's first slice.** `yomi::parse(src)` gives
+  `parse_program_tree`'s tree, spans included. **Engine:** a Pratt reader over `yomi::lex`'s
+  tokens, not a table-driven GLR/LR engine. kiwari's rules are tree-sitter-shaped (precedence
+  and conflicts resolved by tree-sitter's generator), so interpreting them as a grammar would
+  mean writing a third parser generator; what kiwari *does* hold as data is read, never
+  restated: `reading()` takes `kiwari::blue()`'s infix rows (spellings, powers, callees), unary
+  rows (powers, heads), the pipe's power, every rule's lowering template by name, and the
+  reserved words. Each concrete node lowers by its rule's kiwari template (`ev`, the same
+  template words `lower.rs` evaluates); a synthesized atom takes the node's anchor (the
+  operator, `[`, `{`, `def`, the splat's `*`), an outer list the node's span, a nested list its
+  first item to the node's `close` (a signature's `)`) or its last item. What parse.rs does
+  beside the grammar is named code, not data kiwari has: the nil test (`x == nil`), negated
+  comparisons, the pipe rewrites, newline strings (B0065), `doc::strip`, and `try_op::lower`'s
+  re-sequencing of function bodies. **Slice:** literals, word lists, strings with
+  interpolation, names and qualified names, `x = v`, calls (splat, `**`/label keyword
+  entries), sends, indexes, infix and unary operators, `|>`, lists, maps (spreads, puns,
+  rockets), parentheses, `(a) -> e` and `fn … end`, `if`/`elsif`/`else`/`unless`, `def`
+  (optional and typed parameters, return types), `@doc`/`@moduledoc`. Refused with `:parse`:
+  `case`, `begin`/`rescue`/`ensure`, `test`/`assert`, `return`, `?`, `quote`, `record`/`union`,
+  rest parameters and destructuring. **Measured:** 274 of the 457 distinct `.b` files under
+  `spec/`, `bidamas/`, `gen/`, `crates/` read identically end to end; every other file yomi
+  refuses, none reads differently (`crates/blue-lang-kiwari/tests/reader_in_blue.rs`, 35
+  snippet cases plus the corpus, floor 274). Next: `case`, `test`/`assert`, `begin`/`rescue`,
+  `return` (the guard pass), then the doc-test files.
 - **Exit.** `checks.reader-differential`: all 604 `.b` files give identical JSON, spans
   included; the fleet half reuses `gen/consumers.json` (20 repos, 132 files) as a prepush gate.
 - **Risks.** ~7.7k lines of behaviour; 34 span-synthesis sites and `cover` (`parse.rs:3806`);

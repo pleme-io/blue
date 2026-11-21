@@ -12,7 +12,7 @@ before the code (blue-development-cycle stage 1):
 | qualified names (L1) | the resolved tree names every definition `%root/f` and every package word `kiban/mmio_write` | reuse |
 | a typed Rust AST, rendered once | tatara-rust-ast 0.1.8 (`File`, typed control flow), its `tatara-rust-emit` CLI | reuse across a process boundary; the tree is JSON built here |
 | board facts | kiban's specs | reuse |
-| reading the tree's text | nothing in blue reads an S-expression | `cz_read` below; the first instance, so it stays here until a second reader appears |
+| reading the tree's text, and the passes over it that make no Rust: names, records, the call graph and recursion, ranges, read counts | kuzushi's IR front (`kuzushi/front`: `tree_read` over blue's `read_forms`, `recursive_defs`, `nonneg_params`, `use_count`, `record_of`, `join_ty`) | reuse: chuuzou is one backend of the IR front, IR to Rust AST |
 
 The shape: read → lower (L1 qualify, L5 represent, tail calls to loops, L8
 the AST) → emit. The passes the design names and N0 lacks (closure
@@ -72,157 +72,34 @@ native/corpus holds the two executions to one output.
 
 The first pass reads the resolved tree's text into nodes:
 
-    cz_read("(define %root/X 5)") #=> [[{sym: "define"}, {sym: "%root/X"}, 5]]
+    tree_read("(define %root/X 5)") #=> [[{sym: "define"}, {sym: "%root/X"}, 5]]
 """
 
 use("kiban", %i[kb_board kb_device_base kb_hosted?])
 
-# ── Reading the resolved tree ─────────────────────────────────────────────
-#
-# A node is an Int, a list of nodes, or a map: {sym: name}, {str: text},
-# {kw: name}.
-
-def cz_delims()
-  %w[( )]
-end
-
-@doc """
-cz_tokens: Split S-expression text into tokens: "(", ")", atoms, and strings kept with
-their quotes. A fold over the characters, so length never costs depth.
-"""
-def cz_tokens(text)
-  start = {toks: [], cur: "", in_str: false, esc: false}
-  step = fn(st, c)
-    if st[:in_str]
-      if st[:esc]
-        assoc(assoc(st, :cur, concat(st[:cur], c)), :esc, false)
-      elsif c == "\\"
-        assoc(assoc(st, :cur, concat(st[:cur], c)), :esc, true)
-      elsif c == "\""
-        {
-          toks: append(st[:toks], [concat(st[:cur], c)]),
-          cur: "",
-          in_str: false,
-          esc: false
-        }
-      else
-        assoc(st, :cur, concat(st[:cur], c))
-      end
-    elsif c == "\""
-      assoc(assoc(cz_flush(st), :cur, "\""), :in_str, true)
-    elsif member?(c, cz_delims)
-      f = cz_flush(st)
-      assoc(f, :toks, append(f[:toks], [c]))
-    elsif c == " " or c == line_break or c == "\t"
-      cz_flush(st)
-    else
-      assoc(st, :cur, concat(st[:cur], c))
-    end
-  end
-  cz_flush(reduce(step, start, chars(text)))[:toks]
-end
-
-def cz_flush(st)
-  if st[:cur] == ""
-    st
-  else
-    assoc(assoc(st, :toks, append(st[:toks], [st[:cur]])), :cur, "")
-  end
-end
-
-@doc """
-cz_atom: One atom's node.
-"""
-def cz_atom(tok)
-  n = to_int(tok)
-  if n != nil
-    n
-  elsif contains?(tok, ".") and to_float(tok) != nil
-    {flt: to_float(tok)}
-  elsif starts_with?(tok, "\"")
-    {str: cz_unescape(butlast(rest(chars(tok))))}
-  elsif starts_with?(tok, ":")
-    {kw: join(rest(chars(tok)), "")}
-  else
-    {sym: tok}
-  end
-end
-
-@doc """
-cz_unescape: The characters of a string literal's body with its escapes resolved.
-"""
-def cz_unescape(cs)
-  st = reduce(
-    fn(acc, c)
-      if acc[:esc]
-        ch = if c == "n"
-          line_break
-        elsif c == "t"
-          "\t"
-        else
-          c
-        end
-        {out: concat(acc[:out], ch), esc: false}
-      elsif c == "\\"
-        assoc(acc, :esc, true)
-      else
-        assoc(acc, :out, concat(acc[:out], c))
-      end
-    end,
-    {out: "", esc: false},
-    cs
-  )
-  st[:out]
-end
-
-@doc """
-cz_read: The forms in `text`. A stack of open lists, folded over the tokens; an
-unbalanced text is refused.
-
-    cz_read("") #=> []
-"""
-def cz_read(text)
-  st = reduce(
-    fn(stack, tok)
-      if tok == "("
-        append(stack, [[]])
-      elsif tok == ")"
-        if count(stack) < 2
-          raise(:chuuzou, "unbalanced `)` in the resolved tree")
-        end
-        done = last(stack)
-        rest_ = butlast(stack)
-        append(butlast(rest_), [append(last(rest_), [done])])
-      else
-        append(butlast(stack), [append(last(stack), [cz_atom(tok)])])
-      end
-    end,
-    [[]],
-    cz_tokens(text)
-  )
-  if count(st) != 1
-    raise(:chuuzou, "unbalanced `(` in the resolved tree")
-  end
-  first(st)
-end
-
-# ── Node predicates ────────────────────────────────────────────────────────
-
-def cz_sym?(n)
-  map?(n) and n[:sym] != nil
-end
-
-def cz_sym(n)
-  if cz_sym?(n)
-    n[:sym]
-  end
-end
-
-def cz_head(n)
-  if list?(n) and count(n) > 0
-    cz_sym(first(n))
-  end
-end
+use(
+  "kuzushi/front",
+  %i[
+    calls_in
+    field_kind
+    given
+    join_ty
+    least_of
+    local_of
+    mentions?
+    node_head
+    node_sym
+    node_sym?
+    nonneg_params
+    pair_value
+    reach_from
+    record_of
+    recursive_defs
+    tail_calls_self?
+    tree_read
+    use_count
+  ]
+)
 
 def cz_refuse(what)
   raise(:chuuzou, what)
@@ -230,14 +107,20 @@ end
 
 # ── Names (L1: already qualified by the resolver) ─────────────────────────
 
+@doc """
+cz_local: A qualified name's local part (kuzushi's local_of); a name that is not a
+definition of the program is refused.
+
+    cz_local("%root/f") #=> "f"
+"""
 def cz_local(name)
-  if starts_with?(name, "%root/")
-    join(drop(6, chars(name)), "")
-  else
+  local = local_of(name)
+  if local.nil?
     cz_refuse(
       "`#{name}` is not a definition of this program; at N0 a native program uses its own definitions and its board's words only"
     )
   end
+  local
 end
 
 def cz_ident_ok?(s)
@@ -308,7 +191,7 @@ end
 @doc """
 cz_float?: Whether `n` is a Float literal of the tree.
 
-    cz_float?(first(cz_read("1.5"))) #=> true
+    cz_float?(first(tree_read("1.5"))) #=> true
     cz_float?(3) #=> false
 """
 def cz_float?(n)
@@ -455,23 +338,23 @@ is that record, by its qualified name; a list of a record is `{items: record}`.
 
     cz_sig_ty({sym: "Int"}, []) #=> :word
     cz_sig_ty({sym: "point"}, [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> "%root/point"
-    cz_sig_ty(first(cz_read("(List point)")), [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> {items: "%root/point"}
+    cz_sig_ty(first(tree_read("(List point)")), [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> {items: "%root/point"}
 """
 def cz_sig_ty(n, records)
-  held = if list?(n) and count(n) == 2 and cz_sym(first(n)) == "List"
-    find(records, (x) -> cz_local(x[:name]) == cz_sym(second(n)))
+  held = if list?(n) and count(n) == 2 and node_sym(first(n)) == "List"
+    find(records, (x) -> cz_local(x[:name]) == node_sym(second(n)))
   end
   s = if held != nil
     "Items"
   elsif list?(n) and
       count(n) == 2 and
-      cz_sym(first(n)) == "List" and
-      cz_sym(second(n)) == "Int"
+      node_sym(first(n)) == "List" and
+      node_sym(second(n)) == "Int"
     "List"
-  elsif list?(n) and count(n) == 3 and map(cz_sym, n) == %w[Map Str Int]
+  elsif list?(n) and count(n) == 3 and map(node_sym, n) == %w[Map Str Int]
     "Map(Str, Int)"
   else
-    cz_sym(n)
+    node_sym(n)
   end
   r = find(records, (x) -> cz_local(x[:name]) == s)
   if s == "Int"
@@ -533,14 +416,14 @@ end
 @doc """
 cz_fun_ty?: Whether `n` is a function type in a signature, `(Fn A B -> R)`.
 
-    cz_fun_ty?(first(cz_read("(Fn Int -> Bool)"))) #=> true
-    cz_fun_ty?(first(cz_read("(List Int)"))) #=> false
+    cz_fun_ty?(first(tree_read("(Fn Int -> Bool)"))) #=> true
+    cz_fun_ty?(first(tree_read("(List Int)"))) #=> false
 """
 def cz_fun_ty?(n)
   list?(n) and
     count(n) >= 3 and
-    cz_head(n) == "Fn" and
-    cz_sym(n[count(n) - 2]) == "->"
+    node_head(n) == "Fn" and
+    node_sym(n[count(n) - 2]) == "->"
 end
 
 @doc """
@@ -567,9 +450,9 @@ the answer a value (`cz_fun_held?`) or a function. A function type is
 finite, so an `apply` that takes or answers a function calls only the
 `apply` of a smaller type, and never its own.
 
-    cz_fun_of(first(cz_read("(Fn Int Int -> Bool)")), []) #=> {fun: [:word, :word], ret: :bool}
-    cz_fun_of(first(cz_read("(Fn Str -> (List Int))")), []) #=> {fun: [:str], ret: :list}
-    cz_fun_of(first(cz_read("(Fn Int -> (Fn Int -> Int))")), []) #=> {fun: [:word], ret: {fun: [:word], ret: :word}}
+    cz_fun_of(first(tree_read("(Fn Int Int -> Bool)")), []) #=> {fun: [:word, :word], ret: :bool}
+    cz_fun_of(first(tree_read("(Fn Str -> (List Int))")), []) #=> {fun: [:str], ret: :list}
+    cz_fun_of(first(tree_read("(Fn Int -> (Fn Int -> Int))")), []) #=> {fun: [:word], ret: {fun: [:word], ret: :word}}
 """
 def cz_fun_of(n, records)
   tys = map(
@@ -640,11 +523,11 @@ end
 cz_fun_leads: The local bindings in scope at position `i` of `n` (its head is position
 0): `leads`, and when `n` is a `begin`, the locals its forms before `i` bind.
 
-    cz_fun_leads(first(cz_read("(begin (define m 2) m)")), 2, []) #=> cz_read("(define m 2)")
-    cz_fun_leads(first(cz_read("(+ 1 2)")), 1, []) #=> []
+    cz_fun_leads(first(tree_read("(begin (define m 2) m)")), 2, []) #=> tree_read("(define m 2)")
+    cz_fun_leads(first(tree_read("(+ 1 2)")), 1, []) #=> []
 """
 def cz_fun_leads(n, i, leads)
-  if cz_head(n) == "begin"
+  if node_head(n) == "begin"
     append(leads, filter(cz_local_def?, take(i, n)))
   else
     leads
@@ -656,12 +539,12 @@ cz_fun_tails: The lambdas `n` answers in tail position (itself, the last form of
 `begin`, or either branch of an `if`), each with the local bindings in scope
 where it stands.
 
-    count(cz_fun_tails(first(cz_read("(if c (lambda (x) x) (lambda (y) y))")), [])) #=> 2
-    cz_fun_tails(first(cz_read("(+ 1 2)")), []) #=> []
-    second(first(cz_fun_tails(first(cz_read("(begin (define m 2) (lambda (x) m))")), []))) #=> cz_read("(define m 2)")
+    count(cz_fun_tails(first(tree_read("(if c (lambda (x) x) (lambda (y) y))")), [])) #=> 2
+    cz_fun_tails(first(tree_read("(+ 1 2)")), []) #=> []
+    second(first(cz_fun_tails(first(tree_read("(begin (define m 2) (lambda (x) m))")), []))) #=> tree_read("(define m 2)")
 """
 def cz_fun_tails(n, leads)
-  h = cz_head(n)
+  h = node_head(n)
   if h == "lambda"
     [[n, leads]]
   elsif h == "begin"
@@ -679,15 +562,15 @@ slice takes a function, with that parameter's type and the local bindings in
 scope where it stands. It never looks inside a lambda: a lambda that leaves
 its definition finds its own (`fun_sites`), in the scope its arm binds.
 
-    cz_fun_args(first(cz_read("(%root/ap (lambda (x) x) 2)")), [["%root/ap", {params: [{fun: [:word], ret: :word}, :word], ret: :word}]], []) #=> [[first(cz_read("(lambda (x) x)")), {fun: [:word], ret: :word}, []]]
-    cz_fun_args(first(cz_read("(lambda (y) (%root/ap (lambda (x) x) y))")), [["%root/ap", {params: [{fun: [:word], ret: :word}, :word], ret: :word}]], []) #=> []
+    cz_fun_args(first(tree_read("(%root/ap (lambda (x) x) 2)")), [["%root/ap", {params: [{fun: [:word], ret: :word}, :word], ret: :word}]], []) #=> [[first(tree_read("(lambda (x) x)")), {fun: [:word], ret: :word}, []]]
+    cz_fun_args(first(tree_read("(lambda (y) (%root/ap (lambda (x) x) y))")), [["%root/ap", {params: [{fun: [:word], ret: :word}, :word], ret: :word}]], []) #=> []
 """
 def cz_fun_args(n, sigs, leads)
-  if not list?(n) or count(n) == 0 or cz_head(n) == "lambda"
+  if not list?(n) or count(n) == 0 or node_head(n) == "lambda"
     []
   else
-    sig = if cz_head(n) != nil
-      cz_lookup(cz_head(n), sigs)
+    sig = if node_head(n) != nil
+      pair_value(node_head(n), sigs)
     end
     args = rest(n)
     here = if sig.nil?
@@ -699,7 +582,7 @@ def cz_fun_args(n, sigs, leads)
           fn(i)
             i < count(sig[:params]) and
               cz_fun?(sig[:params][i]) and
-              cz_head(args[i]) == "lambda"
+              node_head(args[i]) == "lambda"
           end,
           range(count(args))
         )
@@ -719,17 +602,17 @@ end
 cz_fun_caps: The names a lambda leaving its definition reads from the scope `scope`
 holds where it stands, each with its type: the definition's parameters and
 the locals bound before it, held in its variant by copy. A function the
-lambda calls by name is read too, though `cz_uses` counts no call's head.
+lambda calls by name is read too, though `use_count` counts no call's head.
 
-    cz_fun_caps(first(cz_read("(lambda (x) (+ x m))")), {types: [["k", :word], ["m", :word]]}) #=> [["m", :word]]
-    cz_fun_caps(first(cz_read("(lambda (x) (g x))")), {types: [["g", {fun: [:word], ret: :word}]]}) #=> [["g", {fun: [:word], ret: :word}]]
+    cz_fun_caps(first(tree_read("(lambda (x) (+ x m))")), {types: [["k", :word], ["m", :word]]}) #=> [["m", :word]]
+    cz_fun_caps(first(tree_read("(lambda (x) (g x))")), {types: [["g", {fun: [:word], ret: :word}]]}) #=> [["g", {fun: [:word], ret: :word}]]
 """
 def cz_fun_caps(lam, scope)
-  own = map(cz_sym, second(lam))
+  own = map(node_sym, second(lam))
   ty_of = (x) -> last(filter((t) -> first(t) == x, scope[:types]))
   read? = fn(x)
-    cz_uses(third(lam), x) > 0 or
-      cz_fun?(second(ty_of(x))) and cz_mentions?(third(lam), [x])
+    use_count(third(lam), x) > 0 or
+      cz_fun?(second(ty_of(x))) and mentions?(third(lam), [x])
   end
   names = filter(
     (x) -> not member?(x, own) and read?(x),
@@ -744,11 +627,11 @@ answers a function, and each that reaches one through the call graph. A
 call from an `apply` arm to any other definition never comes back to an
 `apply`, so its depth starts at 0 and stays bounded.
 
-    cz_fun_looping(cz_read("(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/up (x Int)) Int (%root/ap x)) (define-typed (%root/ap (x Int)) (Fn Int -> Int) (lambda (y) y))"), [["%root/sq", {params: [:word], ret: :word}], ["%root/up", {params: [:word], ret: :word}], ["%root/ap", {params: [:word], ret: {fun: [:word], ret: :word}}]], %w[%root/sq %root/up %root/ap]) #=> %w[%root/up %root/ap]
+    cz_fun_looping(tree_read("(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/up (x Int)) Int (%root/ap x)) (define-typed (%root/ap (x Int)) (Fn Int -> Int) (lambda (y) y))"), [["%root/sq", {params: [:word], ret: :word}], ["%root/up", {params: [:word], ret: :word}], ["%root/ap", {params: [:word], ret: {fun: [:word], ret: :word}}]], %w[%root/sq %root/up %root/ap]) #=> %w[%root/up %root/ap]
 """
 def cz_fun_looping(fn_forms, sigs, fns)
   graph = map(
-    (f) -> [cz_sym(first(second(f))), cz_calls(fourth(f), fns, nil, false)],
+    (f) -> [node_sym(first(second(f))), calls_in(fourth(f), fns, nil, false)],
     fn_forms
   )
   fun_defs = map(
@@ -762,7 +645,7 @@ def cz_fun_looping(fn_forms, sigs, fns)
     fn(h)
       any?(
         (r) -> member?(r, fun_defs),
-        append([h], cz_reach(cz_lookup(h, graph) or [], [], graph))
+        append([h], reach_from(pair_value(h, graph) or [], [], graph))
       )
     end,
     fns
@@ -775,7 +658,7 @@ type's enum: `def` is where it is written, `caps` the parameters and locals
 of that definition it reads, held in the variant (an Int, Bool or Float by
 copy, a Str, list or record by a clone).
 
-    count(cz_funs(cz_read("(define-typed (%root/ad (k Int)) (Fn Int -> Int) (lambda (x) (+ x k)))"), [["%root/ad", {params: [:word], ret: {fun: [:word], ret: :word}}]], {records: [], fns: [], word: 64})) #=> 1
+    count(cz_funs(tree_read("(define-typed (%root/ad (k Int)) (Fn Int -> Int) (lambda (x) (+ x k)))"), [["%root/ad", {params: [:word], ret: {fun: [:word], ret: :word}}]], {records: [], fns: [], word: 64})) #=> 1
 """
 def cz_funs(fn_forms, sigs, env)
   records = env[:records]
@@ -783,15 +666,15 @@ def cz_funs(fn_forms, sigs, env)
   sites = flat_map(
     fn_forms,
     fn(f)
-      name = cz_sym(first(second(f)))
-      ret = cz_lookup(name, sigs)[:ret]
+      name = node_sym(first(second(f)))
+      ret = pair_value(name, sigs)[:ret]
       tails = if cz_fun?(ret)
         map((s) -> [first(s), ret, second(s)], cz_fun_tails(fourth(f), []))
       else
         []
       end
       typed = map(
-        (p) -> [cz_sym(first(p)), cz_sig_ty(second(p), records)],
+        (p) -> [node_sym(first(p)), cz_sig_ty(second(p), records)],
         rest(second(f))
       )
       base = {**env, self: name, params: map(first, typed), types: typed}
@@ -811,7 +694,7 @@ lambda its own lambda answers, or passes where a definition takes a
 function, in the scope its arm binds (its parameters and captures). Each
 carries `in`, the lambda it is written in (nil at its definition's level).
 
-    map((e) -> e[:caps], fun_sites([[first(cz_read("(lambda (x) (lambda (y) (+ x y)))")), {fun: [:word], ret: {fun: [:word], ret: :word}}, []]], {name: "%root/a", base: {types: [], params: []}, sigs: [], env: {records: [], fns: []}, looping: [], outer: nil})) #=> [[], [["x", :word]]]
+    map((e) -> e[:caps], fun_sites([[first(tree_read("(lambda (x) (lambda (y) (+ x y)))")), {fun: [:word], ret: {fun: [:word], ret: :word}}, []]], {name: "%root/a", base: {types: [], params: []}, sigs: [], env: {records: [], fns: []}, looping: [], outer: nil})) #=> [[], [["x", :word]]]
 """
 def fun_sites(raw, at)
   flat_map(
@@ -820,7 +703,7 @@ def fun_sites(raw, at)
       entry = {**fun_entry(site, at), in: at[:outer]}
       lam = entry[:lam]
       ty = entry[:ty]
-      own = map(cz_sym, second(lam))
+      own = map(node_sym, second(lam))
       bound = append(
         map((i) -> [own[i], ty[:fun][i]], range(count(own))),
         entry[:caps]
@@ -858,7 +741,7 @@ end
 fun_entry: One function value, checked where it stands: its arity, what it calls and
 reads, and what it captures (`cz_fun_caps`) from `at[:base]`'s scope.
 
-    fun_entry([first(cz_read("(lambda (x) (+ x k))")), {fun: [:word], ret: :word}, []], {name: "%root/a", base: {types: [["k", :word]], params: ["k"]}, env: {}, looping: []})[:caps] #=> [["k", :word]]
+    fun_entry([first(tree_read("(lambda (x) (+ x k))")), {fun: [:word], ret: :word}, []], {name: "%root/a", base: {types: [["k", :word]], params: ["k"]}, env: {}, looping: []})[:caps] #=> [["k", :word]]
 """
 def fun_entry(site, at)
   name = at[:name]
@@ -868,19 +751,19 @@ def fun_entry(site, at)
   lam = first(site)
   ty = second(site)
   scope = cz_scope(third(site), base)
-  own = map(cz_sym, second(lam))
+  own = map(node_sym, second(lam))
   if count(own) != count(ty[:fun])
     cz_refuse(
       "a lambda of #{count(own)} parameters stands where a function of #{count(ty[:fun])} is expected"
     )
   end
-  if cz_mentions?(third(lam), looping)
+  if mentions?(third(lam), looping)
     cz_refuse(
-      "a lambda that leaves its definition calls `#{cz_local(find(looping, (h) -> cz_mentions?(third(lam), [h])))}`, which reaches a definition that takes or answers a function; a call through a function value never loops back to one"
+      "a lambda that leaves its definition calls `#{cz_local(find(looping, (h) -> mentions?(third(lam), [h])))}`, which reaches a definition that takes or answers a function; a call through a function value never loops back to one"
     )
   end
   held = fun_held_lambdas(lam, scope)
-  if cz_mentions?(map(second, held), looping)
+  if mentions?(map(second, held), looping)
     cz_refuse("a lambda that leaves its definition calls a lambda held in a local that reaches a definition taking or answering a function")
   end
   caps = distinct(
@@ -909,15 +792,15 @@ lambda bound twice, one that reads another held lambda, one that reads a
 name `lam` binds itself, and one that reads a name bound twice, since then
 the value it read where it was written is not the one in scope here.
 
-    fun_held_lambdas(first(cz_read("(lambda (y) (f y))")), {lambdas: [["f", first(cz_read("(lambda (x) (* x k))"))]], types: [["k", :word]]}) #=> [["f", first(cz_read("(lambda (x) (* x k))"))]]
-    fun_held_lambdas(first(cz_read("(lambda (y) y)")), {lambdas: [], types: []}) #=> []
+    fun_held_lambdas(first(tree_read("(lambda (y) (f y))")), {lambdas: [["f", first(tree_read("(lambda (x) (* x k))"))]], types: [["k", :word]]}) #=> [["f", first(tree_read("(lambda (x) (* x k))"))]]
+    fun_held_lambdas(first(tree_read("(lambda (y) y)")), {lambdas: [], types: []}) #=> []
 """
 def fun_held_lambdas(lam, scope)
-  own = map(cz_sym, second(lam))
+  own = map(node_sym, second(lam))
   lambdas = scope[:lambdas] or []
   names = map(first, lambdas)
   used = filter(
-    (p) -> not member?(first(p), own) and cz_mentions?(third(lam), [first(p)]),
+    (p) -> not member?(first(p), own) and mentions?(third(lam), [first(p)]),
     lambdas
   )
   bound = map(first, scope[:types] or [])
@@ -930,7 +813,7 @@ def fun_held_lambdas(lam, scope)
           "a lambda that leaves its definition calls `#{h}`, a held lambda bound twice"
         )
       end
-      if cz_mentions?(third(second(p)), names)
+      if mentions?(third(second(p)), names)
         cz_refuse(
           "a lambda that leaves its definition calls `#{h}`, a held lambda that reads another"
         )
@@ -1006,13 +889,13 @@ end
 @doc """
 cz_fun_param?: Whether `n` calls a parameter that holds a function, `f(x)`.
 
-    cz_fun_param?(first(cz_read("(f 1)")), {params: ["f"], types: [["f", {fun: [:word], ret: :word}]]}) #=> true
+    cz_fun_param?(first(tree_read("(f 1)")), {params: ["f"], types: [["f", {fun: [:word], ret: :word}]]}) #=> true
 """
 def cz_fun_param?(n, ctx)
-  h = cz_head(n)
+  h = node_head(n)
   h != nil and
     member?(h, ctx[:params] or []) and
-    cz_fun?(cz_lookup(h, ctx[:types] or []))
+    cz_fun?(pair_value(h, ctx[:types] or []))
 end
 
 @doc """
@@ -1020,19 +903,19 @@ cz_fun_call: A call of a parameter holding a function: its type's `apply`, given
 clone of the value (a copy, or a count when it holds a Str, list or record)
 and the arguments.
 
-    cz_fun_call(first(cz_read("(f 1)")), {params: ["f"], types: [["f", {fun: [:word], ret: :word}]], word: 64})[:func] #=> ["apply_F_i_i"]
+    cz_fun_call(first(tree_read("(f 1)")), {params: ["f"], types: [["f", {fun: [:word], ret: :word}]], word: 64})[:func] #=> ["apply_F_i_i"]
 """
 def cz_fun_call(n, ctx)
-  ty = cz_lookup(cz_head(n), ctx[:types])
+  ty = pair_value(node_head(n), ctx[:types])
   args = rest(n)
   if count(args) != count(ty[:fun])
     cz_refuse(
-      "`#{cz_local(cz_head(n))}` takes #{count(ty[:fun])} arguments, given #{count(args)}"
+      "`#{cz_local(node_head(n))}` takes #{count(ty[:fun])} arguments, given #{count(args)}"
     )
   end
   lead = [
     rs_path("io"),
-    rs_method(rs_path(cz_param_name(cz_head(n))), "clone", [])
+    rs_method(rs_path(cz_param_name(node_head(n))), "clone", [])
   ]
   cz_direct_with(
     (xs) -> rs_call(["apply_#{cz_fun_name(ty)}"], append(lead, xs)),
@@ -1047,13 +930,13 @@ cz_fun_shared: The names a lambda's arm binds (its parameters and captures, `bou
 that hold a counted value and that `body` reads more than once, so each read
 takes a clone.
 
-    cz_fun_shared([["s", :str], ["n", :word]], first(cz_read("(concat s s n n)")), []) #=> ["s"]
+    cz_fun_shared([["s", :str], ["n", :word]], first(tree_read("(concat s s n n)")), []) #=> ["s"]
 """
 def cz_fun_shared(bound, body, records)
   map(
     first,
     filter(
-      (t) -> cz_counted?(second(t), records) and cz_uses(body, first(t)) > 1,
+      (t) -> cz_counted?(second(t), records) and use_count(body, first(t)) > 1,
       bound
     )
   )
@@ -1145,7 +1028,7 @@ def cz_fun_items(tys, funs, env)
       args = map((i) -> "a#{i}", range(count(ty[:fun])))
       arms = map(
         fn(e)
-          own = map(cz_sym, second(e[:lam]))
+          own = map(node_sym, second(e[:lam]))
           bound = append(
             map((i) -> [own[i], ty[:fun][i]], range(count(own))),
             e[:caps]
@@ -1163,8 +1046,8 @@ def cz_fun_items(tys, funs, env)
                 cz_fun_shared(bound, third(e[:lam]), env[:records] or []),
                 filter(
                   fn(x)
-                    cz_counted?(cz_lookup(x, bound), env[:records] or []) and
-                      cz_mentions?(
+                    cz_counted?(pair_value(x, bound), env[:records] or []) and
+                      mentions?(
                         map((p) -> third(second(p)), e[:held] or []),
                         [x]
                       )
@@ -1303,60 +1186,24 @@ def cz_struct_name(qualified)
 end
 
 @doc """
-cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares,
-with the type each field holds: an Int or untyped field the board word, a Bool
-a bool, a Float an f64, a Str a refcounted string, a list of Ints a refcounted
-list.
+cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares
+(kuzushi's record_of), with the type each field holds: an Int or untyped field the
+board word, a Bool a bool, a Float an f64, a Str a refcounted string, a list of
+Ints a refcounted list. A field of any other type is refused.
 
-    cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"], types: [:word, :word]}
+    cz_record_of(first(tree_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"], types: [:word, :word]}
 """
 def cz_record_of(form)
-  pairs = map(
-    fn(k)
-      if list?(k) and count(k) == 2 and cz_field_kind(second(k)) != nil
-        [first(k)[:kw], cz_field_kind(second(k))]
-      elsif list?(k)
-        cz_refuse(
-          "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record's fields are Int, Bool, Float, Str, a list of Ints or untyped"
-        )
-      else
-        [k[:kw], :word]
-      end
-    end,
-    drop(3, form)
-  )
-  {
-    name: cz_sym(second(form)),
-    pred: cz_sym(third(form)),
-    fields: map(first, pairs),
-    types: map(second, pairs)
-  }
-end
-
-@doc """
-cz_field_kind: The native type a record field's declared type `t` is, or nil for one
-a native record does not hold.
-
-    cz_field_kind(first(cz_read("Float"))) #=> :float
-    cz_field_kind(first(cz_read("(List Int)"))) #=> :list
-    cz_field_kind(first(cz_read("(List Str)"))) #=> nil
-"""
-def cz_field_kind(t)
-  kinds = [
-    ["Int", :word],
-    ["Bool", :bool],
-    ["Float", :float],
-    ["Str", :str],
-    ["List", :list]
-  ]
-  if cz_sym?(t)
-    cz_lookup(cz_sym(t), kinds)
-  elsif list?(t) and
-      count(t) == 2 and
-      cz_sym(first(t)) == "List" and
-      cz_sym(second(t)) == "Int"
-    :list
+  rec = record_of(form)
+  types = rec[:types]
+  i = find(range(count(types)), (j) -> types[j].nil?)
+  if i != nil
+    k = drop(3, form)[i]
+    cz_refuse(
+      "the field `#{first(k)[:kw]}` is typed #{to_s(second(k))}; a native record's fields are Int, Bool, Float, Str, a list of Ints or untyped"
+    )
   end
+  rec
 end
 
 @doc """
@@ -1372,27 +1219,25 @@ def cz_field_ty(rec, f)
     :word
   else
     fs = rec[:fields]
-    cz_lookup(f, map((i) -> [fs[i], types[i]], range(count(fs)))) or :word
+    pair_value(f, map((i) -> [fs[i], types[i]], range(count(fs)))) or :word
   end
 end
 
 @doc """
-cz_unify: The one type two branches share: the same type, or :dyn when both hold
-records; anything else is refused.
+cz_unify: The one type two branches share (kuzushi's join_ty): the same type, or :dyn
+when both hold records; anything else is refused.
 
     cz_unify("%root/a", "%root/b") #=> :dyn
     cz_unify(:word, :word) #=> :word
 """
 def cz_unify(a, b)
-  if a == b
-    a
-  elsif (string?(a) or a == :dyn) and (string?(b) or b == :dyn)
-    :dyn
-  else
+  joined = join_ty(a, b)
+  if joined.nil?
     cz_refuse(
       "one branch is #{cz_ty_text(a)} and the other #{cz_ty_text(b)}; natively both branches have one type"
     )
   end
+  joined
 end
 
 @doc """
@@ -1439,40 +1284,31 @@ end
 @doc """
 cz_logic: blue's `and` and `or` and the Rust operator each lowers to.
 
-    cz_lookup("or", cz_logic) #=> "or"
+    pair_value("or", cz_logic) #=> "or"
 """
 def cz_logic()
   [%w[and and], %w[or or]]
 end
 
-def cz_lookup(key, pairs)
-  hit = find(pairs, (p) -> first(p) == key)
-  if hit.nil?
-    nil
-  else
-    second(hit)
-  end
-end
-
 @doc """
 cz_ty: The type of `n` where it stands: what the native code holds for it.
 
-    cz_ty(first(cz_read("(< 1 2)")), {}) #=> :bool
-    cz_ty(first(cz_read("(%root/p 1)")), {records: [{name: "%root/p", pred: "%root/p?", fields: ["x"]}]}) #=> "%root/p"
+    cz_ty(first(tree_read("(< 1 2)")), {}) #=> :bool
+    cz_ty(first(tree_read("(%root/p 1)")), {records: [{name: "%root/p", pred: "%root/p?", fields: ["x"]}]}) #=> "%root/p"
 """
 def cz_ty(n, ctx)
-  h = cz_head(n)
+  h = node_head(n)
   if integer?(n)
     :word
   elsif cz_float?(n)
     :float
   elsif map?(n) and n[:str] != nil
     :str
-  elsif cz_sym?(n)
-    cz_lookup(cz_sym(n), ctx[:types] or []) or :word
+  elsif node_sym?(n)
+    pair_value(node_sym(n), ctx[:types] or []) or :word
   elsif not list?(n)
     :word
-  elsif member?(h, %w[not and or]) or cz_lookup(h, cz_compare) != nil
+  elsif member?(h, %w[not and or]) or pair_value(h, cz_compare) != nil
     :bool
   elsif h == "if" and count(n) == 4
     cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
@@ -1481,7 +1317,7 @@ def cz_ty(n, ctx)
   elsif cz_held_call?(n, ctx)
     cz_held_call_ty(n, ctx)
   elsif cz_fun_param?(n, ctx)
-    cz_lookup(h, ctx[:types])[:ret]
+    pair_value(h, ctx[:types])[:ret]
   elsif h == "lambda" and cz_fun_site(n, ctx) != nil
     cz_fun_site(n, ctx)[:ty]
   elsif cz_inline_fn?(h, cz_unheld(rest(n), ctx), ctx)
@@ -1498,7 +1334,7 @@ def cz_ty(n, ctx)
     :bool
   elsif h == "length"
     :word
-  elsif (cz_lookup(h, cz_arith) != nil or h == "/") and
+  elsif (pair_value(h, cz_arith) != nil or h == "/") and
       any?((a) -> cz_ty(a, ctx) == :float, rest(n))
     :float
   elsif h == "blue-field"
@@ -1507,8 +1343,8 @@ def cz_ty(n, ctx)
     h
   elsif cz_record_tested(ctx, h) != nil
     :bool
-  elsif cz_lookup(h, ctx[:sigs] or []) != nil
-    cz_lookup(h, ctx[:sigs])[:ret]
+  elsif pair_value(h, ctx[:sigs] or []) != nil
+    pair_value(h, ctx[:sigs])[:ret]
   else
     :word
   end
@@ -1749,7 +1585,7 @@ end
 @doc """
 cz_pairs: The `[key, value]` pairs of a resolved `(hash-map :k v …)`.
 
-    cz_pairs(first(cz_read("(hash-map :x 1 :y 2)"))) #=> [["x", 1], ["y", 2]]
+    cz_pairs(first(tree_read("(hash-map :x 1 :y 2)"))) #=> [["x", 1], ["y", 2]]
 """
 def cz_pairs(hm)
   kv = rest(hm)
@@ -1765,7 +1601,7 @@ own: no tag, no other record's fields.
 """
 def cz_construct(rec, args, ctx)
   fields = rec[:fields]
-  h = cz_head(first(args))
+  h = node_head(first(args))
   lit = fn(vals)
     {
       kind: "struct-lit",
@@ -1779,15 +1615,15 @@ def cz_construct(rec, args, ctx)
   if count(args) == 1 and h == "blue-kwargs"
     kw = first(args)
     base = second(kw)
-    if cz_head(base) != "blue-splice"
+    if node_head(base) != "blue-splice"
       cz_refuse(
         "an updated copy of #{cz_ty_text(rec[:name])} spreads one record first"
       )
     end
-    given = cz_pairs(third(kw))
+    pairs_given = cz_pairs(third(kw))
     vals = map(
       fn(f)
-        v = cz_lookup(f, given)
+        v = pair_value(f, pairs_given)
         if v.nil?
           {
             kind: "field",
@@ -1814,11 +1650,11 @@ def cz_construct(rec, args, ctx)
       )
     }
   elsif count(args) == 1 and h == "hash-map"
-    given = cz_pairs(first(args))
+    pairs_given = cz_pairs(first(args))
     lit(
       map(
         fn(f)
-          v = cz_lookup(f, given)
+          v = pair_value(f, pairs_given)
           if v.nil?
             cz_refuse("#{cz_ty_text(rec[:name])} is missing its field `#{f}`")
           end
@@ -1847,8 +1683,8 @@ cz_expr: An expression in value position. `ctx`: {self, params, fns, consts}.
 def cz_expr(n, ctx)
   if integer?(n)
     rs_word(n, ctx[:word])
-  elsif cz_sym?(n)
-    s = cz_sym(n)
+  elsif node_sym?(n)
+    s = node_sym(n)
     if member?(s, ctx[:params]) and member?(s, ctx[:shared] or [])
       rs_method(rs_path(cz_param_name(s)), "clone", [])
     elsif member?(s, ctx[:params])
@@ -1857,7 +1693,7 @@ def cz_expr(n, ctx)
       rs_path(cz_const_name(s))
     elsif member?(s, ctx[:bindings]) and
         ctx[:self].nil? and
-        cz_counted?(cz_lookup(s, ctx[:types] or []), ctx[:records] or [])
+        cz_counted?(pair_value(s, ctx[:types] or []), ctx[:records] or [])
       rs_method(rs_path(cz_binding_name(s)), "clone", [])
     elsif member?(s, ctx[:bindings]) and ctx[:self].nil?
       rs_path(cz_binding_name(s))
@@ -1865,7 +1701,7 @@ def cz_expr(n, ctx)
       cz_refuse(
         "`#{cz_local(s)}` is computed when the top level runs; a definition reads constants and its parameters only"
       )
-    elsif cz_lookup(s, ctx[:lambdas] or []) != nil
+    elsif pair_value(s, ctx[:lambdas] or []) != nil
       cz_refuse(
         "`#{cz_local(s)}` holds a lambda; a held lambda is called, or passed to map, filter or reduce, and as a value it has no native form yet"
       )
@@ -1910,10 +1746,10 @@ folds it: Ints stay checked Int arithmetic until a Float joins, and from there
 each step is f64 arithmetic. `/` faults on a zero divisor, as the interpreter
 raises; `mod` and its kin raise on a Float, so they are refused.
 
-    cz_float_arith("+", "checked_add", cz_read("1 2.5"), {word: 64})[:op] #=> "add"
+    cz_float_arith("+", "checked_add", tree_read("1 2.5"), {word: 64})[:op] #=> "add"
 """
 def cz_float_arith(h, arith, args, ctx)
-  op = cz_lookup(h, [%w[+ add], %w[- sub], %w[* mul]])
+  op = pair_value(h, [%w[+ add], %w[- sub], %w[* mul]])
   if h == "/" and count(args) == 2
     rs_call(
       %w[kiban_io fdiv],
@@ -1971,7 +1807,7 @@ cz_concat: `concat(a, b)`, a new string: each side a Str, an Int or a Bool, writ
 the interpreter writes it (`kiban_heap::Piece`). A Float is refused: its
 shortest decimal form is not in the runtime yet.
 
-    cz_concat(cz_read("\"a\" 5"), {word: 64})[:func] #=> ["kiban_heap", "cat"]
+    cz_concat(tree_read("\"a\" 5"), {word: 64})[:func] #=> ["kiban_heap", "cat"]
 """
 def cz_concat(args, ctx)
   if count(args) != 2
@@ -2043,11 +1879,11 @@ def cz_map_op(h, args, ctx)
 end
 
 def cz_call(n, ctx)
-  h = cz_head(n)
+  h = node_head(n)
   args = rest(n)
-  arith = cz_lookup(h, cz_arith)
-  cmp = cz_lookup(h, cz_compare)
-  logic = cz_lookup(h, cz_logic)
+  arith = pair_value(h, cz_arith)
+  cmp = pair_value(h, cz_compare)
+  logic = pair_value(h, cz_logic)
   if cz_held_call?(n, ctx)
     cz_held_apply(n, ctx)
   elsif cz_fun_param?(n, ctx)
@@ -2141,18 +1977,10 @@ def cz_call(n, ctx)
             rs_if(
               cz_expr(first(args), ctx),
               rs_block(
-                [
-                  rs_tail(
-                    cz_as(second(args), t, cz_given(first(args), true, ctx))
-                  )
-                ]
+                [rs_tail(cz_as(second(args), t, given(first(args), true, ctx)))]
               ),
               rs_block(
-                [
-                  rs_tail(
-                    cz_as(third(args), t, cz_given(first(args), false, ctx))
-                  )
-                ]
+                [rs_tail(cz_as(third(args), t, given(first(args), false, ctx)))]
               )
             )
           )
@@ -2196,15 +2024,15 @@ def cz_call(n, ctx)
     cz_items_op(h, args, ctx)
   elsif member?(h, %w[first count rest]) and
       count(args) == 1 and
-      cz_sym?(first(args)) and
-      member?(cz_sym(first(args)), ctx[:queues] or [])
+      node_sym?(first(args)) and
+      member?(node_sym(first(args)), ctx[:queues] or [])
     rs_call(
       ["kiban_heap", "q_#{h}"],
       [
         {
           kind: "ref",
           mutable: false,
-          expr: rs_path(cz_param_name(cz_sym(first(args))))
+          expr: rs_path(cz_param_name(node_sym(first(args))))
         }
       ]
     )
@@ -2222,7 +2050,7 @@ def cz_call(n, ctx)
     else
       [rs_path("io")]
     end
-    sig = cz_lookup(h, ctx[:sigs] or [])
+    sig = pair_value(h, ctx[:sigs] or [])
     wants = if sig.nil?
       map((_a) -> nil, args)
     else
@@ -2303,7 +2131,7 @@ program says so with `reclaim(:arena, "name")`, else :refcount.
     cz_strategy("%root/g", {strategies: []}) #=> :refcount
 """
 def cz_strategy(name, ctx)
-  cz_lookup(name, ctx[:strategies] or []) or :refcount
+  pair_value(name, ctx[:strategies] or []) or :refcount
 end
 
 @doc """
@@ -2322,8 +2150,8 @@ span itself in a region.
     cz_borrowed({sym: "xs"}, {params: ["xs"], strategy: :refcount, word: 64})[:kind] #=> "ref"
 """
 def cz_borrowed(n, ctx)
-  e = if cz_sym?(n) and member?(cz_sym(n), ctx[:params])
-    rs_path(cz_param_name(cz_sym(n)))
+  e = if node_sym?(n) and member?(node_sym(n), ctx[:params])
+    rs_path(cz_param_name(node_sym(n)))
   else
     cz_expr(n, ctx)
   end
@@ -2371,11 +2199,11 @@ def cz_member(v, xs, ctx)
     cz_refuse("member? has a native form on a refcounted list; a region's has none yet")
   elsif cz_items?(cz_ty(xs, ctx))
     cz_refuse("member? has a native form on a list of Ints; a list of records has none yet")
-  elsif cz_sym?(xs) and member?(cz_sym(xs), ctx[:sets] or [])
+  elsif node_sym?(xs) and member?(node_sym(xs), ctx[:sets] or [])
     rs_call(
       %w[kiban_heap set_has],
       [
-        {kind: "ref", mutable: false, expr: rs_path(cz_set_name(cz_sym(xs)))},
+        {kind: "ref", mutable: false, expr: rs_path(cz_set_name(node_sym(xs)))},
         cz_as(v, :word, ctx)
       ]
     )
@@ -2402,8 +2230,8 @@ sets: each read only by `member?` and passed unchanged, in its own place, to
 the definition's tail call. Built once before the loop, a set answers every
 test the loop makes by a lookup where the list would be scanned.
 
-    cz_sets(first(cz_read("(if (member? n xs) n (%root/f (- n 1) xs))")), "%root/f", [["n", :word], ["xs", :list]]) #=> ["xs"]
-    cz_sets(first(cz_read("(if (member? n xs) (count xs) (%root/f (- n 1) xs))")), "%root/f", [["n", :word], ["xs", :list]]) #=> []
+    cz_sets(first(tree_read("(if (member? n xs) n (%root/f (- n 1) xs))")), "%root/f", [["n", :word], ["xs", :list]]) #=> ["xs"]
+    cz_sets(first(tree_read("(if (member? n xs) (count xs) (%root/f (- n 1) xs))")), "%root/f", [["n", :word], ["xs", :list]]) #=> []
 """
 def cz_sets(body, name, types)
   params = map(first, types)
@@ -2423,21 +2251,22 @@ end
 cz_tested_only?: Whether every read of `p` in `n` is the list of a `member?` or `p` itself
 at place `i` of a call of `name`.
 
-    cz_tested_only?(first(cz_read("(member? 1 xs)")), "xs", "%root/f", 0) #=> true
+    cz_tested_only?(first(tree_read("(member? 1 xs)")), "xs", "%root/f", 0) #=> true
 """
 def cz_tested_only?(n, p, name, i)
-  h = cz_head(n)
-  if cz_sym?(n)
-    cz_sym(n) != p
+  h = node_head(n)
+  if node_sym?(n)
+    node_sym(n) != p
   elsif not list?(n)
     true
-  elsif h == "member?" and count(n) == 3 and cz_sym(third(n)) == p
+  elsif h == "member?" and count(n) == 3 and node_sym(third(n)) == p
     cz_tested_only?(second(n), p, name, i)
   elsif h == name
     args = rest(n)
     every?(
       fn(k)
-        k == i and cz_sym(args[k]) == p or cz_tested_only?(args[k], p, name, i)
+        k == i and node_sym(args[k]) == p or
+          cz_tested_only?(args[k], p, name, i)
       end,
       range(count(args))
     )
@@ -2452,8 +2281,8 @@ queues: each read only by `first` and `count` and passed to the definition's
 tail call, in its own place, as its `rest`. A queue is the list and where its
 front is, so each `rest` moves the front where the list would be copied.
 
-    cz_queues(first(cz_read("(if (equal? (count xs) 0) 0 (%root/f (rest xs) (first xs)))")), "%root/f", [["xs", :list], ["a", :word]]) #=> ["xs"]
-    cz_queues(first(cz_read("(if (equal? (count xs) 0) 0 (%root/f xs (first xs)))")), "%root/f", [["xs", :list], ["a", :word]]) #=> []
+    cz_queues(first(tree_read("(if (equal? (count xs) 0) 0 (%root/f (rest xs) (first xs)))")), "%root/f", [["xs", :list], ["a", :word]]) #=> ["xs"]
+    cz_queues(first(tree_read("(if (equal? (count xs) 0) 0 (%root/f xs (first xs)))")), "%root/f", [["xs", :list], ["a", :word]]) #=> []
 """
 def cz_queues(body, name, types)
   params = map(first, types)
@@ -2475,14 +2304,14 @@ end
 cz_popped_only?: Whether every read of `p` in `n` is `first(p)`, `count(p)`, or
 `rest(p)` at place `i` of a call of `name`.
 
-    cz_popped_only?(first(cz_read("(first xs)")), "xs", "%root/f", 0) #=> true
-    cz_popped_only?(first(cz_read("(nth 2 xs)")), "xs", "%root/f", 0) #=> false
+    cz_popped_only?(first(tree_read("(first xs)")), "xs", "%root/f", 0) #=> true
+    cz_popped_only?(first(tree_read("(nth 2 xs)")), "xs", "%root/f", 0) #=> false
 """
 def cz_popped_only?(n, p, name, i)
-  h = cz_head(n)
-  front = (x) -> list?(x) and count(x) == 2 and cz_sym(second(x)) == p
-  if cz_sym?(n)
-    cz_sym(n) != p
+  h = node_head(n)
+  front = (x) -> list?(x) and count(x) == 2 and node_sym(second(x)) == p
+  if node_sym?(n)
+    node_sym(n) != p
   elsif not list?(n)
     true
   elsif member?(h, %w[first count]) and front(n)
@@ -2491,7 +2320,7 @@ def cz_popped_only?(n, p, name, i)
     args = rest(n)
     every?(
       fn(k)
-        k == i and cz_head(args[k]) == "rest" and front(args[k]) or
+        k == i and node_head(args[k]) == "rest" and front(args[k]) or
           cz_popped_only?(args[k], p, name, i)
       end,
       range(count(args))
@@ -2505,15 +2334,15 @@ end
 cz_pops?: Whether some call of `name` in `n` passes `rest(p)` at place `i`: a queue
 is worth holding only where the loop pops it.
 
-    cz_pops?(first(cz_read("(%root/f (rest xs))")), "xs", "%root/f", 0) #=> true
+    cz_pops?(first(tree_read("(%root/f (rest xs))")), "xs", "%root/f", 0) #=> true
 """
 def cz_pops?(n, p, name, i)
   if not list?(n)
     false
-  elsif cz_head(n) == name and
+  elsif node_head(n) == name and
       count(n) > i + 1 and
-      cz_head(n[i + 1]) == "rest" and
-      cz_sym(second(n[i + 1])) == p
+      node_head(n[i + 1]) == "rest" and
+      node_sym(second(n[i + 1])) == p
     true
   else
     any?((x) -> cz_pops?(x, p, name, i), n)
@@ -2599,7 +2428,7 @@ def cz_items_op(h, args, ctx)
       ),
       rs_call(%w[kiban_heap items_of], [rs_path("v")])
     )
-  elsif h == "append" and count(args) == 2 and cz_head(second(args)) == "list"
+  elsif h == "append" and count(args) == 2 and node_head(second(args)) == "list"
     t = cz_temps("w", map((a) -> cz_as(a, ty[:items], ctx), rest(second(args))))
     rs_seq(
       append(
@@ -2642,29 +2471,29 @@ end
 cz_lambda?: Whether `n` is a lambda written in place, `(lambda (params…) body)`, with
 `arity` parameters.
 
-    cz_lambda?(first(cz_read("(lambda (x) (* x 2))")), 1) #=> true
-    cz_lambda?(first(cz_read("(lambda (a x) a)")), 1) #=> false
+    cz_lambda?(first(tree_read("(lambda (x) (* x 2))")), 1) #=> true
+    cz_lambda?(first(tree_read("(lambda (a x) a)")), 1) #=> false
 """
 def cz_lambda?(n, arity)
-  cz_head(n) == "lambda" and
+  node_head(n) == "lambda" and
     count(n) == 3 and
     list?(second(n)) and
     count(second(n)) == arity and
-    every?(cz_sym?, second(n))
+    every?(node_sym?, second(n))
 end
 
 @doc """
 cz_lambda_local?: Whether `f` binds a local to a lambda, `f = (x) -> …`, one body form.
 
-    cz_lambda_local?(first(cz_read("(define f (lambda (x) (* x 2)))"))) #=> true
-    cz_lambda_local?(first(cz_read("(define k 3)"))) #=> false
+    cz_lambda_local?(first(tree_read("(define f (lambda (x) (* x 2)))"))) #=> true
+    cz_lambda_local?(first(tree_read("(define k 3)"))) #=> false
 """
 def cz_lambda_local?(f)
   v = third(f)
-  cz_head(v) == "lambda" and
+  node_head(v) == "lambda" and
     count(v) == 3 and
     list?(second(v)) and
-    every?(cz_sym?, second(v))
+    every?(node_sym?, second(v))
 end
 
 @doc """
@@ -2674,8 +2503,8 @@ cz_held: The lambda a local holds when `n` names one, else `n` itself.
     cz_held({sym: "g"}, {lambdas: [["f", 1]]}) #=> {sym: "g"}
 """
 def cz_held(n, ctx)
-  held = if cz_sym?(n)
-    cz_lookup(cz_sym(n), ctx[:lambdas] or [])
+  held = if node_sym?(n)
+    pair_value(node_sym(n), ctx[:lambdas] or [])
   end
   held or n
 end
@@ -2685,7 +2514,7 @@ cz_unheld: Call arguments with a first argument that names a held lambda replace
 the lambda, so `map(f, xs)` with `f = (x) -> …` is `map` with the lambda in
 place.
 
-    cz_unheld(cz_read("f xs"), {lambdas: [["f", 1]]}) #=> [1, {sym: "xs"}]
+    cz_unheld(tree_read("f xs"), {lambdas: [["f", 1]]}) #=> [1, {sym: "xs"}]
     cz_unheld([], {lambdas: []}) #=> []
 """
 def cz_unheld(args, ctx)
@@ -2699,27 +2528,27 @@ end
 @doc """
 cz_held_call?: Whether `n` calls a lambda a local holds, `f(a)`.
 
-    cz_held_call?(first(cz_read("(f 3)")), {lambdas: [["f", 1]]}) #=> true
-    cz_held_call?(first(cz_read("(g 3)")), {lambdas: [["f", 1]]}) #=> false
+    cz_held_call?(first(tree_read("(f 3)")), {lambdas: [["f", 1]]}) #=> true
+    cz_held_call?(first(tree_read("(g 3)")), {lambdas: [["f", 1]]}) #=> false
 """
 def cz_held_call?(n, ctx)
-  h = cz_head(n)
-  h != nil and cz_lookup(h, ctx[:lambdas] or []) != nil
+  h = node_head(n)
+  h != nil and pair_value(h, ctx[:lambdas] or []) != nil
 end
 
 @doc """
 cz_held_bound: Each parameter of the held lambda that `n` calls, with the type of its
 argument; refused when the counts differ.
 
-    cz_held_bound(first(cz_read("(f 3)")), {lambdas: [["f", first(cz_read("(lambda (x) x)"))]], types: []}) #=> [["x", :word]]
+    cz_held_bound(first(tree_read("(f 3)")), {lambdas: [["f", first(tree_read("(lambda (x) x)"))]], types: []}) #=> [["x", :word]]
 """
 def cz_held_bound(n, ctx)
-  lam = cz_lookup(cz_head(n), ctx[:lambdas])
-  names = map(cz_sym, second(lam))
+  lam = pair_value(node_head(n), ctx[:lambdas])
+  names = map(node_sym, second(lam))
   args = rest(n)
   if count(args) != count(names)
     cz_refuse(
-      "`#{cz_local(cz_head(n))}` holds a lambda of #{count(names)} parameters, given #{count(args)}"
+      "`#{cz_local(node_head(n))}` holds a lambda of #{count(names)} parameters, given #{count(args)}"
     )
   end
   map((i) -> [names[i], cz_ty(args[i], ctx)], range(count(args)))
@@ -2729,10 +2558,10 @@ end
 cz_held_call_ty: The type a call of a held lambda answers: its body's, with each parameter
 typed by its argument.
 
-    cz_held_call_ty(first(cz_read("(f 3)")), {lambdas: [["f", first(cz_read("(lambda (x) (< x 2))"))]], types: []}) #=> :bool
+    cz_held_call_ty(first(tree_read("(f 3)")), {lambdas: [["f", first(tree_read("(lambda (x) (< x 2))"))]], types: []}) #=> :bool
 """
 def cz_held_call_ty(n, ctx)
-  lam = cz_lookup(cz_head(n), ctx[:lambdas])
+  lam = pair_value(node_head(n), ctx[:lambdas])
   cz_ty(third(lam), cz_inline_scope(cz_held_bound(n, ctx), ctx))
 end
 
@@ -2741,10 +2570,10 @@ cz_held_apply: A call of a held lambda, lowered in place: a block that binds eac
 parameter to its argument and answers the body. The lambda reads its
 captures as the definition's own locals, so no closure is made.
 
-    cz_held_apply(first(cz_read("(f 3)")), {lambdas: [["f", first(cz_read("(lambda (x) x)"))]], params: [], types: [], word: 64})[:kind] #=> "block"
+    cz_held_apply(first(tree_read("(f 3)")), {lambdas: [["f", first(tree_read("(lambda (x) x)"))]], params: [], types: [], word: 64})[:kind] #=> "block"
 """
 def cz_held_apply(n, ctx)
-  lam = cz_lookup(cz_head(n), ctx[:lambdas])
+  lam = pair_value(node_head(n), ctx[:lambdas])
   bound = cz_held_bound(n, ctx)
   args = rest(n)
   lets = map(
@@ -2763,15 +2592,15 @@ end
 @doc """
 cz_rebinds?: Whether `n` binds again, anywhere inside it, one of `names`.
 
-    cz_rebinds?(first(cz_read("(if c (define k 2) 0)")), ["k"]) #=> true
-    cz_rebinds?(first(cz_read("(define j 2)")), ["k"]) #=> false
+    cz_rebinds?(first(tree_read("(if c (define k 2) 0)")), ["k"]) #=> true
+    cz_rebinds?(first(tree_read("(define j 2)")), ["k"]) #=> false
 """
 def cz_rebinds?(n, names)
   if not list?(n) or count(n) == 0
     false
-  elsif cz_head(n) == "define" and
-      cz_sym?(second(n)) and
-      member?(cz_sym(second(n)), names)
+  elsif node_head(n) == "define" and
+      node_sym?(second(n)) and
+      member?(node_sym(second(n)), names)
     true
   else
     any?((a) -> cz_rebinds?(a, names), n)
@@ -2783,8 +2612,8 @@ cz_inline_fn?: Whether the call `h(args…)` applies a lambda written in place t
 element of a list: `map(f, xs)`, `filter(f, xs)` or `reduce(f, init, xs)`,
 `xs` a list of Ints or of records.
 
-    cz_inline_fn?("map", cz_read("(lambda (x) (* x 2)) xs"), {types: [["xs", :list]]}) #=> true
-    cz_inline_fn?("map", cz_read("f xs"), {types: [["xs", :list]]}) #=> false
+    cz_inline_fn?("map", tree_read("(lambda (x) (* x 2)) xs"), {types: [["xs", :list]]}) #=> true
+    cz_inline_fn?("map", tree_read("f xs"), {types: [["xs", :list]]}) #=> false
 """
 def cz_inline_fn?(h, args, ctx)
   listed = (n) -> cz_ty(n, ctx) == :list or cz_items?(cz_ty(n, ctx))
@@ -2834,8 +2663,8 @@ cz_inline_ty: The type `map`, `filter` or `reduce` with a lambda in place answer
 list of what the body gives for map, the list itself for filter, the
 accumulator's for reduce.
 
-    cz_inline_ty("filter", cz_read("(lambda (x) (> x 0)) xs"), {types: [["xs", :list]]}) #=> :list
-    cz_inline_ty("map", cz_read("(lambda (x) (* x 2)) xs"), {types: [["xs", :list]]}) #=> :list
+    cz_inline_ty("filter", tree_read("(lambda (x) (> x 0)) xs"), {types: [["xs", :list]]}) #=> :list
+    cz_inline_ty("map", tree_read("(lambda (x) (* x 2)) xs"), {types: [["xs", :list]]}) #=> :list
 """
 def cz_inline_ty(h, args, ctx)
   if h == "filter"
@@ -2844,7 +2673,7 @@ def cz_inline_ty(h, args, ctx)
     cz_ty(second(args), ctx)
   else
     f = first(args)
-    x = cz_sym(first(second(f)))
+    x = node_sym(first(second(f)))
     body = cz_ty(
       third(f),
       cz_inline_scope([[x, cz_elem_ty(cz_ty(second(args), ctx))]], ctx)
@@ -2867,7 +2696,7 @@ loop over the list: the lambda's body is the loop's body, each parameter a
 local bound per element, and what it captures the definition's own locals,
 read in place. No closure is made.
 
-    cz_inline_fn("map", cz_read("(lambda (x) (* x k)) xs"), {params: ["xs", "k"], types: [["xs", :list], ["k", :word]], strategy: :refcount, word: 64, heap: true, records: []})[:kind] #=> "block"
+    cz_inline_fn("map", tree_read("(lambda (x) (* x k)) xs"), {params: ["xs", "k"], types: [["xs", :list], ["k", :word]], strategy: :refcount, word: 64, heap: true, records: []})[:kind] #=> "block"
 """
 def cz_inline_fn(h, args, ctx)
   if not ctx[:heap]
@@ -2896,7 +2725,7 @@ def cz_inline_fn(h, args, ctx)
   else
     %w[kiban_heap rc_count]
   end
-  names = map(cz_sym, second(f))
+  names = map(node_sym, second(f))
   x = last(names)
   acc = if h == "reduce"
     first(names)
@@ -3047,7 +2876,7 @@ def cz_list_op(h, args, ctx)
         rs_call(%w[kiban_heap rc_of], [rs_path("v")])
       )
     end
-  elsif h == "append" and count(args) == 2 and cz_head(second(args)) == "list"
+  elsif h == "append" and count(args) == 2 and node_head(second(args)) == "list"
     cz_push_words(first(args), rest(second(args)), ctx)
   elsif h == "append"
     if count(args) < 2
@@ -3226,48 +3055,16 @@ def cz_call_across(h, lead, args, wants, sig, ctx)
 end
 
 @doc """
-cz_uses: How many times `name` is read along the path through `n` that reads it
-most: the two branches of an `if` are never both taken. A list parameter or
-local read at most once is moved where it is taken; read more, a take clones
-it (a refcount, not a copy), since a borrow (count, nth, first) may come after
-the take in evaluation order.
-
-    cz_uses(first(cz_read("(if c xs (append xs (list 1)))")), "xs") #=> 1
-    cz_uses(first(cz_read("(f xs (count xs))")), "xs") #=> 2
-"""
-def cz_uses(n, name)
-  h = cz_head(n)
-  if cz_sym?(n)
-    if cz_sym(n) == name
-      1
-    else
-      0
-    end
-  elsif not list?(n) or count(n) == 0
-    0
-  elsif h == "if"
-    other = if count(n) > 3
-      cz_uses(fourth(n), name)
-    else
-      0
-    end
-    cz_uses(second(n), name) + max(cz_uses(third(n), name), other)
-  else
-    reduce((acc, a) -> acc + cz_uses(a, name), 0, rest(n))
-  end
-end
-
-@doc """
 cz_effectful?: Whether lowering `n` reaches the board: a call of a definition or a
 board word, or a call through a function value (its `apply` takes the board),
 anywhere inside it.
 
-    cz_effectful?(first(cz_read("(+ 1 (%root/f 2))")), {fns: ["%root/f"]}) #=> true
-    cz_effectful?(first(cz_read("(+ 1 2)")), {fns: []}) #=> false
-    cz_effectful?(first(cz_read("(+ 1 (f 2))")), {fns: [], params: ["f"], types: [["f", {fun: [:word], ret: :word}]]}) #=> true
+    cz_effectful?(first(tree_read("(+ 1 (%root/f 2))")), {fns: ["%root/f"]}) #=> true
+    cz_effectful?(first(tree_read("(+ 1 2)")), {fns: []}) #=> false
+    cz_effectful?(first(tree_read("(+ 1 (f 2))")), {fns: [], params: ["f"], types: [["f", {fun: [:word], ret: :word}]]}) #=> true
 """
 def cz_effectful?(n, ctx)
-  h = cz_head(n)
+  h = node_head(n)
   if not list?(n)
     false
   elsif member?(
@@ -3317,12 +3114,12 @@ cz_floor: floor(a / b), the interpreter's integer division: rounded toward negat
 infinity in the signed host word, the plain quotient in the unsigned board
 word. A divisor of zero is a fault, as the interpreter raises.
 
-    cz_floor([first(cz_read("(/ 7 2)"))], {word: 64})[:func] #=> ["kiban_io", "floor_div"]
+    cz_floor([first(tree_read("(/ 7 2)"))], {word: 64})[:func] #=> ["kiban_io", "floor_div"]
 """
 def cz_floor(args, ctx)
   q = first(args)
   if count(args) != 1 or
-      cz_head(q) != "/" or
+      node_head(q) != "/" or
       count(q) != 3 or
       cz_ty(q, ctx) == :float
     cz_refuse("floor has a native form only as integer division of Ints, floor(a / b); a no_std crate has no floor of a Float")
@@ -3340,14 +3137,14 @@ end
 cz_stmt: A form whose value is dropped. An `if` with no else branch is a statement
 here, where its missing value is never read.
 
-    cz_stmt(first(cz_read("(if (< a b) a)")), {word: 64, params: ["a", "b"], fns: []})[:expr][:kind] #=> "if"
+    cz_stmt(first(tree_read("(if (< a b) a)")), {word: 64, params: ["a", "b"], fns: []})[:expr][:kind] #=> "if"
 """
 def cz_stmt(n, ctx)
-  if cz_head(n) == "if" and count(n) == 3
+  if node_head(n) == "if" and count(n) == 3
     rs_semi(
       rs_if(
         cz_expr(second(n), ctx),
-        rs_block([cz_stmt(third(n), cz_given(second(n), true, ctx))]),
+        rs_block([cz_stmt(third(n), given(second(n), true, ctx))]),
         nil
       )
     )
@@ -3367,17 +3164,17 @@ end
 @doc """
 cz_local_def?: Whether `f` binds a local in a body: `x = e` inside a definition.
 
-    cz_local_def?(first(cz_read("(define xs (list))"))) #=> true
-    cz_local_def?(first(cz_read("(define (f x) x)"))) #=> false
+    cz_local_def?(first(tree_read("(define xs (list))"))) #=> true
+    cz_local_def?(first(tree_read("(define (f x) x)"))) #=> false
 """
 def cz_local_def?(f)
-  cz_head(f) == "define" and cz_sym?(second(f))
+  node_head(f) == "define" and node_sym?(second(f))
 end
 
 @doc """
 cz_scope: `ctx` with the locals `forms` bind, each typed by its value.
 
-    cz_scope(cz_read("(define k 3)"), {params: [], types: []})[:types] #=> [["k", :word]]
+    cz_scope(tree_read("(define k 3)"), {params: [], types: []})[:types] #=> [["k", :word]]
 """
 def cz_scope(forms, ctx)
   reduce(
@@ -3385,10 +3182,13 @@ def cz_scope(forms, ctx)
       if cz_local_def?(f) and cz_lambda_local?(f)
         {
           **acc,
-          lambdas: append(acc[:lambdas] or [], [[cz_sym(second(f)), third(f)]])
+          lambdas: append(
+            acc[:lambdas] or [],
+            [[node_sym(second(f)), third(f)]]
+          )
         }
       elsif cz_local_def?(f)
-        x = cz_sym(second(f))
+        x = node_sym(second(f))
         {
           **acc,
           params: append(acc[:params] or [], [x]),
@@ -3409,7 +3209,7 @@ cz_lead: Every form of a body but the last, as statements: a local binding is a
 it is cloned where taken (a refcount, not a copy). Answers the statements and
 the context the last form sees.
 
-    cz_lead(cz_read("(define k 3) k"), {params: [], types: [], word: 64})[:stmts] #=> [{kind: "local", name: "p_k", value: {kind: "int", value: 3, suffix: "i64"}}]
+    cz_lead(tree_read("(define k 3) k"), {params: [], types: [], word: 64})[:stmts] #=> [{kind: "local", name: "p_k", value: {kind: "int", value: 3, suffix: "i64"}}]
 """
 def cz_lead(forms, ctx)
   lead = butlast(forms)
@@ -3417,9 +3217,9 @@ def cz_lead(forms, ctx)
     fn(acc, i)
       f = lead[i]
       if cz_local_def?(f) and cz_lambda_local?(f)
-        x = cz_sym(second(f))
+        x = node_sym(second(f))
         caught = filter(
-          (p) -> cz_uses(third(f), p) > 0,
+          (p) -> use_count(third(f), p) > 0,
           append([x], acc[:ctx][:params] or [])
         )
         if any?((g) -> cz_rebinds?(g, caught), drop(i + 1, forms))
@@ -3429,10 +3229,10 @@ def cz_lead(forms, ctx)
         end
         {stmts: acc[:stmts], ctx: cz_scope([f], acc[:ctx])}
       elsif cz_local_def?(f)
-        x = cz_sym(second(f))
+        x = node_sym(second(f))
         c = cz_scope([f], acc[:ctx])
-        later = reduce((n, g) -> n + cz_uses(g, x), 0, drop(i + 1, forms))
-        shared = if cz_counted?(cz_lookup(x, c[:types]), c[:records] or []) and
+        later = reduce((n, g) -> n + use_count(g, x), 0, drop(i + 1, forms))
+        shared = if cz_counted?(pair_value(x, c[:types]), c[:records] or []) and
             later > 1
           append(c[:shared] or [], [x])
         else
@@ -3461,27 +3261,11 @@ def cz_lead(forms, ctx)
 end
 
 @doc """
-cz_tail_self?: Whether `n`, in tail position, calls `self`.
-"""
-def cz_tail_self?(n, name)
-  h = cz_head(n)
-  if h == name
-    true
-  elsif h == "if"
-    any?((b) -> cz_tail_self?(b, name), drop(2, n))
-  elsif h == "begin"
-    cz_tail_self?(last(rest(n)), name)
-  else
-    false
-  end
-end
-
-@doc """
 cz_tail: A form in tail position of a looping function, as statements that always
 leave: `return`, or the parameters rebound and `continue`.
 """
 def cz_tail(n, ctx)
-  h = cz_head(n)
+  h = node_head(n)
   if h == ctx[:self]
     params = ctx[:params]
     args = rest(n)
@@ -3495,7 +3279,7 @@ def cz_tail(n, ctx)
         {
           kind: "local",
           name: "t_#{i}",
-          value: cz_as(args[i], cz_lookup(params[i], ctx[:types] or []), ctx)
+          value: cz_as(args[i], pair_value(params[i], ctx[:types] or []), ctx)
         }
       end,
       range(count(args))
@@ -3515,9 +3299,9 @@ def cz_tail(n, ctx)
     append(temps, rebinds, [rs_semi({kind: "continue"})])
   elsif h == "if"
     c = cz_expr(second(n), ctx)
-    t = rs_block(cz_tail(third(n), cz_given(second(n), true, ctx)))
+    t = rs_block(cz_tail(third(n), given(second(n), true, ctx)))
     e = if count(n) > 3
-      rs_block(cz_tail(fourth(n), cz_given(second(n), false, ctx)))
+      rs_block(cz_tail(fourth(n), given(second(n), false, ctx)))
     else
       cz_refuse("an `if` in tail position needs an else branch")
     end
@@ -3532,106 +3316,28 @@ def cz_tail(n, ctx)
 end
 
 @doc """
-cz_calls: The definitions `n` calls, in `fns`. A call of `me` in tail position is
-left out: that function loops instead (`me` is nil when it does not).
-
-    cz_calls(first(cz_read("(+ (%root/f 1) (%root/g 2))")), ["%root/f"], nil, true) #=> ["%root/f"]
-"""
-def cz_calls(n, fns, me, tail)
-  h = cz_head(n)
-  if not list?(n) or count(n) == 0
-    []
-  elsif h == "if"
-    reduce(
-      (acc, b) -> append(acc, cz_calls(b, fns, me, tail)),
-      cz_calls(second(n), fns, me, false),
-      drop(2, n)
-    )
-  elsif h == "begin"
-    forms = rest(n)
-    reduce(
-      (acc, f) -> append(acc, cz_calls(f, fns, me, false)),
-      cz_calls(last(forms), fns, me, tail),
-      butlast(forms)
-    )
-  else
-    own = if member?(h, fns) and not (tail and h == me)
-      [h]
-    else
-      []
-    end
-    reduce((acc, a) -> append(acc, cz_calls(a, fns, me, false)), own, rest(n))
-  end
-end
-
-@doc """
-cz_reach: Every definition reachable from `frontier` through the call graph
-`graph` ([name, callees] pairs).
-
-    cz_reach(["a"], [], [["a", ["b"]], ["b", ["a"]]]) #=> ["a", "b"]
-"""
-def cz_reach(frontier, seen, graph)
-  if empty?(frontier)
-    seen
-  elsif member?(first(frontier), seen)
-    cz_reach(rest(frontier), seen, graph)
-  else
-    cz_reach(
-      append(rest(frontier), cz_lookup(first(frontier), graph) or []),
-      append(seen, [first(frontier)]),
-      graph
-    )
-  end
-end
-
-@doc """
-cz_recursive: The definitions that reach themselves through a call that is not a tail
-call to themselves: each needs a stack frame per level, so each runs under
-the board's declared depth bound.
-
-    cz_recursive(cz_read("(define-typed (%root/f (n Int)) Int (%root/f n))"), ["%root/f"]) #=> []
-"""
-def cz_recursive(fn_forms, fns)
-  graph = map(
-    fn(f)
-      name = cz_sym(first(second(f)))
-      body = fourth(f)
-      me = if cz_tail_self?(body, name)
-        name
-      end
-      [name, cz_calls(body, fns, me, true)]
-    end,
-    fn_forms
-  )
-  filter(
-    (name) -> member?(name, cz_reach(cz_lookup(name, graph), [], graph)),
-    fns
-  )
-end
-
-@doc """
 cz_fn: (define-typed (name (p T) …) R body) → a generic fn over the board. `env`:
 {fns, consts, bindings, rec, word, bound}. A recursive definition takes its
 depth `d` and enters one level deeper, faulting past the bound.
 """
 def cz_fn(form, env)
   sig = second(form)
-  name = cz_sym(first(sig))
-  params = map((p) -> cz_sym(first(p)), rest(sig))
+  name = node_sym(first(sig))
+  params = map((p) -> node_sym(first(p)), rest(sig))
   word = env[:word]
   records = env[:records] or []
   strategy = cz_strategy(name, env)
   ret_ty = cz_sig_ty(third(form), records)
   ret = cz_rs_ty(cz_held_ty(ret_ty, strategy), word)
   types = map(
-    (p) -> [cz_sym(first(p)), cz_sig_ty(second(p), records)],
+    (p) -> [node_sym(first(p)), cz_sig_ty(second(p), records)],
     rest(sig)
   )
   body = fourth(form)
   shared = map(
     first,
     filter(
-      (t) -> cz_counted?(second(t), records) and cz_uses(body, first(t)) > 1,
+      (t) -> cz_counted?(second(t), records) and use_count(body, first(t)) > 1,
       types
     )
   )
@@ -3678,7 +3384,7 @@ def cz_fn(form, env)
   else
     []
   end
-  sets = if cz_tail_self?(body, name) and
+  sets = if tail_calls_self?(body, name) and
       strategy == :refcount and
       not rec and
       env[:heap]
@@ -3686,7 +3392,7 @@ def cz_fn(form, env)
   else
     []
   end
-  queues = if cz_tail_self?(body, name) and
+  queues = if tail_calls_self?(body, name) and
       strategy == :refcount and
       not rec and
       env[:heap]
@@ -3708,7 +3414,7 @@ def cz_fn(form, env)
     end,
     sets
   )
-  stmts = if cz_tail_self?(body, name)
+  stmts = if tail_calls_self?(body, name)
     rebind = map(
       fn(p)
         {
@@ -3756,16 +3462,17 @@ end
 cz_constant?: Whether `n` is computed from literals and earlier constants alone, so
 it is a Rust constant evaluated when the image is built.
 
-    cz_constant?(first(cz_read("(* %root/A 2)")), ["%root/A"]) #=> true
-    cz_constant?(first(cz_read("(%root/f 2)")), []) #=> false
+    cz_constant?(first(tree_read("(* %root/A 2)")), ["%root/A"]) #=> true
+    cz_constant?(first(tree_read("(%root/f 2)")), []) #=> false
 """
 def cz_constant?(n, consts)
-  h = cz_head(n)
+  h = node_head(n)
   if integer?(n)
     true
-  elsif cz_sym?(n)
-    member?(cz_sym(n), consts)
-  elsif h != nil and (cz_lookup(h, cz_arith) != nil or h == "floor" or h == "/")
+  elsif node_sym?(n)
+    member?(node_sym(n), consts)
+  elsif h != nil and
+      (pair_value(h, cz_arith) != nil or h == "floor" or h == "/")
     every?((a) -> cz_constant?(a, consts), rest(n))
   else
     false
@@ -3775,7 +3482,7 @@ end
 def cz_const(form, env)
   {
     kind: "const",
-    name: cz_const_name(cz_sym(second(form))),
+    name: cz_const_name(node_sym(second(form))),
     ty: rs_ty(cz_word_ty(env[:word])),
     value: cz_expr(third(form), assoc(assoc(env, :fns, []), :params, []))
   }
@@ -3795,11 +3502,11 @@ cz_kind: What a top-level form is: a use, a typed definition, a constant (from
 literals and the constants before it), a binding the top level computes when
 it runs, an untyped definition, or an expression.
 
-    cz_kind(first(cz_read("(define %root/X (+ %root/A 1))")), ["%root/A"]) #=> :const
-    cz_kind(first(cz_read("(define %root/X (+ %root/A 1))")), []) #=> :binding
+    cz_kind(first(tree_read("(define %root/X (+ %root/A 1))")), ["%root/A"]) #=> :const
+    cz_kind(first(tree_read("(define %root/X (+ %root/A 1))")), []) #=> :binding
 """
 def cz_kind(form, consts)
-  h = cz_head(form)
+  h = node_head(form)
   if h == "use"
     :use
   elsif h == "blue-record"
@@ -3809,10 +3516,10 @@ def cz_kind(form, consts)
   elsif h == "define-typed"
     :fn
   elsif h == "define" and
-      cz_sym?(second(form)) and
+      node_sym?(second(form)) and
       cz_constant?(third(form), consts)
     :const
-  elsif h == "define" and cz_sym?(second(form))
+  elsif h == "define" and node_sym?(second(form))
     :binding
   elsif h == "define"
     :untyped
@@ -3842,14 +3549,14 @@ end
 cz_kinds: Each top-level form with its kind, in order; a constant is known to the
 forms after it.
 
-    map(first, cz_kinds(cz_read("(define %root/A 1) (define %root/B %root/A)"))) #=> [:const, :const]
+    map(first, cz_kinds(tree_read("(define %root/A 1) (define %root/B %root/A)"))) #=> [:const, :const]
 """
 def cz_kinds(forms)
   st = reduce(
     fn(acc, f)
       k = cz_kind(f, acc[:consts])
       consts = if k == :const
-        append(acc[:consts], [cz_sym(second(f))])
+        append(acc[:consts], [node_sym(second(f))])
       else
         acc[:consts]
       end
@@ -3865,14 +3572,14 @@ end
 cz_main_stmt: One top-level form of the program's main: a binding becomes a local the
 later top-level forms read; an expression a statement.
 
-    cz_main_stmt([:binding, first(cz_read("(define %root/K 2)"))], {word: 64})[:name] #=> "g_k"
+    cz_main_stmt([:binding, first(tree_read("(define %root/K 2)"))], {word: 64})[:name] #=> "g_k"
 """
 def cz_main_stmt(kf, ctx)
   f = second(kf)
   if first(kf) == :binding
     {
       kind: "local",
-      name: cz_binding_name(cz_sym(second(f))),
+      name: cz_binding_name(node_sym(second(f))),
       value: cz_expr(third(f), ctx)
     }
   else
@@ -3884,7 +3591,7 @@ end
 cz_reclaim_of: The strategy `reclaim(:arena, "name")` gives a definition, as
 [qualified name, strategy]. An unknown strategy or name is refused.
 
-    cz_reclaim_of(first(cz_read("(kiban/reclaim :arena \"f\")")), ["%root/f"]) #=> ["%root/f", :arena]
+    cz_reclaim_of(first(tree_read("(kiban/reclaim :arena \"f\")")), ["%root/f"]) #=> ["%root/f", :arena]
 """
 def cz_reclaim_of(form, fns)
   strategy = second(form)[:kw]
@@ -3905,59 +3612,6 @@ def cz_reclaim_of(form, fns)
 end
 
 @doc """
-cz_mentions?: Whether any symbol in `n` is one of `names`.
-
-    cz_mentions?(cz_read("(f (list 1))"), ["list"]) #=> true
-    cz_mentions?(cz_read("(f 1)"), ["list"]) #=> false
-"""
-def cz_mentions?(n, names)
-  if cz_sym?(n)
-    member?(cz_sym(n), names)
-  elsif list?(n)
-    any?((x) -> cz_mentions?(x, names), n)
-  else
-    false
-  end
-end
-
-@doc """
-cz_lb: The least value `n` can have where it stands, from literals, the facts
-in `ctx[:lb]` and the operators that keep a bound, or nil when none is known.
-A Euclidean remainder by a positive literal is never negative, whatever its
-left side.
-
-    cz_lb(first(cz_read("(- n 1)")), {lb: [["n", 2]]}) #=> 1
-    cz_lb(first(cz_read("(mod x 3)")), {lb: []}) #=> 0
-    cz_lb(first(cz_read("(+ n x)")), {lb: [["n", 0]]}) #=> nil
-"""
-def cz_lb(n, ctx)
-  h = cz_head(n)
-  bounds = (xs) -> map((x) -> cz_lb(x, ctx), xs)
-  all_nonneg = (bs) -> every?((b) -> b != nil and b >= 0, bs)
-  if integer?(n)
-    n
-  elsif cz_sym?(n)
-    cz_lookup(cz_sym(n), ctx[:lb] or [])
-  elsif not list?(n)
-    nil
-  elsif h == "+" and all_nonneg(bounds(rest(n)))
-    reduce((a, b) -> a + b, 0, bounds(rest(n)))
-  elsif h == "*" and all_nonneg(bounds(rest(n)))
-    reduce((a, b) -> a * b, 1, bounds(rest(n)))
-  elsif h == "-" and
-      count(n) == 3 and
-      integer?(third(n)) and
-      cz_lb(second(n), ctx) != nil
-    cz_lb(second(n), ctx) - third(n)
-  elsif member?(h, %w[mod modulo rem]) and
-      count(n) == 3 and
-      integer?(third(n)) and
-      third(n) > 0
-    0
-  end
-end
-
-@doc """
 cz_plain?: Whether `h` applied to `args` cannot fault, so it is the plain operator:
 a difference of two values never below zero cannot overflow the signed word,
 and a Euclidean remainder of a value never below zero by a positive literal
@@ -3968,7 +3622,7 @@ is the truncating one.
     cz_plain?("mod", [{sym: "i"}, 3], {word: 64, lb: [["i", 0]]}) #=> true
 """
 def cz_plain?(h, args, ctx)
-  nonneg = (x) -> cz_lb(x, ctx) != nil and cz_lb(x, ctx) >= 0
+  nonneg = (x) -> least_of(x, ctx) != nil and least_of(x, ctx) >= 0
   if ctx[:word] != 64 or count(args) != 2
     false
   elsif h == "-"
@@ -3977,167 +3631,6 @@ def cz_plain?(h, args, ctx)
     nonneg(first(args)) and integer?(second(args)) and second(args) > 0
   else
     false
-  end
-end
-
-@doc """
-cz_given: `ctx` inside the branch of `cond` taken when it is `truth`: a comparison
-of a name with a literal raises the name's least value.
-
-    cz_given(first(cz_read("(< n 2)")), false, {lb: []})[:lb] #=> [["n", 2]]
-    cz_given(first(cz_read("(equal? i 0)")), false, {lb: [["i", 0]]})[:lb] #=> [["i", 1], ["i", 0]]
-    cz_given(first(cz_read("(> n 5)")), true, {lb: []})[:lb] #=> [["n", 6]]
-"""
-def cz_given(cond, truth, ctx)
-  h = cz_head(cond)
-  lhs = if list?(cond) and count(cond) == 3
-    second(cond)
-  end
-  k = if list?(cond) and count(cond) == 3
-    third(cond)
-  end
-  name = cz_sym(lhs)
-  old = if name.nil?
-    nil
-  else
-    cz_lookup(name, ctx[:lb] or [])
-  end
-  least = if name.nil? or not integer?(k)
-    nil
-  elsif truth and h == ">"
-    k + 1
-  elsif truth and member?(h, %w[>= equal?])
-    k
-  elsif not truth and h == "<"
-    k
-  elsif not truth and h == "<="
-    k + 1
-  elsif not truth and h == "equal?" and old == k
-    k + 1
-  end
-  if h == "and" and truth
-    reduce((c, x) -> cz_given(x, true, c), ctx, rest(cond))
-  elsif least.nil? or old != nil and old >= least
-    ctx
-  else
-    {**ctx, lb: append([[name, least]], ctx[:lb] or [])}
-  end
-end
-
-@doc """
-cz_sites: Every call of a definition in `fns` inside `n`, with the facts that hold
-where it is made, as [callee, arguments, context].
-
-    count(cz_sites(first(cz_read("(if (< n 2) n (%root/f (- n 1)))")), ["%root/f"], {lb: []})) #=> 1
-"""
-def cz_sites(n, fns, ctx)
-  h = cz_head(n)
-  if not list?(n) or count(n) == 0
-    []
-  elsif h == "if"
-    c = second(n)
-    append(
-      cz_sites(c, fns, ctx),
-      cz_sites(third(n), fns, cz_given(c, true, ctx)),
-      if count(n) > 3
-        cz_sites(fourth(n), fns, cz_given(c, false, ctx))
-      else
-        []
-      end
-    )
-  else
-    own = if member?(h, fns)
-      [[h, rest(n), ctx]]
-    else
-      []
-    end
-    reduce((acc, a) -> append(acc, cz_sites(a, fns, ctx)), own, rest(n))
-  end
-end
-
-@doc """
-cz_nonneg: The Int parameters never below zero, as [definition, parameter]: the
-largest set such that, assuming it, every call anywhere passes each of them a
-value whose least is at least zero. It starts from every Int parameter and
-drops one that some call cannot vouch for, until nothing more drops; the
-set left is an inductive invariant, so it holds on every call.
-
-    cz_nonneg(cz_read("(define-typed (%root/f (n Int)) Int n)"), cz_read("(%root/f 3)"), {lb: []}) #=> [["%root/f", "n"]]
-"""
-def cz_nonneg(fn_forms, top, env)
-  fns = map((f) -> cz_sym(first(second(f))), fn_forms)
-  start = reduce(
-    fn(acc, f)
-      sig = second(f)
-      append(
-        acc,
-        map(
-          (p) -> [cz_sym(first(sig)), cz_sym(first(p))],
-          filter((p) -> cz_sym(second(p)) == "Int", rest(sig))
-        )
-      )
-    end,
-    [],
-    fn_forms
-  )
-  cz_nonneg_from(start, fn_forms, fns, top, env)
-end
-
-@doc """
-cz_nonneg_from: One step of cz_nonneg: of the pairs `held`, those every call site, read
-with `held` assumed, still vouches for; repeated until none drops.
-
-    cz_nonneg_from([["%root/f", "n"]], cz_read("(define-typed (%root/f (n Int)) Int n)"), ["%root/f"], cz_read("(%root/f (- 0 1))"), {lb: []}) #=> []
-"""
-def cz_nonneg_from(held, fn_forms, fns, top, env)
-  sites = append(
-    reduce(
-      fn(acc, f)
-        sig = second(f)
-        name = cz_sym(first(sig))
-        lb = append(
-          map(
-            (p) -> [cz_sym(first(p)), 0],
-            filter((p) -> member?([name, cz_sym(first(p))], held), rest(sig))
-          ),
-          env[:lb] or []
-        )
-        append(acc, cz_sites(fourth(f), fns, {**env, lb:}))
-      end,
-      [],
-      fn_forms
-    ),
-    reduce((acc, f) -> append(acc, cz_sites(f, fns, env)), [], top)
-  )
-  params_of = fn(g)
-    map(
-      (p) -> cz_sym(first(p)),
-      rest(second(find(fn_forms, (f) -> cz_sym(first(second(f))) == g)))
-    )
-  end
-  kept = filter(
-    fn(pair)
-      every?(
-        fn(site)
-          if first(site) != first(pair)
-            true
-          else
-            ps = params_of(first(pair))
-            i = find(range(count(ps)), (j) -> ps[j] == second(pair))
-            arg = second(site)[i]
-            b = cz_lb(arg, third(site))
-            b != nil and b >= 0
-          end
-        end,
-        sites
-      )
-    end,
-    held
-  )
-  if count(kept) == count(held)
-    held
-  else
-    cz_nonneg_from(kept, fn_forms, fns, top, env)
   end
 end
 
@@ -4220,23 +3713,23 @@ def cz_lower(forms, board)
   map(cz_check_use, pick(:use))
   if not empty?(pick(:untyped))
     cz_refuse(
-      "`#{cz_local(cz_sym(first(second(first(pick(:untyped))))))}` is untyped; the native position is restricted, so every definition is typed (constraint C4)"
+      "`#{cz_local(node_sym(first(second(first(pick(:untyped))))))}` is untyped; the native position is restricted, so every definition is typed (constraint C4)"
     )
   end
   fn_forms = pick(:fn)
   const_forms = pick(:const)
-  fns = map((f) -> cz_sym(first(second(f))), fn_forms)
-  consts = map((f) -> cz_sym(second(f)), const_forms)
-  bindings = map((f) -> cz_sym(second(f)), pick(:binding))
+  fns = map((f) -> node_sym(first(second(f))), fn_forms)
+  consts = map((f) -> node_sym(second(f)), const_forms)
+  bindings = map((f) -> node_sym(second(f)), pick(:binding))
   records = map(cz_record_of, pick(:record))
   strategies = map((f) -> cz_reclaim_of(f, fns), pick(:reclaim))
   heap = kb_hosted?(board)
-  lists = cz_mentions?(
-    filter((f) -> cz_head(f) != "use", forms),
+  lists = mentions?(
+    filter((f) -> node_head(f) != "use", forms),
     %w[list append List]
   )
-  strings = cz_mentions?(forms, ["Str"])
-  maps = cz_mentions?(forms, ["Map"])
+  strings = mentions?(forms, ["Str"])
+  maps = mentions?(forms, ["Map"])
   if maps and not heap
     cz_refuse(
       "a map needs a heap, and #{board[:name]} has none; maps compile for the host board"
@@ -4255,7 +3748,7 @@ def cz_lower(forms, board)
   sigs = map(
     fn(f)
       [
-        cz_sym(first(second(f))),
+        node_sym(first(second(f))),
         {
           params: map((p) -> cz_sig_ty(second(p), records), rest(second(f))),
           ret: cz_sig_ty(third(f), records)
@@ -4264,7 +3757,7 @@ def cz_lower(forms, board)
     end,
     fn_forms
   )
-  rec = cz_recursive(fn_forms, fns)
+  rec = recursive_defs(fn_forms, fns)
   if not empty?(rec) and board[:max_depth].nil?
     cz_refuse(
       "`#{cz_local(first(rec))}` calls itself again before it returns; #{board[:name]} declares no recursion depth bound (max_depth), so only a tail call to itself, a loop, compiles for it"
@@ -4296,11 +3789,11 @@ def cz_lower(forms, board)
   funs = env[:funs]
   const_lb = reduce(
     fn(acc, f)
-      v = cz_lb(third(f), {lb: acc})
+      v = least_of(third(f), {lb: acc})
       if v.nil?
         acc
       else
-        append(acc, [[cz_sym(second(f)), v]])
+        append(acc, [[node_sym(second(f)), v]])
       end
     end,
     [],
@@ -4310,7 +3803,7 @@ def cz_lower(forms, board)
     **env,
     lb: const_lb,
     nonneg: if word == 64
-      cz_nonneg(
+      nonneg_params(
         fn_forms,
         map(
           second,
@@ -4329,7 +3822,12 @@ def cz_lower(forms, board)
       fn(acc, f)
         append(
           acc,
-          [[cz_sym(second(f)), cz_ty(third(f), assoc(env_whole, :types, acc))]]
+          [
+            [
+              node_sym(second(f)),
+              cz_ty(third(f), assoc(env_whole, :types, acc))
+            ]
+          ]
         )
       end,
       [],
@@ -4421,7 +3919,7 @@ def cz_emit(path, board_name)
   if tree[:status] != 0
     cz_refuse("blue ast failed: #{tree[:stderr]}")
   end
-  cz_render(cz_lower(cz_read(tree[:stdout]), board))
+  cz_render(cz_lower(tree_read(tree[:stdout]), board))
 end
 
 # waive B0083: integration debt recorded 2026-11-16: the def image check (nix/native-defs.nix) runs it, no test of this file does
@@ -4680,12 +4178,12 @@ end
 cz_board_word?: Whether `n` names a word of the board (`kiban/…`): a definition that does
 reaches the outside world, so the native tier never answers its calls.
 
-    cz_board_word?(cz_read("(+ 1 (kiban/put_int 2))")) #=> true
-    cz_board_word?(cz_read("(+ 1 2)")) #=> false
+    cz_board_word?(tree_read("(+ 1 (kiban/put_int 2))")) #=> true
+    cz_board_word?(tree_read("(+ 1 2)")) #=> false
 """
 def cz_board_word?(n)
-  if cz_sym?(n)
-    starts_with?(cz_sym(n), "kiban/")
+  if node_sym?(n)
+    starts_with?(node_sym(n), "kiban/")
   elsif list?(n)
     any?(cz_board_word?, n)
   else
@@ -4748,7 +4246,7 @@ Float as its bits. Refused unless `key` takes and answers Ints, Bools and
 Floats and nothing in the slice reaches the board, the calls the native tier
 can answer.
 
-    cz_lower_def(cz_read("(define-typed (%root/sq (x Int)) Int (* x x))"), "%root/sq") != nil #=> true
+    cz_lower_def(tree_read("(define-typed (%root/sq (x Int)) Int (* x x))"), "%root/sq") != nil #=> true
 """
 def cz_lower_def(forms, key)
   if cz_board_word?(forms)
@@ -4756,14 +4254,17 @@ def cz_lower_def(forms, key)
       "`#{cz_local(key)}` reaches a board word; the native tier answers calls of definitions that reach nothing outside"
     )
   end
-  fn_forms = filter((f) -> cz_head(f) == "define-typed", forms)
-  form = find(fn_forms, (f) -> cz_sym(first(second(f))) == key)
+  fn_forms = filter((f) -> node_head(f) == "define-typed", forms)
+  form = find(fn_forms, (f) -> node_sym(first(second(f))) == key)
   if form.nil?
     cz_refuse(
       "`#{cz_local(key)}` is not a typed function of the slice; the native tier compiles functions"
     )
   end
-  records = map(cz_record_of, filter((f) -> cz_head(f) == "blue-record", forms))
+  records = map(
+    cz_record_of,
+    filter((f) -> node_head(f) == "blue-record", forms)
+  )
   types = append(
     map((p) -> cz_sig_ty(second(p), records), rest(second(form))),
     [cz_sig_ty(third(form), records)]
@@ -4776,16 +4277,16 @@ def cz_lower_def(forms, key)
       "`#{cz_local(key)}` takes or answers something other than an Int, a Bool, a Float, a Str, a list of Ints, a record or a list of records; the native tier's guard is one of those per argument"
     )
   end
-  if member?(:list, types) and cz_mentions?(forms, ["reclaim"])
+  if member?(:list, types) and mentions?(forms, ["reclaim"])
     cz_refuse(
       "`#{cz_local(key)}` holds its lists in a region; a list crosses the seam refcounted"
     )
   end
-  fns = map((f) -> cz_sym(first(second(f))), fn_forms)
+  fns = map((f) -> node_sym(first(second(f))), fn_forms)
   board = kb_board("host64")
   file = cz_lower(forms, board)
   n = count(rest(second(form)))
-  lead = if member?(key, cz_recursive(fn_forms, fns))
+  lead = if member?(key, recursive_defs(fn_forms, fns))
     [rs_path("io"), rs_u32(0)]
   else
     [rs_path("io")]
@@ -4857,7 +4358,7 @@ def cz_lower_def(forms, key)
       ],
       file[:items],
       cz_items_seam_fns(types, records),
-      [entry, call_fn, cz_shallow_fn(cz_recursive(fn_forms, fns) == [])]
+      [entry, call_fn, cz_shallow_fn(recursive_defs(fn_forms, fns) == [])]
     )
   }
 end
@@ -5166,7 +4667,7 @@ nil when chuuzou compiles it for the native tier.
     cz_def_native("(define-typed (%root/f (x Int)) Int (kiban/put_int x))", "%root/f") != nil #=> true
 """
 def cz_def_native(text, key)
-  cz_lower_def(cz_read(text), key)
+  cz_lower_def(tree_read(text), key)
   nil
 rescue :chuuzou as e
   e.message
@@ -5180,7 +4681,7 @@ once and calls in process (`def64/lib.rs`). Its Rust is emitted beside both
 in `out`.
 """
 def cz_def_image(slice, key, seam, out)
-  text = cz_render(cz_lower_def(cz_read(read_file(slice)), key))
+  text = cz_render(cz_lower_def(tree_read(read_file(slice)), key))
   mkdir_p(out)
   rs = path_join(out, "def.rs")
   write_file(rs, text)
@@ -5296,13 +4797,13 @@ end
 # ── Tests ─────────────────────────────────────────────────────────────────
 
 test "the reader reads the resolved tree's atoms and nesting"
-  forms = cz_read(join_lines(["(define %root/X 5)", "(f \"a b\" :k (g))"]))
+  forms = tree_read(join_lines(["(define %root/X 5)", "(f \"a b\" :k (g))"]))
   assert count(forms) == 2
   assert first(forms) == [{sym: "define"}, {sym: "%root/X"}, 5]
   assert second(forms) == [{sym: "f"}, {str: "a b"}, {kw: "k"}, [{sym: "g"}]]
-  assert cz_read("") == []
-  assert (cz_read("(a") rescue :refused) == :refused
-  assert (cz_read("a)") rescue :refused) == :refused
+  assert tree_read("") == []
+  assert (tree_read("(a") rescue :refused) == :refused
+  assert (tree_read("a)") rescue :refused) == :refused
 end
 
 @doc """
@@ -5331,7 +4832,7 @@ cz_test_lower: The resolved-tree `text` lowered for the board named `board_name`
     count(cz_test_lower("", "host64")[:items]) #=> 2
 """
 def cz_test_lower(text, board_name)
-  cz_lower(cz_read(text), kb_board(board_name))
+  cz_lower(tree_read(text), kb_board(board_name))
 end
 
 @doc """
@@ -5345,13 +4846,13 @@ end
 
 test "arithmetic lowers checked, and wrapping only where asked"
   ctx = cz_test_env(32)
-  e = cz_expr(first(cz_read("(+ a b)")), ctx)
+  e = cz_expr(first(tree_read("(+ a b)")), ctx)
   assert e[:func] == %w[kiban_io checked]
   assert first(e[:args])[:method] == "checked_add"
-  w = cz_expr(first(cz_read("(kiban/wrapping_add a b)")), ctx)
+  w = cz_expr(first(tree_read("(kiban/wrapping_add a b)")), ctx)
   assert w[:method] == "wrapping_add"
   assert (cz_expr(
-    first(cz_read("(kiban/wrapping_add a b)")),
+    first(tree_read("(kiban/wrapping_add a b)")),
     cz_test_env(64)
   ) rescue
     :refused) == :refused
@@ -5359,31 +4860,32 @@ end
 
 test "mod, inequality, and, or and integer division lower; a bare quotient is refused"
   ctx = cz_test_env(64)
-  m = cz_expr(first(cz_read("(mod a b)")), ctx)
+  m = cz_expr(first(tree_read("(mod a b)")), ctx)
   assert first(m[:args])[:method] == "checked_rem_euclid"
-  assert cz_expr(first(cz_read("(not= a b)")), ctx)[:op] == "ne"
+  assert cz_expr(first(tree_read("(not= a b)")), ctx)[:op] == "ne"
   assert get(
-    cz_expr(first(cz_read("(and (< a b) (> a b) (equal? a b))")), ctx),
+    cz_expr(first(tree_read("(and (< a b) (> a b) (equal? a b))")), ctx),
     :op
   ) == "and"
-  assert cz_expr(first(cz_read("(or (< a b) (> a b))")), ctx)[:op] == "or"
-  assert cz_expr(first(cz_read("(floor (/ a b))")), ctx)[:func] ==
+  assert cz_expr(first(tree_read("(or (< a b) (> a b))")), ctx)[:op] == "or"
+  assert cz_expr(first(tree_read("(floor (/ a b))")), ctx)[:func] ==
     %w[kiban_io floor_div]
   assert get(
-    first(cz_expr(first(cz_read("(floor (/ a b))")), cz_test_env(32))[:args]),
+    first(cz_expr(first(tree_read("(floor (/ a b))")), cz_test_env(32))[:args]),
     :method
   ) == "checked_div"
-  assert (cz_expr(first(cz_read("(/ a b)")), ctx) rescue :refused) == :refused
-  assert (cz_expr(first(cz_read("(floor a)")), ctx) rescue :refused) == :refused
+  assert (cz_expr(first(tree_read("(/ a b)")), ctx) rescue :refused) == :refused
+  assert (cz_expr(first(tree_read("(floor a)")), ctx) rescue :refused) ==
+    :refused
 end
 
 test "a remainder by a positive literal cannot fault, so it is the plain rem_euclid"
   ctx = cz_test_env(64)
-  plain = cz_expr(first(cz_read("(mod a 3)")), ctx)
+  plain = cz_expr(first(tree_read("(mod a 3)")), ctx)
   assert plain[:method] == "rem_euclid"
-  assert cz_expr(first(cz_read("(mod a 0)")), ctx)[:func] ==
+  assert cz_expr(first(tree_read("(mod a 0)")), ctx)[:func] ==
     %w[kiban_io checked]
-  assert cz_expr(first(cz_read("(mod a b)")), ctx)[:func] ==
+  assert cz_expr(first(tree_read("(mod a b)")), ctx)[:func] ==
     %w[kiban_io checked]
 end
 
@@ -5401,15 +4903,15 @@ end
 
 test "a call whose argument reaches the board binds its arguments first"
   ctx = assoc(cz_test_env(64), :fns, %w[%root/f %root/g])
-  nested = cz_expr(first(cz_read("(%root/f (%root/g a) b)")), ctx)
+  nested = cz_expr(first(tree_read("(%root/f (%root/g a) b)")), ctx)
   assert nested[:kind] == "block"
   stmts = nested[:block][:stmts]
   assert map((x) -> x[:name], butlast(stmts)) == %w[a_0 a_1]
   assert last(stmts)[:expr][:args] ==
     [rs_path("io"), rs_path("a_0"), rs_path("a_1")]
-  flat = cz_expr(first(cz_read("(%root/f a (+ b 1))")), ctx)
+  flat = cz_expr(first(tree_read("(%root/f a (+ b 1))")), ctx)
   assert flat[:kind] == "call"
-  mmio = cz_expr(first(cz_read("(kiban/mmio_write a 8 (%root/g b))")), ctx)
+  mmio = cz_expr(first(tree_read("(kiban/mmio_write a 8 (%root/g b))")), ctx)
   assert mmio[:kind] == "block"
 end
 
@@ -5417,7 +4919,7 @@ test "a tail self-call becomes a loop"
   env = assoc(cz_test_env(32), :fns, ["%root/down"])
   looped = cz_fn(
     first(
-      cz_read("(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (%root/down (- n 1))))")
+      tree_read("(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (%root/down (- n 1))))")
     ),
     env
   )
@@ -5426,7 +4928,7 @@ test "a tail self-call becomes a loop"
 end
 
 test "recursion is found through the call graph, tail self-calls aside"
-  forms = cz_read(
+  forms = tree_read(
     join_lines(
       [
         "(define-typed (%root/f (n Int)) Int (+ 1 (%root/f n)))",
@@ -5437,9 +4939,9 @@ test "recursion is found through the call graph, tail self-calls aside"
       ]
     )
   )
-  fns = map((f) -> cz_sym(first(second(f))), forms)
-  assert cz_recursive(forms, fns) == %w[%root/f %root/even %root/odd]
-  assert cz_recursive([], []) == []
+  fns = map((f) -> node_sym(first(second(f))), forms)
+  assert recursive_defs(forms, fns) == %w[%root/f %root/even %root/odd]
+  assert recursive_defs([], []) == []
 end
 
 test "a recursive definition takes its depth and runs under the board's bound"
@@ -5566,22 +5068,22 @@ end
 
 test "an if with no else is a statement where its value is dropped"
   s = cz_stmt(
-    first(cz_read("(if (< a b) (kiban/mmio_write a 8 b))")),
+    first(tree_read("(if (< a b) (kiban/mmio_write a 8 b))")),
     cz_test_env(64)
   )
   assert s[:kind] == "semi"
   assert s[:expr][:else_branch].nil?
-  assert (cz_expr(first(cz_read("(if (< a b) a)")), cz_test_env(64)) rescue
+  assert (cz_expr(first(tree_read("(if (< a b) a)")), cz_test_env(64)) rescue
     :refused) == :refused
 end
 
 test "outside the N0 subset is refused, naming the rule"
   board = kb_board("qemu-virt32")
-  assert (cz_lower(cz_read("(define (%root/f x) x)"), board) rescue :refused) ==
-    :refused
-  assert (cz_lower(cz_read("(use \"retsu\" (list :first))"), board) rescue
+  assert (cz_lower(tree_read("(define (%root/f x) x)"), board) rescue
     :refused) == :refused
-  assert (cz_lower(cz_read("(eval 1)"), board) rescue :refused) == :refused
+  assert (cz_lower(tree_read("(use \"retsu\" (list :first))"), board) rescue
+    :refused) == :refused
+  assert (cz_lower(tree_read("(eval 1)"), board) rescue :refused) == :refused
   assert (cz_lower([], {name: "wide", word: 16}) rescue :refused) == :refused
 end
 
@@ -5624,7 +5126,7 @@ end
 test "a definition that reaches only itself lowers for the native tier"
   slice = "(define-typed (%root/sq (x Int)) Int (* x x))"
   assert cz_def_native(slice, "%root/sq").nil?
-  assert cz_lower_def(cz_read(slice), "%root/sq") != nil
+  assert cz_lower_def(tree_read(slice), "%root/sq") != nil
 end
 
 test "the native tier refuses a key the slice does not define as a typed function"
@@ -5633,8 +5135,8 @@ test "the native tier refuses a key the slice does not define as a typed functio
 end
 
 test "a slice that names a board word is refused, and a plain one is not"
-  board = cz_read("(define-typed (%root/f (x Int)) Int (kiban/put_int x))")
-  plain = cz_read("(define-typed (%root/f (x Int)) Int (* x 2))")
+  board = tree_read("(define-typed (%root/f (x Int)) Int (kiban/put_int x))")
+  plain = tree_read("(define-typed (%root/f (x Int)) Int (* x 2))")
   assert cz_board_word?(board)
   assert not cz_board_word?(plain)
   assert contains?(
@@ -5711,12 +5213,12 @@ end
 
 test "a slice with no recursion is shallow, and one that recurses is not"
   sq = cz_lower_def(
-    cz_read("(define-typed (%root/sq (x Int)) Int (* x x))"),
+    tree_read("(define-typed (%root/sq (x Int)) Int (* x x))"),
     "%root/sq"
   )
   assert last(sq[:items]) == cz_shallow_fn(true)
   f = cz_lower_def(
-    cz_read("(define-typed (%root/f (n Int)) Int (if (< n 2) n (+ (%root/f (- n 1)) (%root/f (- n 2)))))"),
+    tree_read("(define-typed (%root/f (n Int)) Int (if (< n 2) n (+ (%root/f (- n 1)) (%root/f (- n 2)))))"),
     "%root/f"
   )
   assert last(f[:items]) == cz_shallow_fn(false)
@@ -5728,14 +5230,14 @@ test "a Float literal is its exact bits, and a Float definition compiles"
   assert cz_float_bits(-2.0) == -4_611_686_018_427_387_904
   assert cz_float_bits(0.0) == 0
   assert (cz_float_bits(to_float("1.0e-310")) rescue :refused) == :refused
-  assert cz_read("2.5") == [{flt: 2.5}]
+  assert tree_read("2.5") == [{flt: 2.5}]
   assert cz_float?({flt: 2.5}) and not cz_float?(2)
   assert rs_float(1.5)[:args] ==
     [{kind: "signed-int", value: 4_609_434_218_613_702_656, suffix: "i64"}]
   assert cz_flt(2, {word: 64}) ==
     rs_call(%w[kiban_io to_float], [rs_word(2, 64)])
   assert get(
-    cz_float_arith("*", "checked_mul", cz_read("2 3 0.5"), {word: 64})[:lhs],
+    cz_float_arith("*", "checked_mul", tree_read("2 3 0.5"), {word: 64})[:lhs],
     :args
   ) ==
     [
@@ -5799,7 +5301,7 @@ test "a Str definition compiles, its concat and length through the heap"
     "(define-typed (%root/t (a Str)) Str (concat a a))",
     "%root/t"
   ).nil?
-  lowered = cz_lower_def(cz_read(greet), "%root/greet")
+  lowered = cz_lower_def(tree_read(greet), "%root/greet")
   call = find(
     lowered[:items],
     (i) -> i[:kind] == "fn" and i[:item][:sig][:name] == "call"
@@ -5809,7 +5311,8 @@ test "a Str definition compiles, its concat and length through the heap"
     rs_method(rs_path("a"), "str", [])
   assert cz_value_result(rs_path("r"), :str, [])[:func] == %w[Value Str]
   assert cz_ref(1, {word: 64})[:expr] == rs_word(1, 64)
-  assert cz_concat(cz_read("\"a\" 5"), {word: 64})[:func] == %w[kiban_heap cat]
+  assert cz_concat(tree_read("\"a\" 5"), {word: 64})[:func] ==
+    %w[kiban_heap cat]
 end
 
 test "a Str is refused where the runtime cannot answer it"
@@ -5822,7 +5325,7 @@ test "a Str is refused where the runtime cannot answer it"
     "%root/o"
   ) != nil
   assert (cz_lower(
-    cz_read("(define-typed (%root/s (a Str)) Str a)"),
+    tree_read("(define-typed (%root/s (a Str)) Str a)"),
     kb_board("qemu-virt32")
   ) rescue
     :refused) == :refused
@@ -5850,7 +5353,9 @@ test "a record of Ints crosses the valued seam as its fields"
     "%root/f"
   ) != nil
   assert get(
-    cz_record_of(first(cz_read("(blue-record %root/p %root/p? (:x Int) :y)"))),
+    cz_record_of(
+      first(tree_read("(blue-record %root/p %root/p? (:x Int) :y)"))
+    ),
     :fields
   ) == %w[x y]
   pt = {name: "%root/pt", pred: "%root/pt?", fields: %w[x y]}
@@ -5863,26 +5368,26 @@ end
 
 test "a list only tested in a tail loop is a set built once before the loop"
   hits = "(define-typed (%root/hits (xs (List Int)) (n Int) (acc Int)) Int (if (equal? n 0) acc (%root/hits xs (- n 1) (if (member? (mod n 97) xs) (+ acc 1) acc))))"
-  tree = json_stringify(cz_lower_def(cz_read(hits), "%root/hits"))
+  tree = json_stringify(cz_lower_def(tree_read(hits), "%root/hits"))
   assert contains?(tree, "\"set_of\"")
   assert contains?(tree, "\"set_has\"")
   assert contains?(tree, "\"sp_xs\"")
   assert not contains?(tree, "\"rc_member\"")
   read = "(define-typed (%root/hits (xs (List Int)) (n Int) (acc Int)) Int (if (equal? n 0) (+ acc (count xs)) (%root/hits xs (- n 1) (if (member? (mod n 97) xs) (+ acc 1) acc))))"
-  scanned = json_stringify(cz_lower_def(cz_read(read), "%root/hits"))
+  scanned = json_stringify(cz_lower_def(tree_read(read), "%root/hits"))
   assert contains?(scanned, "\"rc_member\"")
   assert not contains?(scanned, "\"set_of\"")
-  body = third(rest(first(cz_read(hits))))
+  body = third(rest(first(tree_read(hits))))
   types = [["xs", :list], ["n", :word], ["acc", :word]]
   assert cz_sets(body, "%root/hits", types) == ["xs"]
   assert cz_tested_only?(
-    first(cz_read("(member? 1 xs)")),
+    first(tree_read("(member? 1 xs)")),
     "xs",
     "%root/hits",
     0
   )
   assert not cz_tested_only?(
-    first(cz_read("(count xs)")),
+    first(tree_read("(count xs)")),
     "xs",
     "%root/hits",
     0
@@ -5896,24 +5401,24 @@ end
 
 test "a list only popped in a tail loop is a queue whose rest moves its front"
   drain = "(define-typed (%root/drain (xs (List Int)) (acc Int)) Int (if (equal? (count xs) 0) acc (%root/drain (rest xs) (+ acc (first xs)))))"
-  tree = json_stringify(cz_lower_def(cz_read(drain), "%root/drain"))
+  tree = json_stringify(cz_lower_def(tree_read(drain), "%root/drain"))
   assert contains?(tree, "\"queue_of\"")
   assert contains?(tree, "\"q_rest\"")
   assert contains?(tree, "\"q_first\"")
   kept = "(define-typed (%root/drain (xs (List Int)) (acc Int)) Int (if (equal? (count xs) 0) (nth 0 xs) (%root/drain (rest xs) (+ acc (first xs)))))"
   assert contains?(cz_def_native(kept, "%root/drain"), "rest copies the list")
-  body = third(rest(first(cz_read(drain))))
+  body = third(rest(first(tree_read(drain))))
   assert cz_queues(body, "%root/drain", [["xs", :list], ["acc", :word]]) ==
     ["xs"]
-  assert cz_popped_only?(first(cz_read("(count xs)")), "xs", "%root/drain", 0)
+  assert cz_popped_only?(first(tree_read("(count xs)")), "xs", "%root/drain", 0)
   assert cz_pops?(
-    first(cz_read("(%root/drain (rest xs) 1)")),
+    first(tree_read("(%root/drain (rest xs) 1)")),
     "xs",
     "%root/drain",
     0
   )
   assert not cz_pops?(
-    first(cz_read("(%root/drain xs 1)")),
+    first(tree_read("(%root/drain xs 1)")),
     "xs",
     "%root/drain",
     0
@@ -5928,14 +5433,14 @@ test "a record of Bools and Floats holds each field in its own native form"
   assert cz_def_native(concat(rec, flip), "%root/f").nil?
   wrong = "(define-typed (%root/x (g g)) g (%root/g (blue-kwargs (blue-splice g) (hash-map :w 1))))"
   assert cz_def_native(concat(rec, wrong), "%root/x") != nil
-  g = cz_record_of(first(cz_read(rec)))
+  g = cz_record_of(first(tree_read(rec)))
   assert g[:types] == %i[bool float word]
   fields = first(cz_record_items([g], 64))[:fields]
   assert map((f) -> f[:ty], fields) ==
     [rs_ty("bool"), rs_ty("f64"), rs_ty("i64")]
   ctx = {types: [%w[a %root/g]], records: [g], params: ["a"]}
-  assert cz_ty(first(cz_read("(blue-field a :w)")), ctx) == :float
-  assert cz_ty(first(cz_read("(blue-field a :on)")), ctx) == :bool
+  assert cz_ty(first(tree_read("(blue-field a :w)")), ctx) == :float
+  assert cz_ty(first(tree_read("(blue-field a :on)")), ctx) == :bool
   arg = cz_value_arg(rs_path("a"), "%root/g", [g])
   w = second(last(arg[:block][:stmts])[:expr][:fields])[:value]
   assert w[:func] == %w[kiban_io float]
@@ -5951,7 +5456,7 @@ test "a record that holds a Str is cloned, not copied, and crosses the seam as i
   rec = "(blue-record %root/t %root/t? (:label Str) (:n Int)) "
   bump = "(define-typed (%root/b (t t) (d Int)) t (%root/t (blue-kwargs (blue-splice t) (hash-map :n (+ (blue-field t :n) d)))))"
   assert cz_def_native(concat(rec, bump), "%root/b").nil?
-  t = cz_record_of(first(cz_read(rec)))
+  t = cz_record_of(first(tree_read(rec)))
   assert t[:types] == %i[str word]
   assert cz_holds_counted?(t)
   assert cz_field_ty(t, "label") == :str
@@ -5982,10 +5487,10 @@ test "a record that holds a list of Ints is cloned, not copied, and its list cro
   rec = "(blue-record %root/b %root/b? (:xs (List Int)) (:n Int)) "
   grow = "(define-typed (%root/g (b b) (x Int)) b (%root/b (blue-kwargs (blue-splice b) (hash-map :xs (append (blue-field b :xs) (list x))))))"
   assert cz_def_native(concat(rec, grow), "%root/g").nil?
-  b = cz_record_of(first(cz_read(rec)))
+  b = cz_record_of(first(tree_read(rec)))
   assert b[:types] == %i[list word]
   assert cz_holds_counted?(b)
-  assert cz_field_kind(first(cz_read("(List Int)"))) == :list
+  assert field_kind(first(tree_read("(List Int)"))) == :list
   assert first(cz_record_items([b], 64))[:derives] == %w[Clone PartialEq]
   arg = cz_value_arg(rs_path("a"), "%root/b", [b])
   xs = first(last(arg[:block][:stmts])[:expr][:fields])[:value]
@@ -6001,15 +5506,15 @@ test "a map of Strs to Ints is a refcounted map: assoc puts, get reads, count co
   assert cz_def_native(fresh, "%root/f").nil?
   floats = "(define-typed (%root/g (m (Map Str Float))) Int 0)"
   assert cz_def_native(floats, "%root/g") != nil
-  assert cz_sig_ty(first(cz_read("(Map Str Int)")), []) == :map
+  assert cz_sig_ty(first(tree_read("(Map Str Int)")), []) == :map
   assert cz_rs_ty(:map, 64) == rs_ty("Map")
   assert cz_counted?(:map, [])
   assert cz_seam_kind(:map)[:variant] == "Map"
   ctx = {types: [["m", :map], ["k", :str]], params: %w[m k], word: 64}
-  assert cz_map_op?("assoc", cz_read("m k 1"), ctx)
-  got = cz_map_op("get", cz_read("m k"), ctx)
+  assert cz_map_op?("assoc", tree_read("m k 1"), ctx)
+  got = cz_map_op("get", tree_read("m k"), ctx)
   assert got[:func] == %w[kiban_heap map_get]
-  assert cz_ty(first(cz_read("(assoc m k 1)")), ctx) == :map
+  assert cz_ty(first(tree_read("(assoc m k 1)")), ctx) == :map
 end
 
 test "a list of records is a refcounted list of structs: built, appended, counted and read, and it crosses the seam"
@@ -6028,8 +5533,8 @@ test "a list of records is a refcounted list of structs: built, appended, counte
   assert contains?(cz_def_native(concat(rec, has), "%root/m"), "member?")
   mixed = "(blue-record %root/q %root/q? (:z Int)) (define-typed (%root/x (a p) (b q)) (List p) (list a b))"
   assert cz_def_native(concat(rec, mixed), "%root/x") != nil
-  p = cz_record_of(first(cz_read(rec)))
-  ty = cz_sig_ty(first(cz_read("(List p)")), [p])
+  p = cz_record_of(first(tree_read(rec)))
+  ty = cz_sig_ty(first(tree_read("(List p)")), [p])
   assert ty == {items: "%root/p"}
   assert cz_counted?(ty, [p])
   assert cz_rs_ty(ty, 64) == {ident: "Items", generics: [rs_ty("R_p")]}
@@ -6042,19 +5547,19 @@ test "a list of records is a refcounted list of structs: built, appended, counte
     heap: true,
     strategy: :refcount
   }
-  assert cz_ty(first(cz_read("(nth i ps)")), ctx) == "%root/p"
-  assert cz_ty(first(cz_read("(append ps ps)")), ctx) == ty
+  assert cz_ty(first(tree_read("(nth i ps)")), ctx) == "%root/p"
+  assert cz_ty(first(tree_read("(append ps ps)")), ctx) == ty
   assert cz_items_of("%root/p") == ty
   assert cz_items?(ty)
   assert not cz_items?(:list)
-  assert cz_items_op?("nth", cz_read("i ps"), ctx)
-  assert not cz_items_op?("nth", cz_read("ps i"), ctx)
-  assert cz_items_ty("first", cz_read("ps"), ctx) == "%root/p"
-  assert cz_items_ty("count", cz_read("ps"), ctx) == :word
+  assert cz_items_op?("nth", tree_read("i ps"), ctx)
+  assert not cz_items_op?("nth", tree_read("ps i"), ctx)
+  assert cz_items_ty("first", tree_read("ps"), ctx) == "%root/p"
+  assert cz_items_ty("count", tree_read("ps"), ctx) == :word
   assert cz_value_arg(rs_path("a"), ty, [p])[:func] == %w[kiban_heap items_in]
   assert cz_value_result(rs_path("r"), ty, [p])[:func] ==
     %w[kiban_heap items_out]
-  assert cz_items_op("count", cz_read("ps"), ctx)[:func] ==
+  assert cz_items_op("count", tree_read("ps"), ctx)[:func] ==
     %w[kiban_heap items_count]
   fns = cz_items_seam_fns([ty, ty, :word], [p])
   assert map((f) -> f[:item][:sig][:name], fns) == %w[seam_in_p seam_out_p]
@@ -6080,8 +5585,8 @@ test "a lambda written in place for map, filter or reduce is a loop over the lis
   assert cz_def_native(named, "%root/g") != nil
   floats = "(define-typed (%root/h (xs (List Int))) (List Int) (map (lambda (x) 1.5) xs))"
   assert cz_def_native(floats, "%root/h") != nil
-  assert cz_lambda?(first(cz_read("(lambda (x) x)")), 1)
-  assert not cz_lambda?(first(cz_read("(lambda (x) x)")), 2)
+  assert cz_lambda?(first(tree_read("(lambda (x) x)")), 1)
+  assert not cz_lambda?(first(tree_read("(lambda (x) x)")), 2)
   ctx = {
     types: [["xs", :list], ["k", :word]],
     params: %w[xs k],
@@ -6090,15 +5595,16 @@ test "a lambda written in place for map, filter or reduce is a loop over the lis
     heap: true,
     strategy: :refcount
   }
-  assert cz_inline_fn?("filter", cz_read("(lambda (x) (> x k)) xs"), ctx)
-  assert not cz_inline_fn?("filter", cz_read("(lambda (x) (> x k)) k"), ctx)
-  assert cz_inline_ty("reduce", cz_read("(lambda (a x) a) 0 xs"), ctx) == :word
+  assert cz_inline_fn?("filter", tree_read("(lambda (x) (> x k)) xs"), ctx)
+  assert not cz_inline_fn?("filter", tree_read("(lambda (x) (> x k)) k"), ctx)
+  assert cz_inline_ty("reduce", tree_read("(lambda (a x) a) 0 xs"), ctx) ==
+    :word
   assert cz_elem_ty({items: "%root/p"}) == "%root/p"
   assert cz_inline_scope([["x", :word]], ctx)[:loops] == 1
-  out = cz_inline_fn("map", cz_read("(lambda (x) (* x k)) xs"), ctx)
+  out = cz_inline_fn("map", tree_read("(lambda (x) (* x k)) xs"), ctx)
   assert contains?(to_s(out), "loop")
   arena = assoc(ctx, :strategy, :arena)
-  assert (cz_inline_fn("map", cz_read("(lambda (x) x) xs"), arena) rescue
+  assert (cz_inline_fn("map", tree_read("(lambda (x) x) xs"), arena) rescue
     :refused) == :refused
 end
 
@@ -6115,16 +5621,16 @@ test "a lambda held in a local is called in place or passed to map, filter or re
   assert cz_def_native(moved, "%root/m") != nil
   short = "(define-typed (%root/w (a Int)) Int (begin (define f (lambda (x y) (+ x y))) (f a)))"
   assert cz_def_native(short, "%root/w") != nil
-  lam = first(cz_read("(lambda (x) (< x 2))"))
+  lam = first(tree_read("(lambda (x) (< x 2))"))
   ctx = {lambdas: [["f", lam]], params: [], types: [], word: 64}
-  assert cz_lambda_local?(first(cz_read("(define f (lambda (x) x))")))
+  assert cz_lambda_local?(first(tree_read("(define f (lambda (x) x))")))
   assert cz_held({sym: "f"}, ctx) == lam
-  assert cz_unheld(cz_read("f xs"), ctx) == [lam, {sym: "xs"}]
-  assert cz_held_call?(first(cz_read("(f 1)")), ctx)
-  assert cz_held_bound(first(cz_read("(f 1)")), ctx) == [["x", :word]]
-  assert cz_held_call_ty(first(cz_read("(f 1)")), ctx) == :bool
-  assert cz_held_apply(first(cz_read("(f 1)")), ctx)[:kind] == "block"
-  assert cz_rebinds?(first(cz_read("(begin (define k 1))")), ["k"])
+  assert cz_unheld(tree_read("f xs"), ctx) == [lam, {sym: "xs"}]
+  assert cz_held_call?(first(tree_read("(f 1)")), ctx)
+  assert cz_held_bound(first(tree_read("(f 1)")), ctx) == [["x", :word]]
+  assert cz_held_call_ty(first(tree_read("(f 1)")), ctx) == :bool
+  assert cz_held_apply(first(tree_read("(f 1)")), ctx)[:kind] == "block"
+  assert cz_rebinds?(first(tree_read("(begin (define k 1))")), ["k"])
 end
 
 test "a lambda that leaves its definition is a variant of its type's enum, and a call through it that type's apply"
@@ -6147,18 +5653,20 @@ test "a lambda that leaves its definition is a variant of its type's enum, and a
     cz_def_native("#{wide} #{user}", "%root/use"),
     "a lambda of 2 parameters"
   )
-  assert cz_sig_ty(first(cz_read("(Fn (Fn Int -> Int) -> Int)")), []) ==
+  assert cz_sig_ty(first(tree_read("(Fn (Fn Int -> Int) -> Int)")), []) ==
     {fun: [{fun: [:word], ret: :word}], ret: :word}
   fty = {fun: [:word], ret: :word}
   assert cz_fun?(fty)
-  assert cz_fun_ty?(first(cz_read("(Fn -> Int)")))
-  assert cz_fun_of(first(cz_read("(Fn -> Bool)")), []) == {fun: [], ret: :bool}
+  assert cz_fun_ty?(first(tree_read("(Fn -> Int)")))
+  assert cz_fun_of(first(tree_read("(Fn -> Bool)")), []) ==
+    {fun: [], ret: :bool}
   assert cz_fun_name(fty) == "F_i_i"
-  assert count(cz_fun_tails(first(cz_read("(begin 1 (lambda (x) x))")), [])) ==
-    1
-  lam = first(cz_read("(lambda (x) (+ x k))"))
+  assert count(
+    cz_fun_tails(first(tree_read("(begin 1 (lambda (x) x))")), [])
+  ) == 1
+  lam = first(tree_read("(lambda (x) (+ x k))"))
   sigs = [["%root/ad", {params: [:word], ret: fty}]]
-  funs = cz_funs(cz_read(adder), sigs, {records: [], fns: [], word: 64})
+  funs = cz_funs(tree_read(adder), sigs, {records: [], fns: [], word: 64})
   assert first(funs)[:caps] == [["k", :word]]
   assert first(funs)[:name] == "L0"
   ctx = {
@@ -6170,10 +5678,10 @@ test "a lambda that leaves its definition is a variant of its type's enum, and a
   }
   assert cz_fun_site(lam, ctx)[:name] == "L0"
   assert cz_fun_value(cz_fun_site(lam, ctx), ctx)[:func] == %w[F_i_i L0]
-  assert cz_fun_args(first(cz_read("(g (lambda (x) x))")), [], []) == []
+  assert cz_fun_args(first(tree_read("(g (lambda (x) x))")), [], []) == []
   held = {params: ["f"], types: [["f", fty]], word: 64}
-  assert cz_fun_param?(first(cz_read("(f 1)")), held)
-  assert cz_fun_call(first(cz_read("(f 1)")), held)[:func] == ["apply_F_i_i"]
+  assert cz_fun_param?(first(tree_read("(f 1)")), held)
+  assert cz_fun_call(first(tree_read("(f 1)")), held)[:func] == ["apply_F_i_i"]
   items = cz_fun_items([fty], funs, {word: 64, records: []})
   assert first(items)[:variants] == [{name: "L0", elems: [rs_ty("i64")]}]
 end
@@ -6191,26 +5699,27 @@ test "a lambda that leaves its definition captures a local bound before it, by c
     ["%root/run", {params: [:word], ret: :word}]
   ]
   env = {records: [], fns: [], sigs:, word: 64}
-  funs = cz_funs(cz_read("#{tail} #{run}"), sigs, env)
+  funs = cz_funs(tree_read("#{tail} #{run}"), sigs, env)
   assert map((e) -> e[:caps], funs) ==
     [[["m", :word], ["on", :bool]], [["m", :word]]]
-  body = first(cz_read("(begin (define m 2) (define on true) m)"))
+  body = first(tree_read("(begin (define m 2) (define on true) m)"))
   assert count(cz_fun_leads(body, 3, [])) == 2
   assert cz_fun_leads(body, 1, []) == []
   scope = {types: [["m", :word], ["m", :bool]]}
-  assert cz_fun_caps(first(cz_read("(lambda (m) m)")), scope) == []
-  assert cz_fun_caps(first(cz_read("(lambda (x) m)")), scope) == [["m", :bool]]
+  assert cz_fun_caps(first(tree_read("(lambda (m) m)")), scope) == []
+  assert cz_fun_caps(first(tree_read("(lambda (x) m)")), scope) ==
+    [["m", :bool]]
   held = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (begin (define g (lambda (y) (+ y k))) (lambda (x) (g (g x)))))"
-  hfun = first(cz_funs(cz_read(held), [first(sigs)], env))
+  hfun = first(cz_funs(tree_read(held), [first(sigs)], env))
   assert hfun[:caps] == [["k", :word]]
   assert map(first, hfun[:held]) == ["g"]
   assert fun_held_lambdas(
-    first(cz_read("(lambda (x) x)")),
-    {lambdas: [["g", first(cz_read("(lambda (y) y)"))]], types: []}
+    first(tree_read("(lambda (x) x)")),
+    {lambdas: [["g", first(tree_read("(lambda (y) y)"))]], types: []}
   ) == []
   reason = fn(src)
     begin
-      cz_funs(cz_read(src), [first(sigs)], env)
+      cz_funs(tree_read(src), [first(sigs)], env)
       nil
     rescue :chuuzou as e
       e.message
@@ -6240,9 +5749,13 @@ test "a function value takes, answers and holds a Str, a list or a record, each 
     ["%root/lby", {params: [:list], ret: :word}]
   ]
   lenv = {records: [], fns: [], word: 64}
-  assert first(cz_funs(cz_read(lby), lsigs, lenv))[:caps] == [["xs", :list]]
+  assert first(cz_funs(tree_read(lby), lsigs, lenv))[:caps] == [["xs", :list]]
   refused = begin
-    cz_funs(cz_read(lby), lsigs, {**lenv, strategies: [["%root/lby", :arena]]})
+    cz_funs(
+      tree_read(lby),
+      lsigs,
+      {**lenv, strategies: [["%root/lby", :arena]]}
+    )
     nil
   rescue :chuuzou as e
     e.message
@@ -6252,7 +5765,7 @@ test "a function value takes, answers and holds a Str, a list or a record, each 
   assert cz_fun_name(sty) == "F_s_s"
   assert cz_fun_held?(:list)
   sigs = [["%root/suf", {params: [:str], ret: sty}]]
-  funs = cz_funs(cz_read(tail), sigs, {records: [], fns: [], word: 64})
+  funs = cz_funs(tree_read(tail), sigs, {records: [], fns: [], word: 64})
   assert first(funs)[:caps] == [["t", :str]]
   assert cz_fun_derives(funs) == ["Clone"]
   assert cz_fun_shared(first(funs)[:caps], third(first(funs)[:lam]), []) ==
@@ -6260,7 +5773,7 @@ test "a function value takes, answers and holds a Str, a list or a record, each 
   items = cz_fun_items([sty], funs, {word: 64, records: []})
   assert first(items)[:derives] == ["Clone"]
   call = cz_fun_call(
-    first(cz_read("(f s)")),
+    first(tree_read("(f s)")),
     {params: %w[f s], types: [["f", sty], ["s", :str]], word: 64}
   )
   assert second(call[:args])[:method] == "clone"
@@ -6287,13 +5800,13 @@ test "a function value takes, answers and holds a map, any record, a list of rec
   assert cz_fun_name({fun: [{items: "%root/pt"}], ret: :dyn}) == "F_lrpt_d"
   mty = {fun: [:map], ret: :word}
   msigs = [["%root/map_at", {params: [:str], ret: mty}]]
-  funs = cz_funs(cz_read(map_at), msigs, {records: [], fns: [], word: 64})
+  funs = cz_funs(tree_read(map_at), msigs, {records: [], fns: [], word: 64})
   assert first(funs)[:caps] == [["k", :str]]
   assert cz_fun_derives(funs) == ["Clone"]
   assert cz_counted?(mty, [])
   ity = {fun: [:word], ret: :word}
   held = cz_funs(
-    cz_read("(define-typed (%root/h (g (Fn Int -> Int))) (Fn Int -> Int) (lambda (x) (g (g x))))"),
+    tree_read("(define-typed (%root/h (g (Fn Int -> Int))) (Fn Int -> Int) (lambda (x) (g (g x))))"),
     [["%root/h", {params: [ity], ret: ity}]],
     {records: [], fns: [], word: 64}
   )
@@ -6312,7 +5825,7 @@ test "a function value takes, answers and holds a map, any record, a list of rec
   bare = [
     {
       ty: {fun: [:word], ret: :word},
-      lam: first(cz_read("(lambda (y) y)")),
+      lam: first(tree_read("(lambda (y) y)")),
       caps: [],
       name: "L0"
     }
@@ -6345,7 +5858,7 @@ test "a function value takes, answers and holds a map, any record, a list of rec
   site = {ty: {fun: [:word], ret: :word}, name: "L0", caps: [["k", :word]]}
   kctx = {params: ["k"], types: [["k", :word]], word: 64}
   assert cz_fun_value_held(site, kctx)[:func] == %w[F_i_i L0]
-  forms = cz_read("(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/up (x Int)) Int (%root/ap x)) (define-typed (%root/ap (x Int)) (Fn Int -> Int) (lambda (y) y))")
+  forms = tree_read("(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/up (x Int)) Int (%root/ap x)) (define-typed (%root/ap (x Int)) (Fn Int -> Int) (lambda (y) y))")
   isig = {params: [:word], ret: :word}
   fsig = {params: [:word], ret: {fun: [:word], ret: :word}}
   assert cz_fun_looping(
@@ -6369,7 +5882,7 @@ test "a lambda that leaves a lambda is a function value of its own, and a functi
   ity = {fun: [:word], ret: :word}
   cty = {fun: [:word], ret: ity}
   sigs = [["%root/curry", {params: [:word], ret: cty}]]
-  funs = cz_funs(cz_read(curry), sigs, {records: [], fns: [], word: 64})
+  funs = cz_funs(tree_read(curry), sigs, {records: [], fns: [], word: 64})
   assert map((e) -> [e[:ty], e[:caps]], funs) ==
     [[cty, [["k", :word]]], [ity, [["x", :word], ["k", :word]]]]
   assert second(funs)[:in] == first(funs)[:lam]
@@ -6395,11 +5908,11 @@ test "a lambda that leaves a lambda is a function value of its own, and a functi
     looping: [],
     outer: nil
   }
-  site = [first(cz_read("(lambda (x) (+ x k))")), ity, []]
+  site = [first(tree_read("(lambda (x) (+ x k))")), ity, []]
   assert fun_entry(site, at)[:caps] == [["k", :word]]
   assert count(fun_sites([site], at)) == 1
   fctx = {params: %w[f x], types: [["f", ity], ["x", :word]], fns: [], word: 64}
-  twice = cz_fun_call(first(cz_read("(f (f x))")), fctx)
+  twice = cz_fun_call(first(tree_read("(f (f x))")), fctx)
   assert twice[:kind] == "block"
   assert first(twice[:block][:stmts])[:name] == "a_0"
 end

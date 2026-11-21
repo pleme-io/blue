@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:85e30c3fe4a62a3566cbdf5d4776cc506b2eddffd7f7c3772e8f5e2212b92ba6",
+  "bluefile_b3": "b3:e747f7612f35b07f203f1cb3a522d43ddf4c1b53618d25b74dbf2106463f0dc7",
   "manifest": {
     "schema": 1,
     "name": "chuuzou",
     "version": "0.1.0",
     "needs": {
-      "kiban": "^0.1.0"
+      "kiban": "^0.1.0",
+      "kuzushi": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

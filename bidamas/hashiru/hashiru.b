@@ -8,7 +8,7 @@ This first code generator is the simplest correct one: every named value lives i
 
 use("kaaneru/erufu", [:executable])
 use("kikaigo", %i[assemble le64])
-use("kuzushi", %i[anf closure_convert head_is? perceus_program whole])
+use("kuzushi", %i[anf closure_convert head_is? perceus_program whole whole_in])
 use("retsu", %i[drop_n first flat_map index_of last rest slice take_n])
 use("shisutemu", %i[status_of stdout_of])
 
@@ -1936,7 +1936,26 @@ compile_whole: a program with global functions compiled through Perceus to a ref
     compile_whole(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_whole(form, mode)
-  executable(assemble(rc_whole(whole(bare_calls(form)), mode)), true)
+  compile_whole_in(form, mode, CONVENTION)
+end
+
+@doc """
+CONVENTION: the calling convention compile_whole asks kuzushi for (whole_in): :owned, where a callee owns and drops every argument, or :borrow, where a parameter the callee only reads is lent and the caller drops it after the call. Both are kept; this names the one the native column proved.
+
+    member?(CONVENTION, %i[owned borrow]) #=> true
+"""
+CONVENTION = :owned
+
+@doc """
+compile_whole_in: compile_whole under the calling convention named, :owned or :borrow.
+
+    compile_whole_in(read_forms("7")[0], :exit, :borrow)[0] #=> 127
+"""
+def compile_whole_in(form, mode, convention)
+  executable(
+    assemble(rc_whole(whole_in(bare_calls(form), convention), mode)),
+    true
+  )
 end
 
 @doc """
@@ -1986,6 +2005,33 @@ test "recursive programs give their value and free every block on x86-64", {
       RECURSIVE_PROGRAMS
     )
   end
+end
+
+test "lent, recursive programs give the value they give owned", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "b.out")
+        form = read_forms(p[0])[0]
+        write_bytes(path, compile_whole_in(form, :exit, :borrow))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      RECURSIVE_PROGRAMS
+    )
+  end
+end
+
+test "the convention is a setting: compile_whole compiles under CONVENTION, and a parameter only read compiles another way under :borrow than under :owned"
+  src = "(begin (define (big l) (> (length l) 2)) (big (list 1 2 3)))"
+  form = read_forms(src)[0]
+  assert member?(CONVENTION, %i[owned borrow])
+  assert compile_whole(form, :exit) == compile_whole_in(form, :exit, CONVENTION)
+  assert compile_whole_in(form, :exit, :borrow) !=
+    compile_whole_in(form, :exit, :owned)
 end
 
 test "a global function is a label called directly, its parameters from ARG_REGS"

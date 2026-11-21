@@ -90,8 +90,46 @@ the repo root and were read on 2026-11-17.
     the functions falls 1→0, 5→3, 10→4 and 6→4 (whole programs 6→5, 6→5, 13→9, 7→6), with the
     same values and nothing live; what remains is owned accumulators and the error checks'
     temporaries.
-  - *Not yet.* chuuzou's front passes moved in and timed over `chuuzou.b`; hashiru on the
-    borrowed convention, once the native column can prove it.
+  - *The front (2026-11-21), `bidamas/kuzushi/front`.* chuuzou's passes that make no Rust
+    moved into the IR front, a level of kuzushi that loads no other bidama, so a backend that
+    uses it keeps blue's own `first` and `rest`: the reader (`tree_read`, now blue's
+    `read_forms` turned into nodes; chuuzou's own character-folding reader is gone), names
+    (`node_sym`, `node_head`, `local_of`), records (`record_of`, `field_kind`), the type two
+    branches share (`join_ty`), read counts (`use_count`, `mentions?`), the call graph and
+    recursion (`tail_calls_self?`, `calls_in`, `reach_from`, `recursive_defs`), and ranges
+    (`least_of`, `given`, `call_sites`, `nonneg_params`, `nonneg_from`); `front` runs them all
+    over a resolved file. A front pass answers a fact, nil where there is none; chuuzou keeps
+    only its refusals (`cz_local`, `cz_record_of`, `cz_unify` wrap `local_of`, `record_of`,
+    `join_ty`) and is one backend, IR to Rust AST. Its corpus is unchanged
+    (`checks.native-corpus`, `checks.native-wasm`), and `checks.ir-conformance` holds at 138.
+    The new reader reads every resolved tree as the old one did (the native corpus, programs
+    and defs, kiban, chuuzou, kuzushi, hashiru), except a `'x` quote, which the old reader
+    took as the symbol `'` and `read_forms` reads as `(quote x)`; it appears only in test
+    forms, which chuuzou does not compile.
+  - *The front timed over `chuuzou.b` on the walker* (Apple M-series, release `blue`, the
+    resolved tree of `native/bidamas/chuuzou/chuuzou.b` at origin/main, 221 KB, 378 forms,
+    193 definitions, 56 recursive). Before, chuuzou's own passes: read 835 ms, call graph
+    and recursion 290 ms, read counts 10 ms, records and ranges 70 ms, 1.2 s in all. After,
+    kuzushi's front: read 18 ms, call graph and recursion 285 ms, read counts 10 ms, records
+    and ranges 75 ms; `front` as one call 375 ms. The reader is 46 times faster; the other
+    passes are the same code and cost the same.
+  - *hashiru's convention is a setting* (`CONVENTION`, `compile_whole_in(form, mode,
+    convention)`; `compile_whole` compiles under `CONVENTION`), and it stays `:owned`, because
+    the native column says no to `:borrow` yet. Measured on rio (x86-64 Linux, 2026-11-21,
+    `BLUE_CONFORMANCE_NATIVE=1`, 1136 rows, at be5a5e5d): `:owned` 133 rows pass, that commit's ledger (C3 has since raised it to 134, owned);
+    `:borrow` 116. The 17 rows that pass owned and fail borrowed: `canon.B0066.eval`,
+    `fold.value.int`, `fold.kind.keyword`, `fn.value`, `fn.method_call`,
+    `fusion.value.map_map`, `fusion.value.closure_over_a_local`, `host.rename_rm`,
+    `keywords.not_a_string`, `lists.index`, `lists.append`, `lists.reverse` (each runs past
+    45 s), `host.ls` (signal 11), `fn.tail_calls` (an error), and
+    `bind.local.recursion_keeps_each_frame`, `fn.pipe`, `unions.union_stays_a_free_name`
+    (a function value where the walker has a list). Nearly all pass a function or a list
+    through the prelude's `map`, `reduce`, `nth` or `append`: hashiru's code for a borrowed
+    parameter of a prelude function, or a lent argument held across a closure call, is the
+    likely gap. hashiru's own recursive programs give their values under `:borrow`, but one,
+    `sum` over `(first l)` and `(rest l)`, leaves a block live (its `:leaks` run exits 254);
+    whether the fault is there or in the inference is not yet found. The next step is to compile those 17 under
+    `:borrow` and fix hashiru until the column holds 133 or more, then flip `CONVENTION`.
 - **The core the IR must accept (measured 2026-11-18).** `blue ast --resolved` lowers all of
   blue to a small core. Over the four compiler sources (chuuzou, bpf, erufu, baito) the heads
   are `equal?` 2819, `list` 2766, `get` 2347, `define` 2079, `hash-map` 1263, `if` 745,

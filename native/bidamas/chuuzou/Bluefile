@@ -1,2 +1,3 @@
 package("chuuzou", "0.1.0")
 needs("kiban", "^0.1")
+needs("kuzushi", "^0.1")

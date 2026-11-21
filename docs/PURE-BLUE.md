@@ -84,7 +84,7 @@ and recompute this list from §7.
 3. **R6a** is done (JSON reader and writers, BLAKE3, SHA-256, SHA-512, each differential against its Rust word). Its exit, the json and hash rows passing natively, waits on the native backend (R4).
 4. **F1, the rest** (`pure-blue/front-tower-conformance.md` §F1): the parser in blue over `yomi::lex`, then `blue ast --tree-json` as the oracle and `checks.reader-differential`. The lexer landed and agrees over every `.b` file.
 5. **M2** is done: `blue explain --memory` and `--hints`, `local_reads`, and the language server serving the memory hints with live evaluation off and beside the value hints with it on.
-6. **C2, the rest** (§C2): cycle-through-cell first (measured: the VM's letrec ring, fixed in tatara by a closed-ring release; the C2 track doc has the shape), then `closes_at`, move vs copy, and `checks.no-leak` (I3) once `spec/leaks.baseline` is near empty.
+6. **C2, the rest** (§C2): `closes_at`, then move vs copy. Done: cycle-through-cell (the VM's letrec ring, an aliased compiled closure and a closure in a list only its frames hold, all released in tatara 0.4.26), and `checks.no-leak` (I3) on the walker and the VM with `spec/leaks.baseline` empty.
 7. **B3** (§B3): `checks.native-x64-corpus`.
 8. **R6c, the rest** (§R6): Nix parsing in blue, against rnix (`nix_parse`); YAML and XML are read in blue.
 9. **C3** (§C3), after R4's `put_int`: the `bluec` path in the benchmark.
@@ -94,7 +94,7 @@ Waiting on others' rungs: M3 (M1, C2), M4, M5, R5 (M4), R6b, R7, F2-F4, S1-S5, B
 In flight (2026-11-20, for the next session):
 
 - **Landed since 2026-11-19.** tatara-lisp-eval 0.4.24 (M3a early reuse, `Interpreter::on_release`, the closure-argument release) is published and blue requires it; dispatch empties its handlers on release, and the leak ledger fell from 49 to 21 entries. The leak sweep no longer measures into itself (`leaks()` marks its thread). The memo retires a definition on its keying time (`Policy::key_budget`), so recursion that passes a large value is no longer quadratic under `blue run`.
-- **C2 sweep.** `BLUE_CONFORMANCE_LEAKS=1` measures every value row on the walker and the VM against `spec/leaks.baseline` (record with `BLUE_CONFORMANCE_LEAKS_RECORD=1`; release build, stdin closed). 21 entries remain: processes, wire eviction, control.while and the lisp strategy/visitor forms.
+- **C2 sweep.** `BLUE_CONFORMANCE_LEAKS=1` measures every value row on the walker and the VM against `spec/leaks.baseline` (record with `BLUE_CONFORMANCE_LEAKS_RECORD=1`; release build, stdin closed). The ledger is empty since 12dc0db4 (1,148 row-runs, 0 leave bytes live), and `checks.no-leak` holds it there.
 - **F1.** `yomi::lex` agrees with the Rust lexer token for token over every `.b` file in the repo; the parser in blue is next.
 
 ## 2. Ground truth (measured 2026-11-17)

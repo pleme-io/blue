@@ -703,6 +703,18 @@
                 };
               };
             };
+
+          no-leak =
+            workspaceTests {
+              src = ./.;
+              name = "blue-no-leak";
+              config = {
+                runs = [ { args = [ "-p" "blue-lang-test" "--test" "conformance" ]; } ];
+                env = {
+                  BLUE_CONFORMANCE_LEAKS = "1";
+                };
+              };
+            };
         }
         // lib.optionalAttrs (system == "x86_64-linux") {
           conformance-three-way =

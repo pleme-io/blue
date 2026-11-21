@@ -166,3 +166,14 @@ fn a_wrong_password_a_bad_statement_and_a_closed_connection_raise() {
     ));
     assert!(closed.contains("closed"), "{closed}");
 }
+
+#[test]
+fn a_postgres_connection_counts_as_open_until_closed_or_its_run_ends() {
+    let Some(pg) = server() else { return };
+    let url = url_of("s3cret", pg.port);
+    let at = blue_lang_runtime::handles::open();
+    run(&format!("c = pg_connect(\"{url}\")\npg_close(c)\ntrue"));
+    assert_eq!(blue_lang_runtime::handles::open(), at, "closed by hand");
+    run(&format!("c = pg_connect(\"{url}\")\ntrue"));
+    assert_eq!(blue_lang_runtime::handles::open(), at, "left open");
+}

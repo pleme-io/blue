@@ -174,7 +174,7 @@ pub fn dial(host: &str, port: u16, timeout: Duration) -> Result<TcpStream, Strin
         .map_err(|(_, detail)| detail)
 }
 
-struct NatsConnection(Mutex<nats::Client>);
+struct NatsConnection(Mutex<nats::Client>, crate::handles::Counted);
 
 struct NatsSubscription {
     conn: Arc<NatsConnection>,
@@ -358,7 +358,10 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
             };
             let client = nats::Client::connect(&url, timeout)
                 .map_err(|e| EvalError::native_fn("nats_connect", format!("{url}: {e}"), span))?;
-            Ok(Value::Foreign(Arc::new(NatsConnection(Mutex::new(client)))))
+            Ok(Value::Foreign(Arc::new(NatsConnection(
+                Mutex::new(client),
+                crate::handles::Counted::opened(),
+            ))))
         },
     );
 
@@ -471,6 +474,7 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
                 c.close();
                 Ok(())
             })?;
+            conn.1.close();
             Ok(Value::Nil)
         },
     );
@@ -993,7 +997,7 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
     );
 }
 
-struct PgConnection(Mutex<Option<pg::Conn>>);
+struct PgConnection(Mutex<Option<pg::Conn>>, crate::handles::Counted);
 
 fn pg_conn(v: &Value, fname: &'static str, span: Span) -> Result<Arc<PgConnection>, EvalError> {
     if let Value::Foreign(any) = v {
@@ -1082,9 +1086,10 @@ fn install_pg<H: 'static>(interp: &mut Interpreter<H>) {
                     span,
                 )
             })?;
-            Ok(Value::Foreign(Arc::new(PgConnection(Mutex::new(Some(
-                conn,
-            ))))))
+            Ok(Value::Foreign(Arc::new(PgConnection(
+                Mutex::new(Some(conn)),
+                crate::handles::Counted::opened(),
+            ))))
         },
     );
 
@@ -1166,6 +1171,7 @@ fn install_pg<H: 'static>(interp: &mut Interpreter<H>) {
             if let Some(mut c) = guard.take() {
                 c.close();
             }
+            conn.1.close();
             Ok(Value::Nil)
         },
     );
@@ -1174,6 +1180,7 @@ fn install_pg<H: 'static>(interp: &mut Interpreter<H>) {
 struct RespConnection {
     client: Mutex<resp::Client>,
     timeout: Duration,
+    counted: crate::handles::Counted,
 }
 
 fn resp_conn(v: &Value, fname: &'static str, span: Span) -> Result<Arc<RespConnection>, EvalError> {
@@ -1307,6 +1314,7 @@ fn install_resp<H: 'static>(interp: &mut Interpreter<H>) {
             Ok(Value::Foreign(Arc::new(RespConnection {
                 client: Mutex::new(client),
                 timeout,
+                counted: crate::handles::Counted::opened(),
             })))
         },
     );
@@ -1373,6 +1381,7 @@ fn install_resp<H: 'static>(interp: &mut Interpreter<H>) {
                 c.close();
                 Ok(())
             })?;
+            conn.counted.close();
             Ok(Value::Nil)
         },
     );

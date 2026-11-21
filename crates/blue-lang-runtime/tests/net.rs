@@ -602,3 +602,16 @@ fn a_nil_timeout_is_measured_from_how_fast_the_host_answered_before() {
     server.join().expect("server");
     assert_eq!(strs(&v), ["200", "Keyword(:timed_out)", "Bool(true)"]);
 }
+
+#[test]
+fn a_nats_connection_counts_as_open_until_closed_or_its_run_ends() {
+    let Some(server) = start_server("counted", "") else {
+        return;
+    };
+    let url = s(&server.url());
+    let at = blue_lang_runtime::handles::open();
+    run(&format!("c = nats_connect({url})\nnats_close(c)\ntrue"));
+    assert_eq!(blue_lang_runtime::handles::open(), at, "closed by hand");
+    run(&format!("c = nats_connect({url})\ntrue"));
+    assert_eq!(blue_lang_runtime::handles::open(), at, "left open");
+}

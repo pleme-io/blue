@@ -169,3 +169,21 @@ fn eager_upgrade_rewrites_every_old_key_in_batches_keeping_ttls() {
         ]))
     );
 }
+
+#[test]
+fn a_resp_connection_counts_as_open_until_closed_or_its_run_ends() {
+    let Some(v) = peers::valkey(None) else {
+        return;
+    };
+    let at = blue_lang_runtime::handles::open();
+    ok(&format!(
+        "c = resp_connect(\"127.0.0.1\", {}, nil, false)\nresp_close(c)\ntrue",
+        v.port
+    ));
+    assert_eq!(blue_lang_runtime::handles::open(), at, "closed by hand");
+    ok(&format!(
+        "c = resp_connect(\"127.0.0.1\", {}, nil, false)\ntrue",
+        v.port
+    ));
+    assert_eq!(blue_lang_runtime::handles::open(), at, "left open");
+}

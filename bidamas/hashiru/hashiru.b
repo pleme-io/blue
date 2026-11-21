@@ -864,6 +864,13 @@ EMPTY: the empty list natively, a word no number (odd), no block (an address pas
 EMPTY = 6
 
 @doc """
+MAP_KIND: the block kind of a native map: [kind, count, size 4, its entries], the entries a list of [key, value] lists kept sorted by key (key_lt) with one per key, so two equal maps are equal entry by entry.
+
+    MAP_KIND #=> 7
+"""
+MAP_KIND = 7
+
+@doc """
 swap_word: the instructions that turn the word from in reg into to, leaving any other word as it is, with no branch: tmp (kept on the stack) holds whether reg is from, and r11 the difference. tmp must be rax, which set and movzx write, and reg must not be.
 
     length(swap_word("rbx", EMPTY, 0, "rax")) #=> 9
@@ -979,6 +986,21 @@ def rc_op(slots, op, args)
     )
   elsif op == "list"
     list_code(slots, args)
+  elsif op == "map_alist"
+    part_code(slots, args[0], 24)
+  elsif op == "map_wrap"
+    append(
+      tagged_atom(slots, args[0], "rcx"),
+      [
+        {op: "push", src: "rcx"},
+        {op: "mov", dst: "rdi", imm: 4},
+        {op: "call_label", label: "rt_alloc"},
+        {op: "mov", dst: "rcx", imm: MAP_KIND},
+        {op: "store", src: "rcx", base: "rax", disp: 0},
+        {op: "pop", dst: "rcx"},
+        {op: "store", src: "rcx", base: "rax", disp: 24}
+      ]
+    )
   elsif op == "first"
     part_code(slots, args[0], 24)
   elsif op == "rest"
@@ -2482,7 +2504,12 @@ PRELUDE = [
   "(define (any? f l) (if (equal? (length l) 0) false (if (f (first l)) true (any? f (rest l)))))",
   "(define (insert_string s l) (if (equal? (length l) 0) (list s) (if (string_lt s (first l)) (cons s l) (cons (first l) (insert_string s (rest l))))))",
   "(define (sort_strings l) (reduce (lambda (acc s) (insert_string s acc)) (list) l))",
-  "(define (list_drop n l) (if (< n 1) l (if (equal? (length l) 0) l (list_drop (- n 1) (rest l)))))"
+  "(define (list_drop n l) (if (< n 1) l (if (equal? (length l) 0) l (list_drop (- n 1) (rest l)))))",
+  "(define (key_lt a b) (if (integer? a) (if (integer? b) (< a b) true) (if (integer? b) false (if (string? a) (if (string? b) (string_lt a b) true) (if (string? b) false (string_lt a b))))))",
+  "(define (alist_put k v l) (if (equal? (length l) 0) (cons (list k v) (list)) (if (equal? (first (first l)) k) (cons (list k v) (rest l)) (if (key_lt k (first (first l))) (cons (list k v) l) (cons (first l) (alist_put k v (rest l)))))))",
+  "(define (alist_get l k) (if (equal? (length l) 0) nil (if (equal? (first (first l)) k) (first (rest (first l))) (alist_get (rest l) k))))",
+  "(define (map_get m k) (alist_get (map_alist m) k))",
+  "(define (map_put m k v) (map_wrap (alist_put k v (map_alist m))))"
 ]
 
 @doc """
@@ -2506,7 +2533,7 @@ compile_program: a program compiled with the prelude through Perceus to a refere
     compile_program(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_program(form, mode)
-  compile_whole(with_prelude(form), mode)
+  compile_whole(with_prelude(map_calls(form)), mode)
 end
 
 @doc """
@@ -2627,7 +2654,7 @@ RT_CONCAT = append(
 )
 
 @doc """
-RT_EQUAL: true (2) or false (0) for whether the values in rdi and rsi are equal: the same word is equal; two strings are equal when their bytes are; two lists are equal when their heads are equal and their tails are, element by element; anything else is compared by identity. Both values are only read.
+RT_EQUAL: true (2) or false (0) for whether the values in rdi and rsi are equal: the same word is equal; two strings are equal when their bytes are; two lists are equal when their heads are equal and their tails are, element by element; two maps are equal when their sorted entries are; anything else is compared by identity. Both values are only read.
 
     RT_EQUAL[0] #=> {op: "label", name: "rt_equal"}
 """
@@ -2651,6 +2678,12 @@ RT_EQUAL = [
   {op: "load", dst: "rcx", base: "rsi", disp: 0},
   {op: "cmp", dst: "rax", src: "rcx"},
   {op: "j", cond: "ne", label: "rt_equal_no"},
+  {op: "cmp", dst: "rax", imm: MAP_KIND},
+  {op: "j", cond: "ne", label: "rt_equal_not_map"},
+  {op: "load", dst: "rdi", base: "rdi", disp: 24},
+  {op: "load", dst: "rsi", base: "rsi", disp: 24},
+  {op: "jmp", label: "rt_equal"},
+  {op: "label", name: "rt_equal_not_map"},
   {op: "cmp", dst: "rax", imm: 0},
   {op: "j", cond: "e", label: "rt_equal_cells"},
   {op: "cmp", dst: "rax", imm: 1},
@@ -7112,6 +7145,80 @@ def show_escape(done)
 end
 
 @doc """
+SHOW_MAP: rt_show's map case, from rt_sh_map: { then each entry, a keyword key as its name and a colon, any other key shown and =>, then its value shown, between commas, then }.
+
+    SHOW_MAP[0] #=> {op: "label", name: "rt_sh_map"}
+"""
+SHOW_MAP = append(
+  *[
+    [
+      {op: "label", name: "rt_sh_map"},
+      {op: "load", dst: "rcx", base: "rdi", disp: 24},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rbp", disp: -24}
+    ],
+    put_text("{"),
+    [
+      {op: "label", name: "rt_sh_entry"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_sh_map_end"},
+      {op: "cmp", dst: "rcx", imm: EMPTY},
+      {op: "j", cond: "e", label: "rt_sh_map_end"},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sh_entry_first"}
+    ],
+    put_text(", "),
+    [
+      {op: "label", name: "rt_sh_entry_first"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "load", dst: "rcx", base: "rcx", disp: 24},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "load", dst: "rdi", base: "rcx", disp: 24},
+      {op: "mov", dst: "rax", src: "rdi"},
+      {op: "and", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sh_key_other"},
+      {op: "cmp", dst: "rdi", imm: 4096},
+      {op: "j", cond: "l", label: "rt_sh_key_other"},
+      {op: "load", dst: "rax", base: "rdi", disp: 0},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "ne", label: "rt_sh_key_other"},
+      {op: "mov", dst: "rsi", src: "rdi"},
+      {op: "load", dst: "rdx", base: "rsi", disp: 24},
+      {op: "add", dst: "rsi", imm: 32},
+      {op: "mov", dst: "rdi", imm: 1},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "syscall"}
+    ],
+    put_text(": "),
+    [
+      {op: "jmp", label: "rt_sh_value"},
+      {op: "label", name: "rt_sh_key_other"},
+      {op: "call_label", label: "rt_show"}
+    ],
+    put_text(" => "),
+    [
+      {op: "label", name: "rt_sh_value"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -32},
+      {op: "load", dst: "rcx", base: "rcx", disp: 32},
+      {op: "load", dst: "rdi", base: "rcx", disp: 24},
+      {op: "call_label", label: "rt_show"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "load", dst: "rcx", base: "rcx", disp: 32},
+      {op: "store", src: "rcx", base: "rbp", disp: -16},
+      {op: "jmp", label: "rt_sh_entry"},
+      {op: "label", name: "rt_sh_map_end"}
+    ],
+    put_text("}")
+  ]
+)
+
+@doc """
 RT_SHOW: a value written to standard output as blue writes its literal (to_s inside a list), the value in rdi borrowed: a number in decimal, nil, true, a string quoted with SHOW_ESCAPES, a keyword as :name, a list as [a, b] with each element shown in turn, an error as <error> and a function as <fn>. Natively false and the empty list are nil, so each shows as nil.
 
     RT_SHOW[0] #=> {op: "label", name: "rt_show"}
@@ -7167,11 +7274,15 @@ RT_SHOW = append(
       {op: "cmp", dst: "rax", imm: 2},
       {op: "j", cond: "e", label: "rt_sh_keyword"},
       {op: "cmp", dst: "rax", imm: 4},
-      {op: "j", cond: "e", label: "rt_sh_error"}
+      {op: "j", cond: "e", label: "rt_sh_error"},
+      {op: "cmp", dst: "rax", imm: MAP_KIND},
+      {op: "j", cond: "e", label: "rt_sh_map"}
     ],
     put_text("<fn>"),
     [{op: "jmp", label: "rt_sh_out"}, {op: "label", name: "rt_sh_error"}],
     put_text("<error>"),
+    [{op: "jmp", label: "rt_sh_out"}],
+    SHOW_MAP,
     [{op: "jmp", label: "rt_sh_out"}, {op: "label", name: "rt_sh_keyword"}],
     put_text(":"),
     [
@@ -9653,4 +9764,82 @@ test "the empty list is its own word natively, and a list still ends in 0 inside
   assert KIND_PREDICATES[3] == ["list?", [3, 9]]
   assert member?({op: "cmp", dst: "rdi", imm: EMPTY}, RT_SHOW)
   assert member?({op: "cmp", dst: "rdx", imm: EMPTY}, RT_LENGTH)
+end
+
+@doc """
+map_calls: a core form with its maps made native maps: a hash-map literal the prelude's map_put over an empty map, pair by pair (a later key replaces an earlier one), get the prelude's map_get, and assoc its map_put; compile_program applies it, as the words it calls are the prelude's.
+
+    map_calls(read_forms("(get m :a)")[0]) == read_forms("(map_get m :a)")[0] #=> true
+"""
+def map_calls(form)
+  if not list?(form) or length(form) == 0
+    form
+  else
+    parts = map(map_calls, rest(form))
+    if head_is?(form, "hash-map")
+      reduce(
+        (m, i) -> [read_forms("map_put")[0], m, parts[2 * i], parts[2 * i + 1]],
+        [read_forms("map_wrap")[0], [read_forms("list")[0]]],
+        range(0, floor(length(parts) / 2))
+      )
+    elsif head_is?(form, "get") and length(parts) == 2
+      cons(read_forms("map_get")[0], parts)
+    elsif head_is?(form, "assoc") and length(parts) == 3
+      cons(read_forms("map_put")[0], parts)
+    else
+      cons(map_calls(form[0]), parts)
+    end
+  end
+end
+
+@doc """
+map_programs: programs over native maps, in :show mode, with what each must write, as blue answers them.
+
+    length(map_programs) #=> 6
+"""
+def map_programs()
+  [
+    ["(hash-map :a 1 \"k\" 2)", "{\"k\" => 2, a: 1}"],
+    %w[(hash-map) {}],
+    ["(assoc (hash-map :a 1) :b 2)", "{a: 1, b: 2}"],
+    ["(assoc (hash-map :a 1) :a 9)", "{a: 9}"],
+    ["(equal? (hash-map :a 1 :b 2) (hash-map :b 2 :a 1))", "true"],
+    ["(list (get (hash-map :k 1) :k) (get (hash-map :k 1) :z))", "[1, nil]"]
+  ]
+end
+
+test "native maps sort, show and compare as blue does", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-map"), "map.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      map_programs
+    )
+  end
+end
+
+test "a map literal, get and assoc become the prelude's map words"
+  assert map_calls(read_forms("(hash-map :a 1)")[0]) ==
+    read_forms("(map_put (map_wrap (list)) :a 1)")[0]
+  assert map_calls(read_forms("(assoc m :a 1)")[0]) ==
+    read_forms("(map_put m :a 1)")[0]
+  assert map_calls(read_forms("(get m :a)")[0]) ==
+    read_forms("(map_get m :a)")[0]
+  assert map_calls(7) == 7
+  assert MAP_KIND == 7
+  assert SHOW_MAP[0] == {op: "label", name: "rt_sh_map"}
+  assert member?({op: "cmp", dst: "rax", imm: MAP_KIND}, RT_EQUAL)
+  assert member?(
+    {op: "store", src: "rcx", base: "rax", disp: 24},
+    rc_op([], "map_wrap", [1])
+  )
+  assert length(rc_op([], "map_alist", [1])) > 0
+  assert length(map_programs) == 6
 end

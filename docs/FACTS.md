@@ -489,8 +489,23 @@ Each wave lists defaults in the order their gain is known. Each default meets
     `checks.native-defs` "a function value that holds a function runs
     natively" (`doubled_twice` agrees with the interpreter; the `_up`
     artifact swapped in answers 7 where the interpreter answers 13).
-  - Not built: a lambda that leaves its definition while it reads a lambda
-    held in a local (`f = (x) -> …` then `(y) -> f(y)`).
+  - ✅ A function value that calls a lambda held in a local:
+    `wrap = (s) -> "#{t}#{s}#{t}"` then `(u) -> wrap(wrap(u))`. Its arm
+    inlines the held lambda where it is called, as a definition does, and
+    captures what the held lambda reads (`fun_held_lambdas`); a counted
+    name a held lambda reads is cloned at each read. Refused, named: a held
+    lambda bound twice, one that reads another, one that reads a name the
+    leaving lambda binds, and one that reads a name bound twice, since the
+    value it read where it was written may not be the one in scope at the
+    lambda. Locks: chuuzou 196 tests (the held-lambda test now reads each
+    refusal's text and the capture); `checks.native-defs` "a function value
+    calls a lambda held in a local natively" (`tagged` agrees with the
+    interpreter; the `_up` artifact swapped in answers `++ab++`).
+  - Not built: a record that only a signature names is not in its
+    definition's slice (above). The fix is in Rust (the def_hash's
+    dependencies, so an edit to the record moves the hash), and
+    `checks.purity-ledger` is red on main from another session's growth in
+    blue-lang-runtime, which `blue gen/purity.b record` would bank with it.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

@@ -879,13 +879,16 @@ def fun_entry(site, at)
       "a lambda that leaves its definition calls `#{cz_local(find(looping, (h) -> cz_mentions?(third(lam), [h])))}`, which reaches a definition that takes or answers a function; a call through a function value never loops back to one"
     )
   end
-  if cz_mentions?(
-    third(lam),
-    filter((h) -> not member?(h, own), map(first, scope[:lambdas] or []))
-  )
-    cz_refuse("a lambda that leaves its definition reads a lambda held in a local; a function value holds no function")
+  held = fun_held_lambdas(lam, scope)
+  if cz_mentions?(map(second, held), looping)
+    cz_refuse("a lambda that leaves its definition calls a lambda held in a local that reaches a definition taking or answering a function")
   end
-  caps = cz_fun_caps(lam, scope)
+  caps = distinct(
+    append(
+      cz_fun_caps(lam, scope),
+      flat_map(held, (p) -> cz_fun_caps(second(p), scope))
+    )
+  )
   if not every?((t) -> cz_fun_held?(second(t)) or cz_fun?(second(t)), caps)
     cz_refuse("a lambda that leaves its definition captures values and function values only")
   end
@@ -895,7 +898,55 @@ def fun_entry(site, at)
       "a lambda that leaves its definition holds or takes a list, and `#{cz_local(name)}` reclaims by arena; a function value holds a counted list only"
     )
   end
-  {def: name, lam:, ty:, caps:}
+  {def: name, lam:, ty:, caps:, held:}
+end
+
+@doc """
+fun_held_lambdas: The lambdas held in locals (`f = (x) -> …`) that the lambda `lam`
+calls, as `[name, lambda]`: its arm inlines each where it is called, as a
+definition does, and captures what each reads. Refused, named: a held
+lambda bound twice, one that reads another held lambda, one that reads a
+name `lam` binds itself, and one that reads a name bound twice, since then
+the value it read where it was written is not the one in scope here.
+
+    fun_held_lambdas(first(cz_read("(lambda (y) (f y))")), {lambdas: [["f", first(cz_read("(lambda (x) (* x k))"))]], types: [["k", :word]]}) #=> [["f", first(cz_read("(lambda (x) (* x k))"))]]
+    fun_held_lambdas(first(cz_read("(lambda (y) y)")), {lambdas: [], types: []}) #=> []
+"""
+def fun_held_lambdas(lam, scope)
+  own = map(cz_sym, second(lam))
+  lambdas = scope[:lambdas] or []
+  names = map(first, lambdas)
+  used = filter(
+    (p) -> not member?(first(p), own) and cz_mentions?(third(lam), [first(p)]),
+    lambdas
+  )
+  bound = map(first, scope[:types] or [])
+  map(
+    fn(p)
+      h = first(p)
+      reads = map(first, cz_fun_caps(second(p), scope))
+      if count(filter((x) -> x == h, names)) > 1
+        cz_refuse(
+          "a lambda that leaves its definition calls `#{h}`, a held lambda bound twice"
+        )
+      end
+      if cz_mentions?(third(second(p)), names)
+        cz_refuse(
+          "a lambda that leaves its definition calls `#{h}`, a held lambda that reads another"
+        )
+      end
+      if any?(
+        (x) -> member?(x, own) or count(filter((b) -> b == x, bound)) > 1,
+        reads
+      )
+        cz_refuse(
+          "a lambda that leaves its definition calls `#{h}`, a held lambda that reads a name bound again where it is called"
+        )
+      end
+      p
+    end,
+    used
+  )
 end
 
 @doc """
@@ -1104,9 +1155,24 @@ def cz_fun_items(tys, funs, env)
             self: nil,
             within: e[:lam],
             within_def: e[:def],
+            lambdas: e[:held] or [],
             params: map(first, bound),
             types: bound,
-            shared: cz_fun_shared(bound, third(e[:lam]), env[:records] or [])
+            shared: distinct(
+              append(
+                cz_fun_shared(bound, third(e[:lam]), env[:records] or []),
+                filter(
+                  fn(x)
+                    cz_counted?(cz_lookup(x, bound), env[:records] or []) and
+                      cz_mentions?(
+                        map((p) -> third(second(p)), e[:held] or []),
+                        [x]
+                      )
+                  end,
+                  map(first, bound)
+                )
+              )
+            )
           }
           lets = append(
             map(
@@ -6134,14 +6200,28 @@ test "a lambda that leaves its definition captures a local bound before it, by c
   scope = {types: [["m", :word], ["m", :bool]]}
   assert cz_fun_caps(first(cz_read("(lambda (m) m)")), scope) == []
   assert cz_fun_caps(first(cz_read("(lambda (x) m)")), scope) == [["m", :bool]]
-  held = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (begin (define g (lambda (y) (+ y k))) (lambda (x) (g x))))"
-  refused = begin
-    cz_funs(cz_read(held), [first(sigs)], env)
-    nil
-  rescue :chuuzou as e
-    e.message
+  held = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (begin (define g (lambda (y) (+ y k))) (lambda (x) (g (g x)))))"
+  hfun = first(cz_funs(cz_read(held), [first(sigs)], env))
+  assert hfun[:caps] == [["k", :word]]
+  assert map(first, hfun[:held]) == ["g"]
+  assert fun_held_lambdas(
+    first(cz_read("(lambda (x) x)")),
+    {lambdas: [["g", first(cz_read("(lambda (y) y)"))]], types: []}
+  ) == []
+  reason = fn(src)
+    begin
+      cz_funs(cz_read(src), [first(sigs)], env)
+      nil
+    rescue :chuuzou as e
+      e.message
+    end
   end
-  assert contains?(refused, "reads a lambda held in a local")
+  moved = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (begin (define g (lambda (y) (+ y k))) (define k 9) (lambda (x) (g x))))"
+  assert contains?(reason(moved), "bound again")
+  own = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (begin (define g (lambda (y) (+ y k))) (lambda (k) (g k))))"
+  assert contains?(reason(own), "bound again")
+  chain = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (begin (define g (lambda (y) (+ y k))) (define h (lambda (y) (g y))) (lambda (x) (h x))))"
+  assert contains?(reason(chain), "reads another")
 end
 
 test "a function value takes, answers and holds a Str, a list or a record, each by a clone, and an arena never lends it a list"

@@ -418,3 +418,16 @@ end
 def doubled_twice_up(x: Int, k: Int) -> Int
   apply_to(twice_of((y) -> y + k), x)
 end
+
+def tagger(t: Str) -> Fn(Str) -> Str
+  wrap = (s) -> "#{t}#{s}#{t}"
+  (u) -> wrap(wrap(u))
+end
+
+def tagged(s: Str) -> Str
+  apply_str(tagger("*"), s)
+end
+
+def tagged_up(s: Str) -> Str
+  apply_str(tagger("+"), s)
+end

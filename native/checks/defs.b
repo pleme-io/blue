@@ -562,3 +562,18 @@ test "a function value that holds a function runs natively", {
     swapped(work, "doubled_twice", "doubled_twice_up")
   ) == unlines(["7"])
 end
+
+test "a function value calls a lambda held in a local natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-held-local")
+  calls = [["tagged", ["ab"]], ["tagged", [""]]]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "tagged", ["ab"], off) == unlines(["**ab**"])
+  assert interpreted(
+    work,
+    "tagged",
+    ["ab"],
+    swapped(work, "tagged", "tagged_up")
+  ) == unlines(["++ab++"])
+end

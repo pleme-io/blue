@@ -327,6 +327,12 @@ const SNIPPETS: &[&str] = &[
 
 #[test]
 fn yomi_parse_agrees_with_the_rust_parser_on_every_snippet_of_the_slice() {
+    blue_lang_syntax::test_stack::run(
+        yomi_parse_agrees_with_the_rust_parser_on_every_snippet_of_the_slice_body,
+    );
+}
+
+fn yomi_parse_agrees_with_the_rust_parser_on_every_snippet_of_the_slice_body() {
     let mut program = reader();
     let mut differs = Vec::new();
     for src in SNIPPETS {
@@ -409,6 +415,10 @@ const REFUSED: &[&str] = &[
 
 #[test]
 fn yomi_parse_refuses_what_the_rust_parser_refuses() {
+    blue_lang_syntax::test_stack::run(yomi_parse_refuses_what_the_rust_parser_refuses_body);
+}
+
+fn yomi_parse_refuses_what_the_rust_parser_refuses_body() {
     let mut program = reader();
     let mut differs = Vec::new();
     for src in REFUSED {
@@ -429,6 +439,12 @@ fn yomi_parse_refuses_what_the_rust_parser_refuses() {
 /// count read identically end to end may only grow.
 #[test]
 fn yomi_parse_reads_a_corpus_file_identically_or_refuses_it() {
+    blue_lang_syntax::test_stack::run(
+        yomi_parse_reads_a_corpus_file_identically_or_refuses_it_body,
+    );
+}
+
+fn yomi_parse_reads_a_corpus_file_identically_or_refuses_it_body() {
     let mut program = reader();
     let mut files = Vec::new();
     for dir in ["spec", "bidamas", "gen", "crates"] {

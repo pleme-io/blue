@@ -110,3 +110,10 @@ row(
   closes_at(:end),
   host()
 )
+
+row(
+  "memory.closes_at.an_http_listener_left_open_closes_when_the_run_ends",
+  join_lines(["l = http_listen(\"127.0.0.1:0\")", "http_listener_port(l) > 0"]),
+  closes_at(:end),
+  host()
+)

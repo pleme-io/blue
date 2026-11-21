@@ -768,7 +768,7 @@ fn install_tcp<H: 'static>(interp: &mut Interpreter<H>) {
     );
 }
 
-struct HttpListener(serve::Listener);
+struct HttpListener(serve::Listener, crate::handles::Counted);
 
 #[cfg(unix)]
 impl std::os::fd::AsFd for HttpListener {
@@ -892,7 +892,10 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
             let options = listen_options(args.get(1), span)?;
             let l = serve::Listener::bind_with(&addr, options)
                 .map_err(|e| EvalError::native_fn("http_listen", e.to_string(), span))?;
-            Ok(Value::Foreign(Arc::new(HttpListener(l))))
+            Ok(Value::Foreign(Arc::new(HttpListener(
+                l,
+                crate::handles::Counted::opened(),
+            ))))
         },
     );
 

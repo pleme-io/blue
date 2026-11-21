@@ -186,7 +186,7 @@ Higher binding power binds tighter.
 | `line_break` | `line_break` | 0 | — | The one-character line-break string, "\n" (B0065). `newline` prints one. |
 | `replace` | `replace(s, from, to)` | 3 | — | Every occurrence of from replaced by to. |
 | `split` | `split(s, sep)` | 2 | — | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. Also defined by `happa` (`happa::split`): a file that lists it gets that one. |
-| `starts_with?` | `starts_with?(s, prefix)` | 2 | — | Whether s begins with prefix. |
+| `starts_with?` | `starts_with?(s, prefix)` | 2 | native | Whether s begins with prefix. |
 | `string` | `string(x)` | 1 | — | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
 | `text_bytes` | `text_bytes(s)` | 1 | — | The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes("é") is [195, 169]. |
 | `text_index` | `text_index(s, sub, from)` | 3 | — | The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it. |
@@ -400,7 +400,7 @@ Higher binding power binds tighter.
 | `rename_file` | `rename_file(from, to)` | 2 | native | Move a file, atomically on one filesystem: write a temporary beside to, then rename. |
 | `rm` | `rm(path)` | 1 | native | Delete a file; raises when it is absent. |
 | `rm_rf` | `rm_rf(path)` | 1 | native | Delete a file or a directory tree; nil when there is nothing. |
-| `temp_dir` | `temp_dir(label)` | 1 | — | A new, empty directory under TMPDIR named after label, owned by this run: removed when the run ends, however it ends. fairu's with_temp_dir(label, f) removes it when f returns. |
+| `temp_dir` | `temp_dir(label)` | 1 | native | A new, empty directory under TMPDIR named after label, owned by this run: removed when the run ends, however it ends. fairu's with_temp_dir(label, f) removes it when f returns. |
 | `walk_dir` | `walk_dir(root)` | 1 | native | Every file under root, as paths, in no fixed order: sort before comparing. |
 | `write_bytes` | `write_bytes(path, bytes)` | 2 | native | Write a byte list or string to path, replacing what is there. Nil. |
 | `write_file` | `write_file(path, text)` | 2 | native | Replace the file's contents with text; nil. |

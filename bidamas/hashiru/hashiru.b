@@ -1389,6 +1389,9 @@ def rc_op(slots, op, args)
       tagged_atom(slots, args[0], "rdi"),
       [
         {op: "sar1", dst: "rdi"},
+        {op: "push", src: "rdi"},
+        {op: "call_label", label: "rt_cleanup"},
+        {op: "pop", dst: "rdi"},
         {op: "mov", dst: "rax", imm: 60},
         {op: "syscall"}
       ]
@@ -1484,6 +1487,9 @@ def rc_gen(slots, term, into, n)
       [{op: "mov", dst: "rsp", src: "rbp"}, {op: "pop_rbp"}, {op: "ret"}]
     elsif into == :exit
       [
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_cleanup"},
+        {op: "pop", dst: "rax"},
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "sar1", dst: "rdi"},
         {op: "mov", dst: "rax", imm: 60},
@@ -1491,6 +1497,9 @@ def rc_gen(slots, term, into, n)
       ]
     elsif into == :show
       [
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_cleanup"},
+        {op: "pop", dst: "rax"},
         {op: "push", src: "rax"},
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "call_label", label: "rt_show"},
@@ -1502,6 +1511,9 @@ def rc_gen(slots, term, into, n)
       ]
     elsif into == :run
       [
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_cleanup"},
+        {op: "pop", dst: "rax"},
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "call_label", label: "rt_drop"},
         {op: "mov", dst: "rdi", imm: 0},
@@ -1510,6 +1522,9 @@ def rc_gen(slots, term, into, n)
       ]
     elsif into == :leaks
       [
+        {op: "push", src: "rax"},
+        {op: "call_label", label: "rt_cleanup"},
+        {op: "pop", dst: "rax"},
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "call_label", label: "rt_drop"},
         {op: "load", dst: "rdi", base: "r14", disp: 0},
@@ -1671,7 +1686,7 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 48}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 56}
       ],
       save_envp,
       save_argv,
@@ -2041,7 +2056,10 @@ def runtime()
       RT_LS_RAW,
       RT_STRING_LT,
       RT_TO_TEXT,
-      RT_FLOOR_DIV
+      RT_FLOOR_DIV,
+      RT_CLEANUP,
+      RT_REGISTER_TEMP,
+      RT_STARTS_WITH
     ]
   )
 end
@@ -2769,7 +2787,10 @@ PRELUDE = [
   "(define (rfc_doe doe era secs) (rfc_yoe doe (int_div (- (+ (- doe (int_div doe 1460)) (int_div doe 36524)) (int_div doe 146096)) 365) era secs))",
   "(define (rfc_civil z secs) (rfc_doe (- z (* (int_div z 146097) 146097)) (int_div z 146097) secs))",
   "(define (rfc3339 s) (rfc_civil (+ (int_div s 86400) 719468) (mod s 86400)))",
-  "(define (now_rfc3339) (rfc3339 (now)))"
+  "(define (now_rfc3339) (rfc3339 (now)))",
+  "(define (not= a b) (if (equal? a b) false true))",
+  "(define (temp_dir_made p) (begin (mkdir p) (register_temp p) p))",
+  "(define (temp_dir label) (temp_dir_made (path_join (getenv \"TMPDIR\" \"/tmp\") (concat (concat label \"-\") (to_s (first (u32s (random_bytes 4) 1)))))))"
 ]
 
 @doc """
@@ -8222,13 +8243,15 @@ HOST_OPS = [
   %w[random_bytes rt_random_bytes],
   %w[ls_raw rt_ls_raw],
   %w[string_lt rt_string_lt],
-  %w[int_div rt_floor_div]
+  %w[int_div rt_floor_div],
+  %w[register_temp rt_register_temp],
+  %w[starts_with? rt_starts_with]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 33
+    length(ROUTINE_OPS) #=> 35
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8405,7 +8428,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 33
+  assert length(ROUTINE_OPS) == 35
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -10843,4 +10866,165 @@ test "every listed primitive reaches rc_op, and native_names gathers the words"
   assert member?("walk_dir", native_names)
   assert member?("sh_exec", LOWERED_WORDS)
   assert native_names == sort_keyed((n) -> n, native_names)
+end
+
+@doc """
+TEMP_AT: where the program keeps the list of directories temp_dir made, as an offset from r14, which rt_cleanup removes as the program ends.
+
+    TEMP_AT #=> 560
+"""
+TEMP_AT = FREE_CLASSES * 8 + 48
+
+@doc """
+RT_REGISTER_TEMP: register_temp natively: the path in rdi (consumed) put at the head of the list at TEMP_AT, for rt_cleanup to remove; nil.
+
+    RT_REGISTER_TEMP[0] #=> {op: "label", name: "rt_register_temp"}
+"""
+RT_REGISTER_TEMP = [
+  {op: "label", name: "rt_register_temp"},
+  {op: "push", src: "rdi"},
+  {op: "mov", dst: "rdi", imm: 5},
+  {op: "call_label", label: "rt_alloc"},
+  {op: "mov", dst: "rcx", imm: 0},
+  {op: "store", src: "rcx", base: "rax", disp: 0},
+  {op: "pop", dst: "rcx"},
+  {op: "store", src: "rcx", base: "rax", disp: 24},
+  {op: "load", dst: "rcx", base: "r14", disp: TEMP_AT},
+  {op: "store", src: "rcx", base: "rax", disp: 32},
+  {op: "store", src: "rax", base: "r14", disp: TEMP_AT},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "ret"}
+]
+
+@doc """
+RT_CLEANUP: the directories temp_dir made, each removed with everything under it (rt_rm_rf) and its cell freed, as the program ends, however it ends (every exit calls it).
+
+    RT_CLEANUP[0] #=> {op: "label", name: "rt_cleanup"}
+"""
+RT_CLEANUP = [
+  {op: "label", name: "rt_cleanup"},
+  {op: "load", dst: "rdi", base: "r14", disp: TEMP_AT},
+  {op: "cmp", dst: "rdi", imm: 0},
+  {op: "j", cond: "e", label: "rt_cleanup_done"},
+  {op: "load", dst: "rcx", base: "rdi", disp: 32},
+  {op: "store", src: "rcx", base: "r14", disp: TEMP_AT},
+  {op: "load", dst: "rax", base: "rdi", disp: 24},
+  {op: "mov", dst: "rcx", imm: 0},
+  {op: "store", src: "rcx", base: "rdi", disp: 24},
+  {op: "store", src: "rcx", base: "rdi", disp: 32},
+  {op: "push", src: "rax"},
+  {op: "call_label", label: "rt_drop"},
+  {op: "pop", dst: "rdi"},
+  {op: "call_label", label: "rt_rm_rf"},
+  {op: "jmp", label: "rt_cleanup"},
+  {op: "label", name: "rt_cleanup_done"},
+  {op: "ret"}
+]
+
+@doc """
+RT_STARTS_WITH: starts_with? natively: true when the string in rdi begins with the string in rsi, byte by byte, else false; both consumed.
+
+    RT_STARTS_WITH[0] #=> {op: "label", name: "rt_starts_with"}
+"""
+RT_STARTS_WITH = frame_routine(
+  "rt_starts_with",
+  48,
+  [
+    {op: "store", src: "rdi", base: "rbp", disp: -8},
+    {op: "store", src: "rsi", base: "rbp", disp: -16},
+    {op: "mov", dst: "rcx", imm: FALSE},
+    {op: "store", src: "rcx", base: "rbp", disp: -40},
+    {op: "load", dst: "r8", base: "rdi", disp: 24},
+    {op: "load", dst: "r9", base: "rsi", disp: 24},
+    {op: "cmp", dst: "r9", src: "r8"},
+    {op: "j", cond: "g", label: "rt_sw_done"},
+    {op: "mov", dst: "r10", imm: 0},
+    {op: "label", name: "rt_sw_byte"},
+    {op: "cmp", dst: "r10", src: "r9"},
+    {op: "j", cond: "e", label: "rt_sw_yes"},
+    {op: "mov", dst: "rax", src: "rdi"},
+    {op: "add", dst: "rax", imm: 32},
+    {op: "add", dst: "rax", src: "r10"},
+    {op: "load_byte", dst: "rax", base: "rax"},
+    {op: "mov", dst: "rdx", src: "rsi"},
+    {op: "add", dst: "rdx", imm: 32},
+    {op: "add", dst: "rdx", src: "r10"},
+    {op: "load_byte", dst: "rdx", base: "rdx"},
+    {op: "cmp", dst: "rax", src: "rdx"},
+    {op: "j", cond: "ne", label: "rt_sw_done"},
+    {op: "add", dst: "r10", imm: 1},
+    {op: "jmp", label: "rt_sw_byte"},
+    {op: "label", name: "rt_sw_yes"},
+    {op: "mov", dst: "rcx", imm: 2},
+    {op: "store", src: "rcx", base: "rbp", disp: -40},
+    {op: "label", name: "rt_sw_done"},
+    {op: "load", dst: "rdi", base: "rbp", disp: -8},
+    {op: "call_label", label: "rt_drop"},
+    {op: "load", dst: "rdi", base: "rbp", disp: -16},
+    {op: "call_label", label: "rt_drop"}
+  ]
+)
+
+@doc """
+temp_programs: programs over temp_dir, starts_with? and not= natively, compiled with the prelude, in :show mode, with what each must write; the last writes whether the directory it made was gone once an earlier run ended.
+
+    length(temp_programs) #=> 3
+"""
+def temp_programs()
+  [
+    [
+      "(begin (define a (temp_dir \"hashiru-td\")) (define b (temp_dir \"hashiru-td\")) (list (not= a b) (is_dir? a) (ls a) (starts_with? (path_basename a) \"hashiru-td-\")))",
+      "[true, true, [], true]"
+    ],
+    [
+      "(list (starts_with? \"abc\" \"ab\") (starts_with? \"ab\" \"abc\"))",
+      "[true, false]"
+    ],
+    ["(list (not= 1 2) (not= 1 1))", "[true, false]"]
+  ]
+end
+
+test "temp_dir makes a fresh directory removed at exit, natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-temp"), "temp.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      temp_programs
+    )
+    write_bytes(
+      path,
+      compile_program(read_forms("(temp_dir \"hashiru-gone\")")[0], :show)
+    )
+    exec_capture("chmod", "+x", path)
+    made = stdout_of(exec_capture(path))
+    assert not path_exists(
+      join(drop(1, take(length(made) - 1, chars(made))), "")
+    )
+  end
+end
+
+test "the temp list is kept beside the stack floor and every exit cleans it"
+  assert TEMP_AT == FREE_CLASSES * 8 + 48
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_rm_rf],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  routines = append(*[RT_REGISTER_TEMP, RT_CLEANUP, RT_STARTS_WITH, stand_ins])
+  assert length(assemble(routines)) > 0
+  assert member?(
+    {op: "call_label", label: "rt_cleanup"},
+    rc_gen([], read_forms("(ret 3)")[0], :exit, 0)[0]
+  )
+  assert member?(
+    {op: "call_label", label: "rt_cleanup"},
+    rc_op([], "exit_with", [1])
+  )
+  assert length(temp_programs) == 3
 end

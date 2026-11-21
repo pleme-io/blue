@@ -10180,3 +10180,22 @@ test "rt_show writes to the descriptor at SHOW_FD_AT, which to_s points at a mem
   assert length(assemble(append(RT_TO_TEXT, stand_ins))) > 0
   assert length(text_programs) == 3
 end
+
+test "a board use is dropped, another refused; define-typed is erased", {
+  kind: :unit
+}
+  assert board_use?(read_forms("(use \"kiban\" (list :put_byte :put_int))")[0])
+  assert not board_use?(read_forms("(f 1)")[0])
+  reclaim = read_forms("(use \"kiban\" (list :reclaim))")[0]
+  assert (board_use?(reclaim) rescue :refused) == :refused
+  assert board_use?(read_forms("(use \"kiban\")")[0])
+  bare = read_forms("(define-typed f Int 1)")[0]
+  assert typed_erased(bare) == bare
+  mixed = read_forms("(define-typed (g n (m Int)) Int n)")[0]
+  assert typed_erased(mixed) == read_forms("(define (g n m) n)")[0]
+  short = read_forms("(define-typed (f n))")[0]
+  assert typed_erased(short) == short
+  assert typed_erased(read_forms("(define-typed (f (n Int)) Int n)")[0]) ==
+    read_forms("(define (f n) n)")[0]
+  assert typed_erased(read_forms("(f 1)")[0]) == read_forms("(f 1)")[0]
+end

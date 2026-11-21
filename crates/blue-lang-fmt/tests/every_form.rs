@@ -101,6 +101,7 @@ const FOUND: &[&str] = &[
     "[a, {b:}] = v\nb",
     "def f(r)\n  x = g(r)?\n  (x + 1)\nend",
     "def f(r)\n  case r\n  when [a, *_]\n    b = g(a)?\n    b\n  end\nend",
+    "quote\na |> begin\na\nrescue a\na = \"\\n\"\nend\nend",
 ];
 
 /// Every accepted source, formatted, parses back to the same tree.

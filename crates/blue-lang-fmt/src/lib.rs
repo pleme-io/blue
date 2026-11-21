@@ -85,7 +85,7 @@
 
 pub mod doc;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use blue_lang_syntax::{Comment, ParseError, Span, Spanned, SpannedForm, Token, TokenKind};
 use doc::{pretty, Doc};
@@ -291,6 +291,8 @@ struct Renderer<'s> {
     /// Every non-trivia token, in order: what "the keyword after this body"
     /// and "the token before this statement" are measured against.
     toks: Vec<Token>,
+    /// Inside a quote, where `"\n"` stays a string, so a probe reads there.
+    quoted: Cell<bool>,
 }
 
 /// One line-shaped thing in a laid-out sequence: an own-line comment, or an
@@ -322,6 +324,7 @@ impl<'s> Renderer<'s> {
             comments: Vec::new(),
             used: RefCell::new(Vec::new()),
             toks: Vec::new(),
+            quoted: Cell::new(false),
         }
     }
 
@@ -336,6 +339,7 @@ impl<'s> Renderer<'s> {
             used: RefCell::new(vec![false; comments.len()]),
             comments,
             toks,
+            quoted: Cell::new(false),
         })
     }
 
@@ -881,15 +885,18 @@ impl<'s> Renderer<'s> {
             // lists, and the formatter used to have no arm for them at all —
             // they fell through the catch-all and rendered as nothing.
             SpannedForm::Quasiquote(inner) => Doc::text("quote")
-                .concat(self.body(inner, self.closer(s), Doc::hardline()))
+                .concat(self.within(true, || self.body(inner, self.closer(s), Doc::hardline())))
                 .concat(Doc::hardline())
                 .concat(Doc::text("end")),
-            SpannedForm::Unquote(inner) => Doc::text("unquote(")
-                .concat(self.expr(inner, 0))
-                .concat(Doc::text(")")),
-            SpannedForm::UnquoteSplice(inner) => Doc::text("unquote_splice(")
-                .concat(self.expr(inner, 0))
-                .concat(Doc::text(")")),
+            SpannedForm::Unquote(x) | SpannedForm::UnquoteSplice(x) => {
+                Doc::text(if matches!(s.form, SpannedForm::Unquote(_)) {
+                    "unquote("
+                } else {
+                    "unquote_splice("
+                })
+                .concat(self.within(false, || self.expr(x, 0)))
+                .concat(Doc::text(")"))
+            }
             // `'x` has no blue surface syntax yet; render the tatara form so it
             // is visible rather than silently dropped.
             SpannedForm::Quote(inner) => Doc::text("'").concat(self.expr(inner, 0)),
@@ -978,14 +985,7 @@ impl<'s> Renderer<'s> {
                     && !(matches!(head, Some("and" | "or")) && items.len() == 3)
                     && !(head == Some("not") && items.len() == 2) =>
             {
-                let callee = Doc::text(head.unwrap_or("begin").to_string());
-                let (lo, hi) = if self.real(s.span) && self.real(items[0].span) {
-                    let (_, hi) = self.inside(s, b'(', b')');
-                    (items[0].span.end, hi)
-                } else {
-                    (0, 0)
-                };
-                return callee.concat(self.seq_of("(", ")", &items[1..], lo, hi));
+                return Doc::text(head.unwrap_or("begin").to_string()).concat(self.args(s, items));
             }
             // (define (name params...) body)
             Some("define") if items.len() == 3 && is_signature(&items[1]) => {
@@ -1129,17 +1129,8 @@ impl<'s> Renderer<'s> {
                     return self.chain(s, prec, false);
                 }
                 let (opening, closing) = self.paren_comments(s);
-                let mut open = Doc::text("(");
-                let mut lead = Doc::nil();
-                let mut trailed = false;
-                for c in opening {
-                    if !self.comments[c].own_line && !trailed {
-                        open = open.concat(self.trailing(c));
-                        trailed = true;
-                    } else {
-                        lead = lead.concat(self.own_line(c)).concat(Doc::hardline());
-                    }
-                }
+                let (trail, lead) = self.comments_at(opening);
+                let open = Doc::text("(").concat(trail);
                 let mut inner = lead.concat(self.chain(s, prec, true));
                 for c in closing {
                     if !self.comments[c].own_line {
@@ -1253,18 +1244,50 @@ impl<'s> Renderer<'s> {
         } else {
             callee
         };
+        callee.concat(self.args(s, items))
+    }
+
+    /// `(a, b)`, the arguments of a call, with the comments between them.
+    fn args(&self, s: &Spanned, items: &[Spanned]) -> Doc {
         let (lo, hi) = if self.real(s.span) && self.real(items[0].span) {
-            let (_, hi) = self.inside(s, b'(', b')');
-            (items[0].span.end, hi)
+            (items[0].span.end, self.inside(s, b'(', b')').1)
         } else {
             (0, 0)
         };
-        callee.concat(self.seq_of("(", ")", &items[1..], lo, hi))
+        self.seq_of("(", ")", &items[1..], lo, hi)
     }
 
     fn spells_back(&self, s: &Spanned, d: &Doc) -> bool {
-        blue_lang_syntax::parse_program(&flat_text(d))
-            .is_ok_and(|forms| forms.len() == 1 && forms[0] == s.to_sexp())
+        let (q, t) = (self.quoted.get(), flat_text(d));
+        let want = s.to_sexp();
+        blue_lang_syntax::parse_program(&if q { format!("quote\n{t}\nend") } else { t }).is_ok_and(
+            |f| match &f[..] {
+                [Sexp::Quasiquote(x)] if q => **x == want,
+                [x] => !q && *x == want,
+                _ => false,
+            },
+        )
+    }
+
+    /// The comments of a gap: the first on the line trails it, and each other
+    /// takes its own line before what follows.
+    fn comments_at(&self, gap: Vec<usize>) -> (Doc, Doc) {
+        let (mut trail, mut lead) = (Doc::nil(), Doc::nil());
+        for c in gap {
+            if self.comments[c].own_line || !matches!(trail, Doc::Nil) {
+                lead = lead.concat(self.own_line(c)).concat(Doc::hardline());
+            } else {
+                trail = self.trailing(c);
+            }
+        }
+        (trail, lead)
+    }
+
+    fn within<T>(&self, quoted: bool, build: impl FnOnce() -> T) -> T {
+        let outer = self.quoted.replace(quoted);
+        let out = build();
+        self.quoted.set(outer);
+        out
     }
 
     fn paren_comments(&self, s: &Spanned) -> (Vec<usize>, Vec<usize>) {
@@ -1360,16 +1383,8 @@ impl<'s> Renderer<'s> {
                 Vec::new()
             };
             commented |= !gap.is_empty();
-            let mut leading = Doc::nil();
-            let mut trailed = false;
-            for c in gap {
-                if !self.comments[c].own_line && !trailed {
-                    tail = tail.concat(self.trailing(c));
-                    trailed = true;
-                } else {
-                    leading = leading.concat(self.own_line(c)).concat(Doc::hardline());
-                }
-            }
+            let (trail, leading) = self.comments_at(gap);
+            tail = tail.concat(trail);
             let operand = self.operand(rhs, prec + 1);
             tail = tail
                 .concat(Doc::line())
@@ -1443,19 +1458,9 @@ impl<'s> Renderer<'s> {
                 } else {
                     Vec::new()
                 };
-                let mut tail = Doc::text(" rescue");
-                let mut leading = Doc::nil();
-                let mut trailed = false;
-                for c in gap {
-                    if !self.comments[c].own_line && !trailed {
-                        tail = tail.concat(self.trailing(c));
-                        trailed = true;
-                    } else {
-                        leading = leading.concat(self.own_line(c)).concat(Doc::hardline());
-                    }
-                }
+                let (trail, leading) = self.comments_at(gap);
                 let d = lhs
-                    .concat(tail)
+                    .concat(Doc::text(" rescue").concat(trail))
                     .concat(Doc::line().concat(leading).concat(rhs).nest(2))
                     .group();
                 return Some(parenthesize_below(d, min_prec, 0));

@@ -93,8 +93,7 @@ row(
 row(
   "fn.rest.only",
   join_lines(["def all(*xs)", "  xs", "end", "", "[all(), all(1, 2)]"]),
-  value("[[], [1, 2]]"),
-  pending("G25", "native")
+  value("[[], [1, 2]]")
 )
 
 row(
@@ -448,12 +447,7 @@ row(
   covers("builtin:filter")
 )
 
-row(
-  "fn.filter.empty",
-  "filter(fn(_x) false end, [1])",
-  value("[]"),
-  pending("G25", "native")
-)
+row("fn.filter.empty", "filter(fn(_x) false end, [1])", value("[]"))
 
 row(
   "fn.find",

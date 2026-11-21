@@ -8,7 +8,7 @@ row(
   covers("form:[1, \"a\"]")
 )
 
-row("lists.empty", "[]", value("[]"), pending("G25", "native"))
+row("lists.empty", "[]", value("[]"))
 row("lists.nested", "[[1], [2, [3]]]", value("[[1], [2, [3]]]"))
 row("lists.equality", "[1, 2] == [1.0, 2.0]", value("true"))
 
@@ -46,12 +46,7 @@ row(
 
 row("lists.append.none", "append()", value("[]"), covers("okite:D0011"))
 
-row(
-  "lists.append.empty",
-  "append([], [])",
-  value("[]"),
-  pending("G25", "native")
-)
+row("lists.append.empty", "append([], [])", value("[]"))
 
 row(
   "lists.butlast",
@@ -99,7 +94,7 @@ row(
 
 row("lists.drop", "drop(1, [1, 2, 3])", value("[2, 3]"), covers("builtin:drop"))
 
-row("lists.drop.all", "drop(1, [1])", value("[]"), pending("G25", "native"))
+row("lists.drop.all", "drop(1, [1])", value("[]"))
 row("lists.first", "first([7, 8])", value("7"), covers("builtin:first"))
 row("lists.first.empty", "first([])", fails(:eval, "car of empty list"))
 
@@ -198,13 +193,7 @@ row(
   covers("builtin:repeatedly")
 )
 
-row(
-  "lists.rest",
-  "rest([1])",
-  value("[]"),
-  covers("builtin:rest"),
-  pending("G25", "native")
-)
+row("lists.rest", "rest([1])", value("[]"), covers("builtin:rest"))
 
 row(
   "lists.reverse",
@@ -265,4 +254,4 @@ row(
   value("[\"a\", \"b\"]")
 )
 
-row("lists.words.empty", "%i[]", value("[]"), pending("G25", "native"))
+row("lists.words.empty", "%i[]", value("[]"))

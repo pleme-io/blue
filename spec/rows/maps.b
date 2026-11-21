@@ -41,7 +41,7 @@ row(
 
 row("maps.pun.unbound", "{missing:}", fails(:check, "B0001"))
 
-row("maps.empty", "{}", value("{}"), pending("G25", "native"))
+row("maps.empty", "{}", value("{}"), pending("G26", "native"))
 
 row(
   "maps.equality",

@@ -61,8 +61,7 @@ row(
 row(
   "fusion.empty.map_map",
   "map((x) -> x + 1, map((x) -> x * 2, []))",
-  value("[]"),
-  pending("G25", "native")
+  value("[]")
 )
 
 row(

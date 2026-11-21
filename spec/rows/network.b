@@ -153,8 +153,7 @@ row(
   "network.net_wait.nothing_ready_is_empty",
   join_lines(["l = tcp_listen(\"127.0.0.1:0\")", "net_wait([[l, :read]], 0)"]),
   value("[]"),
-  host(),
-  pending("G25", "native")
+  host()
 )
 
 row(

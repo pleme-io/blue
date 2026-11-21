@@ -857,6 +857,47 @@ FALSE: false natively, a word no number (odd) and no block (an address past 4096
 FALSE = 4
 
 @doc """
+EMPTY: the empty list natively, a word no number (odd), no block (an address past 4096), nil (0), true (2) or false (FALSE) can be, so [] is not nil. Inside a list the last tail stays 0, so a walker stops where it always did; EMPTY is the value of a list with no element, which (list), a rest that reaches the end and a routine that built nothing answer.
+
+    EMPTY #=> 6
+"""
+EMPTY = 6
+
+@doc """
+swap_word: the instructions that turn the word from in reg into to, leaving any other word as it is, with no branch: tmp (kept on the stack) holds whether reg is from, and r11 the difference. tmp must be rax, which set and movzx write, and reg must not be.
+
+    length(swap_word("rbx", EMPTY, 0, "rax")) #=> 9
+"""
+def swap_word(reg, from, to, tmp)
+  [
+    {op: "push", src: tmp},
+    {op: "mov", dst: tmp, src: reg},
+    {op: "cmp", dst: tmp, imm: from},
+    {op: "set", cond: "e"},
+    {op: "movzx"},
+    {op: "mov", dst: "r11", imm: to - from},
+    {op: "imul", dst: tmp, src: "r11"},
+    {op: "add", dst: reg, src: tmp},
+    {op: "pop", dst: tmp}
+  ]
+end
+
+@doc """
+empty_when_none: the instructions that turn a list a routine built at rbp+slot into EMPTY when it built nothing (it is still 0).
+
+    length(empty_when_none(-40)) #=> 11
+"""
+def empty_when_none(slot)
+  append(
+    *[
+      [{op: "load", dst: "rcx", base: "rbp", disp: slot}],
+      swap_word("rcx", 0, EMPTY, "rax"),
+      [{op: "store", src: "rcx", base: "rbp", disp: slot}]
+    ]
+  )
+end
+
+@doc """
 AS_BOOLEAN: the instructions that turn a runtime answer of 2 or 0 in rax into blue's true (2) or false (FALSE), as 4 - rax.
 
     length(AS_BOOLEAN) #=> 3
@@ -941,7 +982,14 @@ def rc_op(slots, op, args)
   elsif op == "first"
     part_code(slots, args[0], 24)
   elsif op == "rest"
-    part_code(slots, args[0], 32)
+    append(
+      *[
+        part_code(slots, args[0], 32),
+        [{op: "mov", dst: "rdx", src: "rax"}],
+        swap_word("rdx", 0, EMPTY, "rax"),
+        [{op: "mov", dst: "rax", src: "rdx"}]
+      ]
+    )
   elsif op == "raise"
     append(
       [{op: "push", src: "rbx"}],
@@ -1049,6 +1097,7 @@ def rc_op(slots, op, args)
         list_code(slots, rest(args)),
         [{op: "mov", dst: "rdi", src: "rax"}],
         tagged_atom(slots, args[0], "r8"),
+        swap_word("r8", EMPTY, 0, "rax"),
         [
           {op: "mov", dst: "r9", imm: 0},
           {op: "lea_label", dst: "rsi", label: kw_label(:status)},
@@ -1511,6 +1560,7 @@ def cons_code(head, tail)
     *[
       [{op: "mov", dst: "rdi", imm: 5}, {op: "call_label", label: "rt_alloc"}],
       tail,
+      swap_word("rbx", EMPTY, 0, "rax"),
       [
         {op: "store", src: "rbx", base: "rax", disp: 32},
         {op: "push", src: "rax"}
@@ -1527,13 +1577,13 @@ def cons_code(head, tail)
 end
 
 @doc """
-list_code: a list of atoms built from its last element to its first, each a cons onto the list so far, which stays in rbx; the empty list is 0.
+list_code: a list of atoms built from its last element to its first, each a cons onto the list so far, which stays in rbx; the last tail is 0, and a list of no atom is EMPTY.
 
-    list_code([], []) #=> [{op: "mov", dst: "rax", imm: 0}]
+    list_code([], []) #=> [{op: "mov", dst: "rax", imm: EMPTY}]
 """
 def list_code(slots, args)
   if length(args) == 0
-    [{op: "mov", dst: "rax", imm: 0}]
+    [{op: "mov", dst: "rax", imm: EMPTY}]
   else
     append(
       [{op: "mov", dst: "rbx", imm: 0}],
@@ -1583,6 +1633,8 @@ RT_LENGTH = [
   {op: "label", name: "rt_length_loop"},
   {op: "cmp", dst: "rdx", imm: 0},
   {op: "j", cond: "e", label: "rt_length_out"},
+  {op: "cmp", dst: "rdx", imm: EMPTY},
+  {op: "j", cond: "e", label: "rt_length_out"},
   {op: "add", dst: "rax", imm: 2},
   {op: "load", dst: "rdx", base: "rdx", disp: 32},
   {op: "jmp", label: "rt_length_loop"},
@@ -1625,7 +1677,7 @@ test "list programs give their value and free every cell on x86-64", {
 end
 
 test "lists are cons cells built from the end, and a part keeps its own reference"
-  assert list_code([], []) == [{op: "mov", dst: "rax", imm: 0}]
+  assert list_code([], [])[0][:imm] == EMPTY
   assert list_code([], [1])[0] == {op: "mov", dst: "rbx", imm: 0}
   assert cons_code([], [])[1] == {op: "call_label", label: "rt_alloc"}
   p = part_code([], 1, 32)
@@ -6470,7 +6522,7 @@ RT_TCP_READ = append(
       {op: "syscall"},
       {op: "cmp", dst: "rax", imm: 0},
       {op: "j", cond: "g", label: "rt_tr_build"},
-      {op: "j", cond: "l", label: "rt_tr_out"},
+      {op: "j", cond: "l", label: "rt_tr_none"},
       {op: "load", dst: "rcx", base: "rbp", disp: -8},
       {op: "load", dst: "rdi", base: "rcx", disp: 24},
       {op: "sar1", dst: "rdi"},
@@ -6479,6 +6531,10 @@ RT_TCP_READ = append(
       {op: "load", dst: "rcx", base: "rbp", disp: -8},
       {op: "mov", dst: "rax", imm: -1},
       {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "jmp", label: "rt_tr_out"},
+      {op: "label", name: "rt_tr_none"},
+      {op: "mov", dst: "rcx", imm: EMPTY},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
       {op: "jmp", label: "rt_tr_out"},
       {op: "label", name: "rt_tr_build"},
       {op: "store", src: "rax", base: "rbp", disp: -32},
@@ -6523,6 +6579,8 @@ RT_TCP_WRITE = [
   {op: "j", cond: "l", label: "rt_tw_out"},
   {op: "store", src: "rcx", base: "rbp", disp: -32},
   {op: "cmp", dst: "rsi", imm: 0},
+  {op: "j", cond: "e", label: "rt_tw_out"},
+  {op: "cmp", dst: "rsi", imm: EMPTY},
   {op: "j", cond: "e", label: "rt_tw_out"},
   {op: "load", dst: "rax", base: "rsi", disp: 0},
   {op: "cmp", dst: "rax", imm: 1},
@@ -6750,7 +6808,10 @@ RT_NET_WAIT = append(
       {op: "label", name: "rt_net_wait"},
       {op: "push_rbp"},
       {op: "mov", dst: "rbp", src: "rsp"},
-      {op: "sub", dst: "rsp", imm: 144},
+      {op: "sub", dst: "rsp", imm: 144}
+    ],
+    swap_word("rdi", EMPTY, 0, "rax"),
+    [
       {op: "store", src: "rdi", base: "rbp", disp: -8},
       {op: "store", src: "rdx", base: "rbp", disp: -112},
       {op: "store", src: "rcx", base: "rbp", disp: -120},
@@ -6896,9 +6957,9 @@ RT_NET_WAIT = append(
     net_pair(-112),
     [{op: "jmp", label: "rt_nw_answer"}, {op: "label", name: "rt_nw_closed"}],
     net_pair(-136),
+    [{op: "jmp", label: "rt_nw_answer"}, {op: "label", name: "rt_nw_out"}],
+    empty_when_none(-40),
     [
-      {op: "jmp", label: "rt_nw_answer"},
-      {op: "label", name: "rt_nw_out"},
       {op: "load", dst: "rdi", base: "rbp", disp: -24},
       {op: "call_label", label: "rt_drop"}
     ],
@@ -6919,7 +6980,7 @@ def wait_programs()
       0
     ],
     [
-      "(let ((l (tcp_listen \"127.0.0.1:0\"))) (if (equal? (net_wait (list (list l :read)) 50) nil) 0 1))",
+      "(let ((l (tcp_listen \"127.0.0.1:0\"))) (if (equal? (net_wait (list (list l :read)) 50) (list)) 0 1))",
       0
     ],
     [
@@ -7085,9 +7146,16 @@ RT_SHOW = append(
       {op: "jmp", label: "rt_sh_out"},
       {op: "label", name: "rt_sh_not_true"},
       {op: "cmp", dst: "rdi", imm: FALSE},
-      {op: "j", cond: "ne", label: "rt_sh_block"}
+      {op: "j", cond: "ne", label: "rt_sh_not_false"}
     ],
     put_text("false"),
+    [
+      {op: "jmp", label: "rt_sh_out"},
+      {op: "label", name: "rt_sh_not_false"},
+      {op: "cmp", dst: "rdi", imm: EMPTY},
+      {op: "j", cond: "ne", label: "rt_sh_block"}
+    ],
+    put_text("[]"),
     [
       {op: "jmp", label: "rt_sh_out"},
       {op: "label", name: "rt_sh_block"},
@@ -7390,6 +7458,9 @@ RT_KIND_OF = [
   {op: "mov", dst: "rax", imm: 8},
   {op: "cmp", dst: "rdi", imm: FALSE},
   {op: "j", cond: "e", label: "rt_ko_out"},
+  {op: "mov", dst: "rax", imm: 9},
+  {op: "cmp", dst: "rdi", imm: EMPTY},
+  {op: "j", cond: "e", label: "rt_ko_out"},
   {op: "mov", dst: "rax", src: "rdi"},
   {op: "and", dst: "rax", imm: 1},
   {op: "cmp", dst: "rax", imm: 0},
@@ -7424,7 +7495,7 @@ KIND_PREDICATES = [
   ["integer?", [1]],
   ["string?", [4]],
   ["keyword?", [5]],
-  ["list?", [0, 3]],
+  ["list?", [3, 9]],
   ["boolean?", [2, 8]],
   ["nil?", [0]]
 ]
@@ -7505,7 +7576,7 @@ end
 
 test "a type predicate asks rt_kind_of and sums its accepted kinds into a boolean"
   assert length(assemble(append(RT_KIND_OF, []))) > 0
-  assert KIND_PREDICATES[3] == ["list?", [0, 3]]
+  assert KIND_PREDICATES[3][0] == "list?"
   assert member?(
     {op: "call_label", label: "rt_kind_of"},
     rc_op([], "string?", ["a"])
@@ -8751,9 +8822,9 @@ RT_ARGV = frame_routine(
       ],
       env_value("rt_av"),
       cell(-40, -48, -48),
+      [{op: "jmp", label: "rt_av_next"}, {op: "label", name: "rt_av_done"}],
+      empty_when_none(-48),
       [
-        {op: "jmp", label: "rt_av_next"},
-        {op: "label", name: "rt_av_done"},
         {op: "load", dst: "rax", base: "rbp", disp: -48},
         {op: "store", src: "rax", base: "rbp", disp: -40}
       ]
@@ -8899,7 +8970,8 @@ RT_RANDOM_BYTES = frame_routine(
       [
         {op: "store", src: "rax", base: "rbp", disp: -40},
         {op: "label", name: "rt_rd_out"}
-      ]
+      ],
+      empty_when_none(-40)
     ]
   )
 )
@@ -9140,7 +9212,10 @@ RT_LS_RAW = frame_routine(
         {op: "label", name: "rt_lr_closed"},
         {op: "load", dst: "rdi", base: "rbp", disp: -16},
         {op: "mov", dst: "rax", imm: 3},
-        {op: "syscall"},
+        {op: "syscall"}
+      ],
+      empty_when_none(-48),
+      [
         {op: "load", dst: "rax", base: "rbp", disp: -48},
         {op: "store", src: "rax", base: "rbp", disp: -40},
         {op: "label", name: "rt_lr_out"},
@@ -9568,4 +9643,14 @@ test "a global checks the stack floor at its entry"
   g = rc_global({name: "f", params: [], body: read_forms("(ret 1)")[0]}, 0)[0]
   assert member?({op: "label", name: "g_f_deep_ok"}, g)
   assert length(deep_programs) == 1
+end
+
+test "the empty list is its own word natively, and a list still ends in 0 inside"
+  assert EMPTY == 6
+  assert list_code([], []) == [{op: "mov", dst: "rax", imm: EMPTY}]
+  assert length(swap_word("rbx", EMPTY, 0, "rax")) == 9
+  assert length(empty_when_none(-40)) == 11
+  assert KIND_PREDICATES[3] == ["list?", [3, 9]]
+  assert member?({op: "cmp", dst: "rdi", imm: EMPTY}, RT_SHOW)
+  assert member?({op: "cmp", dst: "rdx", imm: EMPTY}, RT_LENGTH)
 end

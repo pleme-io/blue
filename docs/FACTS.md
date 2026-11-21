@@ -701,6 +701,18 @@ Each wave lists defaults in the order their gain is known. Each default meets
   project's lock already holds its run to the join of what its reached
   definitions name (`unit` floors, SAFETY.md §4). Operator ruling,
   2026-11-19: D3 stands; W5.1 waits on D3's ratchet reaching zero.
+  The ratchet is built and is at zero in this repository: `blue census`
+  counts each `.b` script whose shebang names `blue` and no `--allow`, that
+  no Bluefile holds, and whose own forms (tests aside) or the definitions
+  they reach name a host capability (`census::undeclared_reach`, the walk
+  `blue lock`'s floors take). The census fails unless the count is
+  `census::UNDECLARED`; it refuses no script and changes no default. The
+  one script it found, `examples/00_script.b` (`argv`: environment), now
+  says `--allow environment`. Still open: the count over the other
+  repositories of the fleet, then the operator's flip. Lock:
+  `crates/blue-lang-cli/tests/census_undeclared.rs` (counted and named; a
+  reach through a loaded bidama counted, a pure call into it not; a
+  declared, pure, held or shebang-less file not counted).
 - ✅ A step and memory bound proposed from the profile ("this runs in 120 ms; hold
   it to 10 s"), applied only when the author accepts it (C9). `blue bounds
   FILE` runs the program once on the tree-walker, which counts every step,

@@ -1261,11 +1261,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     print!("{formatted}");
                 }
             }
-            Ok(if failed {
-                ExitCode::FAILURE
-            } else {
-                ExitCode::SUCCESS
-            })
+            Ok(exit(!failed))
         }
 
         Cmd::Ast {
@@ -1408,17 +1404,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         }
 
         Cmd::Naturalize { target, dir } => {
-            blue_lang_runtime::sys::set_program_args(vec![target, dir.display().to_string()]);
-            blue_lang_runtime::pipeline::run_in_surface(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(Path::new("crates/blue-lang-cli/blue/naturalize.b")),
-                    text: NATURALIZE,
-                },
-                blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-                None,
-            )?;
-            Ok(ExitCode::SUCCESS)
+            let args = vec![target, dir.display().to_string()];
+            embedded("naturalize.b", NATURALIZE, args).map(|_| ExitCode::SUCCESS)
         }
 
         Cmd::Doc {
@@ -1627,19 +1614,24 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     "blue census: {code} measured {measured}, ratchet {ratchet}: edit the row's ratchet to {measured} if the change is the intended one"
                 );
             }
+            let (n, held) = (c.undeclared.len(), census::UNDECLARED);
+            println!("D3    undeclared-host-script   measured {n:>5}  ratchet {held:>5}");
+            for (file, reach) in c.undeclared.iter().filter(|_| findings) {
+                println!("    {file}: {}", reach.join(", "));
+            }
+            let loose = n != held;
+            if loose {
+                eprintln!("blue census: {n} undeclared script(s) reach the host, census::UNDECLARED is {held}: declare each: `#!/usr/bin/env -S blue --allow CAP`");
+            }
             let undocumented = c.package_mismatches(census::DOCUMENTED);
             for (code, package, n) in &undocumented {
                 eprintln!(
                     "blue census: {package} is documented and holds {n} {code} finding(s); its ratchet is 0 (census::DOCUMENTED)"
                 );
             }
-            Ok(
-                if bad.is_empty() && undocumented.is_empty() && unheld.is_empty() {
-                    ExitCode::SUCCESS
-                } else {
-                    ExitCode::FAILURE
-                },
-            )
+            Ok(exit(
+                bad.is_empty() && undocumented.is_empty() && unheld.is_empty() && !loose,
+            ))
         }
 
         Cmd::Explain {
@@ -1848,11 +1840,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     all_fresh = false;
                 }
             }
-            Ok(if all_fresh {
-                ExitCode::SUCCESS
-            } else {
-                ExitCode::FAILURE
-            })
+            Ok(exit(all_fresh))
         }
 
         Cmd::Lock { dirs } => {
@@ -2460,11 +2448,7 @@ fn check(
     if let Some(cache) = &cache {
         cache.flush();
     }
-    Ok(if outcome.ok() && project.ok() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    })
+    Ok(exit(outcome.ok() && project.ok()))
 }
 
 /// Bind `--input name=path` pairs against the program's own `definput`
@@ -2840,11 +2824,17 @@ fn embedded(name: &str, text: &str, args: Vec<String>) -> Result<ExitCode, CliEr
         &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
         None,
     )?;
-    Ok(
-        if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
-            ExitCode::FAILURE
-        } else {
-            ExitCode::SUCCESS
-        },
-    )
+    Ok(exit(!matches!(
+        out.value,
+        tatara_lisp_eval::Value::Bool(false)
+    )))
+}
+
+/// Success when `ok`, else failure.
+fn exit(ok: bool) -> ExitCode {
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }

@@ -148,24 +148,7 @@ fn lines(rows: &[Json]) -> String {
 }
 
 fn miner(args: Vec<String>) -> Result<ExitCode, String> {
-    blue_lang_runtime::sys::set_program_args(args);
-    let out = blue_lang_runtime::pipeline::run_in_surface(
-        blue_lang_runtime::uses::Entry {
-            path: Some(Path::new("crates/blue-lang-cli/blue/discover.b")),
-            text: PROGRAM,
-        },
-        blue_lang_runtime::inputs::Inputs::new(),
-        &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-        None,
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(
-        if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
-            ExitCode::FAILURE
-        } else {
-            ExitCode::SUCCESS
-        },
-    )
+    crate::embedded("discover.b", PROGRAM, args).map_err(|e| e.to_string())
 }
 
 pub fn run(cmd: ObligationsCmd) -> Result<ExitCode, String> {

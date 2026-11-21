@@ -62,11 +62,7 @@ pub fn run(query: &str, paths: &[PathBuf], json: bool) -> Result<ExitCode, CliEr
             String::new()
         }
     );
-    Ok(if skipped == 0 {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    })
+    Ok(crate::exit(skipped == 0))
 }
 
 /// The query's text: QUERY itself when it is data, else the Bluefile query

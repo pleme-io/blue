@@ -319,11 +319,7 @@ pub(crate) fn test(
     if quarantined > 0 {
         println!("{quarantined} quarantined test(s) held out of the verdict");
     }
-    Ok(if failed == 0 && broken == 0 && unstable == 0 {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    })
+    Ok(crate::exit(failed == 0 && broken == 0 && unstable == 0))
 }
 
 const REPOSITORY_ENV: &[&str] = &[
@@ -937,11 +933,7 @@ pub(crate) fn profile(
             crate::memo::print(r);
         }
     }
-    Ok(if failed {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
-    })
+    Ok(crate::exit(!failed))
 }
 
 /// Print a watched run's runtime error, if it had one. True when it did.
@@ -1053,11 +1045,7 @@ pub(crate) fn trace(
     };
     let failed = report_outcome(&observed.outcome);
     eprintln!("{def}: {} call(s)", calls.load(Ordering::Relaxed));
-    Ok(if failed {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
-    })
+    Ok(crate::exit(!failed))
 }
 
 /// A `RunError` as one JSON object, for `blue run --format json`: a runtime

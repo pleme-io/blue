@@ -1,4 +1,4 @@
-#!/usr/bin/env blue
+#!/usr/bin/env -S blue --allow environment
 # A script
 #
 # A file is a program. `blue examples/00_script.b one two` runs this one, and

@@ -18,8 +18,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use blue_lang_check::{Code, RULES};
-use blue_lang_runtime::pipeline::{check_entry, render, Checking};
-use blue_lang_runtime::uses::Entry;
+use blue_lang_runtime::pipeline::{check_entry, render, Checked, Checking};
+use blue_lang_runtime::uses::{Entry, ResolvedProgram};
 use blue_lang_runtime::word_shapes::Standing;
 
 pub const DOCUMENTED: &[&str] = &["kakehashi", "toriyose", "umu"];
@@ -36,6 +36,43 @@ pub struct Census {
     pub waived: BTreeMap<Code, BTreeSet<String>>,
     pub sites: BTreeSet<Site>,
     pub forms: usize,
+    /// The undeclared scripts that reach the host, with what they reach.
+    pub undeclared: BTreeMap<String, Vec<&'static str>>,
+}
+
+/// The undeclared scripts that reach the host (SAFETY.md D3). The census
+/// holds the count; it refuses no script.
+pub const UNDECLARED: usize = 0;
+
+/// What a script that `blue` runs ambient reaches: its shebang names `blue`
+/// and no `--allow`, and no Bluefile holds it.
+fn undeclared_reach(path: &Path, text: &str, c: &Checked) -> Vec<&'static str> {
+    if !crate::script::is_blue_shebang(text.as_bytes())
+        || text.lines().next().is_some_and(|l| l.contains("--allow"))
+        || !matches!(blue_lang_pkg::capabilities::hold_for(path), Ok(None))
+    {
+        return vec![];
+    }
+    let lowered = blue_lang_runtime::pipeline::lower(&c.program, &c.names);
+    let hashes = blue_lang_mondou::def_hash::hash_program(&lowered);
+    let forms =
+        blue_lang_mondou::reach::form_reach(&blue_lang_runtime::erase_types(&lowered), &hashes);
+    let mut todo: Vec<usize> = (0..forms.len())
+        .filter(|&i| match c.program.owner_of(i) {
+            Some(ResolvedProgram::ENTRY) => {
+                !blue_lang_runtime::uses::is_test_form(&c.program.forms()[i])
+            }
+            _ => hashes.at(i).is_none(),
+        })
+        .collect();
+    let mut seen: BTreeSet<usize> = todo.iter().copied().collect();
+    let mut reached = BTreeSet::new();
+    while let Some(at) = todo.pop() {
+        reached.extend(forms[at].host.keys().map(|c| c.label()));
+        let next = forms[at].names.iter().map(|&d| hashes.defs()[d].top_level);
+        todo.extend(next.filter(|&n| seen.insert(n)));
+    }
+    reached.into_iter().collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -189,6 +226,7 @@ pub fn take_files(root: &Path, files: Vec<std::path::PathBuf>) -> Result<Census,
     let mut waived: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     let mut sites: BTreeSet<Site> = BTreeSet::new();
     let mut forms = 0;
+    let mut undeclared = BTreeMap::new();
     for path in &files {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let checked = check_entry(
@@ -201,38 +239,36 @@ pub fn take_files(root: &Path, files: Vec<std::path::PathBuf>) -> Result<Census,
             Checking::WithTests,
         )
         .map_err(|e| format!("{}: {e}", path.display()))?;
+        let reach = undeclared_reach(path, &text, &checked);
+        if !reach.is_empty() {
+            let rel = path.strip_prefix(root).unwrap_or(path);
+            undeclared.insert(rel.display().to_string(), reach);
+        }
         // Enforced findings of a ratcheted rule count too: a rule at
         // `Some(0)` that fires is a count of one, not a pass.
         let ratcheted = |d: &&blue_lang_check::Diagnostic| d.code.rule().ratchet.is_some();
         let package = checked
             .program
-            .file(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            .file(ResolvedProgram::ENTRY)
             .and_then(|f| f.package.as_deref())
             .map(|p| blue_lang_syntax::root_of(p).to_string());
         forms += (0..checked.program.forms().len())
-            .filter(|i| {
-                checked.program.owner_of(*i)
-                    == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
-            })
+            .filter(|i| checked.program.owner_of(*i) == Some(ResolvedProgram::ENTRY))
             .count();
         let owed = |d: &&blue_lang_check::Diagnostic| {
             blue_lang_check::obligations::of_code(d.code).is_some()
         };
-        for d in checked
+        let all = &checked.outcome.diagnostics;
+        let counted: Vec<_> = checked
             .outcome
             .census
             .iter()
-            .chain(checked.outcome.diagnostics.iter().filter(ratcheted))
-            .chain(checked.outcome.diagnostics.iter().filter(owed))
-        {
+            .chain(all.iter().filter(ratcheted))
+            .collect();
+        for d in counted.iter().copied().chain(all.iter().filter(owed)) {
             sites.extend(site_of(root, &checked.program, d, None));
         }
-        for d in checked
-            .outcome
-            .census
-            .iter()
-            .chain(checked.outcome.diagnostics.iter().filter(ratcheted))
-        {
+        for d in counted {
             let shown = render(&checked.program, d);
             if let Some(p) = &package {
                 by_package
@@ -271,6 +307,7 @@ pub fn take_files(root: &Path, files: Vec<std::path::PathBuf>) -> Result<Census,
         waived,
         sites,
         forms,
+        undeclared,
     })
 }
 
@@ -399,7 +436,7 @@ pub fn reuse_scan(root: &Path) -> ReuseScan {
         };
         let package = checked
             .program
-            .file(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            .file(ResolvedProgram::ENTRY)
             .and_then(|f| f.package.clone());
         let scope = package.unwrap_or_else(|| format!("%root:{rel}"));
         let entry = blue_lang_mondou::facts::of_entry(&checked);

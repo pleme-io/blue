@@ -425,24 +425,8 @@ fn immunize(l: &Loaded, into: Option<PathBuf>) -> Result<ExitCode, String> {
         "violation": t.violation.as_ref().map(|v| v.class.name()),
         "exit": t.reason_kind,
     });
-    blue_lang_runtime::sys::set_program_args(vec!["immunize".to_string(), plan.to_string()]);
-    let out = blue_lang_runtime::pipeline::run_in_surface(
-        blue_lang_runtime::uses::Entry {
-            path: Some(Path::new("crates/blue-lang-cli/blue/crash.b")),
-            text: CRASH_PROGRAM,
-        },
-        blue_lang_runtime::inputs::Inputs::new(),
-        &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-        None,
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(
-        if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
-            ExitCode::FAILURE
-        } else {
-            ExitCode::SUCCESS
-        },
-    )
+    let args = vec!["immunize".to_string(), plan.to_string()];
+    crate::embedded("crash.b", CRASH_PROGRAM, args).map_err(|e| e.to_string())
 }
 
 /// `blue crash …`.

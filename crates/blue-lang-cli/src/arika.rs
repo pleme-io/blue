@@ -952,18 +952,9 @@ fn apply_edit(text: &str, edit: &Json) -> Option<String> {
 }
 
 fn render(args: Vec<String>) -> Result<ExitCode, String> {
-    blue_lang_runtime::sys::set_program_args(args);
-    blue_lang_runtime::pipeline::run_in_surface(
-        Entry {
-            path: Some(Path::new("crates/blue-lang-cli/blue/arika.b")),
-            text: PROGRAM,
-        },
-        blue_lang_runtime::inputs::Inputs::new(),
-        &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
-        None,
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(ExitCode::SUCCESS)
+    crate::embedded("arika.b", PROGRAM, args)
+        .map(|_| ExitCode::SUCCESS)
+        .map_err(|e| e.to_string())
 }
 
 fn mode(json: bool) -> &'static str {

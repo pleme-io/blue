@@ -359,14 +359,24 @@ Each wave lists defaults in the order their gain is known. Each default meets
     held in a local, called or passed to map or filter, runs natively"
     (`held`, `picked`, `applied` agree with the interpreter; `held_up`'s
     artifact swapped in for `held` answers `[4, 7]`).
-  - Next: a lambda as a value that leaves its definition (passed to
-    another, answered). blue has no function type: the checker reads an
-    unknown constructor such as `Fn(Int)` as dyn, so no signature names a
-    lambda and the slice
-    cannot type one. The type is a language row first (the blue-roadmap
-    procedure: spec rows, the checker, mondou's signature), then the
-    lowering: one enum variant per lambda holding its captures and one
-    `apply` that matches them, which the Rust AST already expresses.
+  - ✅ A function type in the language, the spelling the operator chose
+    (2026-11-20): `Fn(Int, Str) -> Bool`, a signature's own arrow. The tree
+    holds it as `(Fn Int Str -> Bool)`, so the `C(T)` type shape stands. The
+    parser reads `->` after `Fn(…)` only, the formatter writes it back, the
+    checker's `Ty::Fn` accepts a function of the same arity whose parameters
+    take what it is given and whose answer it accepts, and kiwari's `type`
+    rule (the editor grammar) reads the arrow too. Types stay static (W5.3).
+    Locks: `blue-lang-check`
+    `a_function_type_accepts_a_function_of_its_arity_and_types_only`,
+    `blue-lang-syntax` `a_function_type_holds_its_answer_after_an_arrow`,
+    the formatter regression `typed-def-function-type`, and spec rows
+    `check.signature.fn_runs`, `fn_refuses_a_number` and
+    `fn_refuses_another_arity` (conformance 1135 rows green).
+  - Next: a lambda as a value that leaves its definition natively (passed
+    to another, answered), now that a signature can name it: chuuzou reads
+    `(Fn … -> R)` and lowers it defunctionalized, one enum variant per
+    lambda holding its captures and one `apply` that matches them, which
+    the Rust AST already expresses.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

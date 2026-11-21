@@ -243,7 +243,7 @@ Higher binding power binds tighter.
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
 | `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil. Also defined by `yomi` (`yomi::map_entries`): a file that lists it gets that one. |
-| `record_fields` | `record_fields(r)` | 1 | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. |
+| `record_fields` | `record_fields(r)` | 1 | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. Also defined by `yomi` (`yomi::record_fields`): a file that lists it gets that one. |
 | `record_name` | `record_name(v)` | 1 | The name a record carries, `pkg::point` for one a bidama declares; nil for any other value. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
 

@@ -1154,7 +1154,7 @@ def extend_expr(p, start, lhs, i, min_bp)
     j = got_n[1]
     extend_expr(p, start, n, j, min_bp)
   elsif t[0] == :lparen
-    got_args = arguments(p, i)
+    got_args = call_args(p, i)
     args = got_args[0]
     j = got_args[1]
     n = node(
@@ -1569,7 +1569,7 @@ not_form: `not x`, or `not(x)` touching its argument; `not(a, b)` is a call.
 def not_form(p, i)
   t = tok(p, i)
   if tok(p, i + 1)[0] == :lparen and touches?(p, i + 1)
-    got_args = arguments(p, i + 1)
+    got_args = call_args(p, i + 1)
     args = got_args[0]
     j = got_args[1]
     kids = args[:fields]
@@ -1592,11 +1592,12 @@ def not_form(p, i)
 end
 
 @doc """
-is passed, which is where `apply` sits.
+call_args: The `(…)` after a callee, whose anchor is the splat's `*` (where
+`apply` sits) when one is passed.
 
-    arguments({toks: lex("()"), last: 2, r: reading}, 0)[1] #=> 2
+    call_args({toks: lex("()"), last: 2, r: reading}, 0)[1] #=> 2
 """
-def arguments(p, i)
+def call_args(p, i)
   open = tok(p, i)
   j = skip_newlines(p, i + 1)
   if tok(p, j)[0] == :rparen
@@ -1872,7 +1873,7 @@ def send(p, start, recv, i)
   end
   head = [["receiver", recv], ["method", leaf("identifier", nt)]]
   if tok(p, i + 2)[0] == :lparen
-    got_args = arguments(p, i + 2)
+    got_args = call_args(p, i + 2)
     args = got_args[0]
     j = got_args[1]
     anchor = if args[:anchor] == span_of(tok(p, i + 2))
@@ -2001,7 +2002,7 @@ def def_form(p, i)
     raise(:parse, "expected a name after `def`")
   end
   got_params = if tok(p, i + 2)[0] == :lparen
-    parameters(p, skip_newlines(p, i + 3), false, [])
+    def_params(p, skip_newlines(p, i + 3), false, [])
   else
     [[], i + 2]
   end
@@ -2049,11 +2050,12 @@ def optional?(name)
 end
 
 @doc """
-ends in `?` (optional), a later required one is refused.
+def_params: A def's plain names and `name: Type` pairs; after a name ending
+in `?` (optional), a required one is refused.
 
-    parameters({toks: lex("a)"), last: 2, r: reading}, 0, false, [])[1] #=> 2
+    def_params({toks: lex("a)"), last: 2, r: reading}, 0, false, [])[1] #=> 2
 """
-def parameters(p, i, seen, acc)
+def def_params(p, i, seen, acc)
   t = tok(p, i)
   if t[0] == :rparen
     [reverse(acc), i + 1]
@@ -2087,9 +2089,9 @@ def parameters(p, i, seen, acc)
     j = skip_newlines(p, k)
     again = seen or optional?(t[3])
     if tok(p, j)[0] == :comma
-      parameters(p, skip_newlines(p, j + 1), again, more)
+      def_params(p, skip_newlines(p, j + 1), again, more)
     else
-      parameters(p, expect(p, j, :rparen) - 1, again, more)
+      def_params(p, expect(p, j, :rparen) - 1, again, more)
     end
   end
 end
@@ -3445,4 +3447,122 @@ test "each step of parse does its own part", {kind: :unit}
       ]
     ]
   assert definition?([0, 1, :int, 1]) == false
+end
+
+test "each step of the reader reads its own part of the source", {kind: :unit}
+  r = reading
+  assert program({toks: lex(""), last: 0}, 0, []) == []
+  assert documentation(
+    {toks: [[:doc, 0, 5, [true, "m"]], [:eof, 5, 5, nil]], last: 1},
+    0,
+    true
+  ) == [nil, 1]
+  assert end_of_statement({toks: lex("end"), last: 1}, 0, ["end"]).nil?
+  assert statement({toks: lex("x = 1"), last: 3, r:}, 0)[0][:kind] == "binding"
+  assert expr({toks: lex("a"), last: 1, r:}, 0, 0)[1] == 1
+  assert extend_expr({toks: lex("a"), last: 1, r:}, 0, nil, 1, 0) == [nil, 1]
+  assert spellings({op: "-", aliases: ["−"]}) == %w[- −]
+  assert infix({toks: lex("a"), last: 1, r:}, 0, nil, 1, 0) == [nil, 1]
+  assert prefix({toks: lex("1"), last: 1, r:}, 0)[0][:kind] == "integer"
+  assert named_form({toks: lex("x"), last: 1, r:}, 0)[0][:kind] == "identifier"
+  assert qualified({toks: lex("a::b"), last: 3, r:}, 0)[1] == 3
+  assert get(
+    nth(
+      0,
+      qualified_from(
+        {toks: lex("a::b"), last: 3, r:},
+        [:ident, 0, 1, "a"],
+        "a",
+        1
+      )
+    ),
+    :end
+  ) == 4
+  assert paren({toks: lex("(a)"), last: 3, r:}, 0)[1] == 3
+  assert arrow_ahead?({toks: lex("a) -> a"), last: 4}, 0) == true
+  assert arrow_lambda({toks: lex("() -> 1"), last: 4, r:}, 0)[1] == 4
+  assert arrow_params({toks: lex("a, b)"), last: 4}, 0, [])[1] == 3
+  assert lambda_form({toks: lex("fn end"), last: 2, r:}, 0)[1] == 2
+  assert names({toks: lex("a)"), last: 2}, 0, [])[1] == 2
+  assert unary({toks: lex("-x"), last: 2, r:}, 0)[0][:kind] ==
+    "unary_expression"
+  assert negation_node({toks: lex("!x")}, [:op, 0, 1, "!"], nil, 2)[:end] == 2
+  assert not_form({toks: lex("not(x)"), last: 4, r:}, 0)[0][:kind] ==
+    "unary_expression"
+  assert call_args({toks: lex("()"), last: 2, r:}, 0)[1] == 2
+  assert argument_node({toks: lex("()")}, [:lparen, 0, 1, nil], [], 2)[:end] ==
+    2
+  assert nth(
+    1,
+    argument_list({toks: lex("a)"), last: 2, r:}, [:lparen, 0, 0, nil], 0, [])
+  ) == 2
+  assert map_entries({toks: lex("a: 1}"), last: 3, r:}, 0, :rbrace, [])[1] == 3
+  assert spread({toks: lex("**m"), last: 2, r:}, 0)[0][0] == "spread"
+  assert map_entry({toks: lex("a:}"), last: 2, r:}, 0, :rbrace)[0][1][:kind] ==
+    "pun_pair"
+  assert list_literal({toks: lex("[]"), last: 2, r:}, 0)[1] == 2
+  assert elements({toks: lex("1]"), last: 2, r:}, 0, [])[1] == 2
+  assert map_literal({toks: lex("{}"), last: 2, r:}, 0)[1] == 2
+  assert nth(
+    0,
+    index({toks: lex("x[:a]"), last: 4, r:}, 0, nil, 1)[0][:fields][1]
+  ) == "key"
+  assert send({toks: lex("x.y"), last: 3, r:}, 0, nil, 1)[1] == 3
+  assert if_form({toks: lex("if a end"), last: 3, r:}, 0, "if")[1] == 3
+  assert else_part({toks: lex("end"), last: 1, r:}, 0) == [nil, 1]
+end
+
+test "each step of the lowering and the rewrites does its own part", {
+  kind: :unit
+}
+  r = reading
+  assert body({toks: lex("end"), last: 1, r:}, 0, ["end"])[1] == 0
+  assert statements({toks: lex("end"), last: 1, r:}, 0, ["end"], []) == [[], 0]
+  assert def_form({toks: lex("def f end"), last: 3, r:}, 0)[1] == 3
+  assert optional?("a?") == true
+  assert def_params({toks: lex("a)"), last: 2, r:}, 0, false, [])[1] == 2
+  assert type_expr({toks: lex("Int"), last: 1, r:}, 0)[1] == 1
+  assert type_args({toks: lex(")"), last: 1, r:}, 0, []) == [[], 1]
+  assert lower(reading, leaf("identifier", [:ident, 0, 1, "x"])) ==
+    [[0, 1, :sym, "x"]]
+  assert named({fields: [["a", 1], [nil, 2]]}) == [1, 2]
+  assert walk({fields: [["a", {fields: [[nil, 3]]}]]}, %w[a *]) == [3]
+  assert text(leaf("label", [:label, 0, 2, "a"])) == "a"
+  assert atom([1, 2], :sym, "x") == [1, 2, :sym, "x"]
+  assert block("begin", {start: 3, end: 3}, []) == [[3, 3, :nil, nil]]
+  assert each_param(
+    reading,
+    ["each_param", ["*"], ["param_symbol"]],
+    {fields: [[nil, leaf("identifier", [:ident, 0, 2, "a?"])]]},
+    true
+  ) == [[0, 2, :sym, "&optional"], [0, 2, :sym, "a"]]
+  assert interpolate(reading, "concat", [:str, 0, 3, "a"]) == [0, 3, :str, "a"]
+  assert interpolation(reading, "concat", [0, 3], ["a"], []) ==
+    [0, 3, :str, "a"]
+  assert respan([0, 1, :list, [[0, 1, :int, 1]]], [5, 6]) ==
+    [5, 6, :list, [[5, 6, :int, 1]]]
+  assert lines_literal(reading, "concat", [0, 4], [line_break], []) ==
+    [0, 4, :sym, "line_break"]
+  assert runs(reading, "spread", "hash-map", node("map", [0, 2], [0, 1], [])) ==
+    []
+  assert rewritten({kind: "integer"}, [[0, 1, :int, 1]]) == [[0, 1, :int, 1]]
+  assert head_is?(
+    [0, 3, :list, [[0, 1, :sym, "not"], [2, 3, :sym, "x"]]],
+    "not",
+    2
+  ) == true
+  assert nil_tested([0, 1, :int, 1]) == [0, 1, :int, 1]
+  assert piped([0, 6, :list, [[5, 6, :sym, "f"], [0, 1, :sym, "x"]]]) ==
+    [0, 6, :list, [[5, 6, :sym, "f"], [0, 1, :sym, "x"]]]
+  assert parse_tokens(reading, lex("7")) == [[0, 1, :int, 7]]
+  assert tok({toks: lex("a"), last: 1}, 5)[0] == :eof
+  assert ended({toks: lex("ab c")}, 1) == 2
+  assert skip_newlines({toks: lex(join_lines(["", "a"])), last: 2}, 0) == 1
+  assert touches?({toks: lex("a[0]"), last: 4}, 1) == true
+  assert is?([:op, 0, 1, "="], :op, "=") == true
+  assert span_of([:ident, 2, 3, "x"]) == [2, 3]
+  assert reserved?({r: {reserved: ["if"]}}, "if") == true
+  assert expect({toks: lex(")"), last: 1}, 0, :rparen) == 1
+  assert expect_word({toks: lex("end"), last: 1}, 0, "end") == 1
+  assert kyohi::raised(() -> outside("`case`")) == :parse
 end

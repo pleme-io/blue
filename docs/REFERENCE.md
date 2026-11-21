@@ -242,7 +242,7 @@ Higher binding power binds tighter.
 | `dig` | `dig(tree, keys...)` | 1+ | The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree. |
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
-| `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil. |
+| `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil. Also defined by `yomi` (`yomi::map_entries`): a file that lists it gets that one. |
 | `record_fields` | `record_fields(r)` | 1 | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. |
 | `record_name` | `record_name(v)` | 1 | The name a record carries, `pkg::point` for one a bidama declares; nil for any other value. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
@@ -317,7 +317,7 @@ Higher binding power binds tighter.
 | `foreign?` | `foreign?(x)` | 1 | Whether x is an opaque value a host handed in. |
 | `go?` | `go?(x)` | 1 | Whether x is a fiber. |
 | `integer?` | `integer?(x)` | 1 | Whether x is an Int; integer?(1.0) is false. |
-| `is?` | `is?(x, type)` | 2 | Whether x has the type named by a keyword: is?(5, :int). Value first. |
+| `is?` | `is?(x, type)` | 2 | Whether x has the type named by a keyword: is?(5, :int). Value first. Also defined by `yomi` (`yomi::is?`): a file that lists it gets that one. |
 | `keyword?` | `keyword?(x)` | 1 | Whether x is a keyword such as :done. |
 | `list?` | `list?(x)` | 1 | Whether x is a list. list?(nil) is true, so test x == nil first. |
 | `map?` | `map?(x)` | 1 | Whether x is a map. A parsed JSON object is not one. |
@@ -617,7 +617,7 @@ Higher binding power binds tighter.
 | `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
 | `remaining` | `remaining` | 0 | Milliseconds left before this process's deadline, or nil when it holds none. |
 | `self` | `self` | 0 | This process's pid. The program itself is 0. |
-| `send` | `send(pid, msg)` | 2 | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. |
+| `send` | `send(pid, msg)` | 2 | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. Also defined by `yomi` (`yomi::send`): a file that lists it gets that one. |
 | `sleep_for` | `sleep_for(ms)` | 1 | Wait ms on the node clock without holding the node: a process parks, the program runs the other processes meanwhile. Raises :timeout at the deadline this process holds, when that comes first. |
 | `sleep_until` | `sleep_until(t)` | 1 | sleep_for, to the node time t (milliseconds). |
 | `spawn` | `spawn(f[, args][, opts])` | 1..3 | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. opts {scheduling: :normal \| :idle}: :normal (the default) changes nothing; :idle runs each of its slices on a thread the OS gives its lowest priority (nice 19 on Linux, the background band on darwin), apart from the node: the node runs its other processes while that thread waits for a core, and the process still acts only while the program waits. A host with no such class raises :unsupported. :realtime, the class the OS never preempts, raises :permission_denied: the OS gives it only to a privileged process. |

@@ -1708,6 +1708,7 @@ pub const WORD_SHAPES: &[(&str, &str, bool)] = &[
     ("4a6b12e0613bffbb", "hashiru::keyword_block", false),
     ("4a6fa28ca57b1c44", "toriyose/outou::plain_value", false),
     ("4a736f722006332f", "kaaneru/btf::ext_section_words", false),
+    ("4a8b8dec3cde4905", "hashiru::native_names", false),
     ("4a9c5cdbe51fa6aa", "koubou/kakou::bend_allowance", false),
     ("4aab305d10b15115", "bunsho::heading_node", false),
     ("4aae49dff38fd05c", "deeta::nix_level", true),

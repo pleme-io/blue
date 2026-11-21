@@ -9,7 +9,12 @@ This first code generator is the simplest correct one: every named value lives i
 use("kaaneru/erufu", [:executable])
 use("kikaigo", %i[assemble le64])
 use("kuzushi", %i[anf closure_convert head_is? perceus_program whole whole_in])
-use("retsu", %i[drop_n first flat_map index_of last rest slice take_n])
+
+use(
+  "retsu",
+  %i[concat_lists drop_n first flat_map index_of last rest slice take_n]
+)
+
 use("shisutemu", %i[status_of stdout_of])
 
 legacy_names(
@@ -10724,4 +10729,118 @@ test "exec_within is a timed exec_capture with its time out appended"
   assert length(rc_op([], "exec_timed_out", [])) == 4
   assert head_is?(bare_calls(read_forms("(exec_within 5 \"true\")")[0]), "let")
   assert length(within_programs) == 2
+end
+
+@doc """
+RC_OP_WORDS: every name rc_op compiles as a primitive, the blue words among them and the compiler's own (dup, drop, failed?, id); the raw memory and system call words are the untagged path's (op_code), not these.
+
+    member?("write_stdout", RC_OP_WORDS) #=> true
+"""
+RC_OP_WORDS = %w[
+  -
+  *
+  +
+  <
+  >
+  assoc
+  concat
+  cons
+  drop
+  dup
+  elapsed_since
+  equal?
+  exec_capture
+  exec_check
+  exec_ok?
+  exec_timed_out
+  exec_with_env
+  exec_with_stdin
+  exec_within_raw
+  exit_with
+  failed?
+  first
+  get
+  hash-map
+  id
+  is_terminal
+  length
+  list
+  map_alist
+  map_wrap
+  mod
+  net_wait
+  now
+  now_ms
+  now_ns
+  put_byte
+  put_int
+  raise
+  read_file
+  read_line
+  rest
+  self_exe
+  sleep
+  string_length
+  tcp_connect_ms
+  to_s
+  write_bytes
+  write_stdout
+]
+
+@doc """
+LOWERED_WORDS: the blue words a pass before ANF lowers to native code (bare_calls, map_calls).
+
+    member?("exec_within", LOWERED_WORDS) #=> true
+"""
+LOWERED_WORDS = %w[sh_exec exec_within ls drop read_bytes get assoc path_join]
+
+@doc """
+native_names: every name a native program can call, sorted: rc_op's primitives, the runtime routines' words, the type predicates, the zero-argument words, the prelude's definitions and the words lowered before ANF. docs/REFERENCE.md's home column reads it.
+
+    member?("tcp_connect_ms", native_names) #=> true
+"""
+def native_names()
+  sort_keyed(
+    (n) -> n,
+    distinct(
+      concat_lists(
+        RC_OP_WORDS,
+        concat_lists(
+          map((w) -> w[0], ROUTINE_OPS),
+          concat_lists(
+            map((p) -> p[0], KIND_PREDICATES),
+            concat_lists(
+              ZERO_ARITY_WORDS,
+              concat_lists(
+                map((s) -> defined_name(read_forms(s)[0]), PRELUDE),
+                LOWERED_WORDS
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+end
+
+test "every listed primitive reaches rc_op, and native_names gathers the words"
+  map(
+    fn(w)
+      got = begin
+        length(rc_op([], w, [1, 2, 3]))
+      rescue e
+        if contains?(e.message, "no reference-counted code")
+          :missing
+        else
+          :other
+        end
+      end
+      assert got != :missing
+    end,
+    RC_OP_WORDS
+  )
+  assert (rc_op([], "no_such_word", [1]) rescue :refused) == :refused
+  assert member?("walk_dir", native_names)
+  assert member?("sh_exec", LOWERED_WORDS)
+  assert native_names == sort_keyed((n) -> n, native_names)
 end

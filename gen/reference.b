@@ -1,4 +1,5 @@
 # waive B0085: rendering debt recorded 2026-11-13: no test of this generator declared kind: :rendering feeds its output to the output's reader yet
+use("hashiru", [:native_names])
 use("hon", [:front_matter_text])
 use("mokuroku", %i[catalog_of md_cell md_code_cell names_shadowing])
 use("retsu", %i[concat_lists find_first first is_empty last size])
@@ -126,7 +127,15 @@ def arity(n)
   end
 end
 
-def topic_section(topic, names, redefined)
+def home(n, natives)
+  if member?(text(n, "name"), natives)
+    "native"
+  else
+    "—"
+  end
+end
+
+def topic_section(topic, names, redefined, natives)
   slug = text(topic, "slug")
   mine = filter((n) -> text(n, "topic") == slug, names)
   rows = map(
@@ -135,6 +144,7 @@ def topic_section(topic, names, redefined)
         code(text(n, "name")),
         code(text(n, "signature")),
         arity(n),
+        home(n, natives),
         "#{md_cell(text(n, "doc"))}#{note(redefined, text(n, "name"))}"
       ]
     end,
@@ -144,7 +154,7 @@ def topic_section(topic, names, redefined)
     [
       "### #{text(topic, "title")}",
       "",
-      table(%w[name call arity meaning], rows)
+      table(%w[name call arity home meaning], rows)
     ]
   )
 end
@@ -152,11 +162,12 @@ end
 def names_section(data)
   names = field(data, "names")
   redefined = redefined_builtins(map((n) -> text(n, "name"), names))
+  natives = native_names
   sections = map(
-    (t) -> topic_section(t, names, redefined),
+    (t) -> topic_section(t, names, redefined, natives),
     field(data, "topics")
   )
-  intro = "#{to_s(size(names))} names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further #{text(data, "uncallable")} bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above."
+  intro = "#{to_s(size(names))} names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). Home is where a name runs: every name runs on the Rust runtime, and `native` marks one hashiru also compiles to x86-64 machine code (its `native_names`, R4 of docs/PURE-BLUE.md). A further #{text(data, "uncallable")} bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above."
   join_lines([intro, "", join(sections, unlines(["", ""]))])
 end
 

@@ -103,555 +103,555 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-413 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+413 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). Home is where a name runs: every name runs on the Rust runtime, and `native` marks one hashiru also compiles to x86-64 machine code (its `native_names`, R4 of docs/PURE-BLUE.md). A further 200 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `comment` | `comment(anything...)` | — | Ignores its arguments and is nil. Use # comments instead. |
-| `define` | `define(name, value)` | — | Bind a name. Written name = value; the formatter prints that form. |
-| `delay` | `delay(expr)` | — | A promise that evaluates expr once, on the first force. |
-| `eval` | `eval(form)` | — | Evaluate a quoted form. |
-| `lambda` | `fn(x) … end` | — | The function form fn lowers to. Write fn. |
-| `macroexpand` | `macroexpand(form)` | — | The expansion of a quoted macro call, for debugging a defmacro. |
-| `quasiquote` | `quote … end` | — | What quote with unquote lowers to inside defmacro. |
-| `set!` | `set!(name, value)` | — | Rebind an existing name. A name a forked process inherited is sealed and refuses it. |
-| `try` | `try(expr, catch(e(), handler))` | — | The Lisp form begin … rescue lowers to. Written `expr rescue fallback` or a begin … rescue e … end block (B0037). |
-| `when` | `when(c, body...)` | — | The body's last value when c is truthy, else nil. An if with no else says the same thing. |
-| `while` | `while(c, body)` | — | Evaluate body while c is truthy; nil. Needs set! to make progress, so map, filter and reduce are usually the better word. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `comment` | `comment(anything...)` | — | — | Ignores its arguments and is nil. Use # comments instead. |
+| `define` | `define(name, value)` | — | — | Bind a name. Written name = value; the formatter prints that form. |
+| `delay` | `delay(expr)` | — | — | A promise that evaluates expr once, on the first force. |
+| `eval` | `eval(form)` | — | — | Evaluate a quoted form. |
+| `lambda` | `fn(x) … end` | — | — | The function form fn lowers to. Write fn. |
+| `macroexpand` | `macroexpand(form)` | — | — | The expansion of a quoted macro call, for debugging a defmacro. |
+| `quasiquote` | `quote … end` | — | — | What quote with unquote lowers to inside defmacro. |
+| `set!` | `set!(name, value)` | — | — | Rebind an existing name. A name a forked process inherited is sealed and refuses it. |
+| `try` | `try(expr, catch(e(), handler))` | — | — | The Lisp form begin … rescue lowers to. Written `expr rescue fallback` or a begin … rescue e … end block (B0037). |
+| `when` | `when(c, body...)` | — | — | The body's last value when c is truthy, else nil. An if with no else says the same thing. |
+| `while` | `while(c, body)` | — | — | Evaluate body while c is truthy; nil. Needs set! to make progress, so map, filter and reduce are usually the better word. |
 
 ### Numbers
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `abs` | `abs(x)` | 1 | Absolute value, keeping Int or Float. Also defined by `kazu` (`kazu::abs`): a file that lists it gets that one. |
-| `acos` | `acos(x)` | 1 | Arccosine; refuses x outside [-1, 1] rather than returning NaN. |
-| `asin` | `asin(x)` | 1 | Arcsine; refuses x outside [-1, 1] rather than returning NaN. |
-| `atan` | `atan(x)` | 1 | Arctangent in radians. |
-| `atan2` | `atan2(y, x)` | 2 | The angle of the point (x, y); y comes first. |
-| `bit_and` | `bit_and(a, b)` | 2 | The bits set in both Ints, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_and`): a file that lists it gets that one. |
-| `bit_not` | `bit_not(a)` | 1 | Every bit of the Int flipped: bit_not(0) is -1. Also defined by `shinsuu` (`shinsuu::bit_not`): a file that lists it gets that one. |
-| `bit_or` | `bit_or(a, b)` | 2 | The bits set in either Int, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_or`): a file that lists it gets that one. |
-| `bit_xor` | `bit_xor(a, b)` | 2 | The bits set in exactly one Int, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_xor`): a file that lists it gets that one. |
-| `ceiling` | `ceiling(x)` | 1 | The smallest Int not below x. |
-| `compare` | `compare(a, b)` | 2 | -1, 0 or 1. Total over two numbers or two strings, which < is not; mixing them raises. Also defined by `hashiru` (`hashiru::compare`): a file that lists it gets that one. |
-| `cos` | `cos(x)` | 1 | Cosine of x radians. |
-| `dec` | `dec(x)` | 1 | x - 1. |
-| `exp` | `exp(x)` | 1 | e to the x, a Float. |
-| `expt` | `expt(base, power)` | 2 | base raised to power: expt(2, 10) is 1024. |
-| `floor` | `floor(x)` | 1 | The largest Int not above x. floor(a / b) is integer division. |
-| `gcd` | `gcd(xs...)` | 0+ | Greatest common divisor of the arguments; 0 for none. |
-| `hypot` | `hypot(x, y)` | 2 | sqrt(x * x + y * y) without the overflow: hypot(3, 4) is 5.0. |
-| `inc` | `inc(x)` | 1 | x + 1. |
-| `lcm` | `lcm(xs...)` | 0+ | Least common multiple of the arguments. |
-| `log` | `log(x[, base])` | 1..2 | Natural logarithm, or log to base: log(100, 10) is 2.0. |
-| `max` | `max(x, more...)` | 1+ | The largest argument. Takes numbers, not a list: apply(max, xs). Also defined by `kazu` (`kazu::max`): a file that lists it gets that one. |
-| `min` | `min(x, more...)` | 1+ | The smallest argument. Takes numbers, not a list: apply(min, xs). Also defined by `kazu` (`kazu::min`): a file that lists it gets that one. |
-| `mod` | `mod(a, b)` | 2 | Euclidean remainder, never negative; what % lowers to. |
-| `modulo` | `modulo(a, b)` | 2 | The same as mod. |
-| `rem` | `rem(a, b)` | 2 | The same as mod here: mod(-7, 3), modulo and rem are all 2. |
-| `round` | `round(x)` | 1 | The nearest Int, halves away from zero: round(2.5) is 3, round(-2.5) is -3. |
-| `shift_left` | `shift_left(a, n)` | 2 | The bits of a moved up n places, 0 to 63. Bits past the top are dropped: this word never raises on overflow. Also defined by `shinsuu` (`shinsuu::shift_left`): a file that lists it gets that one. |
-| `shift_right` | `shift_right(a, n)` | 2 | The bits of a moved down n places, 0 to 63, the sign copied in from the top. Also defined by `shinsuu` (`shinsuu::shift_right`): a file that lists it gets that one. |
-| `shift_right_logical` | `shift_right_logical(a, n)` | 2 | The bits of a moved down n places, 0 to 63, zeros moved in from the top. |
-| `sin` | `sin(x)` | 1 | Sine of x radians. |
-| `sqrt` | `sqrt(x)` | 1 | Square root, always a Float: sqrt(16) is 4.0, and 4.0 == 4. |
-| `tan` | `tan(x)` | 1 | Tangent of x radians. |
-| `to_float` | `to_float(x)` | 1 | A Float from a number or a numeric string. |
-| `to_int` | `to_int(x)` | 1 | An Int from a string or a number, truncating a Float; nil for text that is not an integer ("3.7" too). |
-| `to_int!` | `to_int!(x)` | 1 | Like to_int, but raises instead of returning nil. |
-| `truncate` | `truncate(x)` | 1 | The Int part of x, toward zero: truncate(-2.7) is -2. Also defined by `moji` (`moji::truncate`): a file that lists it gets that one. |
-| `unsigned_div` | `unsigned_div(a, b)` | 2 | The whole quotient of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
-| `unsigned_less?` | `unsigned_less?(a, b)` | 2 | Whether a is below b, each read as an unsigned 64-bit value: unsigned_less?(1, -1) is true. |
-| `unsigned_mod` | `unsigned_mod(a, b)` | 2 | The remainder of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
-| `wrapping_add` | `wrapping_add(a, b)` | 2 | a + b modulo 2^64, where + raises on overflow. |
-| `wrapping_mul` | `wrapping_mul(a, b)` | 2 | a * b modulo 2^64, where * raises on overflow. |
-| `wrapping_sub` | `wrapping_sub(a, b)` | 2 | a - b modulo 2^64, where - raises on overflow. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `abs` | `abs(x)` | 1 | — | Absolute value, keeping Int or Float. Also defined by `kazu` (`kazu::abs`): a file that lists it gets that one. |
+| `acos` | `acos(x)` | 1 | — | Arccosine; refuses x outside [-1, 1] rather than returning NaN. |
+| `asin` | `asin(x)` | 1 | — | Arcsine; refuses x outside [-1, 1] rather than returning NaN. |
+| `atan` | `atan(x)` | 1 | — | Arctangent in radians. |
+| `atan2` | `atan2(y, x)` | 2 | — | The angle of the point (x, y); y comes first. |
+| `bit_and` | `bit_and(a, b)` | 2 | — | The bits set in both Ints, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_and`): a file that lists it gets that one. |
+| `bit_not` | `bit_not(a)` | 1 | — | Every bit of the Int flipped: bit_not(0) is -1. Also defined by `shinsuu` (`shinsuu::bit_not`): a file that lists it gets that one. |
+| `bit_or` | `bit_or(a, b)` | 2 | — | The bits set in either Int, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_or`): a file that lists it gets that one. |
+| `bit_xor` | `bit_xor(a, b)` | 2 | — | The bits set in exactly one Int, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_xor`): a file that lists it gets that one. |
+| `ceiling` | `ceiling(x)` | 1 | — | The smallest Int not below x. |
+| `compare` | `compare(a, b)` | 2 | — | -1, 0 or 1. Total over two numbers or two strings, which < is not; mixing them raises. Also defined by `hashiru` (`hashiru::compare`): a file that lists it gets that one. |
+| `cos` | `cos(x)` | 1 | — | Cosine of x radians. |
+| `dec` | `dec(x)` | 1 | — | x - 1. |
+| `exp` | `exp(x)` | 1 | — | e to the x, a Float. |
+| `expt` | `expt(base, power)` | 2 | — | base raised to power: expt(2, 10) is 1024. |
+| `floor` | `floor(x)` | 1 | — | The largest Int not above x. floor(a / b) is integer division. |
+| `gcd` | `gcd(xs...)` | 0+ | — | Greatest common divisor of the arguments; 0 for none. |
+| `hypot` | `hypot(x, y)` | 2 | — | sqrt(x * x + y * y) without the overflow: hypot(3, 4) is 5.0. |
+| `inc` | `inc(x)` | 1 | — | x + 1. |
+| `lcm` | `lcm(xs...)` | 0+ | — | Least common multiple of the arguments. |
+| `log` | `log(x[, base])` | 1..2 | — | Natural logarithm, or log to base: log(100, 10) is 2.0. |
+| `max` | `max(x, more...)` | 1+ | — | The largest argument. Takes numbers, not a list: apply(max, xs). Also defined by `kazu` (`kazu::max`): a file that lists it gets that one. |
+| `min` | `min(x, more...)` | 1+ | — | The smallest argument. Takes numbers, not a list: apply(min, xs). Also defined by `kazu` (`kazu::min`): a file that lists it gets that one. |
+| `mod` | `mod(a, b)` | 2 | native | Euclidean remainder, never negative; what % lowers to. |
+| `modulo` | `modulo(a, b)` | 2 | — | The same as mod. |
+| `rem` | `rem(a, b)` | 2 | — | The same as mod here: mod(-7, 3), modulo and rem are all 2. |
+| `round` | `round(x)` | 1 | — | The nearest Int, halves away from zero: round(2.5) is 3, round(-2.5) is -3. |
+| `shift_left` | `shift_left(a, n)` | 2 | — | The bits of a moved up n places, 0 to 63. Bits past the top are dropped: this word never raises on overflow. Also defined by `shinsuu` (`shinsuu::shift_left`): a file that lists it gets that one. |
+| `shift_right` | `shift_right(a, n)` | 2 | — | The bits of a moved down n places, 0 to 63, the sign copied in from the top. Also defined by `shinsuu` (`shinsuu::shift_right`): a file that lists it gets that one. |
+| `shift_right_logical` | `shift_right_logical(a, n)` | 2 | — | The bits of a moved down n places, 0 to 63, zeros moved in from the top. |
+| `sin` | `sin(x)` | 1 | — | Sine of x radians. |
+| `sqrt` | `sqrt(x)` | 1 | — | Square root, always a Float: sqrt(16) is 4.0, and 4.0 == 4. |
+| `tan` | `tan(x)` | 1 | — | Tangent of x radians. |
+| `to_float` | `to_float(x)` | 1 | — | A Float from a number or a numeric string. |
+| `to_int` | `to_int(x)` | 1 | — | An Int from a string or a number, truncating a Float; nil for text that is not an integer ("3.7" too). |
+| `to_int!` | `to_int!(x)` | 1 | — | Like to_int, but raises instead of returning nil. |
+| `truncate` | `truncate(x)` | 1 | — | The Int part of x, toward zero: truncate(-2.7) is -2. Also defined by `moji` (`moji::truncate`): a file that lists it gets that one. |
+| `unsigned_div` | `unsigned_div(a, b)` | 2 | — | The whole quotient of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
+| `unsigned_less?` | `unsigned_less?(a, b)` | 2 | — | Whether a is below b, each read as an unsigned 64-bit value: unsigned_less?(1, -1) is true. |
+| `unsigned_mod` | `unsigned_mod(a, b)` | 2 | — | The remainder of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
+| `wrapping_add` | `wrapping_add(a, b)` | 2 | — | a + b modulo 2^64, where + raises on overflow. |
+| `wrapping_mul` | `wrapping_mul(a, b)` | 2 | — | a * b modulo 2^64, where * raises on overflow. |
+| `wrapping_sub` | `wrapping_sub(a, b)` | 2 | — | a - b modulo 2^64, where - raises on overflow. |
 
 ### Strings
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `bytes_text` | `bytes_text(bytes)` | 1 | The string whose UTF-8 bytes these are (a byte list or a string); nil when they are not UTF-8. An element outside 0..255 raises. |
-| `chars` | `chars(s)` | 1 | The characters as one-character strings. |
-| `concat` | `concat(x, more...)` | 1+ | The text of every argument joined, each rendered with to_s. What interpolation lowers to. |
-| `contains?` | `contains?(s, sub)` | 2 | Whether the STRING s contains sub. On a list it raises: use member?(x, xs). |
-| `downcase` | `downcase(s)` | 1 | The string in lower case. Raises on nil. |
-| `ends_with?` | `ends_with?(s, suffix)` | 2 | Whether s ends with suffix. |
-| `hex_decode` | `hex_decode(text)` | 1 | The bytes an even run of hex digits (either case) spells, as a byte list, in one native pass; nil for an odd length or any other character. shinsuu's hex_bytes wraps it, after dropping spaces and line breaks. |
-| `hex_encode` | `hex_encode(bytes)` | 1 | The bytes (a byte list or a string's UTF-8) as lowercase hex, two digits each, in one native pass: hex_encode([0, 15, 255]) is "000fff". An element outside 0..255 raises. shinsuu's bytes_hex wraps it. |
-| `join` | `join(xs, sep)` | 2 | The elements' text with sep between. The LIST comes first here, and the string first in split. |
-| `join_lines` | `join_lines(xs)` | 1 | The elements' text, one per line, with no newline after the last: what a string with a \n escape is written as (B0065). |
-| `line_break` | `line_break` | 0 | The one-character line-break string, "\n" (B0065). `newline` prints one. |
-| `replace` | `replace(s, from, to)` | 3 | Every occurrence of from replaced by to. |
-| `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. Also defined by `happa` (`happa::split`): a file that lists it gets that one. |
-| `starts_with?` | `starts_with?(s, prefix)` | 2 | Whether s begins with prefix. |
-| `string` | `string(x)` | 1 | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
-| `text_bytes` | `text_bytes(s)` | 1 | The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes("é") is [195, 169]. |
-| `text_index` | `text_index(s, sub, from)` | 3 | The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it. |
-| `text_last_index` | `text_last_index(s, sub, from)` | 3 | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
-| `to_s` | `to_s(x)` | 1 | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |
-| `trim` | `trim(s[, opts])` | 1..2 | The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option. Also defined by `moji` (`moji::trim`): a file that lists it gets that one. |
-| `unlines` | `unlines(xs)` | 1 | The elements' text, each followed by a newline: text that ends in a line break (B0065). |
-| `upcase` | `upcase(s)` | 1 | The string in upper case. Raises on nil. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `bytes_text` | `bytes_text(bytes)` | 1 | — | The string whose UTF-8 bytes these are (a byte list or a string); nil when they are not UTF-8. An element outside 0..255 raises. |
+| `chars` | `chars(s)` | 1 | — | The characters as one-character strings. |
+| `concat` | `concat(x, more...)` | 1+ | native | The text of every argument joined, each rendered with to_s. What interpolation lowers to. |
+| `contains?` | `contains?(s, sub)` | 2 | — | Whether the STRING s contains sub. On a list it raises: use member?(x, xs). |
+| `downcase` | `downcase(s)` | 1 | — | The string in lower case. Raises on nil. |
+| `ends_with?` | `ends_with?(s, suffix)` | 2 | — | Whether s ends with suffix. |
+| `hex_decode` | `hex_decode(text)` | 1 | — | The bytes an even run of hex digits (either case) spells, as a byte list, in one native pass; nil for an odd length or any other character. shinsuu's hex_bytes wraps it, after dropping spaces and line breaks. |
+| `hex_encode` | `hex_encode(bytes)` | 1 | — | The bytes (a byte list or a string's UTF-8) as lowercase hex, two digits each, in one native pass: hex_encode([0, 15, 255]) is "000fff". An element outside 0..255 raises. shinsuu's bytes_hex wraps it. |
+| `join` | `join(xs, sep)` | 2 | — | The elements' text with sep between. The LIST comes first here, and the string first in split. |
+| `join_lines` | `join_lines(xs)` | 1 | — | The elements' text, one per line, with no newline after the last: what a string with a \n escape is written as (B0065). |
+| `line_break` | `line_break` | 0 | — | The one-character line-break string, "\n" (B0065). `newline` prints one. |
+| `replace` | `replace(s, from, to)` | 3 | — | Every occurrence of from replaced by to. |
+| `split` | `split(s, sep)` | 2 | — | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. Also defined by `happa` (`happa::split`): a file that lists it gets that one. |
+| `starts_with?` | `starts_with?(s, prefix)` | 2 | — | Whether s begins with prefix. |
+| `string` | `string(x)` | 1 | — | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
+| `text_bytes` | `text_bytes(s)` | 1 | — | The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes("é") is [195, 169]. |
+| `text_index` | `text_index(s, sub, from)` | 3 | — | The character index of the first sub in s starting at or after from, or -1. One linear pass; moji's char_index wraps it. |
+| `text_last_index` | `text_last_index(s, sub, from)` | 3 | — | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
+| `to_s` | `to_s(x)` | 1 | native | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |
+| `trim` | `trim(s[, opts])` | 1..2 | — | The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option. Also defined by `moji` (`moji::trim`): a file that lists it gets that one. |
+| `unlines` | `unlines(xs)` | 1 | — | The elements' text, each followed by a newline: text that ends in a line break (B0065). |
+| `upcase` | `upcase(s)` | 1 | — | The string in upper case. Raises on nil. |
 
 ### Lists
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `append` | `append(lists...)` | any | The lists joined, in order; nil counts as []. Persistent: O(log n), sharing structure with the operands, and in place when the first list is held nowhere else (an accumulator in a tail call), so building a list one element at a time is linear. |
-| `butlast` | `butlast(xs)` | 1 | All but the last; raises on []. |
-| `car` | `car(xs)` | 1 | The first element. Prefer first. |
-| `cdr` | `cdr(xs)` | 1 | All but the first ([] for a one-element list); raises on []. Prefer rest. |
-| `cons` | `cons(x, tail)` | 2 | A new list with x in front. Shares tail rather than copying it, and is in place when tail is held nowhere else. |
-| `count` | `count(x)` | 1 | The number of elements; 0 for nil. |
-| `distinct` | `distinct(xs)` | 1 | The elements with repeats removed, first occurrence kept, compared with ==. |
-| `drop` | `drop(n, xs)` | 2 | All but the first n. The COUNT comes first. |
-| `first` | `first(xs)` | 1 | The first element; raises on []. retsu's first answers nil. Also defined by `retsu` (`retsu::first`): a file that lists it gets that one. |
-| `flatten` | `flatten(xs)` | 1 | Every nested list spliced in, to any depth. |
-| `fourth` | `fourth(xs)` | 1 | The fourth element; raises when there is none. |
-| `frequencies` | `frequencies(xs)` | 1 | A map from each element to how many times it occurs. Also defined by `shuugou` (`shuugou::frequencies`): a file that lists it gets that one. |
-| `interleave` | `interleave(xs, ys)` | 2 | [x1, y1, x2, y2, …], as long as the shorter list allows. Also defined by `retsu` (`retsu::interleave`): a file that lists it gets that one. |
-| `intersperse` | `intersperse(sep, xs)` | 2 | xs with sep between each pair. The SEPARATOR comes first. |
-| `iterate` | `iterate(f, x, n)` | 3 | [x, f(x), f(f(x)), …], n elements. Also defined by `kaaneru` (`kaaneru::iterate`): a file that lists it gets that one. |
-| `last` | `last(xs)` | 1 | The last element; raises on []. retsu's last answers nil. Also defined by `retsu` (`retsu::last`): a file that lists it gets that one. |
-| `length` | `length(seq)` | 1 | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
-| `list` | `list(xs...)` | any | A list of the arguments. Written [a, b]. Also defined by `gitto` (`gitto::list`): a file that lists it gets that one. |
-| `member?` | `member?(x, xs)` | 2 | Whether some element == x. The ELEMENT comes first. |
-| `next` | `next(xs)` | 1 | All but the first; raises on []. |
-| `nth` | `nth(i, xs)` | 2 | The element at index i, from 0; nil past either end. The INDEX comes first. |
-| `partition` | `partition(f, xs)` | 2 | [kept, rejected]: the elements f accepts, then the rest. Also defined by `retsu` (`retsu::partition`): a file that lists it gets that one. |
-| `position` | `position(x, xs)` | 2 | The index of the first element == x, or -1. |
-| `range` | `range(a[, b][, step])` | 1..3 | Ints from a up to but not including b by step; range(n) is 0 to n - 1. Native, so any length is safe. |
-| `repeatedly` | `repeatedly(f, n)` | 2 | A list of n calls to the zero-argument function f. The FUNCTION comes first. |
-| `rest` | `rest(xs)` | 1 | All but the first; raises on []. retsu's rest answers []. Also defined by `retsu` (`retsu::rest`): a file that lists it gets that one. |
-| `reverse` | `reverse(seq)` | 1 | The list or string backwards. Raises on nil. Also defined by `gurafu` (`gurafu::reverse`): a file that lists it gets that one. |
-| `second` | `second(xs)` | 1 | The second element; raises when there is none. |
-| `sort_keyed` | `sort_keyed(key, xs)` | 2 | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
-| `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. Also defined by `kodou` (`kodou::take`): a file that lists it gets that one. |
-| `third` | `third(xs)` | 1 | The third element; raises when there is none. |
-| `zip` | `zip(xs, ys)` | 2 | [[x1, y1], [x2, y2], …], as long as the shorter list. Also defined by `retsu` (`retsu::zip`), `umu` (`umu::zip`): a file that lists it gets that one. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `append` | `append(lists...)` | any | native | The lists joined, in order; nil counts as []. Persistent: O(log n), sharing structure with the operands, and in place when the first list is held nowhere else (an accumulator in a tail call), so building a list one element at a time is linear. |
+| `butlast` | `butlast(xs)` | 1 | — | All but the last; raises on []. |
+| `car` | `car(xs)` | 1 | — | The first element. Prefer first. |
+| `cdr` | `cdr(xs)` | 1 | — | All but the first ([] for a one-element list); raises on []. Prefer rest. |
+| `cons` | `cons(x, tail)` | 2 | native | A new list with x in front. Shares tail rather than copying it, and is in place when tail is held nowhere else. |
+| `count` | `count(x)` | 1 | — | The number of elements; 0 for nil. |
+| `distinct` | `distinct(xs)` | 1 | — | The elements with repeats removed, first occurrence kept, compared with ==. |
+| `drop` | `drop(n, xs)` | 2 | native | All but the first n. The COUNT comes first. |
+| `first` | `first(xs)` | 1 | native | The first element; raises on []. retsu's first answers nil. Also defined by `retsu` (`retsu::first`): a file that lists it gets that one. |
+| `flatten` | `flatten(xs)` | 1 | — | Every nested list spliced in, to any depth. |
+| `fourth` | `fourth(xs)` | 1 | — | The fourth element; raises when there is none. |
+| `frequencies` | `frequencies(xs)` | 1 | — | A map from each element to how many times it occurs. Also defined by `shuugou` (`shuugou::frequencies`): a file that lists it gets that one. |
+| `interleave` | `interleave(xs, ys)` | 2 | — | [x1, y1, x2, y2, …], as long as the shorter list allows. Also defined by `retsu` (`retsu::interleave`): a file that lists it gets that one. |
+| `intersperse` | `intersperse(sep, xs)` | 2 | — | xs with sep between each pair. The SEPARATOR comes first. |
+| `iterate` | `iterate(f, x, n)` | 3 | — | [x, f(x), f(f(x)), …], n elements. Also defined by `kaaneru` (`kaaneru::iterate`): a file that lists it gets that one. |
+| `last` | `last(xs)` | 1 | — | The last element; raises on []. retsu's last answers nil. Also defined by `retsu` (`retsu::last`): a file that lists it gets that one. |
+| `length` | `length(seq)` | 1 | native | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
+| `list` | `list(xs...)` | any | native | A list of the arguments. Written [a, b]. Also defined by `gitto` (`gitto::list`): a file that lists it gets that one. |
+| `member?` | `member?(x, xs)` | 2 | — | Whether some element == x. The ELEMENT comes first. |
+| `next` | `next(xs)` | 1 | — | All but the first; raises on []. |
+| `nth` | `nth(i, xs)` | 2 | native | The element at index i, from 0; nil past either end. The INDEX comes first. |
+| `partition` | `partition(f, xs)` | 2 | — | [kept, rejected]: the elements f accepts, then the rest. Also defined by `retsu` (`retsu::partition`): a file that lists it gets that one. |
+| `position` | `position(x, xs)` | 2 | — | The index of the first element == x, or -1. |
+| `range` | `range(a[, b][, step])` | 1..3 | — | Ints from a up to but not including b by step; range(n) is 0 to n - 1. Native, so any length is safe. |
+| `repeatedly` | `repeatedly(f, n)` | 2 | — | A list of n calls to the zero-argument function f. The FUNCTION comes first. |
+| `rest` | `rest(xs)` | 1 | native | All but the first; raises on []. retsu's rest answers []. Also defined by `retsu` (`retsu::rest`): a file that lists it gets that one. |
+| `reverse` | `reverse(seq)` | 1 | native | The list or string backwards. Raises on nil. Also defined by `gurafu` (`gurafu::reverse`): a file that lists it gets that one. |
+| `second` | `second(xs)` | 1 | — | The second element; raises when there is none. |
+| `sort_keyed` | `sort_keyed(key, xs)` | 2 | — | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
+| `take` | `take(n, xs)` | 2 | — | The first n elements, or all of them. The COUNT comes first. Also defined by `kodou` (`kodou::take`): a file that lists it gets that one. |
+| `third` | `third(xs)` | 1 | — | The third element; raises when there is none. |
+| `zip` | `zip(xs, ys)` | 2 | — | [[x1, y1], [x2, y2], …], as long as the shorter list. Also defined by `retsu` (`retsu::zip`), `umu` (`umu::zip`): a file that lists it gets that one. |
 
 ### Maps
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `assoc` | `assoc(m, k, v)` | 3 | A new map with k set to v; m is unchanged. Persistent: O(log n), and in place when m is held nowhere else (an accumulator in a tail call). Raises on nil. |
-| `bury` | `bury(tree, keys..., value)` | 2+ | A new tree with value at the path of keys, every missing level made as a map. Refuses with :bad_path when a value on the way is neither nil, a map nor a list, so data is never replaced silently; a list index may be one past the end; bury(tree, value) is value. |
-| `dig` | `dig(tree, keys...)` | 1+ | The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree. |
-| `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
-| `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
-| `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil. Also defined by `yomi` (`yomi::map_entries`): a file that lists it gets that one. |
-| `record_fields` | `record_fields(r)` | 1 | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. Also defined by `yomi` (`yomi::record_fields`): a file that lists it gets that one. |
-| `record_name` | `record_name(v)` | 1 | The name a record carries, `pkg::point` for one a bidama declares; nil for any other value. |
-| `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `assoc` | `assoc(m, k, v)` | 3 | native | A new map with k set to v; m is unchanged. Persistent: O(log n), and in place when m is held nowhere else (an accumulator in a tail call). Raises on nil. |
+| `bury` | `bury(tree, keys..., value)` | 2+ | — | A new tree with value at the path of keys, every missing level made as a map. Refuses with :bad_path when a value on the way is neither nil, a map nor a list, so data is never replaced silently; a list index may be one past the end; bury(tree, value) is value. |
+| `dig` | `dig(tree, keys...)` | 1+ | — | The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree. |
+| `dissoc` | `dissoc(m, k)` | 2 | — | A new map without k; unchanged when k is absent. |
+| `get` | `get(m, k)` | 2 | native | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
+| `map_entries` | `map_entries(m)` | 1 | — | Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil. Also defined by `yomi` (`yomi::map_entries`): a file that lists it gets that one. |
+| `record_fields` | `record_fields(r)` | 1 | — | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. Also defined by `yomi` (`yomi::record_fields`): a file that lists it gets that one. |
+| `record_name` | `record_name(v)` | 1 | — | The name a record carries, `pkg::point` for one a bidama declares; nil for any other value. |
+| `zipmap` | `zipmap(keys, values)` | 2 | — | A map pairing keys with values, as long as the shorter list. |
 
 ### Master verbs
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `create` | `create(store, key, value, more...)` | 3+ | Add a new entry, refusing to overwrite; in_space("gitto", repo) makes a branch or tag. Also defined by `gitto` (`gitto::create`): a file that lists it gets that one. |
-| `delete` | `delete(store, key, more...)` | 2+ | Make an entry absent; absent counts as done. A plain map goes to jisho; in_space("gitto", repo) deletes a branch or tag. Also defined by `gitto` (`gitto::delete`), `jisho` (`jisho::delete`), `shuusei` (`shuusei::delete`): a file that lists it gets that one. |
-| `diff` | `diff(a, b, more...)` | 2+ | The differences between two values as change records, by the space of a: diff(in_space("gitto", repo), from, to) compares two refs. Also defined by `gitto` (`gitto::diff`), `settei` (`settei::diff`): a file that lists it gets that one. |
-| `exists?` | `exists?(subject, more...)` | 1+ | Whether the subject is there; in_space("gitto", repo) asks about a ref. Also defined by `gitto` (`gitto::exists?`): a file that lists it gets that one. |
-| `has?` | `has?(store, key, more...)` | 2+ | Whether the key is present. A plain map goes to jisho. Also defined by `jisho` (`jisho::has?`), `kueri` (`kueri::has?`), `settei` (`settei::has?`): a file that lists it gets that one. |
-| `in_space` | `in_space(space, value)` | 2 | The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage. |
-| `info` | `info(subject, more...)` | 1+ | The current state of the subject as a record: in_space("gitto", repo) is the repository's state. Also defined by `gitto` (`gitto::info`): a file that lists it gets that one. |
-| `need` | `need(store, key, more...)` | 2+ | One entry, raising :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::need`), `settei` (`settei::need`): a file that lists it gets that one. |
-| `put` | `put(store, key, value, more...)` | 3+ | Create or replace an entry; a plain map goes to jisho, which returns a new map. Also defined by `ibuki` (`ibuki::put`), `jisho` (`jisho::put`), `shuusei` (`shuusei::put`): a file that lists it gets that one. |
-| `read` | `read(source, more...)` | 1+ | The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler. Also defined by `chokkan` (`chokkan::read`), `deeta` (`deeta::read`), `gitto` (`gitto::read`), `khipu` (`khipu::read`), `settei` (`settei::read`): a file that lists it gets that one. |
-| `space_for` | `space_for(kind, space)` | 2 | Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage. |
-| `space_of` | `space_of(value)` | 1 | The space a master verb would dispatch the value to (its tag, else the owner of its kind), or nil. |
-| `update` | `update(store, key, f, more...)` | 3+ | Replace an entry with f of the old value; raises :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::update`): a file that lists it gets that one. |
-| `verb_for` | `verb_for(space, verb, f)` | 3 | Register f as the handler of a master verb for a space. The verb is one of read, need, has?, put, update, delete, create, diff, info, exists?; another name raises :usage. Registering again replaces. Spaces call it at the top of their bidama. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `create` | `create(store, key, value, more...)` | 3+ | — | Add a new entry, refusing to overwrite; in_space("gitto", repo) makes a branch or tag. Also defined by `gitto` (`gitto::create`): a file that lists it gets that one. |
+| `delete` | `delete(store, key, more...)` | 2+ | — | Make an entry absent; absent counts as done. A plain map goes to jisho; in_space("gitto", repo) deletes a branch or tag. Also defined by `gitto` (`gitto::delete`), `jisho` (`jisho::delete`), `shuusei` (`shuusei::delete`): a file that lists it gets that one. |
+| `diff` | `diff(a, b, more...)` | 2+ | — | The differences between two values as change records, by the space of a: diff(in_space("gitto", repo), from, to) compares two refs. Also defined by `gitto` (`gitto::diff`), `settei` (`settei::diff`): a file that lists it gets that one. |
+| `exists?` | `exists?(subject, more...)` | 1+ | — | Whether the subject is there; in_space("gitto", repo) asks about a ref. Also defined by `gitto` (`gitto::exists?`): a file that lists it gets that one. |
+| `has?` | `has?(store, key, more...)` | 2+ | — | Whether the key is present. A plain map goes to jisho. Also defined by `jisho` (`jisho::has?`), `kueri` (`kueri::has?`), `settei` (`settei::has?`): a file that lists it gets that one. |
+| `in_space` | `in_space(space, value)` | 2 | — | The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage. |
+| `info` | `info(subject, more...)` | 1+ | — | The current state of the subject as a record: in_space("gitto", repo) is the repository's state. Also defined by `gitto` (`gitto::info`): a file that lists it gets that one. |
+| `need` | `need(store, key, more...)` | 2+ | — | One entry, raising :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::need`), `settei` (`settei::need`): a file that lists it gets that one. |
+| `put` | `put(store, key, value, more...)` | 3+ | — | Create or replace an entry; a plain map goes to jisho, which returns a new map. Also defined by `ibuki` (`ibuki::put`), `jisho` (`jisho::put`), `shuusei` (`shuusei::put`): a file that lists it gets that one. |
+| `read` | `read(source, more...)` | 1+ | — | The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler. Also defined by `chokkan` (`chokkan::read`), `deeta` (`deeta::read`), `gitto` (`gitto::read`), `khipu` (`khipu::read`), `settei` (`settei::read`): a file that lists it gets that one. |
+| `space_for` | `space_for(kind, space)` | 2 | — | Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage. |
+| `space_of` | `space_of(value)` | 1 | — | The space a master verb would dispatch the value to (its tag, else the owner of its kind), or nil. |
+| `update` | `update(store, key, f, more...)` | 3+ | — | Replace an entry with f of the old value; raises :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::update`): a file that lists it gets that one. |
+| `verb_for` | `verb_for(space, verb, f)` | 3 | — | Register f as the handler of a master verb for a space. The verb is one of read, need, has?, put, update, delete, create, diff, info, exists?; another name raises :usage. Registering again replaces. Spaces call it at the top of their bidama. |
 
 ### Functions
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `any?` | `any?(f, xs)` | 2 | Whether f accepts some element; false for []. |
-| `apply` | `apply(f, args..., xs)` | 2+ | Call f with the elements of the last list as its arguments. With f a name it is written as a splat, max(*xs) (B0042); apply stays for a function computed by an expression. |
-| `comp` | `comp(f, g)` | 2 | The function x -> f(g(x)). |
-| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`), `utsushi` (`utsushi::compose`): a file that lists it gets that one. |
-| `const` | `const(x)` | 1 | A function that ignores its argument and returns x. |
-| `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
-| `def_hash` | `def_hash(f)` | 1 | The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function. |
-| `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
-| `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. Also defined by `umu` (`umu::filter`): a file that lists it gets that one. |
-| `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |
-| `flat_map` | `flat_map(xs, f)` | 2 | f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first. Also defined by `retsu` (`retsu::flat_map`): a file that lists it gets that one. |
-| `flip` | `flip(f)` | 1 | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
-| `foldl` | `foldl(f, init, xs)` | 3 | reduce with an init: f(acc, x) from the left. |
-| `foldr` | `foldr(f, init, xs)` | 3 | Fold from the right: f(x, acc). |
-| `group_by` | `group_by(xs, f)` | 2 | A map from f(x) to the list of the elements with that key, each list in order. The key must be a scalar. The COLLECTION comes first. Also defined by `shuugou` (`shuugou::group_by`): a file that lists it gets that one. |
-| `identity` | `identity(x)` | 1 | x. Also defined by `kansuu` (`kansuu::identity`): a file that lists it gets that one. |
-| `juxt` | `juxt(fs...)` | 0+ | The function x -> [f(x), g(x), …]. Also defined by `kansuu` (`kansuu::juxt`): a file that lists it gets that one. |
-| `map` | `map(f, xs, more...)` | 2+ | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. Also defined by `umu` (`umu::map`): a file that lists it gets that one. |
-| `memoize` | `memoize(f)` | 1 | f, remembering each argument's answer. |
-| `par_map` | `par_map(f, xs)` | 2 | map(f, xs), on the project's schedulers when the work pays: the first call, timed, prices the rest, and the rest runs apart when it saves more than twice what a worker costs to start. f must only compute; it and each element travel as a spawned process's do, the slices are joined in order, so the answer is map's. A callback or element that cannot travel, or a worker that raises, maps on this thread, which raises the error map raises. blue run --timings counts each parallel map. |
-| `partial` | `partial(f, args...)` | 1+ | f with its first arguments fixed: partial(f, 1)(2) is f(1, 2). |
-| `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
-| `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
-| `remove` | `remove(f, xs)` | 2 | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
-| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). Also defined by `umu` (`umu::some`): a file that lists it gets that one. |
-| `suspends` | `suspends(f)` | 1 | Declares that f may suspend: it reaches receive, sleep_for, sleep_until or net_wait, directly or through what it calls. A restricted file must declare each definition that does (A-colour, B0101); one with no parameters is declared as suspends(fn() f end). Nil; raises unless f is a function. |
-| `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
-| `visit` | `visit(f, x)` | 2 | f(x). |
-| `volatile` | `volatile(f)` | 1 | Declares that f must run on every call: neither f nor any definition reaching it is answered from the call memo. Nil; raises unless f is a function. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `any?` | `any?(f, xs)` | 2 | native | Whether f accepts some element; false for []. |
+| `apply` | `apply(f, args..., xs)` | 2+ | — | Call f with the elements of the last list as its arguments. With f a name it is written as a splat, max(*xs) (B0042); apply stays for a function computed by an expression. |
+| `comp` | `comp(f, g)` | 2 | — | The function x -> f(g(x)). |
+| `compose` | `compose(fs...)` | 0+ | — | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`), `utsushi` (`utsushi::compose`): a file that lists it gets that one. |
+| `const` | `const(x)` | 1 | — | A function that ignores its argument and returns x. |
+| `decorate` | `decorate(f, keys-and-values...)` | 1+ | — | f with metadata attached; it still calls as f. |
+| `def_hash` | `def_hash(f)` | 1 | — | The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function. |
+| `every?` | `every?(f, xs)` | 2 | native | Whether f accepts every element; true for []. |
+| `filter` | `filter(f, xs)` | 2 | native | The elements f accepts. The FUNCTION comes first. Also defined by `umu` (`umu::filter`): a file that lists it gets that one. |
+| `find` | `find(xs, f)` | 2 | — | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |
+| `flat_map` | `flat_map(xs, f)` | 2 | — | f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first. Also defined by `retsu` (`retsu::flat_map`): a file that lists it gets that one. |
+| `flip` | `flip(f)` | 1 | — | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
+| `foldl` | `foldl(f, init, xs)` | 3 | — | reduce with an init: f(acc, x) from the left. |
+| `foldr` | `foldr(f, init, xs)` | 3 | — | Fold from the right: f(x, acc). |
+| `group_by` | `group_by(xs, f)` | 2 | — | A map from f(x) to the list of the elements with that key, each list in order. The key must be a scalar. The COLLECTION comes first. Also defined by `shuugou` (`shuugou::group_by`): a file that lists it gets that one. |
+| `identity` | `identity(x)` | 1 | — | x. Also defined by `kansuu` (`kansuu::identity`): a file that lists it gets that one. |
+| `juxt` | `juxt(fs...)` | 0+ | — | The function x -> [f(x), g(x), …]. Also defined by `kansuu` (`kansuu::juxt`): a file that lists it gets that one. |
+| `map` | `map(f, xs, more...)` | 2+ | native | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. Also defined by `umu` (`umu::map`): a file that lists it gets that one. |
+| `memoize` | `memoize(f)` | 1 | — | f, remembering each argument's answer. |
+| `par_map` | `par_map(f, xs)` | 2 | — | map(f, xs), on the project's schedulers when the work pays: the first call, timed, prices the rest, and the rest runs apart when it saves more than twice what a worker costs to start. f must only compute; it and each element travel as a spawned process's do, the slices are joined in order, so the answer is map's. A callback or element that cannot travel, or a worker that raises, maps on this thread, which raises the error map raises. blue run --timings counts each parallel map. |
+| `partial` | `partial(f, args...)` | 1+ | — | f with its first arguments fixed: partial(f, 1)(2) is f(1, 2). |
+| `pipe` | `pipe(fs...)` | 0+ | — | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
+| `reduce` | `reduce(f, [init, ]xs)` | 2..3 | native | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
+| `remove` | `remove(f, xs)` | 2 | — | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
+| `some` | `some(f, xs)` | 2 | — | true when f accepts an element, else nil (not false). Also defined by `umu` (`umu::some`): a file that lists it gets that one. |
+| `suspends` | `suspends(f)` | 1 | — | Declares that f may suspend: it reaches receive, sleep_for, sleep_until or net_wait, directly or through what it calls. A restricted file must declare each definition that does (A-colour, B0101); one with no parameters is declared as suspends(fn() f end). Nil; raises unless f is a function. |
+| `tap` | `tap(f, x)` | 2 | — | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
+| `visit` | `visit(f, x)` | 2 | — | f(x). |
+| `volatile` | `volatile(f)` | 1 | — | Declares that f must run on every call: neither f nor any definition reaching it is answered from the call memo. Nil; raises unless f is a function. |
 
 ### Predicates
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `atom?` | `atom?(x)` | 1 | Whether x is a scalar rather than a list; false for nil. Also defined by `kuzushi` (`kuzushi::atom?`): a file that lists it gets that one. |
-| `bool?` | `bool?(x)` | 1 | Whether x is true or false. |
-| `boolean?` | `boolean?(x)` | 1 | The same as bool?. |
-| `cast` | `cast(type, x)` | 2 | x checked against, or narrowed to, the type a keyword names: cast(:float, 5) is 5.0. Type first. |
-| `chan?` | `chan?(x)` | 1 | Whether x is a channel. |
-| `empty?` | `empty?(xs)` | 1 | Whether xs is nil or has no elements. Also defined by `jisho` (`jisho::empty?`): a file that lists it gets that one. |
-| `eq?` | `eq?(a, b)` | 2 | Identity: true for the same keyword or string, false for two equal lists. Use ==. |
-| `equal?` | `equal?(a, b)` | 2 | Structural equality; what == lowers to. |
-| `even?` | `even?(n)` | 1 | Whether n is even. |
-| `float?` | `float?(x)` | 1 | Whether x is a Float. 6 / 2 is the Int 3, while 7 / 2 is 3.5. |
-| `foreign?` | `foreign?(x)` | 1 | Whether x is an opaque value a host handed in. |
-| `go?` | `go?(x)` | 1 | Whether x is a fiber. |
-| `integer?` | `integer?(x)` | 1 | Whether x is an Int; integer?(1.0) is false. |
-| `is?` | `is?(x, type)` | 2 | Whether x has the type named by a keyword: is?(5, :int). Value first. Also defined by `yomi` (`yomi::is?`): a file that lists it gets that one. |
-| `keyword?` | `keyword?(x)` | 1 | Whether x is a keyword such as :done. |
-| `list?` | `list?(x)` | 1 | Whether x is a list. list?(nil) is true, so test x == nil first. |
-| `map?` | `map?(x)` | 1 | Whether x is a map. A parsed JSON object is not one. |
-| `negative?` | `negative?(n)` | 1 | Whether n < 0. |
-| `nil?` | `nil?(x)` | 1 | Whether x is nil (okite D0010). x.nil? says the same and is the spelling blue writes (B0047). |
-| `null?` | `null?(x)` | 1 | Whether x is nil or []. The Lisp word; prefer retsu's is_empty. |
-| `number?` | `number?(x)` | 1 | Whether x is an Int or a Float. |
-| `odd?` | `odd?(n)` | 1 | Whether n is odd. |
-| `pair?` | `pair?(x)` | 1 | Whether x is a non-empty list. |
-| `positive?` | `positive?(n)` | 1 | Whether n > 0. |
-| `procedure?` | `procedure?(x)` | 1 | Whether x can be called. |
-| `promise?` | `promise?(x)` | 1 | Whether x is a delayed value. |
-| `some?` | `some?(x)` | 1 | Whether x is not nil. Also defined by `umu` (`umu::some?`): a file that lists it gets that one. |
-| `string?` | `string?(x)` | 1 | Whether x is a string. |
-| `symbol?` | `symbol?(x)` | 1 | Whether x is a Lisp symbol; false for keywords. |
-| `the` | `the(type, x)` | 2 | x, after asserting its type: the(:int, 5). Type first. |
-| `zero?` | `zero?(n)` | 1 | Whether n is 0. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `atom?` | `atom?(x)` | 1 | — | Whether x is a scalar rather than a list; false for nil. Also defined by `kuzushi` (`kuzushi::atom?`): a file that lists it gets that one. |
+| `bool?` | `bool?(x)` | 1 | — | Whether x is true or false. |
+| `boolean?` | `boolean?(x)` | 1 | native | The same as bool?. |
+| `cast` | `cast(type, x)` | 2 | — | x checked against, or narrowed to, the type a keyword names: cast(:float, 5) is 5.0. Type first. |
+| `chan?` | `chan?(x)` | 1 | — | Whether x is a channel. |
+| `empty?` | `empty?(xs)` | 1 | — | Whether xs is nil or has no elements. Also defined by `jisho` (`jisho::empty?`): a file that lists it gets that one. |
+| `eq?` | `eq?(a, b)` | 2 | — | Identity: true for the same keyword or string, false for two equal lists. Use ==. |
+| `equal?` | `equal?(a, b)` | 2 | native | Structural equality; what == lowers to. |
+| `even?` | `even?(n)` | 1 | — | Whether n is even. |
+| `float?` | `float?(x)` | 1 | — | Whether x is a Float. 6 / 2 is the Int 3, while 7 / 2 is 3.5. |
+| `foreign?` | `foreign?(x)` | 1 | — | Whether x is an opaque value a host handed in. |
+| `go?` | `go?(x)` | 1 | — | Whether x is a fiber. |
+| `integer?` | `integer?(x)` | 1 | native | Whether x is an Int; integer?(1.0) is false. |
+| `is?` | `is?(x, type)` | 2 | — | Whether x has the type named by a keyword: is?(5, :int). Value first. Also defined by `yomi` (`yomi::is?`): a file that lists it gets that one. |
+| `keyword?` | `keyword?(x)` | 1 | native | Whether x is a keyword such as :done. |
+| `list?` | `list?(x)` | 1 | native | Whether x is a list. list?(nil) is true, so test x == nil first. |
+| `map?` | `map?(x)` | 1 | — | Whether x is a map. A parsed JSON object is not one. |
+| `negative?` | `negative?(n)` | 1 | — | Whether n < 0. |
+| `nil?` | `nil?(x)` | 1 | native | Whether x is nil (okite D0010). x.nil? says the same and is the spelling blue writes (B0047). |
+| `null?` | `null?(x)` | 1 | — | Whether x is nil or []. The Lisp word; prefer retsu's is_empty. |
+| `number?` | `number?(x)` | 1 | — | Whether x is an Int or a Float. |
+| `odd?` | `odd?(n)` | 1 | — | Whether n is odd. |
+| `pair?` | `pair?(x)` | 1 | — | Whether x is a non-empty list. |
+| `positive?` | `positive?(n)` | 1 | — | Whether n > 0. |
+| `procedure?` | `procedure?(x)` | 1 | — | Whether x can be called. |
+| `promise?` | `promise?(x)` | 1 | — | Whether x is a delayed value. |
+| `some?` | `some?(x)` | 1 | — | Whether x is not nil. Also defined by `umu` (`umu::some?`): a file that lists it gets that one. |
+| `string?` | `string?(x)` | 1 | native | Whether x is a string. |
+| `symbol?` | `symbol?(x)` | 1 | — | Whether x is a Lisp symbol; false for keywords. |
+| `the` | `the(type, x)` | 2 | — | x, after asserting its type: the(:int, 5). Type first. |
+| `zero?` | `zero?(n)` | 1 | — | Whether n is 0. |
 
 ### Errors
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `error` | `error(kind, message[, data])` | 2..3 | An error VALUE, raising nothing. throw(error(k, m)) is written raise(k, m) (B0037). |
-| `error?` | `error?(x)` | 1 | Whether x is an error value; true inside a catch handler. |
-| `error_kind` | `error_kind(e)` | 1 | The kind of an error value, a keyword. Written e.kind (B0036). |
-| `error_message` | `error_message(e)` | 1 | The message of an error value. Written e.message (B0036). |
-| `gensym` | `gensym([prefix])` | 0..1 | A fresh unique symbol, for macros that need a private name. |
-| `raise` | `raise(kind_or_error[, message[, opts]])` | 1..3 | Raise an error: raise(:not_found, "no repo #{name}"); opts is {data: value, cause: e}. raise(e) raises e again unchanged. Uncaught, the run prints kind: message, every cause, the stack, and exits 1. The error's fields are e.kind, e.message, e.data, e.cause and e.trace, the raise site as file:line. |
-| `throw` | `throw(err)` | 1 | Raise any value. Written raise(err) (B0037). |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `error` | `error(kind, message[, data])` | 2..3 | — | An error VALUE, raising nothing. throw(error(k, m)) is written raise(k, m) (B0037). |
+| `error?` | `error?(x)` | 1 | — | Whether x is an error value; true inside a catch handler. |
+| `error_kind` | `error_kind(e)` | 1 | — | The kind of an error value, a keyword. Written e.kind (B0036). |
+| `error_message` | `error_message(e)` | 1 | — | The message of an error value. Written e.message (B0036). |
+| `gensym` | `gensym([prefix])` | 0..1 | — | A fresh unique symbol, for macros that need a private name. |
+| `raise` | `raise(kind_or_error[, message[, opts]])` | 1..3 | native | Raise an error: raise(:not_found, "no repo #{name}"); opts is {data: value, cause: e}. raise(e) raises e again unchanged. Uncaught, the run prints kind: message, every cause, the stack, and exits 1. The error's fields are e.kind, e.message, e.data, e.cause and e.trace, the raise site as file:line. |
+| `throw` | `throw(err)` | 1 | — | Raise any value. Written raise(err) (B0037). |
 
 ### JSON
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `json_canonical` | `json_canonical(text)` | 1 | The JSON document in text as canonical JSON: every object's keys sorted, no whitespace, numbers and strings as serde_json writes them, so equal documents hash alike. Unlike json_stringify(json_read(text)), an array of [string, value] pairs stays an array. Raises when text is not JSON. |
-| `json_get` | `json_get(obj, key)` | 2 | The field of a parsed JSON object, or nil. Raises when obj is not an object. |
-| `json_get_or` | `json_get_or(obj, key, default)` | 3 | The field of a parsed JSON object, or default. |
-| `json_parse` | `json_parse(text)` | 1 | Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil. |
-| `json_read` | `json_read(text)` | 1 | Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil. |
-| `json_stringify` | `json_stringify(v)` | 1 | Compact JSON text, a map's keys sorted, a keyword as its name. |
-| `json_write` | `json_write(v)` | 1 | Compact JSON text where a list is always an array and a map is always an object, the inverse of json_read: an array of [string, value] pairs stays an array, a map's keys sorted, a keyword as its name. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `json_canonical` | `json_canonical(text)` | 1 | — | The JSON document in text as canonical JSON: every object's keys sorted, no whitespace, numbers and strings as serde_json writes them, so equal documents hash alike. Unlike json_stringify(json_read(text)), an array of [string, value] pairs stays an array. Raises when text is not JSON. |
+| `json_get` | `json_get(obj, key)` | 2 | — | The field of a parsed JSON object, or nil. Raises when obj is not an object. |
+| `json_get_or` | `json_get_or(obj, key, default)` | 3 | — | The field of a parsed JSON object, or default. |
+| `json_parse` | `json_parse(text)` | 1 | — | Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil. |
+| `json_read` | `json_read(text)` | 1 | — | Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil. |
+| `json_stringify` | `json_stringify(v)` | 1 | — | Compact JSON text, a map's keys sorted, a keyword as its name. |
+| `json_write` | `json_write(v)` | 1 | — | Compact JSON text where a list is always an array and a map is always an object, the inverse of json_read: an array of [string, value] pairs stays an array, a map's keys sorted, a keyword as its name. |
 
 ### Nix source
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `nix_parse` | `nix_parse(source)` | 1 | Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `nix_parse` | `nix_parse(source)` | 1 | — | Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it. |
 
 ### XML
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `xml_parse` | `xml_parse(text)` | 1 | Parse an XML document to its root element, a map {name, attributes, children, text}: name keeps its namespace prefix, attributes maps each name to its unescaped value, children lists the child elements, text joins the element's own character data (whitespace between child elements dropped). Comments, processing instructions and the DOCTYPE are dropped. Only the five predefined entities and character references expand: a DTD entity declaration or any other reference raises :xml_refused, so nothing is fetched or multiplied. A document that is not well-formed raises :xml_malformed. The maakuappu bidama queries it. |
-| `xml_render` | `xml_render(element)` | 1 | An element map as XML text, escaped so xml_parse reads it back equal: attributes in key order, an element with no text and no children as <name/>. A name that is not an XML name, a character XML 1.0 cannot hold or a value of the wrong kind raises :xml_refused. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `xml_parse` | `xml_parse(text)` | 1 | — | Parse an XML document to its root element, a map {name, attributes, children, text}: name keeps its namespace prefix, attributes maps each name to its unescaped value, children lists the child elements, text joins the element's own character data (whitespace between child elements dropped). Comments, processing instructions and the DOCTYPE are dropped. Only the five predefined entities and character references expand: a DTD entity declaration or any other reference raises :xml_refused, so nothing is fetched or multiplied. A document that is not well-formed raises :xml_malformed. The maakuappu bidama queries it. |
+| `xml_render` | `xml_render(element)` | 1 | — | An element map as XML text, escaped so xml_parse reads it back equal: attributes in key order, an element with no text and no children as <name/>. A name that is not an XML name, a character XML 1.0 cannot hold or a value of the wrong kind raises :xml_refused. |
 
 ### Files and paths
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `append_file` | `append_file(path, text)` | 2 | Add text to the end of the file, creating it; nil. |
-| `append_log` | `append_log(log, record)` | 2 | Add one record, a line of text, to the end of an append-only log, creating the log and its directories; nil. A record holding a newline or not a string raises :bad_option, and a log whose last record is torn raises :parse_error, writing nothing. Needs the storage_append capability, which filesystem holds; nothing in it truncates, overwrites or removes. |
-| `cwd` | `cwd` | 0 | The current directory. |
-| `file_mtime_ms` | `file_mtime_ms(path)` | 1 | The last modification time, in Unix milliseconds. |
-| `file_size` | `file_size(path)` | 1 | The size in bytes. |
-| `glob` | `glob(pattern)` | 1 | Paths matching * and ** relative to the current directory. An absolute pattern finds nothing; walk_dir and filter instead. |
-| `is_dir?` | `is_dir?(path)` | 1 | Whether path is a directory. |
-| `is_file?` | `is_file?(path)` | 1 | Whether path is a regular file. |
-| `ls` | `ls(dir)` | 1 | The entries of a directory as full paths, sorted. |
-| `mkdir` | `mkdir(path)` | 1 | Create one directory; nil if it exists. |
-| `mkdir_p` | `mkdir_p(path)` | 1 | Create a directory and its parents. |
-| `path_basename` | `path_basename(path)` | 1 | The last component: "b.txt" of "a/b.txt". |
-| `path_dirname` | `path_dirname(path)` | 1 | Everything before the last component. |
-| `path_exists` | `path_exists(path)` | 1 | Whether anything is at path. |
-| `path_extension` | `path_extension(path)` | 1 | The extension without its dot, or nil. |
-| `path_join` | `path_join(part, more...)` | 1+ | The parts joined with /. |
-| `read_bytes` | `read_bytes(path[, offset, length])` | 1..3 | The file's bytes as a list of integers 0..255, or the length bytes from offset. Past the end there are fewer, or none. Raises when it cannot be read. |
-| `read_file` | `read_file(path)` | 1 | The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not. |
-| `read_log` | `read_log(log)` | 1 | Every record append_log wrote to a log, in order, as strings. An absent log raises :not_found, and one whose last record is torn raises :parse_error. Needs the storage_append capability, which filesystem holds. |
-| `read_u32s` | `read_u32s(path, offset, count)` | 3 | count little-endian 32-bit integers from offset, as a list; fewer past the end. Raises when the file cannot be read. |
-| `rename_file` | `rename_file(from, to)` | 2 | Move a file, atomically on one filesystem: write a temporary beside to, then rename. |
-| `rm` | `rm(path)` | 1 | Delete a file; raises when it is absent. |
-| `rm_rf` | `rm_rf(path)` | 1 | Delete a file or a directory tree; nil when there is nothing. |
-| `temp_dir` | `temp_dir(label)` | 1 | A new, empty directory under TMPDIR named after label, owned by this run: removed when the run ends, however it ends. fairu's with_temp_dir(label, f) removes it when f returns. |
-| `walk_dir` | `walk_dir(root)` | 1 | Every file under root, as paths, in no fixed order: sort before comparing. |
-| `write_bytes` | `write_bytes(path, bytes)` | 2 | Write a byte list or string to path, replacing what is there. Nil. |
-| `write_file` | `write_file(path, text)` | 2 | Replace the file's contents with text; nil. |
-| `write_program` | `write_program(path, text)` | 2 | Write a blue program in its canonical form: text through the formatter, then to the file; raises when text does not parse. Every producer of a .b file writes with it (B0064). |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `append_file` | `append_file(path, text)` | 2 | native | Add text to the end of the file, creating it; nil. |
+| `append_log` | `append_log(log, record)` | 2 | — | Add one record, a line of text, to the end of an append-only log, creating the log and its directories; nil. A record holding a newline or not a string raises :bad_option, and a log whose last record is torn raises :parse_error, writing nothing. Needs the storage_append capability, which filesystem holds; nothing in it truncates, overwrites or removes. |
+| `cwd` | `cwd` | 0 | native | The current directory. |
+| `file_mtime_ms` | `file_mtime_ms(path)` | 1 | native | The last modification time, in Unix milliseconds. |
+| `file_size` | `file_size(path)` | 1 | native | The size in bytes. |
+| `glob` | `glob(pattern)` | 1 | — | Paths matching * and ** relative to the current directory. An absolute pattern finds nothing; walk_dir and filter instead. |
+| `is_dir?` | `is_dir?(path)` | 1 | native | Whether path is a directory. |
+| `is_file?` | `is_file?(path)` | 1 | native | Whether path is a regular file. |
+| `ls` | `ls(dir)` | 1 | native | The entries of a directory as full paths, sorted. |
+| `mkdir` | `mkdir(path)` | 1 | native | Create one directory; nil if it exists. |
+| `mkdir_p` | `mkdir_p(path)` | 1 | native | Create a directory and its parents. |
+| `path_basename` | `path_basename(path)` | 1 | native | The last component: "b.txt" of "a/b.txt". |
+| `path_dirname` | `path_dirname(path)` | 1 | native | Everything before the last component. |
+| `path_exists` | `path_exists(path)` | 1 | native | Whether anything is at path. |
+| `path_extension` | `path_extension(path)` | 1 | native | The extension without its dot, or nil. |
+| `path_join` | `path_join(part, more...)` | 1+ | native | The parts joined with /. |
+| `read_bytes` | `read_bytes(path[, offset, length])` | 1..3 | native | The file's bytes as a list of integers 0..255, or the length bytes from offset. Past the end there are fewer, or none. Raises when it cannot be read. |
+| `read_file` | `read_file(path)` | 1 | native | The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not. |
+| `read_log` | `read_log(log)` | 1 | — | Every record append_log wrote to a log, in order, as strings. An absent log raises :not_found, and one whose last record is torn raises :parse_error. Needs the storage_append capability, which filesystem holds. |
+| `read_u32s` | `read_u32s(path, offset, count)` | 3 | native | count little-endian 32-bit integers from offset, as a list; fewer past the end. Raises when the file cannot be read. |
+| `rename_file` | `rename_file(from, to)` | 2 | native | Move a file, atomically on one filesystem: write a temporary beside to, then rename. |
+| `rm` | `rm(path)` | 1 | native | Delete a file; raises when it is absent. |
+| `rm_rf` | `rm_rf(path)` | 1 | native | Delete a file or a directory tree; nil when there is nothing. |
+| `temp_dir` | `temp_dir(label)` | 1 | — | A new, empty directory under TMPDIR named after label, owned by this run: removed when the run ends, however it ends. fairu's with_temp_dir(label, f) removes it when f returns. |
+| `walk_dir` | `walk_dir(root)` | 1 | native | Every file under root, as paths, in no fixed order: sort before comparing. |
+| `write_bytes` | `write_bytes(path, bytes)` | 2 | native | Write a byte list or string to path, replacing what is there. Nil. |
+| `write_file` | `write_file(path, text)` | 2 | native | Replace the file's contents with text; nil. |
+| `write_program` | `write_program(path, text)` | 2 | — | Write a blue program in its canonical form: text through the formatter, then to the file; raises when text does not parse. Every producer of a .b file writes with it (B0064). |
 
 ### Processes
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `exec_capture` | `exec_capture(cmd, args...)` | 1+ | Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of. |
-| `exec_check` | `exec_check(cmd, args...)` | 1+ | Run a command, no shell; its exit status as an Int. Output passes through. |
-| `exec_exchange` | `exec_exchange(bytes, n, ms, cmd, args...)` | 4+ | One request and reply over a child's stdio, for binary protocols: bytes (Ints 0..=255) are written and stdin stays open until n bytes of stdout arrive, stdout closes or ms pass; stdin then closes, and a child still running at ms is ended. :stdout is the list of bytes read, :status -1 when the child had to be ended. |
-| `exec_into` | `exec_into(env, cmd, args...)` | 2+ | Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start. |
-| `exec_ok?` | `exec_ok?(cmd, args...)` | 1+ | Whether a command exits 0. |
-| `exec_with_env` | `exec_with_env(env, cmd, args...)` | 2+ | exec_capture with extra environment variables, given as [[name, value], …]. |
-| `exec_with_stdin` | `exec_with_stdin(input, cmd, args...)` | 2+ | exec_capture, with input written to the command's stdin. The INPUT comes first. |
-| `exec_within` | `exec_within(ms, cmd, args...)` | 2+ | Run a command, no shell, for at most ms: the capture form of exec_capture plus [:timed_out, b]. A child still running at ms is ended with its whole process group, and :status is -1. |
-| `exit_with` | `exit_with(code)` | 1 | End the program now with this exit status, after flushing stdout and stderr. A typed outcome a caller must branch on (EX_TEMPFAIL 75 for a hold) leaves this way, not as an uncaught error. |
-| `sh_exec` | `sh_exec(script)` | 1 | Run a script through sh; the same result as exec_capture. Prefer exec_capture, which cannot be injected into. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `exec_capture` | `exec_capture(cmd, args...)` | 1+ | native | Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of. |
+| `exec_check` | `exec_check(cmd, args...)` | 1+ | native | Run a command, no shell; its exit status as an Int. Output passes through. |
+| `exec_exchange` | `exec_exchange(bytes, n, ms, cmd, args...)` | 4+ | — | One request and reply over a child's stdio, for binary protocols: bytes (Ints 0..=255) are written and stdin stays open until n bytes of stdout arrive, stdout closes or ms pass; stdin then closes, and a child still running at ms is ended. :stdout is the list of bytes read, :status -1 when the child had to be ended. |
+| `exec_into` | `exec_into(env, cmd, args...)` | 2+ | — | Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start. |
+| `exec_ok?` | `exec_ok?(cmd, args...)` | 1+ | native | Whether a command exits 0. |
+| `exec_with_env` | `exec_with_env(env, cmd, args...)` | 2+ | native | exec_capture with extra environment variables, given as [[name, value], …]. |
+| `exec_with_stdin` | `exec_with_stdin(input, cmd, args...)` | 2+ | native | exec_capture, with input written to the command's stdin. The INPUT comes first. |
+| `exec_within` | `exec_within(ms, cmd, args...)` | 2+ | native | Run a command, no shell, for at most ms: the capture form of exec_capture plus [:timed_out, b]. A child still running at ms is ended with its whole process group, and :status is -1. |
+| `exit_with` | `exit_with(code)` | 1 | native | End the program now with this exit status, after flushing stdout and stderr. A typed outcome a caller must branch on (EX_TEMPFAIL 75 for a hold) leaves this way, not as an uncaught error. |
+| `sh_exec` | `sh_exec(script)` | 1 | native | Run a script through sh; the same result as exec_capture. Prefer exec_capture, which cannot be injected into. |
 
 ### Environment and arguments
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `argv` | `argv` | 0 | The program's own arguments: what follows the file in blue run file -- a b. |
-| `argv_get` | `argv_get(i[, default])` | 1..2 | One argument by index, or default. |
-| `env_required` | `env_required(name)` | 1 | An environment variable; raises, naming it, when unset. |
-| `getenv` | `getenv(name[, default])` | 1..2 | An environment variable, or default (nil when none is given). |
-| `self_exe` | `self_exe` | 0 | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `argv` | `argv` | 0 | native | The program's own arguments: what follows the file in blue run file -- a b. |
+| `argv_get` | `argv_get(i[, default])` | 1..2 | native | One argument by index, or default. |
+| `env_required` | `env_required(name)` | 1 | native | An environment variable; raises, naming it, when unset. |
+| `getenv` | `getenv(name[, default])` | 1..2 | native | An environment variable, or default (nil when none is given). |
+| `self_exe` | `self_exe` | 0 | native | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
 
 ### Terminal input
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `is_terminal` | `is_terminal(fd)` | 1 | Whether the stream fd (0 input, 1 output, 2 errors) is a terminal; false for any other number. Needs the terminal capability. |
-| `read_line` | `read_line` | 0 | One line from standard input without its line break, or nil at the end of input. Needs the terminal capability. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `is_terminal` | `is_terminal(fd)` | 1 | native | Whether the stream fd (0 input, 1 output, 2 errors) is a terminal; false for any other number. Needs the terminal capability. |
+| `read_line` | `read_line` | 0 | native | One line from standard input without its line break, or nil at the end of input. Needs the terminal capability. |
 
 ### Time
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `elapsed_since` | `elapsed_since(start_ns)` | 1 | Nanoseconds since start_ns, a value of now_ns. |
-| `now` | `now` | 0 | Unix time in seconds. |
-| `now_ms` | `now_ms` | 0 | Unix time in milliseconds. |
-| `now_ns` | `now_ns` | 0 | Unix time in nanoseconds. |
-| `now_rfc3339` | `now_rfc3339` | 0 | The current UTC time as RFC 3339 text. |
-| `sleep` | `sleep(seconds)` | 1 | Pause for whole seconds. |
-| `sleep_ms` | `sleep_ms(ms)` | 1 | Pause for milliseconds. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `elapsed_since` | `elapsed_since(start_ns)` | 1 | native | Nanoseconds since start_ns, a value of now_ns. |
+| `now` | `now` | 0 | native | Unix time in seconds. |
+| `now_ms` | `now_ms` | 0 | native | Unix time in milliseconds. |
+| `now_ns` | `now_ns` | 0 | native | Unix time in nanoseconds. |
+| `now_rfc3339` | `now_rfc3339` | 0 | native | The current UTC time as RFC 3339 text. |
+| `sleep` | `sleep(seconds)` | 1 | native | Pause for whole seconds. |
+| `sleep_ms` | `sleep_ms(ms)` | 1 | — | Pause for milliseconds. |
 
 ### Network
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `flash_close` | `flash_close(wire)` | 1 | Close the wire's Flash channel; the socket closes with its last channel. nil. |
-| `flash_next` | `flash_next(wire, timeout_ms)` | 2 | {from:, payload:, bytes:} for the next Flash frame, waiting at most timeout_ms (0 only checks); nil when none came. A datagram that is no frame or no UTF-8 is dropped and counted as malformed. |
-| `flash_open` | `flash_open(addr_or_wire)` | 1 | The Flash channel of a dual-pulse wire: a UDP socket bound to host:port (port 0 picks a free one), or the Flash channel opened on a wire tide_open made, so both share one socket. Needs the comm_flash capability; the host holds each wire to the Flash rate and kodou paces under it. |
-| `flash_put` | `flash_put(wire, peer, payload)` | 3 | Send one Flash frame (framing byte 0x02, then the payload) to host:port at once, ahead of any Tide frame still queued: the datagram's bytes. A datagram past 1280 bytes raises and sends nothing. The host holds each wire to flash_bytes_per_second (16384) a second and one second's worth at once, on the frame's clock (a whole-program clock provider, else the host's): a send past it raises :rate_limited, catchable because it breaches no capability, with data {bytes:, rate:, burst:, wait_ms:} (wait_ms nil when no wait fits), and sends nothing. kodou::emit paces under it. |
-| `flash_stats` | `flash_stats(wire)` | 1 | {address:, port:, sent:, received:, dropped:, malformed:, refused:, rate:} of the wire's Flash channel; dropped counts frames past its 256-frame inbox, refused the sends its rate refused, rate its bytes a second. |
-| `http_batch` | `http_batch(requests)` | 1 | Each request, a list [method, url, headers, body, timeout_ms] as http_request takes, sent at once, each on a thread of its own where the host gives threads, else one after another: the answers in the order the requests are listed, or the error of the first that failed in that order. Rule R18 writes it for a run of reads a definition makes one after another; --timings counts each batch. |
-| `http_listen` | `http_listen(addr[, opts])` | 1..2 | A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. opts: max_request (bytes, 1 MiB by default; past it the request is answered 413) and spool (a directory: each body is also written there, whole and byte for byte, named by the request's body_file, and removed once the request is answered). |
-| `http_listener_port` | `http_listener_port(listener)` | 1 | The TCP port the listener is bound to. |
-| `http_next_request` | `http_next_request(listener, timeout_ms)` | 2 | {method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond. |
-| `http_pipe` | `http_pipe(method, url, headers, body_file, timeout_ms)` | 5 | One HTTP/1.1 request whose body and reply are files, never values: body_file (a path, or nil) is streamed to the upstream, and the reply's body is spooled to a temp file: {status:, headers:, body_file:}, body_file nil for HEAD, 204 and 304. Hand body_file to http_respond's {file:} and remove it with rm_rf once answered. One deadline for the whole call, reset per chunk; a failed or truncated exchange raises and leaves no spool. |
-| `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. timeout_ms nil is measured: ten times the slowest answer the host gave this process, at least 1 s, or 30 s for a host not yet heard from. |
-| `http_respond` | `http_respond(request, status, headers, body)` | 4 | Answer a request from http_next_request once and close its connection; headers as for http_request, body nil, a string, or {file: path}, whose bytes are streamed as they are. A second answer raises. nil. |
-| `nats_close` | `nats_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
-| `nats_connect` | `nats_connect(url[, timeout_ms])` | 1..2 | A NATS connection to nats://[user:pass@\|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect. |
-| `nats_inbox` | `nats_inbox(conn)` | 1 | A fresh reply subject unique to this connection, for nats_subscribe and the reply of nats_publish. |
-| `nats_next_message` | `nats_next_message(sub, timeout_ms)` | 2 | {subject:, payload:, status:, headers:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. status is the header block's code (JetStream's 404 and 408) or nil, headers its text or nil. reply is nil unless the sender wants an answer: publish to it. |
-| `nats_publish` | `nats_publish(conn, subject, payload[, reply])` | 3..4 | Publish a string to one subject (no wildcards); nil. With reply, the receiver answers there (a JetStream pull names its inbox this way). Also answers the server's pings, so a publish-only loop stays connected. |
-| `nats_request` | `nats_request(conn, subject, payload, timeout_ms)` | 4 | Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders). |
-| `nats_subscribe` | `nats_subscribe(conn, subject[, queue])` | 2..3 | A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message. |
-| `nats_unsubscribe` | `nats_unsubscribe(sub)` | 1 | Stop a subscription; messages already queued for it are dropped. nil. |
-| `net_wait` | `net_wait(interests[, timeout_ms])` | 1..2 | Wait until a handle is ready: interests are [[handle, :read \| :write \| :both], …] of tcp_listen, tcp_accept and tcp_connect handles; the answer is [[handle, :read \| :write \| :closed], …], or [] when timeout_ms passed on the node clock (nil or no timeout waits as long as it takes; 0 only checks). Level-triggered, over poll(2). A process waiting here parks: every other process runs, and timers fire; the program waiting here drives them. A deadline or timeout around the wait raises :timeout at it. On the virtual clock a wait with nothing ready jumps to the next deadline, and a wait with no deadline waits on the sockets in real time. With blue run --record, each answer and the node time it came at go on the run's tape. |
-| `pg_close` | `pg_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
-| `pg_connect` | `pg_connect(url[, timeout_ms])` | 1..2 | A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect. |
-| `pg_execute` | `pg_execute(conn, sql)` | 2 | A script of statements, unparameterised: the list of their command tags. Raises naming the first failure. |
-| `pg_query` | `pg_query(conn, sql, params)` | 3 | One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text. |
-| `resp_close` | `resp_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
-| `resp_command` | `resp_command(conn, args)` | 2 | Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises. |
-| `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
-| `resp_next` | `resp_next(conn, timeout_ms)` | 2 | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
-| `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | Send every command in one write and return their replies in order. Raises naming the first server error. |
-| `serial_open` | `serial_open(path)` | 1 | A serial port (a USB CDC-ACM device, /dev/cu.*) opened raw: cfmakeraw, CLOCAL and CREAD, no line discipline, 921600 carried to the device. The handle is a connection: the tcp words and net_wait drive it unchanged. |
-| `tcp_accept` | `tcp_accept(listener)` | 1 | The next waiting connection, non-blocking, or nil when none is waiting. Never blocks. |
-| `tcp_close` | `tcp_close(x)` | 1 | Close a connection or a listener. Closing twice is done. nil. |
-| `tcp_connect` | `tcp_connect(addr, timeout_ms)` | 2 | A non-blocking TCP connection to addr (host:port), connected within timeout_ms. Raises when it cannot connect. |
-| `tcp_connect_ms` | `tcp_connect_ms(host, port, timeout_ms)` | 3 | Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises. |
-| `tcp_listen` | `tcp_listen(addr)` | 1 | A non-blocking TCP listener bound to addr (host:port; port 0 picks one). Wait for a connection with net_wait([[l, :read]]), then tcp_accept. Raises when it cannot bind. |
-| `tcp_port` | `tcp_port(listener)` | 1 | The port a listener from tcp_listen is bound to. |
-| `tcp_read` | `tcp_read(conn, max)` | 2 | At most max bytes as a list of Ints: [] when none are ready, nil when the peer has closed (or after tcp_close). Never blocks; wait with net_wait([[conn, :read]]). |
-| `tcp_write` | `tcp_write(conn, bytes)` | 2 | Write bytes (a list of Ints 0 to 255, or a string) without blocking: how many went out, 0 when the socket is full. The caller keeps the rest and waits with net_wait([[conn, :write]]). |
-| `tide_close` | `tide_close(wire)` | 1 | Close the wire's Tide channel and drop what its ring holds; the socket closes with its last channel. nil. |
-| `tide_next` | `tide_next(wire, timeout_ms)` | 2 | {from:, payload:, bytes:, sent_ms:} for the oldest Tide frame in the inbox, waiting at most timeout_ms (0 only checks); nil when none came. The inbox evicts its oldest frame past its bounds. |
-| `tide_open` | `tide_open(addr_or_wire[, opts])` | 1..2 | The Tide channel of a dual-pulse wire, bound to host:port or joined to a wire flash_open made; opts {ring_frames:, ring_bytes:} hold its send ring and its inbox each to that many frames (64) and bytes (65536, at least 1280). Needs the comm_scavenger capability. |
-| `tide_put` | `tide_put(wire, peer, payload)` | 3 | Queue one Tide frame for host:port in the send ring: how many of the oldest queued frames it evicted to fit. A frame past 1280 bytes with its 9-byte header raises. |
-| `tide_release` | `tide_release(wire, max_bytes, stamp_ms)` | 3 | Send queued Tide frames from the oldest while their datagrams total at most max_bytes, each stamped stamp_ms (framing byte 0x01, the stamp as 8 bytes, then the payload): the bytes sent. kodou passes the window its LEDBAT controller allows. |
-| `tide_send` | `tide_send(wire, peer, payload, stamp_ms)` | 4 | Send one Tide frame at once, past the ring: the datagram's bytes. For an acknowledgement, which no window holds. |
-| `tide_stats` | `tide_stats(wire)` | 1 | {address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel. |
-| `usb_control_in` | `usb_control_in(vid, pid, request_type, request, value, index, length, timeout_ms)` | 8 | One raw USB control transfer, device-to-host, to the default endpoint of the first attached device with that vendor and product id: the bytes it returned. request_type is the whole bmRequestType byte (direction is always in). The reach a BootRom protocol needs when its SETUP packet is one no serial channel carries. Raises when no such device is attached or the transfer fails. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `flash_close` | `flash_close(wire)` | 1 | — | Close the wire's Flash channel; the socket closes with its last channel. nil. |
+| `flash_next` | `flash_next(wire, timeout_ms)` | 2 | — | {from:, payload:, bytes:} for the next Flash frame, waiting at most timeout_ms (0 only checks); nil when none came. A datagram that is no frame or no UTF-8 is dropped and counted as malformed. |
+| `flash_open` | `flash_open(addr_or_wire)` | 1 | — | The Flash channel of a dual-pulse wire: a UDP socket bound to host:port (port 0 picks a free one), or the Flash channel opened on a wire tide_open made, so both share one socket. Needs the comm_flash capability; the host holds each wire to the Flash rate and kodou paces under it. |
+| `flash_put` | `flash_put(wire, peer, payload)` | 3 | — | Send one Flash frame (framing byte 0x02, then the payload) to host:port at once, ahead of any Tide frame still queued: the datagram's bytes. A datagram past 1280 bytes raises and sends nothing. The host holds each wire to flash_bytes_per_second (16384) a second and one second's worth at once, on the frame's clock (a whole-program clock provider, else the host's): a send past it raises :rate_limited, catchable because it breaches no capability, with data {bytes:, rate:, burst:, wait_ms:} (wait_ms nil when no wait fits), and sends nothing. kodou::emit paces under it. |
+| `flash_stats` | `flash_stats(wire)` | 1 | — | {address:, port:, sent:, received:, dropped:, malformed:, refused:, rate:} of the wire's Flash channel; dropped counts frames past its 256-frame inbox, refused the sends its rate refused, rate its bytes a second. |
+| `http_batch` | `http_batch(requests)` | 1 | — | Each request, a list [method, url, headers, body, timeout_ms] as http_request takes, sent at once, each on a thread of its own where the host gives threads, else one after another: the answers in the order the requests are listed, or the error of the first that failed in that order. Rule R18 writes it for a run of reads a definition makes one after another; --timings counts each batch. |
+| `http_listen` | `http_listen(addr[, opts])` | 1..2 | — | A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. opts: max_request (bytes, 1 MiB by default; past it the request is answered 413) and spool (a directory: each body is also written there, whole and byte for byte, named by the request's body_file, and removed once the request is answered). |
+| `http_listener_port` | `http_listener_port(listener)` | 1 | — | The TCP port the listener is bound to. |
+| `http_next_request` | `http_next_request(listener, timeout_ms)` | 2 | — | {method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond. |
+| `http_pipe` | `http_pipe(method, url, headers, body_file, timeout_ms)` | 5 | — | One HTTP/1.1 request whose body and reply are files, never values: body_file (a path, or nil) is streamed to the upstream, and the reply's body is spooled to a temp file: {status:, headers:, body_file:}, body_file nil for HEAD, 204 and 304. Hand body_file to http_respond's {file:} and remove it with rm_rf once answered. One deadline for the whole call, reset per chunk; a failed or truncated exchange raises and leaves no spool. |
+| `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | — | One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. timeout_ms nil is measured: ten times the slowest answer the host gave this process, at least 1 s, or 30 s for a host not yet heard from. |
+| `http_respond` | `http_respond(request, status, headers, body)` | 4 | — | Answer a request from http_next_request once and close its connection; headers as for http_request, body nil, a string, or {file: path}, whose bytes are streamed as they are. A second answer raises. nil. |
+| `nats_close` | `nats_close(conn)` | 1 | — | Close the connection; every later call on it raises. nil. |
+| `nats_connect` | `nats_connect(url[, timeout_ms])` | 1..2 | — | A NATS connection to nats://[user:pass@\|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect. |
+| `nats_inbox` | `nats_inbox(conn)` | 1 | — | A fresh reply subject unique to this connection, for nats_subscribe and the reply of nats_publish. |
+| `nats_next_message` | `nats_next_message(sub, timeout_ms)` | 2 | — | {subject:, payload:, status:, headers:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. status is the header block's code (JetStream's 404 and 408) or nil, headers its text or nil. reply is nil unless the sender wants an answer: publish to it. |
+| `nats_publish` | `nats_publish(conn, subject, payload[, reply])` | 3..4 | — | Publish a string to one subject (no wildcards); nil. With reply, the receiver answers there (a JetStream pull names its inbox this way). Also answers the server's pings, so a publish-only loop stays connected. |
+| `nats_request` | `nats_request(conn, subject, payload, timeout_ms)` | 4 | — | Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders). |
+| `nats_subscribe` | `nats_subscribe(conn, subject[, queue])` | 2..3 | — | A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message. |
+| `nats_unsubscribe` | `nats_unsubscribe(sub)` | 1 | — | Stop a subscription; messages already queued for it are dropped. nil. |
+| `net_wait` | `net_wait(interests[, timeout_ms])` | 1..2 | native | Wait until a handle is ready: interests are [[handle, :read \| :write \| :both], …] of tcp_listen, tcp_accept and tcp_connect handles; the answer is [[handle, :read \| :write \| :closed], …], or [] when timeout_ms passed on the node clock (nil or no timeout waits as long as it takes; 0 only checks). Level-triggered, over poll(2). A process waiting here parks: every other process runs, and timers fire; the program waiting here drives them. A deadline or timeout around the wait raises :timeout at it. On the virtual clock a wait with nothing ready jumps to the next deadline, and a wait with no deadline waits on the sockets in real time. With blue run --record, each answer and the node time it came at go on the run's tape. |
+| `pg_close` | `pg_close(conn)` | 1 | — | Close the connection; every later call on it raises. nil. |
+| `pg_connect` | `pg_connect(url[, timeout_ms])` | 1..2 | — | A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect. |
+| `pg_execute` | `pg_execute(conn, sql)` | 2 | — | A script of statements, unparameterised: the list of their command tags. Raises naming the first failure. |
+| `pg_query` | `pg_query(conn, sql, params)` | 3 | — | One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text. |
+| `resp_close` | `resp_close(conn)` | 1 | — | Close the connection; every later call on it raises. nil. |
+| `resp_command` | `resp_command(conn, args)` | 2 | — | Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises. |
+| `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | — | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
+| `resp_next` | `resp_next(conn, timeout_ms)` | 2 | — | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
+| `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | — | Send every command in one write and return their replies in order. Raises naming the first server error. |
+| `serial_open` | `serial_open(path)` | 1 | — | A serial port (a USB CDC-ACM device, /dev/cu.*) opened raw: cfmakeraw, CLOCAL and CREAD, no line discipline, 921600 carried to the device. The handle is a connection: the tcp words and net_wait drive it unchanged. |
+| `tcp_accept` | `tcp_accept(listener)` | 1 | native | The next waiting connection, non-blocking, or nil when none is waiting. Never blocks. |
+| `tcp_close` | `tcp_close(x)` | 1 | native | Close a connection or a listener. Closing twice is done. nil. |
+| `tcp_connect` | `tcp_connect(addr, timeout_ms)` | 2 | native | A non-blocking TCP connection to addr (host:port), connected within timeout_ms. Raises when it cannot connect. |
+| `tcp_connect_ms` | `tcp_connect_ms(host, port, timeout_ms)` | 3 | native | Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises. |
+| `tcp_listen` | `tcp_listen(addr)` | 1 | native | A non-blocking TCP listener bound to addr (host:port; port 0 picks one). Wait for a connection with net_wait([[l, :read]]), then tcp_accept. Raises when it cannot bind. |
+| `tcp_port` | `tcp_port(listener)` | 1 | native | The port a listener from tcp_listen is bound to. |
+| `tcp_read` | `tcp_read(conn, max)` | 2 | native | At most max bytes as a list of Ints: [] when none are ready, nil when the peer has closed (or after tcp_close). Never blocks; wait with net_wait([[conn, :read]]). |
+| `tcp_write` | `tcp_write(conn, bytes)` | 2 | native | Write bytes (a list of Ints 0 to 255, or a string) without blocking: how many went out, 0 when the socket is full. The caller keeps the rest and waits with net_wait([[conn, :write]]). |
+| `tide_close` | `tide_close(wire)` | 1 | — | Close the wire's Tide channel and drop what its ring holds; the socket closes with its last channel. nil. |
+| `tide_next` | `tide_next(wire, timeout_ms)` | 2 | — | {from:, payload:, bytes:, sent_ms:} for the oldest Tide frame in the inbox, waiting at most timeout_ms (0 only checks); nil when none came. The inbox evicts its oldest frame past its bounds. |
+| `tide_open` | `tide_open(addr_or_wire[, opts])` | 1..2 | — | The Tide channel of a dual-pulse wire, bound to host:port or joined to a wire flash_open made; opts {ring_frames:, ring_bytes:} hold its send ring and its inbox each to that many frames (64) and bytes (65536, at least 1280). Needs the comm_scavenger capability. |
+| `tide_put` | `tide_put(wire, peer, payload)` | 3 | — | Queue one Tide frame for host:port in the send ring: how many of the oldest queued frames it evicted to fit. A frame past 1280 bytes with its 9-byte header raises. |
+| `tide_release` | `tide_release(wire, max_bytes, stamp_ms)` | 3 | — | Send queued Tide frames from the oldest while their datagrams total at most max_bytes, each stamped stamp_ms (framing byte 0x01, the stamp as 8 bytes, then the payload): the bytes sent. kodou passes the window its LEDBAT controller allows. |
+| `tide_send` | `tide_send(wire, peer, payload, stamp_ms)` | 4 | — | Send one Tide frame at once, past the ring: the datagram's bytes. For an acknowledgement, which no window holds. |
+| `tide_stats` | `tide_stats(wire)` | 1 | — | {address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel. |
+| `usb_control_in` | `usb_control_in(vid, pid, request_type, request, value, index, length, timeout_ms)` | 8 | — | One raw USB control transfer, device-to-host, to the default endpoint of the first attached device with that vendor and product id: the bytes it returned. request_type is the whole bmRequestType byte (direction is always in). The reach a BootRom protocol needs when its SETUP packet is one no serial channel carries. Raises when no such device is attached or the transfer fails. |
 
 ### Sound and display
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `audio_in_format` | `audio_in_format` | 0 | The default input device's format, {rate:, channels:}, or nil when there is none. Needs the audio_in capability. |
-| `audio_out_format` | `audio_out_format` | 0 | The default output device's format, {rate:, channels:}, or nil when there is none. Needs the audio_out capability. |
-| `canvas_clear` | `canvas_clear(canvas, color)` | 2 | Fill the canvas with a color, "#rgb" or "#rrggbb"; nil. What is drawn shows at the next canvas_present. Needs the display capability. |
-| `canvas_close` | `canvas_close(canvas)` | 1 | Close the canvas; nil. Closing twice is done, and any other word on a closed canvas raises :closed. Needs the display capability. |
-| `canvas_fill_rect` | `canvas_fill_rect(canvas, x, y, width, height, color)` | 6 | Fill a rectangle with its top left at x, y, clipped to the canvas; nil. Needs the display capability. |
-| `canvas_open` | `canvas_open(opts)` | 1 | A black canvas of opts {width:, height:} pixels, 1 to 4096 each, titled opts title: ("blue"), shown by the canvas server listening at $BLUE_CANVAS_SOCKET, else $XDG_RUNTIME_DIR/garasu/canvas.sock. No server listening raises :not_found. Needs the display capability. |
-| `canvas_pixel` | `canvas_pixel(canvas, x, y)` | 3 | The shown color at x, y as "#rrggbb", or nil outside the canvas. Needs the display capability. |
-| `canvas_present` | `canvas_present(canvas)` | 1 | Show what has been drawn: canvas_pixel reads it, and the canvas server receives it. Needs the display capability. |
-| `canvas_text` | `canvas_text(canvas, x, y, text, color)` | 5 | Draw text in an 8 by 8 pixel font with its top left at x, y, one cell a character; a character outside printable ASCII draws as ?. nil. Needs the display capability. |
-| `capture_audio` | `capture_audio(frames, format)` | 2 | Capture frames frames (0 to 16777216) from the default input device in format {rate:, channels:}: a clip {rate:, channels:, samples:}. A bad count or format raises :bad_option; a host with no audio system raises :unsupported, one with no input device :not_found, and a device that stalls :timeout. Needs the audio_in capability. |
-| `play_audio` | `play_audio(clip)` | 1 | Play a clip, {rate:, channels:, samples:} with the samples interleaved numbers from -1.0 to 1.0, on the default output device, and answer nil once it has played. A clip that is not whole frames of such samples raises :bad_option; a host with no audio system raises :unsupported, and one with no output device :not_found. Needs the audio_out capability. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `audio_in_format` | `audio_in_format` | 0 | — | The default input device's format, {rate:, channels:}, or nil when there is none. Needs the audio_in capability. |
+| `audio_out_format` | `audio_out_format` | 0 | — | The default output device's format, {rate:, channels:}, or nil when there is none. Needs the audio_out capability. |
+| `canvas_clear` | `canvas_clear(canvas, color)` | 2 | — | Fill the canvas with a color, "#rgb" or "#rrggbb"; nil. What is drawn shows at the next canvas_present. Needs the display capability. |
+| `canvas_close` | `canvas_close(canvas)` | 1 | — | Close the canvas; nil. Closing twice is done, and any other word on a closed canvas raises :closed. Needs the display capability. |
+| `canvas_fill_rect` | `canvas_fill_rect(canvas, x, y, width, height, color)` | 6 | — | Fill a rectangle with its top left at x, y, clipped to the canvas; nil. Needs the display capability. |
+| `canvas_open` | `canvas_open(opts)` | 1 | — | A black canvas of opts {width:, height:} pixels, 1 to 4096 each, titled opts title: ("blue"), shown by the canvas server listening at $BLUE_CANVAS_SOCKET, else $XDG_RUNTIME_DIR/garasu/canvas.sock. No server listening raises :not_found. Needs the display capability. |
+| `canvas_pixel` | `canvas_pixel(canvas, x, y)` | 3 | — | The shown color at x, y as "#rrggbb", or nil outside the canvas. Needs the display capability. |
+| `canvas_present` | `canvas_present(canvas)` | 1 | — | Show what has been drawn: canvas_pixel reads it, and the canvas server receives it. Needs the display capability. |
+| `canvas_text` | `canvas_text(canvas, x, y, text, color)` | 5 | — | Draw text in an 8 by 8 pixel font with its top left at x, y, one cell a character; a character outside printable ASCII draws as ?. nil. Needs the display capability. |
+| `capture_audio` | `capture_audio(frames, format)` | 2 | — | Capture frames frames (0 to 16777216) from the default input device in format {rate:, channels:}: a clip {rate:, channels:, samples:}. A bad count or format raises :bad_option; a host with no audio system raises :unsupported, one with no input device :not_found, and a device that stalls :timeout. Needs the audio_in capability. |
+| `play_audio` | `play_audio(clip)` | 1 | — | Play a clip, {rate:, channels:, samples:} with the samples interleaved numbers from -1.0 to 1.0, on the default output device, and answer nil once it has played. A clip that is not whole frames of such samples raises :bad_option; a host with no audio system raises :unsupported, and one with no output device :not_found. Needs the audio_out capability. |
 
 ### The Linux kernel
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `bpf_syscall` | `bpf_syscall(command, size, fields, fd_result)` | 4 | One bpf(2) call on a struct of size bytes built from fields, each [offset, kind, value]: kind :u8 :u16 :u32 :u64 an integer, :bytes bytes laid in place, :in bytes whose address goes at offset, :out a capacity whose buffer's address goes there, :inout bytes whose buffer comes back, :strings names whose array of pointers' address goes there, :fd a descriptor's number. Answers {ret:, errno:, attr:, out:, fd:}: errno nil on success, attr the struct after the call, out each :out and :inout buffer in order, fd a descriptor when fd_result is true and the call made one. The kernel's refusal is an answer, so a verifier log comes back with it. Off Linux raises :unsupported. Needs the kernel_bpf capability, which holds the kernel: grant it to what would otherwise run as root. |
-| `fd_close` | `fd_close(fd)` | 1 | Close a kernel descriptor now rather than when its last reference goes. A second close does nothing. Nil. Needs the kernel_bpf capability. |
-| `fd_ioctl` | `fd_ioctl(fd, request, argument)` | 3 | ioctl(2) on a kernel descriptor: the call's result. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
-| `fd_number` | `fd_number(fd)` | 1 | A kernel descriptor's number, nil once it is closed. Needs the kernel_bpf capability. |
-| `fd_open` | `fd_open(path)` | 1 | A kernel descriptor on a path, opened read-only: a cgroup directory, a network namespace file. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
-| `perf_event_open` | `perf_event_open(size, fields, pid, cpu, group, flags)` | 6 | A perf event descriptor for a struct of size bytes built from fields as bpf_syscall builds its own, a pid and a cpu; group is a descriptor or nil. A refusal raises :kernel_refused with data {errno:}. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
-| `ringbuf_next` | `ringbuf_next(ring, timeout_ms)` | 2 | The next record's bytes, waiting at most timeout_ms (0 only checks); nil when none came. A discarded record is skipped. Needs the kernel_bpf capability. |
-| `ringbuf_open` | `ringbuf_open(map_fd, size)` | 2 | A consumer of a BPF ring buffer map whose size in bytes is a power of two: the map's pages mapped into this process. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `bpf_syscall` | `bpf_syscall(command, size, fields, fd_result)` | 4 | — | One bpf(2) call on a struct of size bytes built from fields, each [offset, kind, value]: kind :u8 :u16 :u32 :u64 an integer, :bytes bytes laid in place, :in bytes whose address goes at offset, :out a capacity whose buffer's address goes there, :inout bytes whose buffer comes back, :strings names whose array of pointers' address goes there, :fd a descriptor's number. Answers {ret:, errno:, attr:, out:, fd:}: errno nil on success, attr the struct after the call, out each :out and :inout buffer in order, fd a descriptor when fd_result is true and the call made one. The kernel's refusal is an answer, so a verifier log comes back with it. Off Linux raises :unsupported. Needs the kernel_bpf capability, which holds the kernel: grant it to what would otherwise run as root. |
+| `fd_close` | `fd_close(fd)` | 1 | — | Close a kernel descriptor now rather than when its last reference goes. A second close does nothing. Nil. Needs the kernel_bpf capability. |
+| `fd_ioctl` | `fd_ioctl(fd, request, argument)` | 3 | — | ioctl(2) on a kernel descriptor: the call's result. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
+| `fd_number` | `fd_number(fd)` | 1 | — | A kernel descriptor's number, nil once it is closed. Needs the kernel_bpf capability. |
+| `fd_open` | `fd_open(path)` | 1 | — | A kernel descriptor on a path, opened read-only: a cgroup directory, a network namespace file. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
+| `perf_event_open` | `perf_event_open(size, fields, pid, cpu, group, flags)` | 6 | — | A perf event descriptor for a struct of size bytes built from fields as bpf_syscall builds its own, a pid and a cpu; group is a descriptor or nil. A refusal raises :kernel_refused with data {errno:}. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
+| `ringbuf_next` | `ringbuf_next(ring, timeout_ms)` | 2 | — | The next record's bytes, waiting at most timeout_ms (0 only checks); nil when none came. A discarded record is skipped. Needs the kernel_bpf capability. |
+| `ringbuf_open` | `ringbuf_open(map_fd, size)` | 2 | — | A consumer of a BPF ring buffer map whose size in bytes is a power of two: the map's pages mapped into this process. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
 
 ### Hashing and signatures
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `bao_outboard` | `bao_outboard(data)` | 1 | {root:, outboard:} in hex for a string or byte list: root is its BLAKE3 hash, the same as blake3_hex(data), and outboard is the Bao chunk tree that proves any range of it. |
-| `bao_slice` | `bao_slice(data, outboard_hex, start, length)` | 4 | The Bao slice in hex that proves bytes start to start + length of data against its root, from the data and its outboard. |
-| `bao_verify_slice` | `bao_verify_slice(root_hex, slice_hex, start, length)` | 4 | The bytes of the range a slice proves, as a byte list, verified against the root. A slice that does not verify raises :tampered and gives no bytes. |
-| `blake3_hex` | `blake3_hex(data)` | 1 | The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it. |
-| `bytes_equal?` | `bytes_equal?(a, b)` | 2 | Whether two strings or byte lists hold the same bytes. It reads every position of the longer side whether or not an earlier byte differs. A difference in length is false. shomei's same? wraps it. |
-| `chacha20poly1305_open` | `chacha20poly1305_open(key_hex, nonce_hex, aad, sealed_hex)` | 4 | The plaintext of a sealed message as a byte list. A tag, ciphertext, aad or nonce that does not verify raises :tampered and gives no plaintext. |
-| `chacha20poly1305_seal` | `chacha20poly1305_seal(key_hex, nonce_hex, aad, plaintext)` | 4 | The ChaCha20-Poly1305 (RFC 8439) ciphertext and its 16-byte tag in hex, for a 32-byte key and a 12-byte nonce; aad and plaintext are a string or byte list. Never seal twice under one key and nonce. |
-| `digest_hex` | `digest_hex(algorithm, data)` | 2 | The digest of a string or byte list in lowercase hex. The algorithm is "sha1", "sha256", "sha512" or "blake3" (a string or a keyword); any other name raises. shomei's hash wraps it. |
-| `ed25519_keypair` | `ed25519_keypair(seed_hex)` | 1 | [secret, public] in hex for a 32-byte seed. The caller supplies the seed; random_bytes draws one. |
-| `ed25519_sign` | `ed25519_sign(secret_hex, message)` | 2 | The Ed25519 signature of a message, in hex. |
-| `ed25519_verify` | `ed25519_verify(public_hex, message, signature_hex)` | 3 | Whether the signature is valid. |
-| `hmac_hex` | `hmac_hex(algorithm, key, data)` | 3 | The HMAC of data under key in lowercase hex, for "sha1", "sha256" or "sha512"; key and data are a string or byte list, and an empty key is allowed. blake3 and unknown names raise. shomei's hash with key: wraps it. |
-| `random_bytes` | `random_bytes(n)` | 1 | A list of n random byte integers (0..=255) from the operating system, n from 0 to 1048576. Raises when n is not an integer in range or the source cannot be read. Needs the entropy capability. |
-| `threshold_aggregate` | `threshold_aggregate(group, message, commitments, signature_shares)` | 4 | The 64-byte Ed25519 signature in hex from at least k signature shares, checked under the group's key, so ed25519_verify(key, message, sig) is true. Fewer than k raises :refused with {have:, need:}; a share that does not verify raises :tampered with {culprits:}. |
-| `threshold_commit` | `threshold_commit(share, message)` | 2 | Signing round one for one share: {nonces:, commitment: {participant:, hex:}}. Send the commitment to the coordinator and keep the nonces, which sign once. |
-| `threshold_deal` | `threshold_deal(k, n)` | 2 | A k-of-n threshold group (RFC 9591 FROST over Ed25519, 2 <= k <= n) from one trusted dealer: {group:, key:, min:, max:, shares:}. group is the public key package in hex, key the 32-byte Ed25519 verifying key in hex, each share {participant:, key:, min:, secret:} whose secret prints as foreign. The dealer holds the whole key while it runs; threshold_dkg_start makes a group no process holds whole. Needs the mpc_threshold capability. |
-| `threshold_dkg_exchange` | `threshold_dkg_exchange(secret, broadcasts)` | 2 | Round two, with the secret threshold_dkg_start answered: checks every other participant's broadcast and its proof of knowledge and answers {secret:, sends: [{from:, to:, package:}]}; send each package only to the participant named in to. Its own broadcast in the list is ignored; a duplicate or unknown sender, a missing one or a failed proof raises :refused. |
-| `threshold_dkg_finish` | `threshold_dkg_finish(secret, broadcasts, sends)` | 3 | Round three, with the secret threshold_dkg_exchange answered: checks the packages sent to this participant against their broadcasts and answers {share:, group:, key:}. Packages for other participants are ignored. No participant ever holds the group's secret. |
-| `threshold_dkg_start` | `threshold_dkg_start(participant, k, n)` | 3 | Round one of distributed key generation for one participant: {secret:, broadcast: {from:, package:}}. Send the broadcast to every participant and keep the secret, which only threshold_dkg_exchange reads, once. |
-| `threshold_share_export` | `threshold_share_export(share)` | 1 | The whole secret share in hex, for its holder's own storage; the one word that prints it. threshold_share_import reads it back. |
-| `threshold_share_import` | `threshold_share_import(hex)` | 1 | A share from threshold_share_export's hex, {participant:, key:, min:, secret:}. Raises :decode_error when the hex is no share. |
-| `threshold_sign` | `threshold_sign(share, nonces, message, commitments)` | 4 | Signing round two: this share's signature share {participant:, hex:} over the message for these commitments, at least k of them and its own among them. The nonces are spent; a second use, nonces made for another message or share, or too few commitments raises :refused. |
-| `x25519_keypair` | `x25519_keypair(seed_hex)` | 1 | [secret, public] in hex for a 32-byte X25519 secret (RFC 7748). The caller supplies the seed; random_bytes draws one. |
-| `x25519_shared` | `x25519_shared(secret_hex, peer_public_hex)` | 2 | The 32-byte X25519 shared secret in hex. A peer key of low order gives an all-zero secret, which raises :refused. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `bao_outboard` | `bao_outboard(data)` | 1 | — | {root:, outboard:} in hex for a string or byte list: root is its BLAKE3 hash, the same as blake3_hex(data), and outboard is the Bao chunk tree that proves any range of it. |
+| `bao_slice` | `bao_slice(data, outboard_hex, start, length)` | 4 | — | The Bao slice in hex that proves bytes start to start + length of data against its root, from the data and its outboard. |
+| `bao_verify_slice` | `bao_verify_slice(root_hex, slice_hex, start, length)` | 4 | — | The bytes of the range a slice proves, as a byte list, verified against the root. A slice that does not verify raises :tampered and gives no bytes. |
+| `blake3_hex` | `blake3_hex(data)` | 1 | — | The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it. |
+| `bytes_equal?` | `bytes_equal?(a, b)` | 2 | — | Whether two strings or byte lists hold the same bytes. It reads every position of the longer side whether or not an earlier byte differs. A difference in length is false. shomei's same? wraps it. |
+| `chacha20poly1305_open` | `chacha20poly1305_open(key_hex, nonce_hex, aad, sealed_hex)` | 4 | — | The plaintext of a sealed message as a byte list. A tag, ciphertext, aad or nonce that does not verify raises :tampered and gives no plaintext. |
+| `chacha20poly1305_seal` | `chacha20poly1305_seal(key_hex, nonce_hex, aad, plaintext)` | 4 | — | The ChaCha20-Poly1305 (RFC 8439) ciphertext and its 16-byte tag in hex, for a 32-byte key and a 12-byte nonce; aad and plaintext are a string or byte list. Never seal twice under one key and nonce. |
+| `digest_hex` | `digest_hex(algorithm, data)` | 2 | — | The digest of a string or byte list in lowercase hex. The algorithm is "sha1", "sha256", "sha512" or "blake3" (a string or a keyword); any other name raises. shomei's hash wraps it. |
+| `ed25519_keypair` | `ed25519_keypair(seed_hex)` | 1 | — | [secret, public] in hex for a 32-byte seed. The caller supplies the seed; random_bytes draws one. |
+| `ed25519_sign` | `ed25519_sign(secret_hex, message)` | 2 | — | The Ed25519 signature of a message, in hex. |
+| `ed25519_verify` | `ed25519_verify(public_hex, message, signature_hex)` | 3 | — | Whether the signature is valid. |
+| `hmac_hex` | `hmac_hex(algorithm, key, data)` | 3 | — | The HMAC of data under key in lowercase hex, for "sha1", "sha256" or "sha512"; key and data are a string or byte list, and an empty key is allowed. blake3 and unknown names raise. shomei's hash with key: wraps it. |
+| `random_bytes` | `random_bytes(n)` | 1 | native | A list of n random byte integers (0..=255) from the operating system, n from 0 to 1048576. Raises when n is not an integer in range or the source cannot be read. Needs the entropy capability. |
+| `threshold_aggregate` | `threshold_aggregate(group, message, commitments, signature_shares)` | 4 | — | The 64-byte Ed25519 signature in hex from at least k signature shares, checked under the group's key, so ed25519_verify(key, message, sig) is true. Fewer than k raises :refused with {have:, need:}; a share that does not verify raises :tampered with {culprits:}. |
+| `threshold_commit` | `threshold_commit(share, message)` | 2 | — | Signing round one for one share: {nonces:, commitment: {participant:, hex:}}. Send the commitment to the coordinator and keep the nonces, which sign once. |
+| `threshold_deal` | `threshold_deal(k, n)` | 2 | — | A k-of-n threshold group (RFC 9591 FROST over Ed25519, 2 <= k <= n) from one trusted dealer: {group:, key:, min:, max:, shares:}. group is the public key package in hex, key the 32-byte Ed25519 verifying key in hex, each share {participant:, key:, min:, secret:} whose secret prints as foreign. The dealer holds the whole key while it runs; threshold_dkg_start makes a group no process holds whole. Needs the mpc_threshold capability. |
+| `threshold_dkg_exchange` | `threshold_dkg_exchange(secret, broadcasts)` | 2 | — | Round two, with the secret threshold_dkg_start answered: checks every other participant's broadcast and its proof of knowledge and answers {secret:, sends: [{from:, to:, package:}]}; send each package only to the participant named in to. Its own broadcast in the list is ignored; a duplicate or unknown sender, a missing one or a failed proof raises :refused. |
+| `threshold_dkg_finish` | `threshold_dkg_finish(secret, broadcasts, sends)` | 3 | — | Round three, with the secret threshold_dkg_exchange answered: checks the packages sent to this participant against their broadcasts and answers {share:, group:, key:}. Packages for other participants are ignored. No participant ever holds the group's secret. |
+| `threshold_dkg_start` | `threshold_dkg_start(participant, k, n)` | 3 | — | Round one of distributed key generation for one participant: {secret:, broadcast: {from:, package:}}. Send the broadcast to every participant and keep the secret, which only threshold_dkg_exchange reads, once. |
+| `threshold_share_export` | `threshold_share_export(share)` | 1 | — | The whole secret share in hex, for its holder's own storage; the one word that prints it. threshold_share_import reads it back. |
+| `threshold_share_import` | `threshold_share_import(hex)` | 1 | — | A share from threshold_share_export's hex, {participant:, key:, min:, secret:}. Raises :decode_error when the hex is no share. |
+| `threshold_sign` | `threshold_sign(share, nonces, message, commitments)` | 4 | — | Signing round two: this share's signature share {participant:, hex:} over the message for these commitments, at least k of them and its own among them. The nonces are spent; a second use, nonces made for another message or share, or too few commitments raises :refused. |
+| `x25519_keypair` | `x25519_keypair(seed_hex)` | 1 | — | [secret, public] in hex for a 32-byte X25519 secret (RFC 7748). The caller supplies the seed; random_bytes draws one. |
+| `x25519_shared` | `x25519_shared(secret_hex, peer_public_hex)` | 2 | — | The 32-byte X25519 shared secret in hex. A peer key of low order gives an all-zero secret, which raises :refused. |
 
 ### Terminal output
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `display` | `display(x)` | 1 | Print a value's Lisp rendering, no newline. |
-| `newline` | `newline` | 0 | Print a newline. |
-| `print` | `print(x)` | 1 | Print a value and a newline, a string with its quotes. |
-| `println` | `println(xs...)` | any | Print values with a newline, strings with their quotes. For output a person reads, use write_stdout. |
-| `write_stderr` | `write_stderr(text)` | 1 | Write text to stderr exactly. |
-| `write_stdout` | `write_stdout(text)` | 1 | Write text to stdout exactly, no newline added. The way a command prints. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `display` | `display(x)` | 1 | — | Print a value's Lisp rendering, no newline. |
+| `newline` | `newline` | 0 | — | Print a newline. |
+| `print` | `print(x)` | 1 | — | Print a value and a newline, a string with its quotes. |
+| `println` | `println(xs...)` | any | — | Print values with a newline, strings with their quotes. For output a person reads, use write_stdout. |
+| `write_stderr` | `write_stderr(text)` | 1 | — | Write text to stderr exactly. |
+| `write_stdout` | `write_stdout(text)` | 1 | native | Write text to stdout exactly, no newline added. The way a command prints. |
 
 ### Delayed values
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `cycle` | `cycle(xs)` | 1 | A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list. Also defined by `gurafu` (`gurafu::cycle`): a file that lists it gets that one. |
-| `force` | `force(p)` | 1 | The value of a promise, computed once; a non-promise is returned as is. |
-| `realize` | `realize(lazy)` | 1 | A finite tatara-lisp lazy sequence forced into a list. On anything built from cycle it does not terminate. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `cycle` | `cycle(xs)` | 1 | — | A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list. Also defined by `gurafu` (`gurafu::cycle`): a file that lists it gets that one. |
+| `force` | `force(p)` | 1 | — | The value of a promise, computed once; a non-promise is returned as is. |
+| `realize` | `realize(lazy)` | 1 | — | A finite tatara-lisp lazy sequence forced into a list. On anything built from cycle it does not terminate. |
 
 ### Cells
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `cell` | `cell(v)` | 1 | A cell holding v: the one value that changes in place. Read it with cell_get, replace its content with cell_put. A cell is local to the process that made it. Also defined by `hashiru` (`hashiru::cell`): a file that lists it gets that one. |
-| `cell?` | `cell?(x)` | 1 | Whether x is a cell. |
-| `cell_get` | `cell_get(c)` | 1 | The value a cell holds. |
-| `cell_put` | `cell_put(c, v)` | 2 | Replace a cell's content with v; the answer is v. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `cell` | `cell(v)` | 1 | — | A cell holding v: the one value that changes in place. Read it with cell_get, replace its content with cell_put. A cell is local to the process that made it. Also defined by `hashiru` (`hashiru::cell`): a file that lists it gets that one. |
+| `cell?` | `cell?(x)` | 1 | — | Whether x is a cell. |
+| `cell_get` | `cell_get(c)` | 1 | — | The value a cell holds. |
+| `cell_put` | `cell_put(c, v)` | 2 | — | Replace a cell's content with v; the answer is v. |
 
 ### Channels and fibers
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `chan` | `chan([capacity])` | 0..1 | A tatara-lisp channel. Its put and take words (>! and <!) have no blue spelling. |
-| `close!` | `close!(ch)` | 1 | Close a channel. |
-| `drain!` | `drain!(ch)` | 1 | Every value waiting in a channel, as a list. |
-| `go` | `go(f)` | 1 | A pending fiber for a zero-argument function. Running it (go-run) has no blue spelling. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `chan` | `chan([capacity])` | 0..1 | — | A tatara-lisp channel. Its put and take words (>! and <!) have no blue spelling. |
+| `close!` | `close!(ch)` | 1 | — | Close a channel. |
+| `drain!` | `drain!(ch)` | 1 | — | Every value waiting in a channel, as a list. |
+| `go` | `go(f)` | 1 | — | A pending fiber for a zero-argument function. Running it (go-run) has no blue spelling. |
 
 ### Blue processes and supervision
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `accept` | `accept(wire, timeout_ms)` | 2 | Resume a process another node evicted to this wire: waits at most timeout_ms (0 only checks) for every frame of one blue-image, checks it hashes to its name, starts it here with the same code, state or frames, scheduling class and waiting messages, a server's dispatch_steps met with this node's bound, and returns its new pid; nil when no whole image came. A plain process goes on inside the receive it moved at, its functions rebuilt from its code, and its tape starts with the entries it made before the move, so a crash trace of it here replays from its start (blue replay refuses one whose carried entries are not the ones that came); on a held node its mailbox journal and host-call count start from the ones it brought, so its crash trace and receipt here count both nodes, and a server's receipt begins at the input root it brought (blue replay and blue receipt verify refuse a cut or edited carried part by name); an image with no tape, from an older blue or a tape past its bound, starts a tape marked truncated. A supervised process arrives under a one_for_one supervisor of its own, which restarts it as its old one would. A frame of the image that is malformed, or an image whose bytes hash to another name, raises :decode_error. Frames this node cannot resume (a native function it does not register, code its blue compiles to another chunk) are refused by name and nothing is admitted; the process has already left the node it came from. Other Tide frames stay in the inbox for tide_next. An accepted process runs under this node's frame, never more. Needs the comm_scavenger capability. |
-| `after` | `after(ms, msg[, pid])` | 2..3 | Deliver a copy of msg to pid (this process when omitted) ms from now on the node clock; returns the timer's number. Timers fire in the order of their times, and timers with one time in the order they were set. |
-| `alive?` | `alive?(pid)` | 1 | true while pid is running or waiting. |
-| `children` | `children(sup)` | 1 | The pids a supervisor started, in order. Also defined by `maakuappu` (`maakuappu::children`): a file that lists it gets that one. |
-| `context` | `context` | 0 | What this process inherits and passes to every process it spawns: {clock: :virtual or :real, deadline: the node time or nil}. |
-| `deadline` | `deadline(t, f)` | 2 | f(), which must finish by the node time t: every wait inside it, and in every process it spawns, raises :timeout at t, and f returning after t raises :timeout too. A nested deadline only narrows. Only the program narrows its deadline today; a process holds the one it was spawned under. |
-| `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
-| `demonitor` | `demonitor(ref)` | 1 | Stop a monitor; true. |
-| `evict` | `evict(pid, wire, peer)` | 3 | Move process pid off this node at its next message boundary: a server between two messages, with its code, state and its own dispatch_steps, and from a held node its mailbox journal, its count of host calls and the root of the state its incarnation began with, so its crash trace and receipt on the peer cover the whole incarnation; a plain process (spawn) parked at receive, with its code and its VM frames, so its locals, the closures it holds and the cells they share go on where they were, what is left of a receive timeout, and its tape, so a crash on the peer replays from its start; from a held node also its mailbox journal and its count of host calls, so its crash trace and receipt there count both nodes (a tape, or a server's journal, the send ring cannot hold stays behind with the rest of its account, and the process moves without it). Its scheduling class and waiting messages go too; a plain process still running stops at its next receive and takes nothing more here. They become a blue-image, queued as Tide frames for peer (host:port) on wire, and the process leaves the node: its monitors get [:down, ref, pid, :evicted], and each linked process, which must trap exits, gets [:exit, pid, :evicted] and is linked no more. A supervised process's supervisor drops it, and the image carries its restart: on the peer it runs under a one_for_one supervisor of its own that restarts it as its old one would (a server from the state its old one began it with, a plain process from its code), its restarts so far counted against the same max_restarts. tide_release sends the frames at the pace the program allows; accept on the peer's wire resumes it. Returns {image: "b3:…", frames:, bytes:}. Only the program evicts, since it waits for the boundary. Refused by name, and the process keeps running here: the program itself (the door runs it on the tree-walker, not on a VM this node holds), a supervisor, a plain process whose frames hold a value with no data form (a host handle, a promise, a tree-walker closure) or run code a migration replaced, a linked process whose partner does not trap exits, and an image the send ring has no room for. Needs the comm_scavenger capability. |
-| `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises. |
-| `link` | `link(pid)` | 1 | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `kikaigo` (`kikaigo::link`), `kodou` (`kodou::link`): a file that lists it gets that one. |
-| `monitor` | `monitor(pid)` | 1 | Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone). |
-| `node_time` | `node_time` | 0 | Milliseconds on this node's clock. Under blue test the clock is virtual: it starts at 0 and moves only when every process waits, jumping to the next deadline. Under blue run it is the wall clock since the node started. |
-| `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
-| `remaining` | `remaining` | 0 | Milliseconds left before this process's deadline, or nil when it holds none. |
-| `self` | `self` | 0 | This process's pid. The program itself is 0. |
-| `send` | `send(pid, msg)` | 2 | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. Also defined by `yomi` (`yomi::send`): a file that lists it gets that one. |
-| `sleep_for` | `sleep_for(ms)` | 1 | Wait ms on the node clock without holding the node: a process parks, the program runs the other processes meanwhile. Raises :timeout at the deadline this process holds, when that comes first. |
-| `sleep_until` | `sleep_until(t)` | 1 | sleep_for, to the node time t (milliseconds). |
-| `spawn` | `spawn(f[, args][, opts])` | 1..3 | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. opts {scheduling: :normal \| :idle}: :normal (the default) changes nothing; :idle runs each of its slices on a thread the OS gives its lowest priority (nice 19 on Linux, the background band on darwin), apart from the node: the node runs its other processes while that thread waits for a core, and the process still acts only while the program waits. A host with no such class raises :unsupported. :realtime, the class the OS never preempts, raises :permission_denied: the OS gives it only to a privileged process. |
-| `spawn_link` | `spawn_link(f[, args][, opts])` | 1..3 | spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits. opts as for spawn. |
-| `spawn_server` | `spawn_server(handler, state[, opts])` | 2..3 | A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms and evict carries. opts as for spawn, and dispatch_steps: n, the most steps one message's handler may take, met with the project's bounds({dispatch_steps:}) so each only narrows. Past it the process exits [:runaway, "execution budget exhausted: steps per dispatch (limit n)"], as a step bound ends one; nothing the handler did to the state lands, and a supervisor restarts it from the state before that message. A positive integer, or :bad_option. |
-| `supervisor` | `supervisor(strategy, children[, max_restarts[, policy]])` | 2..4 | Start children (functions, [f, args] pairs, or [:server, handler, state[, opts]] with spawn_server's opts) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. policy is {window_ms:, backoff_ms:}: restarts are counted within window_ms, and each restart waits the next backoff_ms entry. Each crash writes a trace for blue replay. |
-| `supervisor_adopt` | `supervisor_adopt(sup, f[, args])` | 2..3 | Start f(args...) as a new child of a running supervisor and return its pid; the supervisor restarts it under its own strategy and restart window. Raises when sup is not a supervisor, f is not a function or args is not a list. |
-| `timeout` | `timeout(ms, f)` | 2 | deadline(node_time + ms, f). |
-| `trap_exit` | `trap_exit(flag)` | 1 | While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag. |
-| `unlink` | `unlink(pid)` | 1 | Remove a link; true. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `accept` | `accept(wire, timeout_ms)` | 2 | — | Resume a process another node evicted to this wire: waits at most timeout_ms (0 only checks) for every frame of one blue-image, checks it hashes to its name, starts it here with the same code, state or frames, scheduling class and waiting messages, a server's dispatch_steps met with this node's bound, and returns its new pid; nil when no whole image came. A plain process goes on inside the receive it moved at, its functions rebuilt from its code, and its tape starts with the entries it made before the move, so a crash trace of it here replays from its start (blue replay refuses one whose carried entries are not the ones that came); on a held node its mailbox journal and host-call count start from the ones it brought, so its crash trace and receipt here count both nodes, and a server's receipt begins at the input root it brought (blue replay and blue receipt verify refuse a cut or edited carried part by name); an image with no tape, from an older blue or a tape past its bound, starts a tape marked truncated. A supervised process arrives under a one_for_one supervisor of its own, which restarts it as its old one would. A frame of the image that is malformed, or an image whose bytes hash to another name, raises :decode_error. Frames this node cannot resume (a native function it does not register, code its blue compiles to another chunk) are refused by name and nothing is admitted; the process has already left the node it came from. Other Tide frames stay in the inbox for tide_next. An accepted process runs under this node's frame, never more. Needs the comm_scavenger capability. |
+| `after` | `after(ms, msg[, pid])` | 2..3 | — | Deliver a copy of msg to pid (this process when omitted) ms from now on the node clock; returns the timer's number. Timers fire in the order of their times, and timers with one time in the order they were set. |
+| `alive?` | `alive?(pid)` | 1 | — | true while pid is running or waiting. |
+| `children` | `children(sup)` | 1 | — | The pids a supervisor started, in order. Also defined by `maakuappu` (`maakuappu::children`): a file that lists it gets that one. |
+| `context` | `context` | 0 | — | What this process inherits and passes to every process it spawns: {clock: :virtual or :real, deadline: the node time or nil}. |
+| `deadline` | `deadline(t, f)` | 2 | — | f(), which must finish by the node time t: every wait inside it, and in every process it spawns, raises :timeout at t, and f returning after t raises :timeout too. A nested deadline only narrows. Only the program narrows its deadline today; a process holds the one it was spawned under. |
+| `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | — | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
+| `demonitor` | `demonitor(ref)` | 1 | — | Stop a monitor; true. |
+| `evict` | `evict(pid, wire, peer)` | 3 | — | Move process pid off this node at its next message boundary: a server between two messages, with its code, state and its own dispatch_steps, and from a held node its mailbox journal, its count of host calls and the root of the state its incarnation began with, so its crash trace and receipt on the peer cover the whole incarnation; a plain process (spawn) parked at receive, with its code and its VM frames, so its locals, the closures it holds and the cells they share go on where they were, what is left of a receive timeout, and its tape, so a crash on the peer replays from its start; from a held node also its mailbox journal and its count of host calls, so its crash trace and receipt there count both nodes (a tape, or a server's journal, the send ring cannot hold stays behind with the rest of its account, and the process moves without it). Its scheduling class and waiting messages go too; a plain process still running stops at its next receive and takes nothing more here. They become a blue-image, queued as Tide frames for peer (host:port) on wire, and the process leaves the node: its monitors get [:down, ref, pid, :evicted], and each linked process, which must trap exits, gets [:exit, pid, :evicted] and is linked no more. A supervised process's supervisor drops it, and the image carries its restart: on the peer it runs under a one_for_one supervisor of its own that restarts it as its old one would (a server from the state its old one began it with, a plain process from its code), its restarts so far counted against the same max_restarts. tide_release sends the frames at the pace the program allows; accept on the peer's wire resumes it. Returns {image: "b3:…", frames:, bytes:}. Only the program evicts, since it waits for the boundary. Refused by name, and the process keeps running here: the program itself (the door runs it on the tree-walker, not on a VM this node holds), a supervisor, a plain process whose frames hold a value with no data form (a host handle, a promise, a tree-walker closure) or run code a migration replaced, a linked process whose partner does not trap exits, and an image the send ring has no room for. Needs the comm_scavenger capability. |
+| `exit` | `exit(pid, reason)` | 2 | — | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises. |
+| `link` | `link(pid)` | 1 | — | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `kikaigo` (`kikaigo::link`), `kodou` (`kodou::link`): a file that lists it gets that one. |
+| `monitor` | `monitor(pid)` | 1 | — | Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone). |
+| `node_time` | `node_time` | 0 | — | Milliseconds on this node's clock. Under blue test the clock is virtual: it starts at 0 and moves only when every process waits, jumping to the next deadline. Under blue run it is the wall clock since the node started. |
+| `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | — | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
+| `remaining` | `remaining` | 0 | — | Milliseconds left before this process's deadline, or nil when it holds none. |
+| `self` | `self` | 0 | — | This process's pid. The program itself is 0. |
+| `send` | `send(pid, msg)` | 2 | — | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. Also defined by `yomi` (`yomi::send`): a file that lists it gets that one. |
+| `sleep_for` | `sleep_for(ms)` | 1 | — | Wait ms on the node clock without holding the node: a process parks, the program runs the other processes meanwhile. Raises :timeout at the deadline this process holds, when that comes first. |
+| `sleep_until` | `sleep_until(t)` | 1 | — | sleep_for, to the node time t (milliseconds). |
+| `spawn` | `spawn(f[, args][, opts])` | 1..3 | — | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. opts {scheduling: :normal \| :idle}: :normal (the default) changes nothing; :idle runs each of its slices on a thread the OS gives its lowest priority (nice 19 on Linux, the background band on darwin), apart from the node: the node runs its other processes while that thread waits for a core, and the process still acts only while the program waits. A host with no such class raises :unsupported. :realtime, the class the OS never preempts, raises :permission_denied: the OS gives it only to a privileged process. |
+| `spawn_link` | `spawn_link(f[, args][, opts])` | 1..3 | — | spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits. opts as for spawn. |
+| `spawn_server` | `spawn_server(handler, state[, opts])` | 2..3 | — | A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms and evict carries. opts as for spawn, and dispatch_steps: n, the most steps one message's handler may take, met with the project's bounds({dispatch_steps:}) so each only narrows. Past it the process exits [:runaway, "execution budget exhausted: steps per dispatch (limit n)"], as a step bound ends one; nothing the handler did to the state lands, and a supervisor restarts it from the state before that message. A positive integer, or :bad_option. |
+| `supervisor` | `supervisor(strategy, children[, max_restarts[, policy]])` | 2..4 | — | Start children (functions, [f, args] pairs, or [:server, handler, state[, opts]] with spawn_server's opts) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. policy is {window_ms:, backoff_ms:}: restarts are counted within window_ms, and each restart waits the next backoff_ms entry. Each crash writes a trace for blue replay. |
+| `supervisor_adopt` | `supervisor_adopt(sup, f[, args])` | 2..3 | — | Start f(args...) as a new child of a running supervisor and return its pid; the supervisor restarts it under its own strategy and restart window. Raises when sup is not a supervisor, f is not a function or args is not a list. |
+| `timeout` | `timeout(ms, f)` | 2 | — | deadline(node_time + ms, f). |
+| `trap_exit` | `trap_exit(flag)` | 1 | — | While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag. |
+| `unlink` | `unlink(pid)` | 1 | — | Remove a link; true. |
 
 ### tatara-lisp forms
 
-| name | call | arity | meaning |
-|---|---|---|---|
-| `builtin_names` | `builtin_names` | 0 | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
-| `chain_rules` | `chain_rules` | 0 | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
-| `cond` | `(cond (test expr) …)` | — | Lisp multi-way conditional; its clauses have no blue spelling. In blue, use if … elsif … end. |
-| `defactor` | `defactor(name, initial, behaviour)` | — | A single-threaded actor with a mailbox. Its step message is :step!, which blue cannot spell, so from blue it can only be told, never stepped. |
-| `defcommand` | `defcommand(bus, name, params, body)` | — | Register a command on a tatara-lisp command bus; params is a Lisp list. |
-| `defflow` | `defflow(name, f, g, more...)` | — | Define name as a function that pipes its argument through f, then g: defflow(slug, trim, downcase). |
-| `defquery` | `defquery(bus, name, params, body)` | — | Register a query on a tatara-lisp command bus; params is a Lisp list. |
-| `defsm` | `defsm(name, :initial, s, :transitions, [[from, event, to], …])` | — | Define a state machine. name(:send, event) moves it and returns the state; name(:current) reads it. |
-| `defstrategy` | `defstrategy(name, :variant, f, …, :default, g)` | — | Define name(variant, args...) dispatching to the function under that keyword, or :default. |
-| `defvisitor` | `defvisitor(name, :tag, f, …, :default, g)` | — | Define name(tagged) dispatching on the first element of a tagged list. |
-| `dolist` | `(dolist (x xs) …)` | — | Lisp loop; its binding list has no blue spelling. In blue, map(fn(x) … end, xs). |
-| `doseq` | `(doseq (x xs) …)` | — | Same as dolist. In blue, map(fn(x) … end, xs). |
-| `dotimes` | `(dotimes (i n) …)` | — | Lisp counted loop. In blue, map(fn(i) … end, range(n)). |
-| `let` | `(let ((x 1)) …)` | — | Lisp binding form; its binding list has no blue spelling. In blue, write x = 1. |
-| `letrec` | `(letrec ((f …)) …)` | — | Lisp recursive binding; its binding list has no blue spelling. In blue, use def. |
-| `match` | `(match v (pattern expr) …)` | — | Lisp pattern matching; its patterns have no blue spelling. blue's case compares values and does not destructure. |
-| `provide` | `(provide …)` | — | tatara-lisp's module export. A bidama exports every def. |
-| `read_forms` | `read_forms(text)` | 1 | The tatara-lisp forms in text as data: lists, symbols, keywords and literals, what `blue ast --resolved` prints read back. Text that does not read raises :parse_error. |
-| `require` | `(require …)` | — | tatara-lisp's module loader. In blue, use("pkg") imports a bidama. |
+| name | call | arity | home | meaning |
+|---|---|---|---|---|
+| `builtin_names` | `builtin_names` | 0 | — | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
+| `chain_rules` | `chain_rules` | 0 | — | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
+| `cond` | `(cond (test expr) …)` | — | — | Lisp multi-way conditional; its clauses have no blue spelling. In blue, use if … elsif … end. |
+| `defactor` | `defactor(name, initial, behaviour)` | — | — | A single-threaded actor with a mailbox. Its step message is :step!, which blue cannot spell, so from blue it can only be told, never stepped. |
+| `defcommand` | `defcommand(bus, name, params, body)` | — | — | Register a command on a tatara-lisp command bus; params is a Lisp list. |
+| `defflow` | `defflow(name, f, g, more...)` | — | — | Define name as a function that pipes its argument through f, then g: defflow(slug, trim, downcase). |
+| `defquery` | `defquery(bus, name, params, body)` | — | — | Register a query on a tatara-lisp command bus; params is a Lisp list. |
+| `defsm` | `defsm(name, :initial, s, :transitions, [[from, event, to], …])` | — | — | Define a state machine. name(:send, event) moves it and returns the state; name(:current) reads it. |
+| `defstrategy` | `defstrategy(name, :variant, f, …, :default, g)` | — | — | Define name(variant, args...) dispatching to the function under that keyword, or :default. |
+| `defvisitor` | `defvisitor(name, :tag, f, …, :default, g)` | — | — | Define name(tagged) dispatching on the first element of a tagged list. |
+| `dolist` | `(dolist (x xs) …)` | — | — | Lisp loop; its binding list has no blue spelling. In blue, map(fn(x) … end, xs). |
+| `doseq` | `(doseq (x xs) …)` | — | — | Same as dolist. In blue, map(fn(x) … end, xs). |
+| `dotimes` | `(dotimes (i n) …)` | — | — | Lisp counted loop. In blue, map(fn(i) … end, range(n)). |
+| `let` | `(let ((x 1)) …)` | — | — | Lisp binding form; its binding list has no blue spelling. In blue, write x = 1. |
+| `letrec` | `(letrec ((f …)) …)` | — | — | Lisp recursive binding; its binding list has no blue spelling. In blue, use def. |
+| `match` | `(match v (pattern expr) …)` | — | — | Lisp pattern matching; its patterns have no blue spelling. blue's case compares values and does not destructure. |
+| `provide` | `(provide …)` | — | — | tatara-lisp's module export. A bidama exports every def. |
+| `read_forms` | `read_forms(text)` | 1 | — | The tatara-lisp forms in text as data: lists, symbols, keywords and literals, what `blue ast --resolved` prints read back. Text that does not read raises :parse_error. |
+| `require` | `(require …)` | — | — | tatara-lisp's module loader. In blue, use("pkg") imports a bidama. |
 
 ### Called where written bare
 

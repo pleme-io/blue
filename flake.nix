@@ -716,6 +716,15 @@
               };
             };
 
+          reader-differential =
+            workspaceTests {
+              src = ./.;
+              name = "blue-reader-differential";
+              config = {
+                runs = [ { args = [ "-p" "blue-lang-kiwari" "--test" "reader_in_blue" ]; } ];
+              };
+            };
+
           ir-conformance =
             workspaceTests {
               src = ./.;

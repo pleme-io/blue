@@ -85,7 +85,7 @@ and recompute this list from §7.
 2. **R4, the rest** (§R4): time, processes, sockets, epoll, the terminal, then `put_int` and
    `put_byte`, which C3 needs (both landed natively). Critical path: R4 → R6a → S1.
 3. **R6a** is done (JSON reader and writers, BLAKE3, SHA-256, SHA-512, each differential against its Rust word). Its exit, the json and hash rows passing natively, waits on the native backend (R4).
-4. **F1, the rest** (`pure-blue/front-tower-conformance.md` §F1): the parser in blue over `yomi::lex`, then `blue ast --tree-json` as the oracle and `checks.reader-differential`. The lexer landed and agrees over every `.b` file.
+4. **F1** is done: `yomi::parse` reads all 457 distinct `.b` files as blue's parser does (`checks.reader-differential`), and the consumers sweep holds the fleet's files to it.
 5. **M2** is done: `blue explain --memory` and `--hints`, `local_reads`, and the language server serving the memory hints with live evaluation off and beside the value hints with it on.
 6. **C2, the rest** (§C2): `closes_at` for the display, the wire and kernel fds; move vs copy moved to R5 (in the Rust runtime every send deep-copies immutable data, so nothing tells a move from a copy until processes own their heaps). Done: `closes_at(:end)` for TCP and serial handles on the walker and the VM, cycle-through-cell (the VM's letrec ring, an aliased compiled closure and a closure in a list only its frames hold, all released in tatara 0.4.26), and `checks.no-leak` (I3) on the walker and the VM with `spec/leaks.baseline` empty.
 7. **B3** (§B3): `checks.native-x64-corpus`.

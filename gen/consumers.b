@@ -4,6 +4,7 @@ use("moji", %i[after_first after_last before_first trim])
 use("retsu", %i[concat_lists flat_map is_empty reject size])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 use("tesuto", %i[level level_of settle])
+use("yomi")
 
 def entries()
   [
@@ -562,15 +563,45 @@ def error_codes(check_out)
   )
 end
 
-def measure(name, file, fmt_status, check_out)
+def node_tree(n)
+  if n[2] == :nil
+    [n[0], n[1], :nil]
+  elsif n[2] == :list
+    [n[0], n[1], :list, map(node_tree, n[3])]
+  elsif member?(n[2], %i[quote quasiquote unquote unquote_splice])
+    [n[0], n[1], n[2], node_tree(n[3])]
+  else
+    n
+  end
+end
+
+def reads_alike?(rust_status, rust_out, text)
+  mine = begin
+    json_read(json_stringify(map(node_tree, yomi::parse(text))))
+  rescue _e
+    :refused
+  end
+  if rust_status != 0
+    mine == :refused
+  else
+    mine != :refused and mine == json_read(rust_out)
+  end
+end
+
+def measure(name, file, fmt_status, check_out, alike)
   codes = error_codes(check_out)
   fmt = if fmt_status != 0
     [{key: "#{name}:#{file}:fmt", size: 1}]
   else
     []
   end
+  reader = if alike
+    []
+  else
+    [{key: "#{name}:#{file}:reader", size: 1}]
+  end
   concat_lists(
-    fmt,
+    concat_lists(fmt, reader),
     map(
       fn(c)
         {key: "#{name}:#{file}:#{c}", size: count(filter((x) -> x == c, codes))}
@@ -820,11 +851,13 @@ def measure_one(blue, root, name, level, clone)
         got[:files],
         fn(f)
           path = path_join(got[:dir], f)
+          tree = exec_capture(blue, "ast", "--tree-json", path)
           measure(
             name,
             f,
             status_of(exec_capture(blue, "fmt", "--check", path)),
-            stdout_of(exec_capture(blue, "check", "--format", "json", path))
+            stdout_of(exec_capture(blue, "check", "--format", "json", path)),
+            reads_alike?(status_of(tree), stdout_of(tree), read_file(path))
           )
         end
       )
@@ -1375,9 +1408,11 @@ test "a file's measurement is its fmt drift and each error code by count; warnin
       "typed declarations: 0"
     ]
   )
-  assert measure("actions", "run.b", 1, out) ==
+  assert measure("actions", "run.b", 1, out, true) ==
     [{key: "actions:run.b:fmt", size: 1}, {key: "actions:run.b:B0066", size: 2}]
-  assert measure("actions", "run.b", 0, "") == []
+  assert measure("actions", "run.b", 0, "", true) == []
+  assert measure("actions", "run.b", 0, "", false) ==
+    [{key: "actions:run.b:reader", size: 1}]
 end
 
 test "a new refusal in an enforced consumer is red, recorded debt holds, audit lists it without red, off measures nothing"
@@ -1583,4 +1618,16 @@ end
 
 def every?(f, xs)
   not any?((x) -> not f(x), xs)
+end
+
+test "yomi reads a consumer file as blue's parser does, and a refusal on both sides agrees"
+  src = unlines(["x = f(1, nil)"])
+  tree = json_stringify(map(node_tree, yomi::parse(src)))
+  assert reads_alike?(0, tree, src)
+  assert not reads_alike?(0, "[]", src)
+  assert reads_alike?(1, "", "x = (")
+  assert not reads_alike?(1, "", src)
+  assert node_tree([0, 3, :nil, nil]) == [0, 3, :nil]
+  assert node_tree([0, 3, :quote, [1, 2, :nil, nil]]) ==
+    [0, 3, :quote, [1, 2, :nil]]
 end

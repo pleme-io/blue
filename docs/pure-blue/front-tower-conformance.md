@@ -89,6 +89,7 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   what yomi refuses, blue refuses. Next: the floor gate over the fleet corpus (the exit below).
 - **Exit.** `checks.reader-differential`: all 604 `.b` files give identical JSON, spans
   included; the fleet half reuses `gen/consumers.json` (20 repos, 132 files) as a prepush gate.
+- **Exit reached (2026-11-21).** `checks.reader-differential` runs `crates/blue-lang-kiwari/tests/reader_in_blue.rs`: 457 of 457 distinct `.b` files read identically, spans included, and 60 sources both readers refuse. The fleet half is the consumers sweep (`gen/consumers.b`): every consumer file is read by `yomi::parse` and by `blue ast --tree-json`, compared as JSON, and a file that reads differently measures `REPO:FILE:reader`, which the baseline holds at none. First sweep: no consumer file reads differently.
 - **Risks.** ~7.7k lines of behaviour; 34 span-synthesis sites and `cover` (`parse.rs:3806`);
   float literals need correctly rounded parsing; the walker's speed makes the differential
   take minutes.

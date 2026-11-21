@@ -243,13 +243,32 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
 
 ### C3 — benchmarks
 
-- **Today.** `bench/bench.b native` (:839-1054) times tree, VM and chuuzou against Rust twins in
-  `bench/native/*.rs`; `native-ratio:` rows per mille, keyed `darwin`; only `cost` is gated
-  (`checks.bench-ratchet`, `flake.nix:755`).
-- **Change.** A `bluec` path in `native_paths` (:877), keyed `linux`.
-- **Blocked on native output (measured 2026-11-19).** The corpus programs print with `put_int` and `put_byte`, which hashiru has no code for, so `bluec` cannot build them yet.
-- **First commit.** `put_int` and `put_byte` in hashiru (R4's write path), then the `bluec` path in `native_paths` for `fib`, keyed `linux`.
-- **Exit.** `checks.native-bench` on an x86-64 Linux builder (I7).
+- **Done (2026-11-21).** `bench/bench.b native` has a `bluec` path, keyed `linux`: each corpus
+  program at its big N is lowered by `blue ast` and compiled by hashiru through
+  `gen/native-row.b` in `:run` mode (the conformance native column's driver; `:run` drops the
+  program's value and exits 0, as `blue run` ends a script). Its output must equal the Rust
+  twin's, then it is timed. A program bluec refuses is printed with the reason and has no row;
+  a program with a row that bluec stops compiling is red (`native_lost`). Recording on one host
+  keeps the other hosts' rows. `checks.native-bench` (x86_64-linux only) runs the whole native
+  ratchet (tree, VM, chuuzou, bluec) against the `linux` rows.
+- **hashiru, for the corpus.** A `use("kiban", ...)` naming only words hashiru compiles itself
+  (`put_int`, `put_byte`) is dropped, any other `use` is refused by name; `define-typed` is erased
+  to `define`; `mod` is native (`rt_mod`, euclidean as blue's `%`).
+- **Measured on rio (x86-64, 2026-11-21), CPU over Rust's, per mille.**
+
+  | program | bluec ms | Rust ms | bluec/Rust ‰ | chuuzou/Rust ‰ |
+  |---|---|---|---|---|
+  | fib (38) | 966 | 71.6 | 13577 | 1604 |
+  | loop (300M) | 4786 | 166 | 28915 | 721 |
+  | mutual | 0.6 | 0.2 | 3000 | 1500 |
+
+  mutual has no N, so its rows measure process start, not code. bluec refuses `shapes`
+  (records: `point` has no slot) and `sums` (kiban's `reclaim`).
+- **Red-run.** With `fib bluec linux` tightened from 13577 to 5000, `checks.native-bench` on rio
+  was red with one line: "fib bluec linux measures 14670, past its recorded 5000 by 9670,
+  beyond its 500 per mille tolerance". With the row restored, the check is green.
+- **Next.** Records and `reclaim` in hashiru, so shapes and sums get bluec rows; B5's
+  optimisations lower the bluec rows, which only fall or hold (I7).
 
 Every finding of this mapping (F2 on `ir_eval`, F1 as the kiwari parser rung, the
 `bidamasOverlay` blocker now owned by D1, import resolution in F3, Mach-O signing, the S

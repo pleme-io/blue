@@ -15,7 +15,7 @@ use(
 
 use("hikisuu", [:flag])
 use("kazu", [:max])
-use("kyohi", [:why])
+use("kyohi", %i[refusal why])
 use("moji", %i[after_first before_first includes lines trim])
 use("retsu", %i[first is_empty size])
 use("shisutemu", %i[read_or status_of stderr_of])
@@ -870,16 +870,74 @@ end
 @doc """
 native_paths: The execution paths a native row compares with Rust, each gated as its
 time over Rust's, in per mille, with a tolerance wide enough for a loaded
-machine's noise.
+machine's noise. A path with `hosts` runs only there: bluec is blue's own
+compiler (hashiru, through gen/native-row.b, as the conformance native column
+compiles a row), whose executables are x86-64 Linux ELF.
 
-    map((p) -> p[:name], native_paths) #=> ["tree", "vm", "chuuzou"]
+    map((p) -> p[:name], native_paths) #=> ["tree", "vm", "chuuzou", "bluec"]
 """
 def native_paths()
   [
-    {name: "tree", field: :tree, permille: 500, scaled: true},
-    {name: "vm", field: :vm, permille: 500, scaled: true},
-    {name: "chuuzou", field: :chuuzou, permille: 500, scaled: false}
+    {name: "tree", field: :tree, permille: 500, scaled: true, hosts: nil},
+    {name: "vm", field: :vm, permille: 500, scaled: true, hosts: nil},
+    {
+      name: "chuuzou",
+      field: :chuuzou,
+      permille: 500,
+      scaled: false,
+      hosts: nil
+    },
+    {
+      name: "bluec",
+      field: :bluec,
+      permille: 500,
+      scaled: false,
+      hosts: ["linux"]
+    }
   ]
+end
+
+@doc """
+paths_on: The native paths that run on `host`.
+
+    map((p) -> p[:name], paths_on("darwin")) #=> ["tree", "vm", "chuuzou"]
+    map((p) -> p[:name], paths_on("linux")) #=> ["tree", "vm", "chuuzou", "bluec"]
+"""
+def paths_on(host)
+  filter((p) -> p.hosts.nil? or member?(host, p.hosts), native_paths)
+end
+
+@doc """
+bluec_image: The blue program at `program` compiled by bluec to the executable `out`:
+`blue ast` lowers it and gen/native-row.b compiles the tree in :run mode.
+Answers `{image: out}`, or `{refused: why}` naming what bluec has no code for.
+"""
+def bluec_image(blue, program, out)
+  lowered = "#{out}.lisp"
+  ast = exec_capture(blue, "ast", program)
+  if status_of(ast) != 0
+    {refused: "blue ast: #{trim(stderr_of(ast))}"}
+  else
+    write_file(lowered, stdout_of(ast))
+    built = exec_capture(
+      "env",
+      "BLUE_PATH=#{path_join(cwd, "bidamas")}",
+      blue,
+      "run",
+      "--quiet",
+      "gen/native-row.b",
+      "--",
+      lowered,
+      out,
+      "run"
+    )
+    if status_of(built) != 0
+      {refused: trim(stderr_of(built))}
+    else
+      output_of(["chmod", "+x", out])
+      {image: out}
+    end
+  end
 end
 
 def cpu_ms(r)
@@ -930,7 +988,7 @@ def rust_twin(name, out)
   out
 end
 
-def native_commands(blue, spec, work)
+def native_commands(blue, spec, work, host)
   name = spec.name
   bidamas = "BLUE_PATH=#{path_join(cwd, "native/bidamas")}"
   program = path_join(cwd, "native/corpus/#{name}.b")
@@ -966,22 +1024,27 @@ def native_commands(blue, spec, work)
       [to_s(n)]
     end
   end
+  bluec = if member?("bluec", map((p) -> p.name, paths_on(host)))
+    bluec_image(blue, big_program, path_join(work, "#{name}-bluec"))
+  end
   {
     tree: ["env", bidamas, blue, "run", "--quiet", program],
     vm: ["env", bidamas, blue, "run", "--quiet", "--vm", program],
     chuuzou: [image],
+    bluec:,
     rust: append([rust], arg(spec.big)),
     rust_small: append([rust], arg(spec.n))
   }
 end
 
 @doc """
-native_row: One program on every path: the three agree on what they print, then each
-is timed; wall and CPU (user + system) in ms.
+native_row: One program on every path of the host: each agrees with the Rust twin on
+what it prints, then each is timed; wall and CPU (user + system) in ms. A
+program bluec refuses has no bluec time and carries why under `refused`.
 """
-def native_row(blue, spec, work, runs)
+def native_row(blue, spec, work, runs, host)
   name = spec.name
-  c = native_commands(blue, spec, work)
+  c = native_commands(blue, spec, work, host)
   if output_of(c.tree) != output_of(c.rust_small)
     raise(:bench, "#{name}: the interpreter prints other than the Rust twin")
   end
@@ -992,14 +1055,47 @@ def native_row(blue, spec, work, runs)
     raise(:bench, "#{name}: chuuzou's image prints other than the Rust twin")
   end
   out = path_join(work, "#{name}.json")
+  bluec = if c.bluec.nil? or c.bluec[:image].nil?
+    nil
+  else
+    if output_of([c.bluec.image]) != output_of(c.rust)
+      raise(
+        :bench,
+        "#{name}: bluec's executable prints other than the Rust twin"
+      )
+    end
+    timed(c.bluec.image, runs, out)
+  end
   {
     name:,
     work: spec.work,
     tree: timed(join(c.tree, " "), runs, out),
     vm: timed(join(c.vm, " "), runs, out),
     chuuzou: timed(join(c.chuuzou, " "), runs, out),
+    bluec:,
+    refused: {
+      bluec: if c.bluec.nil?
+        nil
+      else
+        c.bluec[:refused]
+      end
+    },
     rust: timed(join(c.rust, " "), runs, out)
   }
+end
+
+@doc """
+bluec_line: A program's bluec row: its time and its ratio to Rust, or what bluec
+refuses in it.
+
+    bluec_line({name: "fib", bluec: nil, refused: {bluec: "no code for `x`"}, rust: {wall: 1, cpu: 1}}) #=> "| fib | refused: no code for `x` | 1 (cpu 1) | - |"
+"""
+def bluec_line(r)
+  if r.bluec.nil?
+    "| #{r.name} | refused: #{r.refused.bluec} | #{native_cell(r.rust)} | - |"
+  else
+    "| #{r.name} | #{native_cell(r.bluec)} | #{native_cell(r.rust)} | #{per_mille(r.bluec.cpu, r.rust.cpu)} |"
+  end
 end
 
 def native_cell(t)
@@ -1024,7 +1120,34 @@ def native_measures(results, path, host)
         per_mille(get(r, path.field).cpu * work_of(r, path), r.rust.cpu)
       )
     end,
-    results
+    filter((r) -> get(r, path.field) != nil, results)
+  )
+end
+
+@doc """
+native_lost: The recorded rows of a path whose program now has no time on it (bluec
+refuses it): a path that stops compiling a program regresses as surely as one
+that slows it.
+
+    native_lost([{kind: "native-ratio", key: "fib bluec linux", size: 900}], [{name: "fib", bluec: nil, refused: {bluec: "no code"}}], {name: "bluec", field: :bluec}, "linux") #=> [[:lost, "native-ratio: fib bluec linux is recorded at 900 and bluec has no time for fib now: no code"]]
+"""
+def native_lost(rows, results, path, host)
+  map(
+    fn(r)
+      key = "#{r.name} #{path.name} #{host}"
+      refusal(
+        :lost,
+        "native-ratio: #{key} is recorded at #{recorded(rows, "native-ratio", key)} and #{path.name} has no time for #{r.name} now: #{get(r[:refused] or {}, path.field)}"
+      )
+    end,
+    filter(
+      fn(r)
+        get(r, path.field).nil? and
+          recorded(rows, "native-ratio", "#{r.name} #{path.name} #{host}") !=
+            nil
+      end,
+      results
+    )
   )
 end
 
@@ -1047,23 +1170,43 @@ def native_refusals(rows, results, host)
   reduce(
     fn(acc, p)
       append(
-        acc,
-        failures_within(
-          rows,
-          "native-ratio",
-          native_measures(results, p, host),
-          p.permille
-        )
+        append(
+          acc,
+          failures_within(
+            rows,
+            "native-ratio",
+            native_measures(results, p, host),
+            p.permille
+          )
+        ),
+        native_lost(rows, results, p, host)
       )
     end,
     [],
-    native_paths
+    paths_on(host)
+  )
+end
+
+@doc """
+other_hosts: The recorded native rows of every host but `host`, as measurements, so
+recording on one host keeps the others' rows.
+
+    other_hosts([{kind: "native-ratio", key: "fib vm darwin", size: 7}, {kind: "native-ratio", key: "fib vm linux", size: 9}], "linux") #=> [{key: "fib vm darwin", size: 7}]
+"""
+def other_hosts(rows, host)
+  map(
+    (r) -> measurement(r.key, r.size),
+    filter(
+      (r) -> r.kind == "native-ratio" and not ends_with?(r.key, " #{host}"),
+      rows
+    )
   )
 end
 
 def native_command(blue, work, flags)
   runs = 3
-  results = map((n) -> native_row(blue, n, work, runs), native_programs)
+  host = host_name
+  results = map((n) -> native_row(blue, n, work, runs, host), native_programs)
   write_stdout(
     unlines(
       [
@@ -1073,14 +1216,25 @@ def native_command(blue, work, flags)
     )
   )
   map((r) -> write_stdout(unlines([native_line(r)])), results)
-  host = host_name
+  if member?("bluec", map((p) -> p.name, paths_on(host)))
+    write_stdout(
+      unlines(
+        [
+          "",
+          "| program | bluec ms (big N) | Rust ms (big N) | bluec/Rust ‰ |",
+          "|---|---|---|---|"
+        ]
+      )
+    )
+    map((r) -> write_stdout(unlines([bluec_line(r)])), results)
+  end
   old = read_or(NATIVE_BASELINE, "")
   rows = parse(old)
   if member?("--record", flags)
     measures = reduce(
       (acc, p) -> append(acc, native_measures(results, p, host)),
-      [],
-      native_paths
+      other_hosts(rows, host),
+      paths_on(host)
     )
     refused = receipt_refusal(flag(flags, "--receipt"))
     if refused.nil?
@@ -1281,6 +1435,35 @@ test "a native path past its ratio to Rust is refused, and one within it holds"
   ]
   assert size(native_refusals(rows, slow, "darwin")) == 1
   assert size(native_refusals([], results, "darwin")) == 3
+end
+
+test "bluec is gated on linux only, and a program it stops compiling is lost"
+  fast = {
+    name: "fib",
+    work: 1,
+    tree: {cpu: 300},
+    vm: {cpu: 250},
+    chuuzou: {cpu: 11},
+    bluec: {cpu: 20},
+    refused: {bluec: nil},
+    rust: {cpu: 10}
+  }
+  rows = parse(
+    unlines(
+      [
+        "native-ratio: fib tree linux 30000",
+        "native-ratio: fib vm linux 25000",
+        "native-ratio: fib chuuzou linux 1100",
+        "native-ratio: fib bluec linux 2000"
+      ]
+    )
+  )
+  assert native_refusals(rows, [fast], "linux") == []
+  slow = {**fast, bluec: {cpu: 40}}
+  assert size(native_refusals(rows, [slow], "linux")) == 1
+  gone = {**fast, bluec: nil, refused: {bluec: "no code for `x`"}}
+  assert map(first, native_refusals(rows, [gone], "linux")) == [:lost]
+  assert size(native_refusals([], [fast], "darwin")) == 3
 end
 
 test "a cost within every tolerance holds"

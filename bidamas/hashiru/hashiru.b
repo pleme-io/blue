@@ -596,7 +596,7 @@ times8: the instructions that multiply a register by 8, by three doublings.
     length(times8("rax")) #=> 3
 """
 def times8(r)
-  map((k) -> {op: "add", dst: r, src: r}, range(0, 3))
+  map((_k) -> {op: "add", dst: r, src: r}, range(0, 3))
 end
 
 @doc """
@@ -1159,6 +1159,14 @@ def rc_op(slots, op, args)
     net_wait_op(slots, args)
   elsif member?(op, map((w) -> w[0], ROUTINE_OPS))
     routine_op(slots, op, args)
+  elsif op == "mod"
+    append(
+      append(
+        tagged_atom(slots, args[0], "rdi"),
+        tagged_atom(slots, args[1], "rsi")
+      ),
+      [{op: "call_label", label: "rt_mod"}]
+    )
   elsif op == "put_int"
     append(
       tagged_atom(slots, args[0], "rdi"),
@@ -1296,7 +1304,7 @@ def rc_rhs(slots, rhs)
 end
 
 @doc """
-rc_gen: a term over tagged values; at its ret the value goes into a slot, returns from a function, or ends the program: as its untagged value, or, in leak mode, as the count of blocks still live after it is dropped.
+rc_gen: a term over tagged values; at its ret the value goes into a slot, returns from a function, or ends the program: as its untagged value, in :run mode dropped with exit status 0 as `blue run` ends a script, or, in leak mode, as the count of blocks still live after it is dropped.
 
     rc_gen([], read_forms("(ret 3)")[0], :exit, 0)[1] #=> 0
 """
@@ -1318,6 +1326,14 @@ def rc_gen(slots, term, into, n)
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "call_label", label: "rt_show"},
         {op: "pop", dst: "rdi"},
+        {op: "call_label", label: "rt_drop"},
+        {op: "mov", dst: "rdi", imm: 0},
+        {op: "mov", dst: "rax", imm: 60},
+        {op: "syscall"}
+      ]
+    elsif into == :run
+      [
+        {op: "mov", dst: "rdi", src: "rax"},
         {op: "call_label", label: "rt_drop"},
         {op: "mov", dst: "rdi", imm: 0},
         {op: "mov", dst: "rax", imm: 60},
@@ -1831,6 +1847,7 @@ def runtime()
       RT_DNS_LOOKUP,
       RT_PUT_INT,
       RT_PUT_BYTE,
+      RT_MOD,
       RT_RESOLVE,
       RT_SOCKADDR,
       RT_TCP_LISTEN,
@@ -2043,7 +2060,7 @@ string_block: the bytes of a static string block: kind 1, an immortal count, its
 def string_block(s)
   b = text_bytes(s)
   words = floor((length(b) + 7) / 8)
-  pad = map((k) -> 0, range(0, words * 8 - length(b)))
+  pad = map((_k) -> 0, range(0, words * 8 - length(b)))
   append(*[le64(1), le64(IMMORTAL), le64(4 + words), le64(length(b)), b, pad])
 end
 
@@ -2540,12 +2557,87 @@ def with_prelude(form)
 end
 
 @doc """
+BOARD_WORDS: the board package's words hashiru compiles itself, so a program that names them in `use("kiban", ...)` needs nothing from the package (the words C3's corpus prints with).
+
+    BOARD_WORDS #=> ["put_int", "put_byte"]
+"""
+BOARD_WORDS = %w[put_int put_byte]
+
+@doc """
+board_use?: whether a top-level form is a `use` of kiban that names only BOARD_WORDS. A `use` of another package, or of a kiban word hashiru has no code for, is refused by name.
+
+    board_use?(read_forms("(use \"kiban\" (list :put_byte :put_int))")[0]) #=> true
+    board_use?(read_forms("(f 1)")[0]) #=> false
+    (board_use?(read_forms("(use \"kiban\" (list :reclaim))")[0]) rescue :refused) #=> :refused
+"""
+def board_use?(form)
+  if not head_is?(form, "use")
+    false
+  else
+    words = if length(form) > 2 and list?(form[2])
+      map(to_s, rest(form[2]))
+    else
+      []
+    end
+    missing = filter((w) -> not member?(w, BOARD_WORDS), words)
+    if form[1] != "kiban" or length(missing) > 0
+      raise(
+        :unsupported,
+        "hashiru: no native code for use(#{to_s(form[1])}, #{to_s(missing)}); it compiles only kiban's #{to_s(BOARD_WORDS)}"
+      )
+    end
+    true
+  end
+end
+
+@doc """
+typed_erased: a top-level form with its types erased, as hashiru's code is tagged and checks none: a `define-typed` is the `define` of the same name, parameters and body.
+
+    typed_erased(read_forms("(define-typed (f (n Int) (m dyn)) Int (+ n m))")[0]) == read_forms("(define (f n m) (+ n m))")[0] #=> true
+    typed_erased(read_forms("(f 1)")[0]) == read_forms("(f 1)")[0] #=> true
+"""
+def typed_erased(form)
+  if head_is?(form, "define-typed") and length(form) > 3 and list?(form[1])
+    sig = form[1]
+    params = map(
+      fn(p)
+        if list?(p)
+          first(p)
+        else
+          p
+        end
+      end,
+      rest(sig)
+    )
+    append([read_forms("define")[0], cons(first(sig), params)], drop_n(form, 3))
+  else
+    form
+  end
+end
+
+@doc """
+front_erased: a program with its board `use` forms dropped and its typed definitions erased, top level only (see board_use? and typed_erased).
+
+    front_erased(read_forms("(begin (use \"kiban\" (list :put_int)) (define-typed (f (n Int)) Int n) (f 1))")[0]) == read_forms("(begin (define (f n) n) (f 1))")[0] #=> true
+"""
+def front_erased(form)
+  if head_is?(form, "begin")
+    cons(
+      first(form),
+      map(typed_erased, filter((f) -> not board_use?(f), rest(form)))
+    )
+  else
+    typed_erased(form)
+  end
+end
+
+@doc """
 compile_program: a program compiled with the prelude through Perceus to a reference-counted executable.
 
     compile_program(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_program(form, mode)
-  compile_whole(with_prelude(map_calls(form)), mode)
+  compile_whole(with_prelude(map_calls(front_erased(form))), mode)
 end
 
 @doc """
@@ -3249,7 +3341,7 @@ test "read_file reads, maps and refuses natively on x86-64", {
     small = path_join(dir, "small.txt")
     big = path_join(dir, "big.txt")
     write_file(small, unlines(["hello"]))
-    write_file(big, join(map((k) -> "x", range(0, 5000)), ""))
+    write_file(big, join(map((_k) -> "x", range(0, 5000)), ""))
     path = path_join(dir, "rf.out")
     map(
       fn(p)
@@ -4212,7 +4304,7 @@ def split_fds(at, r, w)
         {op: "load", dst: "rax", base: "rbp", disp: at},
         {op: "mov", dst: "rcx", src: "rax"}
       ],
-      map((k) -> {op: "shr1", dst: "rcx"}, range(0, 32)),
+      map((_k) -> {op: "shr1", dst: "rcx"}, range(0, 32)),
       [
         {op: "store", src: "rcx", base: "rbp", disp: w},
         {op: "movabs", dst: "r8", imm: 4_294_967_296},
@@ -4252,7 +4344,7 @@ def drain_ready(slot, fd, buf, len)
   append(
     *[
       [{op: "load", dst: "rax", base: "rbp", disp: slot}],
-      map((k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
+      map((_k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
       [
         {op: "cmp", dst: "rax", imm: 0},
         {op: "j", cond: "e", label: "#{tag}_skip"},
@@ -4352,7 +4444,7 @@ def feed_ready(slot)
   append(
     *[
       [{op: "load", dst: "rax", base: "rbp", disp: slot}],
-      map((k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
+      map((_k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
       [
         {op: "cmp", dst: "rax", imm: 0},
         {op: "j", cond: "e", label: "rt_xc_feed_skip"},
@@ -4599,7 +4691,7 @@ RT_EXEC_CAPTURE = append(
       {op: "syscall"},
       {op: "load", dst: "rax", base: "rbp", disp: -168}
     ],
-    map((k) -> {op: "shr1", dst: "rax"}, range(0, 8)),
+    map((_k) -> {op: "shr1", dst: "rax"}, range(0, 8)),
     [
       {op: "and", dst: "rax", imm: 255},
       {op: "add", dst: "rax", src: "rax"},
@@ -4919,7 +5011,7 @@ def parse_dotted(tag)
       ],
       flat_map(
         range(0, 4),
-        fn(k)
+        fn(_k)
           append(
             [
               {op: "imul", dst: "rax", src: "rcx"},
@@ -4927,7 +5019,7 @@ def parse_dotted(tag)
               {op: "and", dst: "rdx", imm: 255},
               {op: "add", dst: "rax", src: "rdx"}
             ],
-            map((j) -> {op: "shr1", dst: "r11"}, range(0, 8))
+            map((_j) -> {op: "shr1", dst: "r11"}, range(0, 8))
           )
         end
       ),
@@ -5523,7 +5615,7 @@ RT_TCP_CONNECT = append(
       {op: "mov", dst: "rdx", imm: 256},
       {op: "imul", dst: "rcx", src: "rdx"}
     ],
-    map((k) -> {op: "shr1", dst: "rax"}, range(0, 8)),
+    map((_k) -> {op: "shr1", dst: "rax"}, range(0, 8)),
     [
       {op: "add", dst: "rcx", src: "rax"},
       {op: "mov", dst: "rdx", imm: 65536},
@@ -5977,6 +6069,89 @@ RT_PUT_BYTE = [
 ]
 
 @doc """
+RT_MOD: mod natively (blue's `%`, C3's corpus): the tagged number in rdi modulo the one in rsi, euclidean as blue's is (the answer is never negative), tagged in rax. The remainder of idiv takes the dividend's sign, so a negative one has the divisor's magnitude added. A zero divisor faults in idiv: the program dies by a signal, never with a value.
+
+    RT_MOD[0] #=> {op: "label", name: "rt_mod"}
+"""
+RT_MOD = [
+  {op: "label", name: "rt_mod"},
+  {op: "mov", dst: "rax", src: "rdi"},
+  {op: "sar1", dst: "rax"},
+  {op: "mov", dst: "rcx", src: "rsi"},
+  {op: "sar1", dst: "rcx"},
+  {op: "cqo"},
+  {op: "idiv", src: "rcx"},
+  {op: "cmp", dst: "rdx", imm: 0},
+  {op: "j", cond: "ge", label: "rt_mod_tag"},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "l", label: "rt_mod_neg"},
+  {op: "add", dst: "rdx", src: "rcx"},
+  {op: "jmp", label: "rt_mod_tag"},
+  {op: "label", name: "rt_mod_neg"},
+  {op: "sub", dst: "rdx", src: "rcx"},
+  {op: "label", name: "rt_mod_tag"},
+  {op: "add", dst: "rdx", src: "rdx"},
+  {op: "add", dst: "rdx", imm: 1},
+  {op: "mov", dst: "rax", src: "rdx"},
+  {op: "ret"}
+]
+
+@doc """
+mod_programs: programs over mod, with the exit status each must give: blue's euclidean answers for each sign of the dividend and the divisor.
+
+    length(mod_programs) #=> 4
+"""
+def mod_programs()
+  [["(mod 17 5)", 2], ["(mod -7 3)", 2], ["(mod 7 -3)", 1], ["(mod -7 -3)", 2]]
+end
+
+test "mod answers as blue's euclidean % does on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-mod"), "mod.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      mod_programs
+    )
+  end
+end
+
+test "a :run program exits 0 whatever its value, as blue run does", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-run"), "run.out")
+    write_bytes(
+      path,
+      compile_whole(read_forms("(begin (put_int 7) 10)")[0], :run)
+    )
+    exec_capture("chmod", "+x", path)
+    r = exec_capture(path)
+    assert status_of(r) == 0
+    assert stdout_of(r) == "7"
+  end
+end
+
+test "a :run program drops its value and exits 0"
+  tail = rc_gen([], read_forms("(ret 3)")[0], :run, 0)[0]
+  assert member?({op: "call_label", label: "rt_drop"}, tail)
+  assert member?({op: "mov", dst: "rdi", imm: 0}, tail)
+end
+
+test "mod calls its routine, which assembles"
+  assert last(rc_op([], "mod", [7, 3])) == {op: "call_label", label: "rt_mod"}
+  assert length(assemble(RT_MOD)) > 0
+  assert map((p) -> p[1], mod_programs) == [17 % 5, -7 % 3, 7 % -3, -7 % -3]
+end
+
+@doc """
 output_programs: programs over put_int and put_byte, with the exit status and output each must give: a number and a line break, a negative number, zero, and a value answered back as the status.
 
     length(output_programs) #=> 4
@@ -6252,7 +6427,7 @@ RT_SOCKADDR = append(
       {op: "mov", dst: "rcx", imm: 256},
       {op: "imul", dst: "r10", src: "rcx"}
     ],
-    map((k) -> {op: "shr1", dst: "rdx"}, range(0, 8)),
+    map((_k) -> {op: "shr1", dst: "rdx"}, range(0, 8)),
     [
       {op: "add", dst: "r10", src: "rdx"},
       {op: "mov", dst: "rcx", imm: 65536},
@@ -6982,7 +7157,7 @@ RT_NET_WAIT = append(
       {op: "cmp", dst: "rcx", imm: 0},
       {op: "j", cond: "l", label: "rt_nw_closed"}
     ],
-    map((k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
+    map((_k) -> {op: "shr1", dst: "rax"}, range(0, 48)),
     [
       {op: "store", src: "rax", base: "rbp", disp: -104},
       {op: "mov", dst: "rcx", src: "rax"},

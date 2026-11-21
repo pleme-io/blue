@@ -754,6 +754,24 @@
                 };
               };
             };
+
+          native-bench =
+            let
+              fx = substrate.inputs.fenix.packages.${system};
+            in
+            pkgs.runCommand "native-bench" {
+              nativeBuildInputs = [
+                (fx.combine [ fx.stable.rustc fx.stable.rust-std ])
+                tatara-rust-ast.packages.${system}.default
+                pkgs.stdenv.cc
+                pkgs.hyperfine
+              ];
+              BLUE = "${blue}/bin/blue";
+            } ''
+              export HOME=$TMPDIR XDG_CACHE_HOME=$TMPDIR/cache
+              cd ${./.}
+              $BLUE bench/bench.b native $BLUE "$TMPDIR/bench" > $out || { cat $out; exit 1; }
+            '';
         }
         // {
 

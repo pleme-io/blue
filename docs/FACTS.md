@@ -372,11 +372,29 @@ Each wave lists defaults in the order their gain is known. Each default meets
     the formatter regression `typed-def-function-type`, and spec rows
     `check.signature.fn_runs`, `fn_refuses_a_number` and
     `fn_refuses_another_arity` (conformance 1135 rows green).
-  - Next: a lambda as a value that leaves its definition natively (passed
-    to another, answered), now that a signature can name it: chuuzou reads
-    `(Fn … -> R)` and lowers it defunctionalized, one enum variant per
-    lambda holding its captures and one `apply` that matches them, which
-    the Rust AST already expresses.
+  - ✅ A lambda that leaves its definition, natively, defunctionalized. A
+    signature's `Fn(Int) -> Int` is `{fun: [:word], ret: :word}` in chuuzou
+    and the enum `F_i_i` in Rust. Each lambda of the slice that stands
+    where a function is expected (a definition's answer, in tail position,
+    or an argument a slice definition takes as a function) is one variant,
+    `F_i_i::L0(k)`, holding the parameters of its definition it reads, by
+    copy; a call through a parameter holding a function is
+    `apply_F_i_i(io, f, x)`, one `match` per type whose arms bind the
+    captures and answer the lambda's body (`cz_funs`, `cz_fun_items`).
+    Refused, each named: a function over anything but Ints, Bools and
+    Floats, a capture of another type, a lambda whose arity differs from
+    its type's, and a lambda that leaves its definition and calls a
+    definition (its call would run outside the depth bound). A function
+    does not cross the seam, so a definition that takes or answers one is
+    not an entry; it compiles inside the slice of one that calls it. Locks:
+    chuuzou 177 tests ("a lambda that leaves its definition is a variant of
+    its type's enum, …"); `checks.native-defs` "a lambda that leaves its
+    definition runs natively" (`offset`, through `add_to` and `apply_to`,
+    agrees with the interpreter; `offset_up`'s artifact swapped in answers
+    23 where the interpreter answers 22).
+  - Not built: a function over records, lists or strings, a capture that
+    is a local rather than a parameter, and a lambda written inside a
+    lambda that leaves its definition.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

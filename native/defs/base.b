@@ -229,3 +229,19 @@ def applied(a: Int, k: Int) -> Int
   f = (x) -> x + k
   f(a) + f(a * 2)
 end
+
+def add_to(k: Int) -> Fn(Int) -> Int
+  (x) -> x + k
+end
+
+def apply_to(f: Fn(Int) -> Int, x: Int) -> Int
+  f(x)
+end
+
+def offset(x: Int, j: Int) -> Int
+  apply_to(add_to(2), x) + apply_to((y) -> y * j, x)
+end
+
+def offset_up(x: Int, j: Int) -> Int
+  apply_to(add_to(3), x) + apply_to((y) -> y * j, x)
+end

@@ -1210,6 +1210,8 @@ def rc_rhs(slots, rhs)
     call_code(slots, rhs[1], rest(rest(rhs)), tagged_atom)
   elsif head_is?(rhs, "gcall")
     rc_gcall(slots, rhs[1], rest(rest(rhs)))
+  elsif head_is?(rhs, "tailcall")
+    tail_jump(slots, rhs[1], rest(rest(rhs)))
   else
     rc_op(slots, to_s(first(rhs)), rest(rhs))
   end
@@ -1406,10 +1408,11 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 16}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 24}
       ],
       save_envp,
       save_argv,
+      save_stack_floor,
       main[0],
       fns[0],
       runtime
@@ -1662,7 +1665,7 @@ rc_global: one global function: its label, a frame with a slot per parameter and
 """
 def rc_global(g, n)
   slots = append(g[:params], rc_names(g[:body]))
-  body = rc_gen(slots, g[:body], :return, n)
+  body = rc_gen(slots, mark_tail(g[:body], g[:name]), :return, n)
   [
     append(
       *[
@@ -1670,8 +1673,10 @@ def rc_global(g, n)
           {op: "label", name: "g_#{g[:name]}"},
           {op: "push_rbp"},
           {op: "mov", dst: "rbp", src: "rsp"},
-          {op: "sub", dst: "rsp", imm: 8 * length(slots)}
+          {op: "sub", dst: "rsp", imm: 8 * length(slots)},
+          {op: "label", name: "g_#{g[:name]}_tail"}
         ],
+        stack_guard("g_#{g[:name]}"),
         flat_map(
           range(0, length(g[:params])),
           fn(k)
@@ -1886,7 +1891,8 @@ test "a global function is a label called directly, its parameters from ARG_REGS
     rc_global({name: "f", params: ["x"], body: read_forms("(ret x)")[0]}, 0)
   )
   assert g[0] == {op: "label", name: "g_f"}
-  assert g[4] == {op: "store", src: "rdi", disp: -8}
+  assert g[4] == {op: "label", name: "g_f_tail"}
+  assert member?({op: "store", src: "rdi", disp: -8}, g)
   assert last(rc_gcall([], "f", [1, 2])) == {op: "call_label", label: "g_f"}
   insns = rc_whole(whole(read_forms("(begin (define (f) 1) (f))")[0]), :exit)
   assert member?({op: "label", name: "g_f"}, insns)
@@ -2052,7 +2058,9 @@ def literals_in(term)
         strings_in([rhs[1]]),
         append(literals_in(rhs[2]), literals_in(rhs[3]))
       )
-    elsif head_is?(rhs, "closure") or head_is?(rhs, "gcall")
+    elsif head_is?(rhs, "closure") or
+        head_is?(rhs, "gcall") or
+        head_is?(rhs, "tailcall")
       strings_in(rest(rest(rhs)))
     else
       strings_in(rest(rhs))
@@ -9326,4 +9334,238 @@ test "nth past either end is nil, and a concat makes each non-literal part a str
     "(define (nth i l) (if (< i 0) nil (if (equal? (length l) 0) nil (if (equal? i 0) (first l) (nth (- i 1) (rest l))))))",
     PRELUDE
   )
+end
+
+@doc """
+tail_jump: a call of the function itself in tail position: the arguments in ARG_REGS and a jump back to just after its frame is made, where they are stored as its parameters again, so the frame is reused and the stack does not grow.
+
+    last(tail_jump([], "f", [1])) #=> {op: "jmp", label: "g_f_tail"}
+"""
+def tail_jump(slots, name, args)
+  append(
+    flat_map(
+      range(0, length(args)),
+      (k) -> tagged_atom(slots, args[k], ARG_REGS[k])
+    ),
+    [{op: "jmp", label: "g_#{name}_tail"}]
+  )
+end
+
+@doc """
+returns_var?: whether the rest of a term only answers the variable v: a ret of it, or the check a call's answer goes through (a dup, failed?, an if that rets it either way, and a ret of that).
+
+    returns_var?(read_forms("(ret x)")[0], read_forms("x")[0]) #=> true
+"""
+def returns_var?(term, v)
+  s = to_s(v)
+  if head_is?(term, "ret")
+    to_s(term[1]) == s
+  elsif head_is?(term, "let") and head_is?(term[1][1], "dup")
+    c = term[2]
+    rest_ok = head_is?(c, "let") and head_is?(c[1][1], "failed?")
+    if rest_ok
+      r = c[2]
+      head_is?(r, "let") and
+        head_is?(r[1][1], "if") and
+        head_is?(r[1][1][2], "ret") and
+        to_s(r[1][1][2][1]) == s and
+        head_is?(r[1][1][3], "ret") and
+        to_s(r[1][1][3][1]) == s and
+        head_is?(r[2], "ret") and
+        to_s(r[2][1]) == to_s(r[1][0])
+    else
+      false
+    end
+  else
+    false
+  end
+end
+
+@doc """
+mark_tail: a global's body with each call of the global itself in tail position made a tailcall: a gcall whose answer the rest only returns, found down the body and into the branches of an if whose value is returned the same way.
+
+    mark_tail(read_forms("(let (t (gcall \"f\" 1)) (ret t))")[0], "f")[1][1][0] == read_forms("tailcall")[0] #=> true
+"""
+def mark_tail(term, name)
+  if not head_is?(term, "let")
+    term
+  else
+    v = term[1][0]
+    rhs = term[1][1]
+    after = term[2]
+    if returns_var?(after, v)
+      marked = if head_is?(rhs, "gcall") and rhs[1] == name
+        cons(read_forms("tailcall")[0], rest(rhs))
+      elsif head_is?(rhs, "if")
+        [rhs[0], rhs[1], mark_tail(rhs[2], name), mark_tail(rhs[3], name)]
+      else
+        rhs
+      end
+      [term[0], [v, marked], after]
+    else
+      [term[0], [v, rhs], mark_tail(after, name)]
+    end
+  end
+end
+
+@doc """
+tail_programs: programs whose recursion is a self call in tail position, so a native run with a deep count neither grows the stack nor crashes; each must exit with the status given.
+
+    length(tail_programs) #=> 2
+"""
+def tail_programs()
+  [
+    [
+      "(begin (define (loop n acc) (if (equal? n 0) acc (loop (- n 1) (+ acc 1)))) (if (equal? (loop 1000000 0) 1000000) 0 1))",
+      0
+    ],
+    [
+      "(begin (define (count n) (if (< n 1) 7 (count (- n 1)))) (count 2000000))",
+      7
+    ]
+  ]
+end
+
+test "a self tail call jumps and reuses the frame natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-tail"), "tail.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      tail_programs
+    )
+  end
+end
+
+test "mark_tail finds a self call whose answer is only returned, through an if"
+  body = get(
+    nth(
+      0,
+      get(
+        whole(
+          nth(
+            0,
+            read_forms("(begin (define (loop n acc) (if (equal? n 0) acc (loop (- n 1) (+ acc 1)))) (loop 5 0))")
+          )
+        ),
+        :globals
+      )
+    ),
+    :body
+  )
+  insns = rc_global({name: "loop", params: %w[n acc], body:}, 0)[0]
+  assert member?({op: "jmp", label: "g_loop_tail"}, insns)
+  assert not member?({op: "call_label", label: "g_loop"}, insns)
+  assert last(tail_jump([], "f", [1])) == {op: "jmp", label: "g_f_tail"}
+  assert returns_var?(read_forms("(ret x)")[0], read_forms("x")[0])
+  assert not returns_var?(read_forms("(ret y)")[0], read_forms("x")[0])
+  assert not returns_var?(
+    read_forms("(let (a (dup x)) (ret x))")[0],
+    read_forms("x")[0]
+  )
+  assert not returns_var?(
+    read_forms("(let (a 1) (ret a))")[0],
+    read_forms("x")[0]
+  )
+  assert mark_tail(read_forms("(ret 1)")[0], "f") == read_forms("(ret 1)")[0]
+  assert length(tail_programs) == 2
+end
+
+@doc """
+STACK_AT: where the program keeps its stack floor, as an offset from r14: the word after the argument vector.
+
+    STACK_AT #=> 528
+"""
+STACK_AT = ARGV_AT + 8
+
+@doc """
+STACK_DEPTH: how far below the entry stack pointer a global may still be entered: 7.5 MiB, under the 8 MiB stack Linux gives by default, so a call deeper than that raises before it faults.
+
+    STACK_DEPTH #=> 7_864_320
+"""
+STACK_DEPTH = 7_864_320
+
+@doc """
+save_stack_floor: the instructions that keep the stack floor, rsp at entry less STACK_DEPTH, at r14 + STACK_AT.
+
+    last(save_stack_floor)[:disp] #=> STACK_AT
+"""
+def save_stack_floor()
+  [
+    {op: "mov", dst: "rcx", src: "rsp"},
+    {op: "sub", dst: "rcx", imm: STACK_DEPTH},
+    {op: "store", src: "rcx", base: "r14", disp: STACK_AT}
+  ]
+end
+
+@doc """
+stack_guard: the instructions at a global's entry that answer an error (ENOMEM, 12) and return when the stack pointer is below the floor, so recursion too deep for the stack raises and a try can catch it, where it would fault.
+
+    stack_guard("g_f")[1] #=> {op: "cmp", dst: "rsp", src: "rcx"}
+"""
+def stack_guard(label)
+  append(
+    *[
+      [
+        {op: "load", dst: "rcx", base: "r14", disp: STACK_AT},
+        {op: "cmp", dst: "rsp", src: "rcx"},
+        {op: "j", cond: "ge", label: "#{label}_deep_ok"},
+        {op: "mov", dst: "rax", imm: -12}
+      ],
+      error_from("rax"),
+      [
+        {op: "mov", dst: "rsp", src: "rbp"},
+        {op: "pop_rbp"},
+        {op: "ret"},
+        {op: "label", name: "#{label}_deep_ok"}
+      ]
+    ]
+  )
+end
+
+@doc """
+deep_programs: programs whose recursion is no tail call and runs deeper than the stack allows, each caught by a try natively; each must exit with the status given.
+
+    length(deep_programs) #=> 1
+"""
+def deep_programs()
+  [
+    [
+      "(begin (define (deep n) (if (equal? n 0) 0 (+ 1 (deep (- n 1))))) (try (deep 10000000) (catch (e) 9)))",
+      9
+    ]
+  ]
+end
+
+test "too-deep recursion raises and is caught natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-deep"), "deep.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      deep_programs
+    )
+  end
+end
+
+test "a global checks the stack floor at its entry"
+  assert STACK_AT == ARGV_AT + 8
+  assert STACK_DEPTH < 8_388_608
+  assert last(save_stack_floor)[:disp] == STACK_AT
+  assert stack_guard("g_f")[1] == {op: "cmp", dst: "rsp", src: "rcx"}
+  g = rc_global({name: "f", params: [], body: read_forms("(ret 1)")[0]}, 0)[0]
+  assert member?({op: "label", name: "g_f_deep_ok"}, g)
+  assert length(deep_programs) == 1
 end

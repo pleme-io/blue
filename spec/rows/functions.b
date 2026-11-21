@@ -304,8 +304,7 @@ row(
       "spin(100000, 0)"
     ]
   ),
-  value("100000"),
-  pending("G27", "native")
+  value("100000")
 )
 
 row(
@@ -344,8 +343,7 @@ row(
     ]
   ),
   value(":caught"),
-  isolate(),
-  pending("G27", "native")
+  isolate()
 )
 
 # Under a declared step budget: blue's default is unbounded (long runs are

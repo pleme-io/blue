@@ -59,10 +59,17 @@ pub enum Ev {
     /// one scheduler and at n. Only rows a scheduler count can reach, ones
     /// that start a process or map, are run; the rest are blind.
     Scheduled,
+    /// B1's IR: a value row's resolved core (`blue ast --resolved`) lowered by
+    /// kuzushi (A-normal form, closure conversion, Perceus with borrowed
+    /// parameters) and run by kuzushi's own evaluator through `gen/ir-row.b`.
+    /// A row kuzushi refuses is blind; a row it accepts must give the walker's
+    /// value with no reference left live. Blind unless `BLUE_CONFORMANCE_IR`
+    /// is set; its passing count is the ratchet `gen/ir-rows.baseline`.
+    Ir,
 }
 
 impl Ev {
-    pub const ALL: [Ev; 10] = [
+    pub const ALL: [Ev; 11] = [
         Ev::Walker,
         Ev::Vm,
         Ev::Wasm,
@@ -73,6 +80,7 @@ impl Ev {
         Ev::Default,
         Ev::Native,
         Ev::Scheduled,
+        Ev::Ir,
     ];
 
     pub fn name(self) -> &'static str {
@@ -87,6 +95,7 @@ impl Ev {
             Ev::Default => "default",
             Ev::Native => "native",
             Ev::Scheduled => "scheduled",
+            Ev::Ir => "ir",
         }
     }
 

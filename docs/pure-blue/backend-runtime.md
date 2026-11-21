@@ -55,6 +55,43 @@ the repo root and were read on 2026-11-17.
   (reuse `native/checks/corpus.b`'s `difference`).
 - **Exit.** `checks.ir-conformance`: `ir_eval` equals the walker on every accepted row, the
   accepted count is a ratchet, and the live count is zero at exit.
+- **Landed (2026-11-21), in `bidamas/kuzushi` rather than a new `ir.b`.**
+  - *The check's shape: a conformance column, not a separate test.* C1's native column showed
+    the way: an evaluator in `Ev::ALL`, blind unless its variable is set, judged against the
+    walker by the same `reference_for`/`agreement` code, its passing count a ledger. The `ir`
+    column is that: `BLUE_CONFORMANCE_IR=1` lowers each value row with `blue ast --resolved`
+    and runs `gen/ir-row.b`, which calls `kuzushi::ir_eval` (A-normal form, error propagation,
+    closure conversion, Perceus with borrowed parameters, then kuzushi's evaluator and the
+    reference-count checker over the main term, every global and every lifted function).
+    Exit 3 is a refusal (blind, not counted): a form kuzushi has no code for, found statically
+    by `ir_refusal` before anything runs, or a recursion past blue's call-depth budget, which
+    kuzushi's evaluator reaches first since it loops no tail call. A different value is a
+    disagreement and a reference left live exits 4; both are red. The agreeing count is
+    `gen/ir-rows.baseline` (`ir-accepted: rows N`): a fall is red, a rise is recorded with
+    `BLUE_CONFORMANCE_IR_RECORD=1`. The shared lowering step is `lower_row` in the harness, so
+    the native and ir columns write and lower a row one way.
+  - *Measured 2026-11-21:* 651 value rows, 138 accepted, 138 agree, 0 live. The column found
+    five real differences on its first run, each fixed in kuzushi: nil is written `()` in the
+    resolved tree (it read as the empty list), blue's `drop` builtin read as Perceus's `drop`
+    (the IR's own heads are now refused as source calls), rest parameters (`&rest`, refused),
+    a name an `if` tests and a branch reads (now duplicated before the test under the borrowed
+    convention), and an overflow inside a `try` (a primitive that fails is trapped to the
+    nearest try with blue's own error). The largest refusals left: records (`blue-record`,
+    23), `use` (23), `map` and `reduce` over closures (28), the path words (14).
+  - *Primitives as one table.* `PRIMS` rows are `[name, :reads | :stores, answer]`, each answer
+    blue's own word; the evaluator, the refusal check and borrow inference all read it.
+  - *Borrow inference.* `whole_in(form, :borrow)` (`whole` is `:owned`, unchanged, which
+    hashiru compiles: its output is byte-identical on its programs). A global's parameter is
+    borrowed when the body only reads it: an `if` test, a `:reads` primitive, or a parameter of
+    a global that is itself borrowed; `borrow_sigs` is the greatest fixpoint over the call
+    graph. A borrowed name is never duplicated or dropped; a caller passing an owned name to a
+    borrowed parameter keeps it and drops it after the call (`lent`, `taken`, `perceus_at`,
+    `rc_check_at`). Over the four borrow-shaped programs of the tests, the dup/drop count in
+    the functions falls 1→0, 5→3, 10→4 and 6→4 (whole programs 6→5, 6→5, 13→9, 7→6), with the
+    same values and nothing live; what remains is owned accumulators and the error checks'
+    temporaries.
+  - *Not yet.* chuuzou's front passes moved in and timed over `chuuzou.b`; hashiru on the
+    borrowed convention, once the native column can prove it.
 - **The core the IR must accept (measured 2026-11-18).** `blue ast --resolved` lowers all of
   blue to a small core. Over the four compiler sources (chuuzou, bpf, erufu, baito) the heads
   are `equal?` 2819, `list` 2766, `get` 2347, `define` 2079, `hash-map` 1263, `if` 745,

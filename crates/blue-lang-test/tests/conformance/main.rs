@@ -74,6 +74,40 @@ struct Outcome {
     divergences: Vec<String>,
 }
 
+/// The `ir` column's denominator: value rows, the rows kuzushi accepts (any
+/// observation but blind), and the rows whose verdict passes, which agree
+/// with the walker and leave no reference live.
+struct IrTally {
+    value_rows: usize,
+    accepted: usize,
+    agreeing: usize,
+}
+
+fn ir_tally(outcomes: &[Outcome]) -> IrTally {
+    let values: Vec<&Outcome> = outcomes
+        .iter()
+        .filter(|o| matches!(o.row.expect, Expect::Value(_)))
+        .collect();
+    IrTally {
+        value_rows: values.len(),
+        accepted: values
+            .iter()
+            .filter(|o| !matches!(o.obs[&Ev::Ir], Obs::Blind(_)))
+            .count(),
+        agreeing: values
+            .iter()
+            .filter(|o| matches!(o.verdicts[&Ev::Ir], Verdict::Pass))
+            .count(),
+    }
+}
+
+/// The count `gen/ir-rows.baseline` holds: its `ir-accepted: rows N` line.
+fn ir_held(text: &str) -> Option<usize> {
+    text.lines()
+        .find_map(|l| l.trim().strip_prefix("ir-accepted: rows "))
+        .and_then(|n| n.trim().parse().ok())
+}
+
 thread_local! {
     /// The message of the last panic on this thread, captured by the hook
     /// `main` installs so a crashing evaluator is reported, not printed.
@@ -92,6 +126,7 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Component => eval::component(env, row, n),
         Ev::Default => eval::default_path(env, row, n),
         Ev::Native => eval::native(env, row, n),
+        Ev::Ir => eval::ir(env, row, n),
         Ev::Scheduled => eval::scheduled(env, row, n),
     }));
     run.unwrap_or_else(|_| {
@@ -126,7 +161,7 @@ fn observe_isolated(row: &Row, ev: Ev) -> Obs {
 fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
     let mut obs = BTreeMap::new();
     for ev in Ev::ALL {
-        let o = if row.isolate && !matches!(ev, Ev::Cli | Ev::Component | Ev::Native) {
+        let o = if row.isolate && !matches!(ev, Ev::Cli | Ev::Component | Ev::Native | Ev::Ir) {
             observe_isolated(row, ev)
         } else {
             observe_in_process(env, row, ev, n)
@@ -449,6 +484,7 @@ fn main() {
     let mut env = Env::new(roots, blue_bin(&repo), scratch.clone());
     env.component = eval::Placement::from_env().ok();
     env.native = eval::native_driver(&repo);
+    env.ir = eval::ir_driver(&repo);
 
     let (all_rows, refusals) = rows::load(&repo.join("spec/rows"));
     // `--coverage-only`: the missing-row gate and the controls, no rows run.
@@ -581,6 +617,33 @@ fn main() {
             writeln!(
                 out,
                 "FAIL native: {passes} row(s) pass natively and spec/native.baseline holds {held}; a fall is a regression, a rise is recorded with BLUE_CONFORMANCE_NATIVE_RECORD=1"
+            )
+            .ok();
+            red = true;
+        }
+    }
+    if filter.is_none() && !rows.is_empty() && env.ir.is_some() {
+        let ledger = repo.join("gen/ir-rows.baseline");
+        let tally = ir_tally(&outcomes);
+        if std::env::var_os("BLUE_CONFORMANCE_IR_RECORD").is_some() {
+            std::fs::write(&ledger, format!("ir-accepted: rows {}\n", tally.agreeing))
+                .expect("gen/ir-rows.baseline");
+        }
+        let held = std::fs::read_to_string(&ledger)
+            .ok()
+            .and_then(|t| ir_held(&t))
+            .unwrap_or(0);
+        writeln!(
+            out,
+            "  ir column: {} value row(s), {} accepted, {} agree with the walker; the ledger holds {held}",
+            tally.value_rows, tally.accepted, tally.agreeing
+        )
+        .ok();
+        if tally.agreeing != held {
+            writeln!(
+                out,
+                "FAIL ir: {} row(s) agree under kuzushi and gen/ir-rows.baseline holds {held}; a fall is a regression, a rise is recorded with BLUE_CONFORMANCE_IR_RECORD=1",
+                tally.agreeing
             )
             .ok();
             red = true;

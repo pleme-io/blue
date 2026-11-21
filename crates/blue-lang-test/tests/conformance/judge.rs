@@ -112,7 +112,7 @@ pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
             Expect::Value(_) | Expect::Fails(..),
             Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Default | Ev::Scheduled,
         ) => Some(Ev::Walker),
-        (Expect::Value(_), Ev::Native) => Some(Ev::Walker),
+        (Expect::Value(_), Ev::Native | Ev::Ir) => Some(Ev::Walker),
         (Expect::Leaks(_), Ev::Vm) => Some(Ev::Walker),
         (Expect::ClosesAtEnd, Ev::Vm) => Some(Ev::Walker),
         (

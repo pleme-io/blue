@@ -90,6 +90,7 @@ pub struct Env {
     pub memo_disk_hits: u64,
     pub component: Option<Placement>,
     pub native: Option<PathBuf>,
+    pub ir: Option<PathBuf>,
     renderer: tatara_lisp_eval::Interpreter<()>,
     to_s: Value,
 }
@@ -108,6 +109,7 @@ impl Env {
             memo_disk_hits: 0,
             component: None,
             native: None,
+            ir: None,
             renderer,
             to_s,
         }
@@ -1218,29 +1220,12 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
         return Obs::Blind("native observes a value as its exit status".into());
     };
     let by_status = want.parse::<i64>().is_ok_and(|v| (0..=255).contains(&v));
-    if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
-        return Obs::Blind("a project row is a view only the static door is handed".into());
-    }
-    let file = env.scratch.join(format!("native-{n}.b"));
-    let lowered = env.scratch.join(format!("native-{n}.lisp"));
-    let exe = env.scratch.join(format!("native-{n}.elf"));
-    if let Err(e) = std::fs::write(&file, &row.src) {
-        return Obs::Blind(format!("cannot write {}: {e}", file.display()));
-    }
-    let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
-    let ast = match output_within(
-        Command::new(&bin)
-            .env("BLUE_PATH", &blue_path)
-            .arg("ast")
-            .arg(&file),
-    ) {
-        Ok(o) if o.status.success() => o.stdout,
-        Ok(_) => return Obs::Blind("native: the row does not lower".into()),
-        Err(crashed) => return crashed,
+    let lowered = match lower_row(env, &bin, row, &format!("native-{n}"), &["ast"]) {
+        Ok(p) => p,
+        Err(o) => return o,
     };
-    if let Err(e) = std::fs::write(&lowered, ast) {
-        return Obs::Blind(format!("cannot write {}: {e}", lowered.display()));
-    }
+    let exe = env.scratch.join(format!("native-{n}.elf"));
+    let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
     let compiled = match output_within(
         Command::new(&bin)
             .env("BLUE_PATH", &blue_path)
@@ -1276,6 +1261,98 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
             None => Obs::Crashed("native: the executable died by a signal".into()),
         },
         Err(crashed) => crashed,
+    }
+}
+
+/// A row's program written to the scratch directory as `<tag>.b` and lowered
+/// by `blue <ast_args> FILE` into `<tag>.lisp`, the tree a backend column
+/// reads. A project row, or a program that does not lower, is blind.
+fn lower_row(
+    env: &Env,
+    bin: &Path,
+    row: &Row,
+    tag: &str,
+    ast_args: &[&str],
+) -> Result<PathBuf, Obs> {
+    if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
+        return Err(Obs::Blind(
+            "a project row is a view only the static door is handed".into(),
+        ));
+    }
+    let file = env.scratch.join(format!("{tag}.b"));
+    let lowered = env.scratch.join(format!("{tag}.lisp"));
+    std::fs::write(&file, &row.src)
+        .map_err(|e| Obs::Blind(format!("cannot write {}: {e}", file.display())))?;
+    let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
+    let ast = match output_within(
+        Command::new(bin)
+            .env("BLUE_PATH", &blue_path)
+            .args(ast_args)
+            .arg(&file),
+    ) {
+        Ok(o) if o.status.success() => o.stdout,
+        Ok(_) => return Err(Obs::Blind(format!("{tag}: the row does not lower"))),
+        Err(crashed) => return Err(crashed),
+    };
+    std::fs::write(&lowered, ast)
+        .map_err(|e| Obs::Blind(format!("cannot write {}: {e}", lowered.display())))?;
+    Ok(lowered)
+}
+
+/// The `ir` column's driver, `gen/ir-row.b`, when `BLUE_CONFORMANCE_IR` asks
+/// for the column. kuzushi is pure blue, so it runs on every host.
+pub fn ir_driver(repo: &Path) -> Option<PathBuf> {
+    std::env::var_os("BLUE_CONFORMANCE_IR")
+        .is_some()
+        .then(|| repo.join("gen/ir-row.b"))
+}
+
+/// B1's IR over one value row: `blue ast --resolved`, then `gen/ir-row.b`,
+/// which lowers the core through kuzushi and runs its evaluator. Exit 0 is
+/// the value's literal on stdout; exit 3 is kuzushi refusing the row (blind,
+/// never counted); any other exit, a reference left live included, is a crash.
+pub fn ir(env: &mut Env, row: &Row, n: usize) -> Obs {
+    let Some(driver) = env.ir.clone() else {
+        return Obs::Blind("the ir column runs under BLUE_CONFORMANCE_IR".into());
+    };
+    let Some(bin) = env.cli.clone() else {
+        return Obs::Blind("no `blue` binary: set BLUE_BIN".into());
+    };
+    if !matches!(row.expect, Expect::Value(_)) {
+        return Obs::Blind("the ir column observes a value row".into());
+    }
+    let lowered = match lower_row(env, &bin, row, &format!("ir-{n}"), &["ast", "--resolved"]) {
+        Ok(p) => p,
+        Err(o) => return o,
+    };
+    let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
+    let run = match output_within(
+        Command::new(&bin)
+            .env("BLUE_PATH", &blue_path)
+            .args(["run", "--quiet"])
+            .arg(&driver)
+            .arg("--")
+            .arg(&lowered)
+            .stdin(std::process::Stdio::null()),
+    ) {
+        Ok(o) => o,
+        Err(crashed) => return crashed,
+    };
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    match run.status.code() {
+        Some(0) => {
+            let shown = String::from_utf8_lossy(&run.stdout);
+            let shown = shown.trim_end();
+            Obs::Value(
+                shown
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .map_or_else(|| shown.to_owned(), str::to_owned),
+            )
+        }
+        Some(3) => Obs::Blind(format!("kuzushi refuses the row: {}", stderr.trim())),
+        Some(code) => Obs::Crashed(format!("ir: exited {code}: {}", stderr.trim())),
+        None => Obs::Crashed("ir: the driver died by a signal".into()),
     }
 }
 

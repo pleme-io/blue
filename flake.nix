@@ -715,6 +715,19 @@
                 };
               };
             };
+
+          ir-conformance =
+            workspaceTests {
+              src = ./.;
+              name = "blue-ir-conformance";
+              config = {
+                runs = [ { args = [ "-p" "blue-lang-test" "--test" "conformance" ]; } ];
+                env = {
+                  BLUE_BIN = "${blue}/bin/blue";
+                  BLUE_CONFORMANCE_IR = "1";
+                };
+              };
+            };
         }
         // lib.optionalAttrs (system == "x86_64-linux") {
           conformance-three-way =

@@ -1871,7 +1871,8 @@ def runtime()
       PROCESS_ROUTINES,
       RT_LS_RAW,
       RT_STRING_LT,
-      RT_TO_TEXT
+      RT_TO_TEXT,
+      RT_FLOOR_DIV
     ]
   )
 end
@@ -2584,7 +2585,22 @@ PRELUDE = [
   "(define (alist_put k v l) (if (equal? (length l) 0) (cons (list k v) (list)) (if (equal? (first (first l)) k) (cons (list k v) (rest l)) (if (key_lt k (first (first l))) (cons (list k v) l) (cons (first l) (alist_put k v (rest l)))))))",
   "(define (alist_get l k) (if (equal? (length l) 0) nil (if (equal? (first (first l)) k) (first (rest (first l))) (alist_get (rest l) k))))",
   "(define (map_get m k) (alist_get (map_alist m) k))",
-  "(define (map_put m k v) (map_wrap (alist_put k v (map_alist m))))"
+  "(define (map_put m k v) (map_wrap (alist_put k v (map_alist m))))",
+  "(define (take_n n l) (if (< n 1) (list) (if (equal? (length l) 0) (list) (cons (first l) (take_n (- n 1) (rest l))))))",
+  "(define (bytes_slice l off n) (take_n n (list_drop off l)))",
+  "(define (u32s l n) (if (< n 1) (list) (if (< (length l) 4) (list) (cons (+ (nth 0 l) (* 256 (+ (nth 1 l) (* 256 (+ (nth 2 l) (* 256 (nth 3 l))))))) (u32s (list_drop 4 l) (- n 1))))))",
+  "(define (read_u32s f off n) (u32s (list_drop off (read_bytes f)) n))",
+  "(define (walk_dir d) (reduce (lambda (acc p) (if (is_dir? p) (append acc (walk_dir p)) (append acc (list p)))) (list) (ls d)))",
+  "(define (pad2 n) (if (< n 10) (concat \"0\" (to_s n)) (to_s n)))",
+  "(define (rfc_clock s) (concat (concat (concat (concat (concat (pad2 (int_div s 3600)) \":\") (pad2 (mod (int_div s 60) 60))) \":\") (pad2 (mod s 60))) \"Z\"))",
+  "(define (rfc_text m d y secs) (concat (concat (concat (concat (concat (concat (to_s (if (< m 3) (+ y 1) y)) \"-\") (pad2 m)) \"-\") (pad2 d)) \"T\") (rfc_clock secs)))",
+  "(define (rfc_mp doy mp y secs) (rfc_text (if (< mp 10) (+ mp 3) (- mp 9)) (+ (- doy (int_div (+ (* 153 mp) 2) 5)) 1) y secs))",
+  "(define (rfc_doy doy y secs) (rfc_mp doy (int_div (+ (* 5 doy) 2) 153) y secs))",
+  "(define (rfc_yoe doe yoe era secs) (rfc_doy (- doe (- (+ (* 365 yoe) (int_div yoe 4)) (int_div yoe 100))) (+ yoe (* era 400)) secs))",
+  "(define (rfc_doe doe era secs) (rfc_yoe doe (int_div (- (+ (- doe (int_div doe 1460)) (int_div doe 36524)) (int_div doe 146096)) 365) era secs))",
+  "(define (rfc_civil z secs) (rfc_doe (- z (* (int_div z 146097) 146097)) (int_div z 146097) secs))",
+  "(define (rfc3339 s) (rfc_civil (+ (int_div s 86400) 719468) (mod s 86400)))",
+  "(define (now_rfc3339) (rfc3339 (now)))"
 ]
 
 @doc """
@@ -2714,7 +2730,10 @@ compile_program: a program compiled with the prelude through Perceus to a refere
     compile_program(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_program(form, mode)
-  compile_whole(with_prelude(map_calls(front_erased(form))), mode)
+  compile_whole(
+    shake(bare_calls(map_calls(with_prelude(front_erased(form))))),
+    mode
+  )
 end
 
 @doc """
@@ -7704,10 +7723,10 @@ ZERO_ARITY_WORDS: the native words that take no argument, which blue's lowering 
 
     ZERO_ARITY_WORDS[0] #=> "now"
 """
-ZERO_ARITY_WORDS = %w[now now_ms now_ns self_exe read_line cwd argv]
+ZERO_ARITY_WORDS = %w[now now_ms now_ns now_rfc3339 self_exe read_line cwd argv]
 
 @doc """
-binders: every name a core form binds anywhere: let's names, lambda's parameters, and define's name and parameters.
+binders: every name a core form binds anywhere to a value: let's names, lambda's and a defined function's parameters, and a defined value's name (a defined function's own name is a function, which a bare call still calls).
 
     binders(read_forms("(let ((now 1)) now)")[0]) #=> ["now"]
 """
@@ -7725,7 +7744,7 @@ def binders(form)
     elsif head == "lambda" and list?(form[1])
       map((p) -> to_s(p), form[1])
     elsif head == "define" and list?(form[1])
-      map((p) -> to_s(p), form[1])
+      map((p) -> to_s(p), rest(form[1]))
     elsif head == "define"
       [to_s(form[1])]
     else
@@ -7786,7 +7805,7 @@ def call_bare(form, bound)
         map(
           fn(a)
             c = call_bare(a, bound)
-            if string?(a)
+            if string?(a) or head_is?(a, "to_s")
               c
             else
               [read_forms("to_s")[0], c]
@@ -7795,6 +7814,20 @@ def call_bare(form, bound)
           rest(form)
         )
       )
+    elsif head_is?(form, "floor") and
+        length(form) == 2 and
+        head_is?(form[1], "/")
+      cons(
+        read_forms("int_div")[0],
+        map((f) -> call_bare(f, bound), rest(form[1]))
+      )
+    elsif head_is?(form, "read_bytes") and length(form) == 4
+      [
+        read_forms("bytes_slice")[0],
+        [form[0], call_bare(form[1], bound)],
+        call_bare(form[2], bound),
+        call_bare(form[3], bound)
+      ]
     elsif symbol?(form[0]) and to_s(form[0]) == "path_join" and length(form) > 3
       call_bare(
         append([form[0], [form[0], form[1], form[2]]], rest(rest(rest(form)))),
@@ -7820,10 +7853,10 @@ test "a bare zero-argument word becomes its call unless the program binds it"
     read_forms("(integer? (now))")[0]
   assert bare_calls(read_forms("(let ((now 1)) now)")[0]) ==
     read_forms("(let ((now 1)) now)")[0]
-  assert binders(read_forms("(define (f a) (lambda (b) a))")[0]) == %w[f a b]
+  assert binders(read_forms("(define (f a) (lambda (b) a))")[0]) == %w[a b]
   assert binders(read_forms("(define x 1)")[0]) == ["x"]
   assert bare_calls(read_forms("((f) now)")[0]) == read_forms("((f) (now))")[0]
-  assert ZERO_ARITY_WORDS[4] == "read_line"
+  assert ZERO_ARITY_WORDS[5] == "read_line"
   assert call_bare(read_forms("now")[0], []) == read_forms("(now)")[0]
   assert length(compile_whole(read_forms("(+ now 1)")[0], :exit)) > 0
 end
@@ -7998,13 +8031,14 @@ HOST_OPS = [
   %w[argv_get rt_argv_get],
   %w[random_bytes rt_random_bytes],
   %w[ls_raw rt_ls_raw],
-  %w[string_lt rt_string_lt]
+  %w[string_lt rt_string_lt],
+  %w[int_div rt_floor_div]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 32
+    length(ROUTINE_OPS) #=> 33
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8181,7 +8215,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 32
+  assert length(ROUTINE_OPS) == 33
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -9932,6 +9966,8 @@ test "mark_tail finds a self call whose answer is only returned, through an if"
     read_forms("x")[0]
   )
   assert mark_tail(read_forms("(ret 1)")[0], "f") == read_forms("(ret 1)")[0]
+  assert mark_tail(read_forms("(let (a (g 1)) (ret a))")[0], "f") ==
+    read_forms("(let (a (g 1)) (ret a))")[0]
   assert length(tail_programs) == 2
 end
 
@@ -9963,16 +9999,16 @@ def save_stack_floor()
 end
 
 @doc """
-stack_guard: the instructions at a global's entry that answer an error (ENOMEM, 12) and return when the stack pointer is below the floor, so recursion too deep for the stack raises and a try can catch it, where it would fault.
+stack_guard: the instructions at a global's entry, before its parameters are stored from ARG_REGS (so they use r11, which carries no argument), that answer an error (ENOMEM, 12) and return when the stack pointer is below the floor, so recursion too deep for the stack raises and a try can catch it, where it would fault.
 
-    stack_guard("g_f")[1] #=> {op: "cmp", dst: "rsp", src: "rcx"}
+    stack_guard("g_f")[1] #=> {op: "cmp", dst: "rsp", src: "r11"}
 """
 def stack_guard(label)
   append(
     *[
       [
-        {op: "load", dst: "rcx", base: "r14", disp: STACK_AT},
-        {op: "cmp", dst: "rsp", src: "rcx"},
+        {op: "load", dst: "r11", base: "r14", disp: STACK_AT},
+        {op: "cmp", dst: "rsp", src: "r11"},
         {op: "j", cond: "ge", label: "#{label}_deep_ok"},
         {op: "mov", dst: "rax", imm: -12}
       ],
@@ -10022,7 +10058,8 @@ test "a global checks the stack floor at its entry"
   assert STACK_AT == ARGV_AT + 8
   assert STACK_DEPTH < 8_388_608
   assert last(save_stack_floor)[:disp] == STACK_AT
-  assert stack_guard("g_f")[1] == {op: "cmp", dst: "rsp", src: "rcx"}
+  assert stack_guard("g_f")[1] == {op: "cmp", dst: "rsp", src: "r11"}
+  assert not member?("rcx", map((i) -> i[:dst], take(3, stack_guard("g_f"))))
   g = rc_global({name: "f", params: [], body: read_forms("(ret 1)")[0]}, 0)[0]
   assert member?({op: "label", name: "g_f_deep_ok"}, g)
   assert length(deep_programs) == 1
@@ -10244,4 +10281,208 @@ test "a board use is dropped, another refused; define-typed is erased", {
   assert typed_erased(read_forms("(define-typed (f (n Int)) Int n)")[0]) ==
     read_forms("(define (f n) n)")[0]
   assert typed_erased(read_forms("(f 1)")[0]) == read_forms("(f 1)")[0]
+end
+
+@doc """
+divide: a routine over the tagged numbers in rdi and rsi that divides with idiv and floors the quotient toward negative infinity, as blue's floor of a quotient does (blue's % is RT_MOD, euclidean); answer "q" gives the quotient, any other the floored remainder. A zero divisor answers an error (EDOM, 33).
+
+    divide("rt_x", "q")[0] #=> {op: "label", name: "rt_x"}
+"""
+def divide(name, answer)
+  append(
+    *[
+      [
+        {op: "label", name:},
+        {op: "push_rbp"},
+        {op: "mov", dst: "rbp", src: "rsp"},
+        {op: "sar1", dst: "rdi"},
+        {op: "sar1", dst: "rsi"},
+        {op: "cmp", dst: "rsi", imm: 0},
+        {op: "j", cond: "ne", label: "#{name}_go"},
+        {op: "mov", dst: "rax", imm: -33}
+      ],
+      error_from("rax"),
+      [
+        {op: "jmp", label: "#{name}_out"},
+        {op: "label", name: "#{name}_go"},
+        {op: "mov", dst: "rax", src: "rdi"},
+        {op: "cqo"},
+        {op: "idiv", src: "rsi"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "e", label: "#{name}_exact"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "l", label: "#{name}_negative"},
+        {op: "cmp", dst: "rsi", imm: 0},
+        {op: "j", cond: "g", label: "#{name}_exact"},
+        {op: "jmp", label: "#{name}_adjust"},
+        {op: "label", name: "#{name}_negative"},
+        {op: "cmp", dst: "rsi", imm: 0},
+        {op: "j", cond: "l", label: "#{name}_exact"},
+        {op: "label", name: "#{name}_adjust"},
+        {op: "sub", dst: "rax", imm: 1},
+        {op: "add", dst: "rdx", src: "rsi"},
+        {op: "label", name: "#{name}_exact"}
+      ],
+      if answer == "q"
+        []
+      else
+        [{op: "mov", dst: "rax", src: "rdx"}]
+      end,
+      [
+        {op: "mov", dst: "rcx", src: "rax"},
+        {op: "add", dst: "rax", src: "rcx"},
+        {op: "add", dst: "rax", imm: 1},
+        {op: "label", name: "#{name}_out"},
+        {op: "mov", dst: "rsp", src: "rbp"},
+        {op: "pop_rbp"},
+        {op: "ret"}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_FLOOR_DIV: int_div natively, the floor of a quotient (blue's floor(a / b) of two Ints).
+
+    RT_FLOOR_DIV[0] #=> {op: "label", name: "rt_floor_div"}
+"""
+RT_FLOOR_DIV = divide("rt_floor_div", "q")
+
+@doc """
+clock_programs: programs over division, a fourth parameter (which the stack guard once overwrote), the date, walk_dir and the byte readers natively, in :show mode, with what each must write.
+
+    length(clock_programs) #=> 6
+"""
+def clock_programs()
+  d = "(path_join (getenv \"TMPDIR\" \"/tmp\") \"hashiru-clock\")"
+  [
+    [
+      "(list (int_div (- 0 7) 2) (mod (- 0 7) 2) (int_div 7 2) (mod 7 (- 0 2)))",
+      "[-4, 1, 3, 1]"
+    ],
+    ["(begin (define (four a b c d) d) (four 1 2 3 7))", "7"],
+    ["(rfc3339 1700000000)", "\"2023-11-14T22:13:20Z\""],
+    ["(string? now_rfc3339)", "true"],
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p (path_join d \"s\")) (write_file (path_join d \"s/f\") \"\") (let ((r (length (walk_dir d)))) (begin (rm_rf d) r))))",
+      "1"
+    ],
+    [
+      "(let ((d #{d})) (begin (rm_rf d) (mkdir_p d) (write_bytes (path_join d \"b\") (list 0 255 7 128)) (let ((f (path_join d \"b\"))) (let ((r (list (read_bytes f 1 2) (read_bytes f 9 1) (read_u32s f 0 2)))) (begin (rm_rf d) r)))))",
+      "[[255, 7], [], [2148007680]]"
+    ]
+  ]
+end
+
+test "division, the date, walk_dir and the byte readers natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-clock"), "clock.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      clock_programs
+    )
+  end
+end
+
+test "floor of a quotient and read_bytes with a range lower to the prelude's words"
+  assert bare_calls(read_forms("(floor (/ a b))")[0]) ==
+    read_forms("(int_div a b)")[0]
+  assert bare_calls(read_forms("(read_bytes f 1 2)")[0]) ==
+    read_forms("(bytes_slice (read_bytes f) 1 2)")[0]
+  stand_ins = flat_map(
+    ["rt_alloc"],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(
+    assemble(append(append(RT_FLOOR_DIV, divide("rt_r", "r")), stand_ins))
+  ) > 0
+  assert divide("rt_x", "q")[0] == {op: "label", name: "rt_x"}
+  assert length(clock_programs) == 6
+end
+
+@doc """
+symbols_in: the name of every symbol anywhere in a core form.
+
+    symbols_in(read_forms("(f (g x) 1)")[0]) #=> %w[f g x]
+"""
+def symbols_in(form)
+  if symbol?(form)
+    [to_s(form)]
+  elsif list?(form)
+    flat_map(form, symbols_in)
+  else
+    []
+  end
+end
+
+@doc """
+defined_name: the name a (define (f …) …) form defines, or nil for any other form.
+
+    defined_name(read_forms("(define (f a) a)")[0]) #=> "f"
+"""
+def defined_name(form)
+  if head_is?(form, "define") and list?(form[1])
+    to_s(form[1][0])
+  end
+end
+
+@doc """
+reached: the names reachable from roots through the definitions in defs, each name adding the symbols of the definition it names, until nothing new is reached.
+
+    reached([read_forms("(define (f) (g))")[0]], ["f"]) #=> %w[f define g]
+"""
+def reached(defs, roots)
+  grown = distinct(
+    append(
+      roots,
+      flat_map(filter((d) -> member?(defined_name(d), roots), defs), symbols_in)
+    )
+  )
+  if length(grown) == length(distinct(roots))
+    grown
+  else
+    reached(defs, grown)
+  end
+end
+
+@doc """
+shake: a (begin …) program with each function definition its own forms do not reach taken out, so a program compiles only the prelude words it calls.
+
+    shake(read_forms("(begin (define (f) 1) (define (g) 2) (f))")[0]) == read_forms("(begin (define (f) 1) (f))")[0] #=> true
+"""
+def shake(form)
+  if not head_is?(form, "begin")
+    form
+  else
+    items = rest(form)
+    defs = filter((i) -> not defined_name(i).nil?, items)
+    roots = flat_map(filter((i) -> defined_name(i).nil?, items), symbols_in)
+    keep = reached(defs, roots)
+    cons(
+      form[0],
+      filter(
+        (i) -> defined_name(i).nil? or member?(defined_name(i), keep),
+        items
+      )
+    )
+  end
+end
+
+test "a program keeps only the definitions its own forms reach"
+  assert symbols_in(read_forms("(f (g x) 1)")[0]) == %w[f g x]
+  assert defined_name(read_forms("(define x 1)")[0]).nil?
+  assert shake(
+    read_forms("(begin (define (f) (g)) (define (g) 2) (define (h) 3) (f))")[0]
+  ) == read_forms("(begin (define (f) (g)) (define (g) 2) (f))")[0]
+  assert shake(read_forms("7")[0]) == 7
+  assert reached([read_forms("(define (f) (g))")[0]], %w[f f]) == %w[f define g]
+  assert length(compile_program(read_forms("(drop 1 (list 1 2))")[0], :exit)) >
+    0
 end

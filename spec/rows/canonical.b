@@ -232,8 +232,7 @@ row(
 row(
   "canon.B0066.eval",
   "[{k: 1}[:k], {k: 1}[:z], [1, 2][1], [1, 2][5], [[1, 2]][0][1]]",
-  value("[1, nil, 2, nil, 2]"),
-  pending("G27", "native")
+  value("[1, nil, 2, nil, 2]")
 )
 
 row(

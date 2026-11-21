@@ -16,8 +16,7 @@ row(
   "strings.interpolation",
   join_lines(["n = 3", "\"n = #\u{7b}n}!\""]),
   value("\"n = 3!\""),
-  covers("form:\"n = #\u{7b}n}!\""),
-  pending("G27", "native")
+  covers("form:\"n = #\u{7b}n}!\"")
 )
 
 row(

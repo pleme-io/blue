@@ -32,8 +32,7 @@ row("lists.nil.length_raises", "length(nil)", fails(:eval, "got nil"))
 row(
   "lists.index",
   join_lines(["xs = [1, 2]", "[xs[0], xs[5], xs[-1]]"]),
-  value("[1, nil, nil]"),
-  pending("G27", "native")
+  value("[1, nil, nil]")
 )
 
 row("lists.index.spaced", "y = xs [0]", fails(:parse, "`xs[0]`"))
@@ -166,12 +165,7 @@ row(
 
 row("lists.nth", "nth(1, [:a, :b])", value(":b"), covers("builtin:nth"))
 
-row(
-  "lists.nth.out_of_range",
-  "nth(5, [1])",
-  value("nil"),
-  pending("G27", "native")
-)
+row("lists.nth.out_of_range", "nth(5, [1])", value("nil"))
 
 row(
   "lists.partition",

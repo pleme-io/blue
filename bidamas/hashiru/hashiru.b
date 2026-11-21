@@ -2412,7 +2412,7 @@ PRELUDE: the list words every compiled program can call, written in blue's core 
 """
 PRELUDE = [
   "(define (append a b) (if (equal? (length a) 0) b (cons (first a) (append (rest a) b))))",
-  "(define (nth i l) (if (equal? i 0) (first l) (nth (- i 1) (rest l))))",
+  "(define (nth i l) (if (< i 0) nil (if (equal? (length l) 0) nil (if (equal? i 0) (first l) (nth (- i 1) (rest l))))))",
   "(define (reverse_onto l acc) (if (equal? (length l) 0) acc (reverse_onto (rest l) (cons (first l) acc))))",
   "(define (reverse l) (reverse_onto l (list)))",
   "(define (map f l) (if (equal? (length l) 0) (list) (cons (f (first l)) (map f (rest l)))))",
@@ -7321,6 +7321,21 @@ def call_bare(form, bound)
         read_forms("list_drop")[0],
         map((f) -> call_bare(f, bound), rest(form))
       )
+    elsif symbol?(form[0]) and to_s(form[0]) == "concat" and length(form) == 3
+      cons(
+        form[0],
+        map(
+          fn(a)
+            c = call_bare(a, bound)
+            if string?(a)
+              c
+            else
+              [read_forms("to_s")[0], c]
+            end
+          end,
+          rest(form)
+        )
+      )
     elsif symbol?(form[0]) and to_s(form[0]) == "path_join" and length(form) > 3
       call_bare(
         append([form[0], [form[0], form[1], form[2]]], rest(rest(rest(form)))),
@@ -9302,4 +9317,13 @@ test "a rest parameter becomes a last parameter that takes the extra arguments a
     read_forms("(g 1)")[0]
   assert bare_calls(read_forms("(drop 1 l)")[0]) ==
     read_forms("(list_drop 1 l)")[0]
+end
+
+test "nth past either end is nil, and a concat makes each non-literal part a string"
+  assert bare_calls(read_forms("(concat \"n = \" n)")[0]) ==
+    read_forms("(concat \"n = \" (to_s n))")[0]
+  assert member?(
+    "(define (nth i l) (if (< i 0) nil (if (equal? (length l) 0) nil (if (equal? i 0) (first l) (nth (- i 1) (rest l))))))",
+    PRELUDE
+  )
 end

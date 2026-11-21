@@ -948,6 +948,25 @@ def rc_check_at(term, owned, ctx)
 end
 
 @doc """
+program_of: the one form a lowered file (`blue ast` output, read with read_forms) stands for: its only form, or every form in one begin, which split_program then reads as globals and a main.
+
+    program_of(read_forms("7")) #=> 7
+    program_of(read_forms("(define (f) 1) (f)"))[0] == read_forms("begin")[0] #=> true
+"""
+def program_of(forms)
+  if length(forms) == 1
+    forms[0]
+  else
+    cons(read_forms("begin")[0], forms)
+  end
+end
+
+test "a lowered file of one form is that form, and of several, one begin"
+  assert program_of(read_forms("(+ 1 2)")) == read_forms("(+ 1 2)")[0]
+  assert length(program_of(read_forms("(define (f) 1) (f)"))) == 3
+end
+
+@doc """
 program: a source text read and broken into A-normal form.
 
     head_is?(program("(+ 1 2)"), "let") #=> true

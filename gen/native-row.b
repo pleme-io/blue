@@ -1,18 +1,5 @@
 use("hashiru", [:compile_program])
-
-@doc """
-program_of: the one form a lowered file compiles as: its only form, or every form in one begin.
-
-    program_of(read_forms("7")) #=> 7
-    program_of(read_forms("(define (f) 1) (f)"))[0] == read_forms("begin")[0] #=> true
-"""
-def program_of(forms)
-  if length(forms) == 1
-    forms[0]
-  else
-    cons(read_forms("begin")[0], forms)
-  end
-end
+use("kuzushi", [:program_of])
 
 @doc """
 mode_of: the mode a row compiles in: :show when argv names it third, else :exit.
@@ -40,12 +27,6 @@ def main()
     exit_with(3)
   end
   write_bytes(argv_get(1), code)
-end
-
-test "a lowered file of one form compiles that form, and of several, one begin"
-  assert program_of(read_forms("(+ 1 2)")) == read_forms("(+ 1 2)")[0]
-  b = program_of(read_forms("(define (f) 1) (f)"))
-  assert length(b) == 3
 end
 
 test "a program hashiru compiles is executable bytes"

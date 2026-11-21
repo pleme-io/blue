@@ -924,3 +924,60 @@ test "each step of lex does its own part", {kind: :unit}
   assert doc_line("", "  ") == ""
   assert trim_blank([]) == []
 end
+
+test "lex reads every escape, number form and name kind blue writes", {
+  kind: :unit
+}
+  esc = lex("\"\\n\\t\\r\\\\\\\"\\0\\f\\b\\v\\a\\e\\u{41}\\u{e9}\"")[0]
+  assert esc[3] == join_lines(["", "\t\r\\\"\u{0}\u{c}\u{8}\u{b}\u{7}\u{1b}Aé"])
+  assert lex("\"é€😀\"")[0][3] == "é€😀"
+  assert map((t) -> t[3], take(6, lex("1e5 1E+5 1e-5 2_000 1.5 3"))) ==
+    [100000.0, 100000.0, 0.00001, 2000, 1.5, 3]
+  assert map((t) -> t[0], take(3, lex("1ex"))) == %i[int ident eof]
+  assert map((t) -> t[0], take(6, lex("true false nil a: b::c"))) ==
+    %i[true false nil label ident path_sep]
+  assert map((t) -> t[0], take(3, lex(": ?"))) == %i[colon op eof]
+  assert lex("\t\r x")[0] == [:ident, 3, 4, "x"]
+  assert lex("%i[x? y!]")[0][3] == [:keywords, [["x?", 3, 5], ["y!", 6, 8]]]
+  assert lex("%w[€ 😀]")[0][3][1] == [["€", 3, 6], ["😀", 7, 11]]
+  assert lex("+= %iq")[0] == [:op, 0, 2, "+="]
+end
+
+test "lex reads an interpolation through braces, strings and word lists", {
+  kind: :unit
+}
+  o = concat("#", "{")
+  q = "\""
+  src = (parts) -> join(parts, "")
+  assert lex(src([q, "a", o, "b}c", q]))[0][3] == [%w[a c], ["b"]]
+  assert lex(src([q, o, " {b: 1} }", q]))[0][3][1] == [" {b: 1} "]
+  assert lex(src([q, o, q, "s", q, "}", q]))[0][3][1] == [src([q, "s", q])]
+  inner = src([q, "x", o, "y}", q])
+  assert lex(src([q, o, inner, "}", q]))[0][3][1] == [inner]
+  quoted = src([q, "\\", q, q])
+  assert lex(src([q, o, quoted, "}", q]))[0][3][1] == [quoted]
+  assert lex(src([q, o, "%w[}]}", q]))[0][3][1] == ["%w[}]"]
+  assert kyohi::raised(() -> lex(src([q, o, "a"]))) == :lex
+  assert kyohi::raised(() -> lex(src([q, o, q, "x"]))) == :lex
+  assert kyohi::raised(() -> lex(src([q, o, q, o, "x", q]))) == :lex
+  assert kyohi::raised(() -> lex(src([q, o, "%w[a"]))) == :lex
+  assert code_string_end(text_bytes("ab"), 2, 0).nil?
+end
+
+test "lex refuses each malformed escape, word list and doc", {kind: :unit}
+  assert kyohi::raised(() -> lex("\"\\u41\"")) == :lex
+  assert kyohi::raised(() -> lex("\"\\u{41")) == :lex
+  assert kyohi::raised(() -> lex("\"\\u{}\"")) == :lex
+  assert kyohi::raised(() -> lex("\"\\u{d800}\"")) == :lex
+  assert kyohi::raised(() -> lex("\"\\")) == :lex
+  assert kyohi::raised(() -> lex("%w[a")) == :lex
+  assert kyohi::raised(() -> lex("%w[a,b]")) == :lex
+  assert kyohi::raised(() -> lex("$")) == :lex
+  assert kyohi::raised(() -> lex("@doc x")) == :lex
+  assert kyohi::raised(() -> lex("@doc \"\"\" x")) == :lex
+  assert kyohi::raised(() -> lex("@doc")) == :lex
+  three = join_lines(["@doc \"\"\"", "a \"\"\"", "\"\"\""])
+  assert kyohi::raised(() -> lex(three)) == :lex
+  heredoc = join_lines(["@moduledoc \"\"\"", "  a", "", "  b", "  \"\"\""])
+  assert lex(heredoc)[0][3] == [true, join_lines(["a", "", "b"])]
+end

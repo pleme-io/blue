@@ -3184,3 +3184,35 @@ test "each step of the XML reader does its own part", {kind: :unit}
   assert xml_attributes(text_bytes("/>"), 2, 0, {}) == [{}, 2, true]
   assert xml_unescape(text_bytes("&#33;"), 0, 5) == "!"
 end
+
+test "xml_document refuses each malformed shape with its own tag", {kind: :unit}
+  malformed = [
+    "<r>a&amp</r>",
+    "<r>&#;</r>",
+    "<r>&#xZZ;</r>",
+    "<r><!--a",
+    "<r><!--a--b--></r>",
+    "<r><![CDATA[x",
+    "<r><?pi",
+    "<r/><!DOCTYPE r>",
+    "<!DOCTYPE r [x",
+    "<r></r",
+    "</r>",
+    "<r></s>",
+    "<r/><s/>",
+    "<>",
+    "<r ",
+    "<r a>",
+    "<r a=1/>",
+    "<r a='1/>",
+    "<r a='1' a='2'/>"
+  ]
+  assert filter(
+    (t) -> raised(() -> xml_document(t)) != :xml_malformed,
+    malformed
+  ) == []
+  assert raised(() -> xml_document("<r>&foo;</r>")) == :xml_refused
+  assert raised(() -> xml_document("<!DOCTYPE r [<!ENTITY e 'x'>]><r/>")) ==
+    :xml_refused
+  assert xml_document("<?xml version='1.0'?><!DOCTYPE r [ ]><r/>")[:name] == "r"
+end

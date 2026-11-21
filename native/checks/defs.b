@@ -433,3 +433,37 @@ test "a lambda that captures a local and leaves its definition runs natively", {
     swapped(work, "moved", "moved_up")
   ) == unlines(["38"])
 end
+
+test "a function value over a Str, a list or a record runs natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-held")
+  calls = [
+    ["framed", ["ab", 7]],
+    ["framed", ["", 0]],
+    ["drawn", [pt(1, 9), 4]],
+    ["drawn", [pt(0, 0), 0]],
+    ["grown_by", [[1, 2], 5]],
+    ["grown_by", [[], 0]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "framed", ["ab", 7], off) == unlines(["ab7abab7"])
+  assert interpreted(
+    work,
+    "framed",
+    ["ab", 7],
+    swapped(work, "framed", "framed_up")
+  ) == unlines(["ab7abab+7"])
+  assert interpreted(
+    work,
+    "drawn",
+    [pt(1, 9), 4],
+    swapped(work, "drawn", "drawn_up")
+  ) == unlines(["pt({x: 7, y: 9})"])
+  assert interpreted(
+    work,
+    "grown_by",
+    [[1, 2], 5],
+    swapped(work, "grown_by", "grown_by_up")
+  ) == unlines(["[1, 2, 1, 2, 6]"])
+end

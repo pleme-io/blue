@@ -1925,7 +1925,7 @@ fall; at zero the rule is an error on every door.",
         fix: None,
         law: "each tag a definition of a bidama raises is named by a test of its file, the way a test expects it",
         witness: "@moduledoc \"\"\"\nkagi refuses a negative.\n\n    kagi(1) #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi gives back a count.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(n)\n  if n < 0\n    raise(:negative, \"no\")\n  end\n  n\nend\n\ntest \"kagi\"\n  assert kagi(2) == 2\nend\n",
-        ratchet: 194,
+        ratchet: 192,
         package: "kagi",
         explanation: "\
 A refusal is behaviour: a caller relies on the tag (docs/COVERAGE.md E2). The

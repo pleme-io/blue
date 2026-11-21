@@ -407,8 +407,27 @@ Each wave lists defaults in the order their gain is known. Each default meets
     through `move_by` and `apply_to`, agrees with the interpreter;
     `moved_up`'s artifact swapped in answers 38 where the interpreter
     answers 33).
-  - Not built: a function over records, lists or strings, and a lambda
-    written inside a lambda that leaves its definition.
+  - ✅ A function value over a Str, a list of Ints or a record:
+    `Fn(Str) -> Str`, `Fn(pt) -> pt`, `Fn(List(Int)) -> List(Int)`, and a
+    lambda that captures one (`F_s_s`, `F_rpt_rpt`, `F_l_l`). The type
+    codes are `s`, `l` and `r` plus the record's name (`cz_fun_held?`,
+    `cz_fun_name`). A variant holds a counted capture by a clone (a count,
+    not a copy). Its enum derives Copy only when no variant holds a counted
+    value (`cz_fun_derives`). A function value is counted, so a second use
+    takes a clone; a call through one gives its `apply` a clone. An arm
+    clones a counted name its body reads twice (`cz_fun_shared`). Refused,
+    each named: a map, `dyn` or a list of records in a function type or a
+    capture, and a list in a function of a definition that reclaims by
+    arena. The held-lambda refusal now sees a call, `g(x)`: `cz_uses`
+    does not count a call's head, so `cz_funs` asks `cz_mentions?`. Locks:
+    chuuzou 184 tests ("a function value takes, answers and holds a Str, a
+    list or a record, each by a clone, and an arena never lends it a
+    list"; the arity and held-lambda tests now read the refusal's text);
+    `checks.native-defs` "a function value over a Str, a list or a record
+    runs natively" (`framed`, `drawn` and `grown_by` agree with the
+    interpreter; each `_up` artifact swapped in answers differently).
+  - Not built: a function over a map, `dyn` or a list of records, and a
+    lambda written inside a lambda that leaves its definition.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

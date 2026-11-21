@@ -260,3 +260,53 @@ def moved_up(x: Int, j: Int) -> Int
   m = j + 2
   apply_to(move_by(x), j) + apply_to((y) -> y * m, x)
 end
+
+def suffix_with(t: Str) -> Fn(Str) -> Str
+  (s) -> "#{t}#{s}#{t}"
+end
+
+def apply_str(f: Fn(Str) -> Str, s: Str) -> Str
+  f(s)
+end
+
+def framed(s: Str, n: Int) -> Str
+  m = "#{n}"
+  "#{apply_str(suffix_with(s), m)}#{apply_str((u) -> "#{u}#{m}", s)}"
+end
+
+def framed_up(s: Str, n: Int) -> Str
+  m = "#{n}"
+  "#{apply_str(suffix_with(s), m)}#{apply_str((u) -> "#{u}+#{m}", s)}"
+end
+
+def toward(q: pt, xs: List(Int)) -> Fn(pt) -> pt
+  (p) -> pt(p.x + count(xs), q.y)
+end
+
+def apply_pt(f: Fn(pt) -> pt, p: pt) -> pt
+  f(p)
+end
+
+def drawn(q: pt, n: Int) -> pt
+  apply_pt(toward(q, [n, n]), pt(n, n))
+end
+
+def drawn_up(q: pt, n: Int) -> pt
+  apply_pt(toward(q, [n, n, n]), pt(n, n))
+end
+
+def grow_by(k: Int) -> Fn(List(Int)) -> List(Int)
+  (ys) -> append(ys, [k])
+end
+
+def apply_list(f: Fn(List(Int)) -> List(Int), ys: List(Int)) -> List(Int)
+  f(ys)
+end
+
+def grown_by(xs: List(Int), k: Int) -> List(Int)
+  apply_list(grow_by(k), apply_list((ys) -> append(ys, xs), xs))
+end
+
+def grown_by_up(xs: List(Int), k: Int) -> List(Int)
+  apply_list(grow_by(k + 1), apply_list((ys) -> append(ys, xs), xs))
+end

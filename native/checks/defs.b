@@ -214,6 +214,15 @@ test "a record of Ints crosses the seam both ways", {kind: :integration}
   work = temp_dir("native-record")
   calls = [["shifted", [pt(1, -2), 5]], ["spread", [pt(7, 3)]]]
   assert disagreeing(work, calls) == []
+  assert path_exists(
+    path_join(
+      env_required("DEFS_ROOT"),
+      "native",
+      "v1",
+      hex_of("spread"),
+      "def.rs"
+    )
+  )
   assert interpreted(work, "shifted", [pt(1, 2), 5], off) ==
     unlines(["pt({x: 6, y: 2})"])
   assert interpreted(

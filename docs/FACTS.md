@@ -317,10 +317,8 @@ Each wave lists defaults in the order their gain is known. Each default meets
     token through one pair of words (`Fields::token`, `Fields::of_token`)
     where `tokens` and `from_token` each had a copy. The ten swap blocks of
     `checks.native-defs` are one word, `swapped`, and the ten agreement
-    filters one, `disagreeing`. Not built: a record that only a signature
-    names is not in its definition's slice, since the slice follows
-    mondou's calls and the def_hash does not cover it; a definition reaches
-    its record by building one (`spread` is refused for this reason).
+    filters one, `disagreeing`. A record that only a signature names is in
+    its definition's slice since W1.4's last entry (below).
     Locks: native.rs
     `a_list_of_records_crosses_the_seam_as_each_record_s_token_between_bars`
     (a short record, a record of another kind, a list of Ints and an `l`
@@ -501,11 +499,18 @@ Each wave lists defaults in the order their gain is known. Each default meets
     refusal's text and the capture); `checks.native-defs` "a function value
     calls a lambda held in a local natively" (`tagged` agrees with the
     interpreter; the `_up` artifact swapped in answers `++ab++`).
-  - Not built: a record that only a signature names is not in its
-    definition's slice (above). The fix is in Rust (the def_hash's
-    dependencies, so an edit to the record moves the hash), and
-    `checks.purity-ledger` is red on main from another session's growth in
-    blue-lang-runtime, which `blue gen/purity.b record` would bank with it.
+  - ✅ A record or union that only a signature names is a definition the
+    signature's definition reaches. A signature holds the type's bare name
+    (`(p pt)`) and a union names its variants by their predicates
+    (`%root/ci?`), so neither was a key the def_hash joined; each is now an
+    alias of its type when one type alone has that name. An edit to the
+    type moves the hash, and the type is in the slice, so `spread(p: pt)`
+    compiles natively where it was refused. The def_hash's synthetic forms
+    share one head (`defining`) and one count (`bound`), and its quote and
+    raise arms one shape each, so blue-lang-runtime shrinks by 218 bytes
+    with the fix. Locks: blue-lang-runtime `tests/def_hash_types.rs` (red
+    without the alias: `sx` does not reach `pt`); `checks.native-defs` "a
+    record of Ints crosses the seam both ways" (`spread` has an artifact).
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

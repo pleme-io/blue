@@ -232,12 +232,29 @@ fn hash_in_domain(
         forms.push(form);
         docs.push(doc_of(i));
     }
-    let unique: HashMap<&str, usize> = out
+    let mut unique: HashMap<&str, usize> = out
         .by_key
         .iter()
         .filter(|(_, v)| v.len() == 1)
         .map(|(k, v)| (k.as_str(), v[0]))
         .collect();
+    let mut types: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (d, form) in forms.iter().enumerate() {
+        if let Some([h, n, p, ..]) = form.as_list() {
+            if let (Some("blue-record" | "blue-union"), Some(n), Some(p)) =
+                (h.as_symbol(), n.as_symbol(), p.as_symbol())
+            {
+                for s in [n.rsplit('/').next().unwrap_or(n), p] {
+                    types.entry(s).or_default().push(d);
+                }
+            }
+        }
+    }
+    for (n, ds) in types {
+        if let [d] = ds[..] {
+            unique.entry(n).or_insert(d);
+        }
+    }
     for (d, form) in forms.iter().enumerate() {
         let mut calls = Vec::new();
         names(form, &mut |s| {
@@ -267,6 +284,34 @@ fn hash_in_domain(
     out
 }
 
+fn list(items: Vec<Spanned>) -> Spanned {
+    Spanned::new(
+        blue_lang_syntax::Span::synthetic(),
+        SpannedForm::List(items),
+    )
+}
+
+fn symbol(s: &str) -> Spanned {
+    Spanned::new(
+        blue_lang_syntax::Span::synthetic(),
+        SpannedForm::Atom(Atom::Symbol(s.into())),
+    )
+}
+
+/// `(define (key)`, a synthetic definition's head; its body is pushed after.
+fn defining(key: &str) -> Vec<Spanned> {
+    vec![symbol("define"), list(vec![symbol(key)])]
+}
+
+/// How many top-level forms bind each key.
+fn bound(lowered: &[Spanned]) -> HashMap<&str, usize> {
+    let mut bound = HashMap::new();
+    for (key, _) in lowered.iter().filter_map(defined) {
+        *bound.entry(key).or_default() += 1;
+    }
+    bound
+}
+
 /// Every unambiguous definition key of a program with its `def_hash`
 /// written `b3:<hex>`, each with its `@doc` text as the engine hashes it
 /// (`blue_lang_mondou::hash_checked`; `docs` by top-level form), and
@@ -280,26 +325,15 @@ pub fn identified(
     docs: &HashMap<usize, String>,
     main: Option<&str>,
 ) -> BTreeMap<String, String> {
-    let run_key = crate::receipt::RUN;
-    let mut bound: HashMap<&str, usize> = HashMap::new();
-    for form in lowered {
-        if let Some((key, _)) = defined(form) {
-            *bound.entry(key).or_default() += 1;
-        }
-    }
-    let synthetic = |form: SpannedForm| Spanned::new(blue_lang_syntax::Span::synthetic(), form);
-    let symbol = |s: &str| synthetic(SpannedForm::Atom(Atom::Symbol(s.to_string())));
-    let mut run = vec![
-        symbol("define"),
-        synthetic(SpannedForm::List(vec![symbol(run_key)])),
-    ];
+    let bound = bound(lowered);
+    let mut run = defining(crate::receipt::RUN);
     run.extend(lowered.iter().map(|form| match defined(form) {
         Some((key, _)) if bound.get(key) == Some(&1) => symbol(key),
         _ => form.clone(),
     }));
-    run.extend(main.map(|m| synthetic(SpannedForm::List(vec![symbol(m)]))));
+    run.extend(main.map(|m| list(vec![symbol(m)])));
     let mut forms = lowered.to_vec();
-    forms.push(synthetic(SpannedForm::List(run)));
+    forms.push(list(run));
     let hashes = hash_program_documented(&forms, &|i| docs.get(&i).cloned());
     hashes
         .defs()
@@ -330,21 +364,11 @@ pub struct TestIdentities {
 /// renamed (a test's name, like a definition's, is metadata).
 #[must_use]
 pub fn test_identities(lowered: &[Spanned], docs: &HashMap<usize, String>) -> TestIdentities {
-    let synthetic = |form: SpannedForm| Spanned::new(blue_lang_syntax::Span::synthetic(), form);
-    let symbol = |s: &str| synthetic(SpannedForm::Atom(Atom::Symbol(s.to_string())));
     let mut forms = lowered.to_vec();
     let mut keys = Vec::new();
-    let mut bound: HashMap<&str, usize> = HashMap::new();
-    for form in lowered {
-        if let Some((key, _)) = defined(form) {
-            *bound.entry(key).or_default() += 1;
-        }
-    }
+    let bound = bound(lowered);
     let preamble_key = "%test/preamble";
-    let mut preamble = vec![
-        symbol("define"),
-        synthetic(SpannedForm::List(vec![symbol(preamble_key)])),
-    ];
+    let mut preamble = defining(preamble_key);
     for form in lowered {
         let binds_once = matches!(
             defined(form),
@@ -354,19 +378,16 @@ pub fn test_identities(lowered: &[Spanned], docs: &HashMap<usize, String>) -> Te
             preamble.push(form.clone());
         }
     }
-    forms.push(synthetic(SpannedForm::List(preamble)));
+    forms.push(list(preamble));
     for (i, form) in lowered.iter().enumerate() {
         let Some(parts) = blue_lang_syntax::test_parts(form) else {
             continue;
         };
         let key = format!("%test/{i}");
-        let mut define = vec![
-            symbol("define"),
-            synthetic(SpannedForm::List(vec![symbol(&key)])),
-        ];
+        let mut define = defining(&key);
         define.extend(parts.meta.cloned());
         define.push(parts.body.clone());
-        forms.push(synthetic(SpannedForm::List(define)));
+        forms.push(list(define));
         keys.push((i, key));
     }
     let hashes = hash_program_documented(&forms, &|i| docs.get(&i).cloned());
@@ -649,41 +670,25 @@ impl Unit<'_> {
             SpannedForm::Atom(Atom::Bool(b)) => {
                 h.update(&[tag::BOOL, u8::from(*b)]);
             }
-            SpannedForm::List(items) => match located_raise(items) {
-                Some(args) => {
-                    h.update(&[tag::LIST]);
-                    h.update(&((args.len() + 1) as u64).to_le_bytes());
-                    let head = Spanned::new(
-                        node.span,
-                        SpannedForm::Atom(Atom::Symbol("raise".to_string())),
-                    );
-                    self.node(h, &head, own, unit, order);
-                    for i in args {
-                        self.node(h, i, own, unit, order);
-                    }
+            SpannedForm::List(items) => {
+                let raise = located_raise(items).map(|a| (symbol("raise"), a));
+                let rest = raise.as_ref().map_or(&items[..], |r| r.1);
+                h.update(&[tag::LIST]);
+                h.update(&((rest.len() + usize::from(raise.is_some())) as u64).to_le_bytes());
+                for i in raise.iter().map(|r| &r.0).chain(rest) {
+                    self.node(h, i, own, unit, order);
                 }
-                None => {
-                    h.update(&[tag::LIST]);
-                    h.update(&(items.len() as u64).to_le_bytes());
-                    for i in items {
-                        self.node(h, i, own, unit, order);
-                    }
-                }
-            },
-            SpannedForm::Quote(x) => {
-                h.update(&[tag::QUOTE]);
-                self.node(h, x, own, unit, order);
             }
-            SpannedForm::Quasiquote(x) => {
-                h.update(&[tag::QUASIQUOTE]);
-                self.node(h, x, own, unit, order);
-            }
-            SpannedForm::Unquote(x) => {
-                h.update(&[tag::UNQUOTE]);
-                self.node(h, x, own, unit, order);
-            }
-            SpannedForm::UnquoteSplice(x) => {
-                h.update(&[tag::UNQUOTE_SPLICE]);
+            SpannedForm::Quote(x)
+            | SpannedForm::Quasiquote(x)
+            | SpannedForm::Unquote(x)
+            | SpannedForm::UnquoteSplice(x) => {
+                h.update(&[match &node.form {
+                    SpannedForm::Quote(_) => tag::QUOTE,
+                    SpannedForm::Quasiquote(_) => tag::QUASIQUOTE,
+                    SpannedForm::Unquote(_) => tag::UNQUOTE,
+                    _ => tag::UNQUOTE_SPLICE,
+                }]);
                 self.node(h, x, own, unit, order);
             }
         }

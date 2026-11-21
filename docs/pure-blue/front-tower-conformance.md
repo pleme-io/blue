@@ -67,8 +67,26 @@ native compilation (`docs/PERFORMANCE.md:372`, `crates/blue-lang-cli/src/native.
   rest parameters and destructuring. **Measured:** 274 of the 457 distinct `.b` files under
   `spec/`, `bidamas/`, `gen/`, `crates/` read identically end to end; every other file yomi
   refuses, none reads differently (`crates/blue-lang-kiwari/tests/reader_in_blue.rs`, 35
-  snippet cases plus the corpus, floor 274). Next: `case`, `test`/`assert`, `begin`/`rescue`,
-  `return` (the guard pass), then the doc-test files.
+  snippet cases plus the corpus, floor 274).
+- **Landed (2026-11-21), the rest of the surface.** Taken in the order the corpus measured
+  (files each form was the first refusal of): `test`/`assert`/`assert_panics` (124),
+  `begin`/`rescue`/`ensure` and `x rescue y` (33 more), `case` (10), `record`/`union` (5),
+  destructuring and `when` patterns, rest parameters, `return`, `quote`/`unquote`/`defmacro`,
+  `?`. `test`, `assert`, `return` and `x[k]`-style forms lower by their kiwari templates
+  (`assert` through a `quote` template word); a form whose spans parse.rs writes outside the
+  template span rule is lowered by named code into a `lowered` node: the rescue clauses
+  (`rescue_tail`: cond and catch at the first clause, the reraise at the head), `case`
+  (the `else` at its own word), `x rescue y`, records and unions, rest parameters, quote and
+  `defmacro`. The passes after the raw parse are named code in parse_program_tree's order:
+  `union::lower` (`unioned`), `try_op::lower` with `?` (`branch`, `tried_statement`, a stray
+  `?` refused), `guard::lower` (`guard_walk`), `try_op::widen` (`widened`), `pattern::lower`
+  (`patterned`, shapes from the file's records). A test's declaration is ordered and checked
+  as `test_declaration` does, its keys and kinds restated from `test_form.rs` (no kiwari
+  table holds them). **Measured:** 457 of the 457 distinct `.b` files under `spec/`,
+  `bidamas/`, `gen/`, `crates/` read identically, spans included; none is refused and none
+  reads differently (`reader_in_blue.rs`, 51 snippet cases, 60 refusal cases both readers
+  refuse, corpus floor 457). Nothing of the surface is refused for being outside the reader;
+  what yomi refuses, blue refuses. Next: the floor gate over the fleet corpus (the exit below).
 - **Exit.** `checks.reader-differential`: all 604 `.b` files give identical JSON, spans
   included; the fleet half reuses `gen/consumers.json` (20 repos, 132 files) as a prepush gate.
 - **Risks.** ~7.7k lines of behaviour; 34 span-synthesis sites and `cover` (`parse.rs:3806`);

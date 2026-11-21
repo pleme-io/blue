@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:dae03eeea20a589defa31375794f24f17fa221d8f801a2052b936fc15bf8e31a",
+  "bluefile_b3": "b3:37fa31d7c03d6d68cf51cd4c829415f87bb0f27e38a78689f40d88292dc5bc7e",
   "manifest": {
     "schema": 1,
     "name": "yomi",
     "version": "0.1.0",
     "needs": {
       "deeta": "^0.1.0",
+      "junjo": "^0.1.0",
       "kazu": "^0.1.0",
       "kiwari": "^0.1.0",
       "kyohi": "^0.1.0",

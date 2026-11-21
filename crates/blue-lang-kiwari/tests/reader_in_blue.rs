@@ -233,6 +233,7 @@ fn blue_node(v: &Value) -> String {
         ("int", p) => int(p).to_string(),
         ("float", Value::Float(f)) => format!("{:x}", f.to_bits()),
         ("bool", Value::Bool(b)) => b.to_string(),
+        ("quote" | "quasiquote" | "unquote" | "unquote_splice", p) => blue_node(p),
         ("list", Value::List(items)) => items.iter().map(blue_node).collect::<Vec<_>>().join(","),
         (k, p) => panic!("node {k} carries {p:?}"),
     };
@@ -306,6 +307,22 @@ const SNIPPETS: &[&str] = &[
     "\"a#{x}b\"\n\"\\n\"\n\"a\\n\"\n\"a\\nb#{x}\\n#{y}\"",
     "a + b * c\na |> b\na or b",
     "(1)\nx |> if a\nend",
+    "test \"a\", {kind: :unit}\n  assert f(1) == 2\n  x = 1\nend\ntest \"b\"\nend\ntest \"c\" end",
+    "test \"d\", {\n  fakes: [:v, :a],\n  allow: %i[process network],\n  kind: :integration,\n  target: m::f,\n  satisfies: %i[nist_b nist_a]\n}\n  assert x\n  assert_panics f(1)\nend",
+    "x = f(a) rescue nil\ny = a |> g rescue\n  1\nz = a rescue b |> c",
+    "def f(a)\n  g(a)\nrescue :x, :y as e\n  h(e)\nrescue :z\nrescue other\n  2\nensure\n  done()\nend\ndef k\n  1\nensure\n  2\nend",
+    "z = begin\n  w()\nrescue e\n  e\nend\ndef m\n  a\n  b\nrescue :q\n  c\nend\nv = begin\n  1\nrescue :a\nend\ndef n\nrescue _\nend",
+    "def g -> Int\n  1\nrescue :a,\n  :b\n  2\nend\nbegin\n  x\nensure\nend",
+    "record point(x, y)\nrecord t(n: Int, m: dyn, k: List(a::B),\n)\nunion shape = circle(r: Float)\n  | rect(w, h)\n@doc \"\"\"\nd\n\"\"\"\nrecord q(a)\n@doc \"\"\"\nd\n\"\"\"\nunion r = yes(v) | no(e)",
+    "x = case a\nwhen 1\n  :one\nwhen nil\n  2\nelse\n  b\n  c\nend\ny = case f(a)\nwhen :k\nend\ncase a\nelse\nend",
+    "def f(a)\n  case a\n  when 1\n    x = 2\n    x\n  when 2\n  else\n    if b\n    end\n  end\nend",
+    "record point(x, y)\ndef f(v)\n  case v\n  when point(a, _)\n    a\n  when [1, b, *rest]\n    rest\n  when {name:, n: 2, k: [c]}\n    name\n  when [1, 2]\n    :lit\n  when point(1, 2)\n    :p\n  when x\n    x\n  end\nend",
+    "def f(a)\n  if a\n    return 1\n  end\n  x = 2\n  x\nend\ndef g(a)\n  case a\n  when 1\n    return\n  when 2\n    b\n  else\n    return 3\n  end\n  c\nend\ndef h(a)\n  if a\n    return\n  else\n    y\n  end\n  z\nend\nreturn 4",
+    "defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend\ndefmacro m\nend\ndefmacro n()\n  quote\n    f(unquote_splice(xs))\n    \"a\\nb\"\n  end\nend",
+    "def f(a)\n  x = g(a)?\n  h(x)?\n  y = k(x)\n  y\nend\ndef g(a)\n  [p, q] = f(a)?\n  if a\n    m(a)?\n  end\n  n(a)?\nend\ndef h(a)\n  case a\n  when 1\n    f(a)?\n  else\n    g(a)?\n  end\nend",
+    "record p(x)\ndef g(m)\n  {x:} = m\n  x\nend\ncase q\nwhen {1 => b}\n  1\nwhen p(1, 2)\n  2\nwhen [[c]]\n  c\nwhen y\n  y\nend\ndef h(m)\n  {x:} = m\nend\n[[d]] = e",
+    "def f(*a)\n  a\nend\ndef g(a, *b) -> Int\n  1\nend\nx = fn(a, *b) b end\ny = (*xs) -> xs\nz = (a, *xs) -> xs",
+    "[a, *r] = xs\n{name:, k: [b, _]} = m\ndef g(m)\n  {x:} = m\n  [p, q] = f()\n  x\nend\ntest \"t\"\n  [u] = [1]\n  assert u == 1\nend",
 ];
 
 #[test]
@@ -321,6 +338,88 @@ fn yomi_parse_agrees_with_the_rust_parser_on_every_snippet_of_the_slice() {
     assert!(
         differs.is_empty(),
         "yomi::parse differs:\n{}",
+        differs.join("\n")
+    );
+}
+
+/// Sources both readers refuse: yomi's refusals of the forms past the first
+/// slice are blue's own.
+const REFUSED: &[&str] = &[
+    "(a",
+    "def f\n  x\nrescue\nend",
+    "a b",
+    "f(x) = 1",
+    "f(x)?",
+    "def f\n  g(h(x)?)\nend",
+    ")",
+    "begin (x)",
+    "begin\n  x\nend",
+    "begin\nrescue e\nrescue :a\nend",
+    "begin\nrescue :a as 1\nend",
+    "begin\nrescue :a, 1\nend",
+    "begin\nrescue 1\nend",
+    "begin\nensure\nrescue e\nend",
+    "case x",
+    "case x\nend",
+    "case x\ny\nend",
+    "(*a, b) -> a",
+    "fn(*a, b) end",
+    "+x",
+    "[*a]",
+    "[*1]",
+    "[a, *r, b] = x",
+    "[a, a] = x",
+    "[1] + [2] = x",
+    "{**m} = x",
+    "def f(*1) end",
+    "def f(a?, *b) end",
+    "def f(*a, b) end",
+    "def f(a?, b) end",
+    "def f(1) end",
+    "def f\n  return 1\n  2\nend",
+    "test x end",
+    "test \"a\", 1\nend",
+    "test \"a\", {}\nend",
+    "test \"a\", {**m}\nend",
+    "test \"a\", {k: 1}\nend",
+    "test \"a\", {kind: :unit, kind: :unit}\nend",
+    "test \"a\", {target: 1}\nend",
+    "test \"a\", {kind: :x}\nend",
+    "test \"a\", {allow: 1}\nend",
+    "test \"a\", {allow: []}\nend",
+    "test \"a\", {allow: [1]}\nend",
+    "test \"a\", {allow: %i[a a]}\nend",
+    "record p?(x)",
+    "record p()",
+    "record p(x, x)",
+    "record p(a?)",
+    "record p(1)",
+    "record p(x y)",
+    "union u? = a(x)",
+    "union u = u(x)",
+    "union u = a(x) | a(y)",
+    "union u = 1",
+    "defmacro 1 end",
+    "defmacro m(a: Int) end",
+    "defmacro m(*a) end",
+    "defmacro m -> T end",
+    "unquote x",
+    "do",
+];
+
+#[test]
+fn yomi_parse_refuses_what_the_rust_parser_refuses() {
+    let mut program = reader();
+    let mut differs = Vec::new();
+    for src in REFUSED {
+        match readings(&mut program, src) {
+            (Err(_), Err(b)) if b.contains(":parse") => {}
+            (r, b) => differs.push(format!("{src:?}\n  rust {r:?}\n  blue {b:?}")),
+        }
+    }
+    assert!(
+        differs.is_empty(),
+        "yomi::parse and blue's parser disagree on a refusal:\n{}",
         differs.join("\n")
     );
 }
@@ -379,4 +478,4 @@ fn yomi_parse_reads_a_corpus_file_identically_or_refuses_it() {
     );
 }
 
-const READ_IDENTICALLY: usize = 274;
+const READ_IDENTICALLY: usize = 457;

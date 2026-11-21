@@ -2631,6 +2631,37 @@ def front_erased(form)
   end
 end
 
+test "a board use is dropped, a typed definition erased, and any other use refused"
+  p = nth(
+    0,
+    read_forms("(begin (use \"kiban\" (list :put_byte :put_int)) (define-typed (f (n Int)) Int (* n 2)) (f 21))")
+  )
+  assert front_erased(p) ==
+    read_forms("(begin (define (f n) (* n 2)) (f 21))")[0]
+  assert board_use?(read_forms("(use \"kiban\" (list :put_int))")[0])
+  assert (board_use?(read_forms("(use \"moji\" (list :trim))")[0]) rescue
+    :refused) == :refused
+  assert typed_erased(read_forms("(define-typed (g (a dyn)) dyn a)")[0]) ==
+    read_forms("(define (g a) a)")[0]
+  assert member?("put_int", BOARD_WORDS)
+end
+
+test "a typed program with a board use gives its value on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-front"), "front.out")
+    p = nth(
+      0,
+      read_forms("(begin (use \"kiban\" (list :put_int)) (define-typed (f (n Int)) Int (* n 2)) (f 21))")
+    )
+    write_bytes(path, compile_program(p, :exit))
+    exec_capture("chmod", "+x", path)
+    assert status_of(exec_capture(path)) == 42
+  end
+end
+
 @doc """
 compile_program: a program compiled with the prelude through Perceus to a reference-counted executable.
 

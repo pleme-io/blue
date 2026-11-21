@@ -520,3 +520,30 @@ test "a function value calls a definition and maps natively", {
     swapped(work, "rescaled", "rescaled_up")
   ) == unlines(["[5, 10, 15]"])
 end
+
+test "a curried function and a function taking a function run natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-fn")
+  calls = [
+    ["uncurried", [2, 5]],
+    ["uncurried", [0, 0]],
+    ["twiced", [3, 2]],
+    ["twiced", [0, 0]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "uncurried", [2, 5], off) == unlines(["11"])
+  assert interpreted(
+    work,
+    "uncurried",
+    [2, 5],
+    swapped(work, "uncurried", "uncurried_up")
+  ) == unlines(["13"])
+  assert interpreted(work, "twiced", [3, 2], off) == unlines(["16"])
+  assert interpreted(
+    work,
+    "twiced",
+    [3, 2],
+    swapped(work, "twiced", "twiced_up")
+  ) == unlines(["20"])
+end

@@ -455,8 +455,30 @@ Each wave lists defaults in the order their gain is known. Each default meets
     natively" (`cubed_sum` and `rescaled` agree
     with the interpreter; each `_up` artifact swapped in answers
     differently).
-  - Not built: a lambda that leaves a lambda (a curried
-    `(x) -> (y) -> x + y`), since a function value holds no function.
+  - ✅ A lambda that leaves a lambda, and a function value that takes or
+    answers a function: `Fn(Int) -> Fn(Int) -> Int` (a curried
+    `(x) -> (y) -> x * k + y`) and `Fn(Fn(Int) -> Int, Int) -> Int`. A
+    function type's code puts `p` and `q` around a function's own codes
+    (`F_i_pi_iq`), and each function type inside another gets its enum
+    (`fun_types`). A lambda written in a lambda that leaves is a site of its
+    own (`fun_sites`): it captures from the scope its arm binds (the outer
+    lambda's parameters and captures) and carries `in`, the lambda it is
+    written in, which `cz_fun_site` matches in that arm. `cz_fun_args` no
+    longer looks inside a lambda, so a site is never found in a scope that
+    is not its own. An `apply` calls only the `apply` of a smaller type, as
+    a type is finite, so none loops. A call through a function value binds
+    its arguments first when one reaches the board (`cz_effectful?` now
+    sees such a call), so `f(f(x))` borrows `io` once at a time; before,
+    rustc refused it (E0499). Still refused, named: a capture that
+    holds a function ("a function value holds no function"), so
+    `(x) -> f(f(x))` over a captured `f` stays interpreted. Locks: chuuzou
+    193 tests ("a lambda that leaves a lambda is a function value of its
+    own, and a function value takes a function"); `checks.native-defs` "a
+    curried function and a function taking a function run natively"
+    (`uncurried` and `twiced` agree with the interpreter; each `_up`
+    artifact swapped in answers differently).
+  - Not built: a function value that holds a function (a capture of a
+    function type), which needs its enum to hold itself.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

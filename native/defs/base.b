@@ -370,3 +370,39 @@ end
 def rescaled_up(xs: List(Int), k: Int) -> List(Int)
   apply_list(scaled_all(k + 1), xs)
 end
+
+def curried(k: Int) -> Fn(Int) -> Fn(Int) -> Int
+  (x) -> (y) -> x * k + y
+end
+
+def apply_curried(g: Fn(Int) -> Fn(Int) -> Int, x: Int) -> Fn(Int) -> Int
+  g(x)
+end
+
+def uncurried(x: Int, y: Int) -> Int
+  apply_to(apply_curried(curried(3), x), y)
+end
+
+def uncurried_up(x: Int, y: Int) -> Int
+  apply_to(apply_curried(curried(4), x), y)
+end
+
+def twice_after(k: Int) -> Fn(Fn(Int) -> Int, Int) -> Int
+  (f, x) -> f(f(x + k))
+end
+
+def apply_twice(
+  h: Fn(Fn(Int) -> Int, Int) -> Int,
+  f: Fn(Int) -> Int,
+  x: Int
+) -> Int
+  h(f, x)
+end
+
+def twiced(x: Int, m: Int) -> Int
+  apply_twice(twice_after(1), (z) -> z * m, x)
+end
+
+def twiced_up(x: Int, m: Int) -> Int
+  apply_twice(twice_after(2), (z) -> z * m, x)
+end

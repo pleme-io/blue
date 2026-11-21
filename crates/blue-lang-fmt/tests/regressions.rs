@@ -202,6 +202,11 @@ const FIXED: &[(&str, &str, &str)] = &[
         "def a(x) -> Map(Str, Int)\n  x\nend\n",
     ),
     (
+        "typed-def-function-type",
+        "def a(f: Fn(Int, Str) -> Bool) -> Fn() -> Int\n  f\nend",
+        "def a(f: Fn(Int, Str) -> Bool) -> Fn() -> Int\n  f\nend\n",
+    ),
+    (
         "typed-def-type-application-arity",
         "def a(x: List())\n  x\nend",
         "def a(x: List())\n  x\nend\n",

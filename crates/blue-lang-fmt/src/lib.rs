@@ -2216,11 +2216,20 @@ fn is_typed_signature(sig: &Spanned, ret: &Spanned) -> bool {
     }) && is_type(ret)
 }
 
-/// A type the surface can write: `T`, or `C(T)`.
+/// A type the surface can write: `T`, `C(T)`, or `Fn(T) -> R`, which the tree
+/// holds as `(Fn T -> R)`.
 fn is_type(t: &Spanned) -> bool {
     is_name(t)
-        || t.as_list()
-            .is_some_and(|c| !c.is_empty() && is_name(&c[0]) && c[1..].iter().all(is_type))
+        || t.as_list().is_some_and(|c| {
+            let arrow = c.len() >= 3
+                && c[0].as_symbol() == Some("Fn")
+                && c[c.len() - 2].as_symbol() == Some("->");
+            if arrow {
+                c[1..c.len() - 2].iter().all(is_type) && is_type(&c[c.len() - 1])
+            } else {
+                !c.is_empty() && is_name(&c[0]) && c[1..].iter().all(is_type)
+            }
+        })
 }
 
 /// `doc`, parenthesized when the context demands a tighter binding than the
@@ -2352,6 +2361,19 @@ fn render_ty(t: &Sexp) -> Option<String> {
             Some((pkg, name)) => format!("{pkg}::{name}"),
             None => n.to_string(),
         }),
+        Sexp::List(items)
+            if items.len() >= 3
+                && sym_name(&items[0]) == Some("Fn")
+                && sym_name(&items[items.len() - 2]) == Some("->") =>
+        {
+            let ty = |a: &Sexp| render_ty(a).unwrap_or_else(|| "dyn".to_string());
+            let params: Vec<String> = items[1..items.len() - 2].iter().map(ty).collect();
+            Some(format!(
+                "Fn({}) -> {}",
+                params.join(", "),
+                ty(&items[items.len() - 1])
+            ))
+        }
         Sexp::List(items) if !items.is_empty() => {
             let head = sym_name(&items[0])?;
             let args: Vec<String> = items[1..]

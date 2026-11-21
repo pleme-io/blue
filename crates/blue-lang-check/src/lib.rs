@@ -92,6 +92,9 @@ pub enum Ty {
     /// A name the checker does not know. Treated as opaque and nominal.
     Named(String),
     Fragment(Box<data_laws::Selection>),
+    /// A function: `Fn(A, B) -> R`, its parameters' types and its answer's,
+    /// written in the tree as `(Fn A B -> R)`.
+    Fn(Vec<Ty>, Box<Ty>),
 }
 
 impl Ty {
@@ -152,6 +155,13 @@ impl Ty {
                 (Some(Sexp::Atom(Atom::Symbol(h))), [k, v]) if h == "Map" => {
                     Ty::Map(Box::new(Ty::from_sexp(k)), Box::new(Ty::from_sexp(v)))
                 }
+                (
+                    Some(Sexp::Atom(Atom::Symbol(h))),
+                    [params @ .., Sexp::Atom(Atom::Symbol(arrow)), ret],
+                ) if h == "Fn" && arrow == "->" => Ty::Fn(
+                    params.iter().map(Ty::from_sexp).collect(),
+                    Box::new(Ty::from_sexp(ret)),
+                ),
                 _ => Ty::Dyn,
             },
             _ => Ty::Dyn,
@@ -174,6 +184,9 @@ impl Ty {
             (Ty::Record(r), Ty::Union(_, arms)) => arms.contains(r),
             (Ty::Union(a, _), Ty::Union(b, _)) => a == b,
             (Ty::Fragment(a), Ty::Fragment(b)) => a.fragment == b.fragment && a.path == b.path,
+            (Ty::Fn(a, r), Ty::Fn(b, s)) => {
+                a.len() == b.len() && a.iter().zip(b).all(|(x, y)| y.accepts(x)) && r.accepts(s)
+            }
             (a, b) => a == b,
         }
     }
@@ -192,6 +205,11 @@ impl Ty {
             Ty::Map(k, v) => format!("Map({}, {})", k.name(), v.name()),
             Ty::Record(n) | Ty::Union(n, _) | Ty::Named(n) => n.clone(),
             Ty::Fragment(sel) => sel.type_name(),
+            Ty::Fn(ps, r) => format!(
+                "Fn({}) -> {}",
+                ps.iter().map(Ty::name).collect::<Vec<_>>().join(", "),
+                r.name()
+            ),
         }
     }
 
@@ -201,6 +219,7 @@ impl Ty {
             Ty::Named(_) => true,
             Ty::List(t) => t.opaque(),
             Ty::Map(k, v) => k.opaque() || v.opaque(),
+            Ty::Fn(ps, r) => ps.iter().any(Ty::opaque) || r.opaque(),
             _ => false,
         }
     }
@@ -1456,6 +1475,29 @@ mod tests {
 
     fn msgs(o: &Outcome) -> Vec<String> {
         o.diagnostics.iter().map(|d| d.message.clone()).collect()
+    }
+
+    #[test]
+    fn a_function_type_accepts_a_function_of_its_arity_and_types_only() {
+        let unary = "def ap(f: Fn(Int) -> Int) -> Int\n  f(1)\nend\n";
+        let given = |arg: &str| {
+            msgs(&check(&format!(
+                "{unary}def g(h: {arg}) -> Int\n  ap(h)\nend\n"
+            )))
+        };
+        assert!(given("Fn(Int) -> Int").is_empty());
+        assert!(given("Fn(Int, Int) -> Int")
+            .iter()
+            .any(|m| m.contains("expects Fn(Int) -> Int, got Fn(Int, Int) -> Int")));
+        assert!(given("Fn(Int) -> Str")
+            .iter()
+            .any(|m| m.contains("expects Fn(Int) -> Int")));
+        assert!(given("Fn(Str) -> Int")
+            .iter()
+            .any(|m| m.contains("expects Fn(Int) -> Int")));
+        assert!(given("Int")
+            .iter()
+            .any(|m| m.contains("expects Fn(Int) -> Int, got Int")));
     }
 
     /// The `(line, column)` a span's start resolves to in `src`, ZERO-based —

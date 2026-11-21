@@ -77,7 +77,7 @@ Higher binding power binds tighter.
 | `if` | `if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is. An `else` that is empty or `nil` is dropped (B0035). |
 | `begin` | `begin … rescue :kind as e … rescue e … ensure … end`: run the statements; a `rescue` clause catches an error by kind, binding it with `as`, and `rescue e` catches every error; `ensure` always runs. A def body takes the same clauses without `begin`. |
 | `unless` | `unless c … end` is read as `if not c` and written that way (B0026). |
-| `def` | `def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`. |
+| `def` | `def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`; a function's type is `Fn(Int, Str) -> Bool`. |
 | `defmacro` | `defmacro name(x) quote … unquote(x) … end end`: a macro, a rewrite of the unevaluated form. |
 | `quote` | `quote … end`: the form itself as data, not its value. Used inside `defmacro`. |
 | `unquote` | `unquote(x)`: inside `quote`, splice in the value of `x`. |

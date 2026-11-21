@@ -785,7 +785,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "and" => "`a and b`: logical and; `&&` is read as `and` and written `and` (B0025).",
         "or" => "`a or b`: logical or; `||` is read as `or` and written `or` (B0025).",
         "not" => "`not x`: true when x is false or nil; `!x` is read as `not x` and written `not x` (B0025). `not (a == b)` is written `a != b` (B0034).",
-        "def" => "`def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`.",
+        "def" => "`def name(a, b) … end`: a named function; its value is the last expression. Parameters may be typed: `def f(n: Int) -> Int`; a function's type is `Fn(Int, Str) -> Bool`.",
         "defmacro" => "`defmacro name(x) quote … unquote(x) … end end`: a macro, a rewrite of the unevaluated form.",
         "quote" => "`quote … end`: the form itself as data, not its value. Used inside `defmacro`.",
         "unquote" => "`unquote(x)`: inside `quote`, splice in the value of `x`.",
@@ -3643,6 +3643,12 @@ impl Parser {
                     break;
                 }
             }
+            if name == "Fn" && matches!(self.peek(), TokenKind::Op(o) if o == "->") {
+                let arrow = self.peek_span();
+                self.bump();
+                list.push(sym_at(arrow, "->"));
+                list.push(self.type_expr()?);
+            }
             return Ok(list_at(self.span_since(name_span.start), list));
         }
         Ok(sym_at(name_span, &name))
@@ -3876,6 +3882,18 @@ mod tests {
         assert_eq!(
             q("def f(a: Map(Str, List(Int))) -> Unit()\n  a\nend"),
             "(define-typed (f (a (Map Str (List Int)))) (Unit) a)"
+        );
+    }
+
+    #[test]
+    fn a_function_type_holds_its_answer_after_an_arrow() {
+        assert_eq!(
+            q("def f(g: Fn(Int, Str) -> Bool) -> Fn() -> Int\n  g\nend"),
+            "(define-typed (f (g (Fn Int Str -> Bool))) (Fn -> Int) g)"
+        );
+        assert_eq!(
+            q("def f(g: Fn(Int)) -> Int\n  g\nend"),
+            "(define-typed (f (g (Fn Int))) Int g)"
         );
     }
 

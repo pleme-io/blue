@@ -2184,15 +2184,27 @@ def surface()
                 "type",
                 ""
               ),
-              opt(field("arguments", ref("arguments")))
+              opt(field("arguments", ref("arguments"))),
+              opt(seq([lit("->"), nl, field("answer", ref("type"))]))
             ]
           )
         ),
         [
           "if_any",
-          [["arguments"]],
-          ["list", %w[field name], %w[field arguments]],
-          %w[field name]
+          [["answer"]],
+          [
+            "list",
+            %w[field name],
+            %w[field arguments],
+            %w[sym ->],
+            %w[field answer]
+          ],
+          [
+            "if_any",
+            [["arguments"]],
+            ["list", %w[field name], %w[field arguments]],
+            %w[field name]
+          ]
         ]
       ),
       with(

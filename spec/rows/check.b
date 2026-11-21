@@ -1308,3 +1308,55 @@ row(
   ),
   diagnoses([])
 )
+
+row(
+  "check.signature.fn_runs",
+  join_lines(
+    [
+      "def apply_to(f: Fn(Int) -> Int, x: Int) -> Int",
+      "  f(x)",
+      "end",
+      "",
+      "def adder(k: Int) -> Fn(Int) -> Int",
+      "  (x) -> x + k",
+      "end",
+      "",
+      "apply_to(adder(2), 5)"
+    ]
+  ),
+  value("7")
+)
+
+row(
+  "check.signature.fn_refuses_a_number",
+  join_lines(
+    [
+      "def apply_to(f: Fn(Int) -> Int, x: Int) -> Int",
+      "  f(x)",
+      "end",
+      "",
+      "def g() -> Int",
+      "  apply_to(5, 1)",
+      "end"
+    ]
+  ),
+  diagnoses(%w[B0005 B0062]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.signature.fn_refuses_another_arity",
+  join_lines(
+    [
+      "def two(f: Fn(Int, Int) -> Int) -> Int",
+      "  f(1, 2)",
+      "end",
+      "",
+      "def narrow(g: Fn(Int) -> Int) -> Int",
+      "  two(g)",
+      "end"
+    ]
+  ),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)

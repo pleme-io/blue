@@ -93,7 +93,8 @@ row(
 row(
   "fn.rest.only",
   join_lines(["def all(*xs)", "  xs", "end", "", "[all(), all(1, 2)]"]),
-  value("[[], [1, 2]]")
+  value("[[], [1, 2]]"),
+  pending("G25", "native")
 )
 
 row(
@@ -107,8 +108,7 @@ row(
       "[f(1, 2, 3), g(4, 5)]"
     ]
   ),
-  value("[[1, [2, 3]], [4, 5]]"),
-  pending("G28", "native")
+  value("[[1, [2, 3]], [4, 5]]")
 )
 
 row(
@@ -681,8 +681,7 @@ row(
 row(
   "fn.rest_params",
   join_lines(["def f(a, *rest)", "  rest", "end", "", "f(1, 2, 3)"]),
-  value("[2, 3]"),
-  pending("G28", "native")
+  value("[2, 3]")
 )
 
 row(

@@ -2421,7 +2421,8 @@ PRELUDE = [
   "(define (every? f l) (if (equal? (length l) 0) true (if (f (first l)) (every? f (rest l)) false)))",
   "(define (any? f l) (if (equal? (length l) 0) false (if (f (first l)) true (any? f (rest l)))))",
   "(define (insert_string s l) (if (equal? (length l) 0) (list s) (if (string_lt s (first l)) (cons s l) (cons (first l) (insert_string s (rest l))))))",
-  "(define (sort_strings l) (reduce (lambda (acc s) (insert_string s acc)) (list) l))"
+  "(define (sort_strings l) (reduce (lambda (acc s) (insert_string s acc)) (list) l))",
+  "(define (list_drop n l) (if (< n 1) l (if (equal? (length l) 0) l (list_drop (- n 1) (rest l)))))"
 ]
 
 @doc """
@@ -7281,7 +7282,8 @@ bare_calls: a core form with each bare name of a ZERO_ARITY_WORDS word the progr
     bare_calls(read_forms("(integer? now)")[0]) == read_forms("(integer? (now))")[0] #=> true
 """
 def bare_calls(form)
-  call_bare(form, binders(form))
+  packed = rest_calls(form, rest_arities(form))
+  call_bare(packed, binders(packed))
 end
 
 @doc """
@@ -7314,6 +7316,11 @@ def call_bare(form, bound)
         read_forms("sort_strings")[0],
         [read_forms("ls_raw")[0], call_bare(form[1], bound)]
       ]
+    elsif symbol?(form[0]) and to_s(form[0]) == "drop" and length(form) == 3
+      cons(
+        read_forms("list_drop")[0],
+        map((f) -> call_bare(f, bound), rest(form))
+      )
     elsif symbol?(form[0]) and to_s(form[0]) == "path_join" and length(form) > 3
       call_bare(
         append([form[0], [form[0], form[1], form[2]]], rest(rest(rest(form)))),
@@ -9201,4 +9208,98 @@ test "false is its own word natively: not nil, taken as not holding by an if, sh
   assert falsy_jump("no")[2] == {op: "cmp", dst: "rax", imm: FALSE}
   assert member?({op: "cmp", dst: "rdi", imm: FALSE}, RT_SHOW)
   assert KIND_PREDICATES[4] == ["boolean?", [2, 8]]
+end
+
+@doc """
+rest_arities: each global a core form defines with a rest parameter, and how many parameters come before it: [name, count] for `(define (f a &rest r) …)` and `(define f (lambda (a &rest r) …))`.
+
+    rest_arities(read_forms("(define (f a &rest r) r)")[0]) #=> [["f", 1]]
+"""
+def rest_arities(form)
+  if not list?(form) or length(form) == 0
+    []
+  else
+    own = if head_is?(form, "define") and list?(form[1])
+      k = index_of(map((p) -> to_s(p), rest(form[1])), "&rest")
+      if k >= 0
+        [[to_s(form[1][0]), k]]
+      else
+        []
+      end
+    elsif head_is?(form, "define") and
+        list?(form[2]) and
+        head_is?(form[2], "lambda")
+      k = index_of(map((p) -> to_s(p), form[2][1]), "&rest")
+      if k >= 0
+        [[to_s(form[1]), k]]
+      else
+        []
+      end
+    else
+      []
+    end
+    append(own, flat_map(form, rest_arities))
+  end
+end
+
+@doc """
+without_rest_mark: a parameter list with its &rest marker gone, so the rest parameter is an ordinary last parameter that receives a list.
+
+    without_rest_mark(read_forms("(a &rest r)")[0]) == read_forms("(a r)")[0] #=> true
+"""
+def without_rest_mark(params)
+  filter((p) -> to_s(p) != "&rest", params)
+end
+
+@doc """
+rest_calls: a core form with every rest parameter made an ordinary last parameter, and every call of a global in table (rest_arities) given its leading arguments, then the rest packed in one list.
+
+    rest_calls(read_forms("(f 1 2 3)")[0], [["f", 1]]) == read_forms("(f 1 (list 2 3))")[0] #=> true
+"""
+def rest_calls(form, table)
+  if not list?(form) or length(form) == 0
+    form
+  elsif head_is?(form, "define") and list?(form[1])
+    append(
+      [form[0], without_rest_mark(form[1])],
+      map((f) -> rest_calls(f, table), rest(rest(form)))
+    )
+  elsif head_is?(form, "lambda") and list?(form[1])
+    append(
+      [form[0], without_rest_mark(form[1])],
+      map((f) -> rest_calls(f, table), rest(rest(form)))
+    )
+  else
+    hits = if symbol?(form[0])
+      filter((t) -> t[0] == to_s(form[0]), table)
+    else
+      []
+    end
+    args = map((f) -> rest_calls(f, table), rest(form))
+    if length(hits) > 0 and length(args) >= hits[0][1]
+      k = hits[0][1]
+      append(
+        cons(form[0], take(k, args)),
+        [cons(read_forms("list")[0], drop(k, args))]
+      )
+    else
+      cons(rest_calls(form[0], table), args)
+    end
+  end
+end
+
+test "a rest parameter becomes a last parameter that takes the extra arguments as a list"
+  assert rest_arities(read_forms("(define f (lambda (h &rest t) t))")[0]) ==
+    [["f", 1]]
+  assert rest_arities(read_forms("(define (g a) a)")[0]) == []
+  assert rest_arities(read_forms("(define g (lambda (h) h))")[0]) == []
+  assert without_rest_mark(read_forms("(a &rest r)")[0]) ==
+    read_forms("(a r)")[0]
+  assert bare_calls(
+    read_forms("(begin (define (f a &rest r) r) (f 1 2 3))")[0]
+  ) == read_forms("(begin (define (f a r) r) (f 1 (list 2 3)))")[0]
+  assert rest_calls(read_forms("(g 1)")[0], [["f", 1]]) ==
+    read_forms("(g 1)")[0]
+  assert bare_calls(read_forms("(drop 1 l)")[0]) ==
+    read_forms("(list_drop 1 l)")[0]
 end

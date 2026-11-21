@@ -681,8 +681,13 @@ def parse(text, format, opts?)
     xml_document(text)
   elsif format == :yaml
     one_or_all(yaml_documents(text), options[:documents])
+  elsif format == :nix
+    nix_document(text)
   else
-    raise(:bad_option, "parse reads :json, :yaml and :xml, not #{to_s(format)}")
+    raise(
+      :bad_option,
+      "parse reads :json, :yaml, :xml and :nix, not #{to_s(format)}"
+    )
   end
 end
 
@@ -3126,6 +3131,1530 @@ xml_unescape: An attribute value's text from s to e with its references resolved
 def xml_unescape(b, s, e)
   runs = xml_text_runs(b, s, e, [["", {}, [], []]])
   join(reverse(first(runs)[3]), "")
+end
+
+@doc """
+nix_document: Nix source read by blue itself (R6c of docs/PURE-BLUE.md) as
+`nix_parse` reads it: {root, errors}, root rnix's lossless syntax tree (a node
+{kind, start, end, children}, a token {kind, start, end, text}, offsets in
+characters). Source rnix reports an error in raises :nix_malformed, so errors
+is always [].
+
+    nix_document("x")[:root][:children][0][:kind] #=> "NODE_IDENT"
+"""
+def nix_document(text)
+  cs = chars(text)
+  n = count(cs)
+  toks = nix_tokens(cs, n, 0, [[:plain]], [])
+  ends = [{kind: nil, start: n, end: n}, {kind: nil, start: n, end: n}]
+  t = [append(toks, ends), nix_levels]
+  s = nix_eat(t, nix_expr(t, [0, [], 0, [["NODE_ROOT", 0]], 0]))
+  if nix_peek(t, s) != nil
+    nix_malformed("input after the expression")
+  end
+  {root: first(nix_close(s)[1]), errors: []}
+end
+
+@doc """
+nix_malformed: Raise :nix_malformed with a reason.
+
+    raised(() -> nix_malformed("x")) #=> :nix_malformed
+"""
+def nix_malformed(why)
+  raise(:nix_malformed, why)
+end
+
+@doc """
+nix_text: The text of characters s up to e of a character list.
+
+    nix_text(chars("abc"), 1, 3) #=> "bc"
+"""
+def nix_text(cs, s, e)
+  join(map((i) -> cs[i], range(s, e)), "")
+end
+
+@doc """
+nix_space?: Whether a character is white space as Rust's char::is_whitespace
+has it, the rule rnix's tokenizer reads.
+
+    nix_space?(code_point_text(12288)) #=> true
+"""
+def nix_space?(c)
+  member?(c, [" ", line_break, "\t", "\r", "\u{b}", "\u{c}"]) or
+    c != nil and
+      count(text_bytes(c)) > 1 and
+      member?(
+        c,
+        map(
+          code_point_text,
+          [
+            133,
+            160,
+            5760,
+            8192,
+            8193,
+            8194,
+            8195,
+            8196,
+            8197,
+            8198,
+            8199,
+            8200,
+            8201,
+            8202,
+            8232,
+            8233,
+            8239,
+            8287,
+            12288
+          ]
+        )
+      )
+end
+
+@doc """
+nix_class?: Whether a character is of a class rnix's tokenizer reads: :path
+(may stand in a path), :uri (one of the further URI characters), :ident (may
+continue an identifier), :start (may open one) or :digit.
+
+    nix_class?(:path, "+") #=> true
+"""
+def nix_class?(kind, c)
+  letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  sets = {
+    path: concat(letters, "0123456789/_.+-"),
+    uri: "%?:@&=$,!~*'",
+    ident: concat(letters, "0123456789_-'"),
+    start: concat(letters, "_"),
+    digit: "0123456789"
+  }
+  c != nil and contains?(get(sets, kind), c)
+end
+
+@doc """
+nix_uri_char?: Whether a character may stand in a Nix URI.
+
+    nix_uri_char?("?") #=> true
+"""
+def nix_uri_char?(c)
+  nix_class?(:path, c) or nix_class?(:uri, c)
+end
+
+@doc """
+nix_tokens: The tokens of the characters from i on, as rnix's tokenizer cuts
+them, with the context stack ctx (innermost first) and acc latest first.
+
+    nix_tokens(chars("a"), 1, 0, [[:plain]], [])[0][:kind] #=> "TOKEN_IDENT"
+"""
+def nix_tokens(cs, n, i, ctx, acc)
+  got = nix_next(cs, n, i, ctx)
+  if got.nil?
+    reverse(acc)
+  else
+    j = got[1]
+    tok = {kind: got[0], start: i, end: j, text: nix_text(cs, i, j)}
+    nix_tokens(cs, n, j, got[2], cons(tok, acc))
+  end
+end
+
+@doc """
+nix_next: The next token from i as [kind, end, context], nil at the end; the
+context says whether a string, an interpolation or a path is open.
+
+    nix_next(chars("${"), 2, 0, [[:interpol_start]])[0] #=> "TOKEN_INTERPOL_START"
+"""
+def nix_next(cs, n, i, ctx)
+  top = first(ctx)
+  mode = top[0]
+  if mode == :interpol_start
+    ["TOKEN_INTERPOL_START", i + 2, cons([:interpol, 0], rest(ctx))]
+  elsif mode == :path
+    nix_path_more(cs, n, i, ctx, top[1])
+  elsif mode == :body
+    got = nix_lex_string(cs, n, i, top[1], ctx)
+    if got[1] == i
+      nix_next(cs, n, i, got[2])
+    else
+      got
+    end
+  elsif mode == :string_end
+    nix_string_end(cs, i, rest(ctx))
+  else
+    nix_plain(cs, n, i, ctx)
+  end
+end
+
+@doc """
+nix_path_more: The next piece of an open path: an interpolation, more path
+characters, or the path closed and the token read plainly.
+
+    nix_path_more(chars("/b"), 2, 0, [[:path, "TOKEN_PATH_ABS"], [:plain]], "TOKEN_PATH_ABS")[0] #=> "TOKEN_PATH_ABS"
+"""
+def nix_path_more(cs, n, i, ctx, kind)
+  if cs[i] == "$" and cs[i + 1] == "{"
+    ["TOKEN_INTERPOL_START", i + 2, cons([:interpol, 0], ctx)]
+  elsif nix_class?(:path, cs[i])
+    nix_path_check(cs, n, i, i, kind, ctx)
+  else
+    nix_plain(cs, n, i, rest(ctx))
+  end
+end
+
+@doc """
+nix_path_check: A path token from start, its characters read on from p: open
+for an interpolation, refused (TOKEN_ERROR) when it ends in / or holds //, or
+closed.
+
+    nix_path_check(chars("a/"), 2, 0, 0, "TOKEN_PATH_REL", [[:path, "TOKEN_PATH_REL"]])[0] #=> "TOKEN_ERROR"
+"""
+def nix_path_check(cs, n, start, p, kind, ctx)
+  q = run_end(cs, n, p, (x) -> nix_class?(:path, x))
+  if cs[q] == "$" and cs[q + 1] == "{"
+    [kind, q, cons([:interpol_start], ctx)]
+  elsif cs[q - 1] == "/" or
+      any?((k) -> cs[k] == "/" and cs[k + 1] == "/", range(start, q - 1))
+    ["TOKEN_ERROR", q, ctx]
+  else
+    [kind, q, rest(ctx)]
+  end
+end
+
+@doc """
+nix_lex_string: The next run of a string's body from p (multi says an
+indented string): its content up to the close or an interpolation, or
+TOKEN_ERROR at the end of the input.
+
+    nix_lex_string(chars("a\""), 2, 0, false, [[:body, false]])[0] #=> "TOKEN_STRING_CONTENT"
+"""
+def nix_lex_string(cs, n, p, multi, ctx)
+  stop = nix_string_stop(cs, p, multi, ctx)
+  if stop.nil?
+    nix_lex_string(cs, n, nix_string_skip(cs, n, p, multi), multi, ctx)
+  else
+    stop
+  end
+end
+
+@doc """
+nix_string_stop: The token a string's body ends with at p, nil when the body
+goes on: the end of the input, the close (" or ''), or an interpolation.
+
+    nix_string_stop(chars("''x"), 0, true, [[:body, true]])[0] #=> "TOKEN_STRING_CONTENT"
+"""
+def nix_string_stop(cs, p, multi, ctx)
+  c = cs[p]
+  closes = if multi
+    c == "'" and cs[p + 1] == "'" and not member?(cs[p + 2], ["'", "$", "\\"])
+  else
+    c == "\""
+  end
+  if c.nil?
+    ["TOKEN_ERROR", p, rest(ctx)]
+  elsif closes
+    ["TOKEN_STRING_CONTENT", p, cons([:string_end], rest(ctx))]
+  elsif c == "$" and cs[p + 1] == "{"
+    ["TOKEN_STRING_CONTENT", p, cons([:interpol_start], ctx)]
+  end
+end
+
+@doc """
+nix_string_skip: Where a string's body goes on after the character at p: past
+an escape (a backslash and a character; three quotes, or two and a dollar; two
+quotes, a backslash and a character), past two dollars, or past the one
+character.
+
+    nix_string_skip(chars("''$"), 3, 0, true) #=> 3
+"""
+def nix_string_skip(cs, n, p, multi)
+  c = cs[p]
+  quoted = multi and c == "'" and cs[p + 1] == "'"
+  width = if not multi and c == "\\"
+    2
+  elsif quoted and cs[p + 2] == "\\"
+    4
+  elsif quoted
+    3
+  elsif c == "$" and cs[p + 1] == "$"
+    2
+  else
+    1
+  end
+  kazu::min(p + width, n)
+end
+
+@doc """
+nix_string_end: The token that closes a string at i: " or ''.
+
+    nix_string_end(chars("''"), 0, [])[1] #=> 2
+"""
+def nix_string_end(cs, i, ctx)
+  if cs[i] == "\""
+    ["TOKEN_STRING_END", i + 1, ctx]
+  else
+    ["TOKEN_STRING_END", i + 2, ctx]
+  end
+end
+
+@doc """
+nix_plain: The next token from i outside a string or path: white space, a
+comment, an ellipsis, or a symbol, word, number or path.
+
+    nix_plain(chars("# c"), 3, 0, [[:plain]])[0] #=> "TOKEN_COMMENT"
+"""
+def nix_plain(cs, n, i, ctx)
+  c = cs[i]
+  ws = run_end(cs, n, i, nix_space?)
+  if c.nil?
+    nil
+  elsif ws > i
+    ["TOKEN_WHITESPACE", ws, ctx]
+  elsif c == "#"
+    ["TOKEN_COMMENT", run_end(cs, n, i, (x) -> x != line_break), ctx]
+  elsif c == "/" and cs[i + 1] == "*"
+    nix_block_comment(cs, n, i + 2, ctx)
+  elsif nix_text(cs, i, kazu::min(i + 3, n)) == "..."
+    ["TOKEN_ELLIPSIS", i + 3, ctx]
+  else
+    nix_symbol(cs, n, i, ctx, nix_shape(cs, n, i))
+  end
+end
+
+@doc """
+nix_block_comment: A /* comment read on from p: closed by */, or TOKEN_ERROR
+at the end of the input.
+
+    nix_block_comment(chars("/* a */"), 7, 2, [])[1] #=> 7
+"""
+def nix_block_comment(cs, n, p, ctx)
+  m = kazu::min(run_end(cs, n, p, (x) -> x != "*") + 1, n)
+  if cs[m].nil?
+    ["TOKEN_ERROR", m, ctx]
+  elsif cs[m] == "/"
+    ["TOKEN_COMMENT", m + 1, ctx]
+  else
+    nix_block_comment(cs, n, m, ctx)
+  end
+end
+
+@doc """
+nix_shape: What the text at i looks like before it is read, as rnix's
+tokenizer guesses it: :abs, :home, :rel, :search, :uri, or nil.
+
+    nix_shape(chars("<nixpkgs>"), 9, 0) #=> :search
+"""
+def nix_shape(cs, n, i)
+  c = cs[i]
+  c1 = cs[i + 1]
+  if c == "/"
+    if c1 == "$" and cs[i + 2] == "{" or c1 != "/" and nix_class?(:path, c1)
+      :abs
+    end
+  elsif c == "~" and c1 == "/"
+    :home
+  else
+    nix_shape_rest(cs, n, i, c == "<")
+  end
+end
+
+@doc """
+nix_shape_rest: The guess for text not opening with / or ~/: what follows the
+run of path characters (and < and / when it opens with <) decides.
+
+    nix_shape_rest(chars("a:b"), 3, 0, false) #=> :uri
+"""
+def nix_shape_rest(cs, n, i, store)
+  j = run_end(
+    cs,
+    n,
+    i,
+    (x) -> (x == "<" or x == "/") and store or x != "/" and nix_class?(:path, x)
+  )
+  a = cs[j]
+  b = cs[j + 1]
+  if a == "/" and b != nil and b != "/" and b != "*" and not nix_space?(b)
+    :rel
+  elsif a == ">"
+    :search
+  elsif a == ":" and
+      nix_uri_char?(b) and
+      not any?((k) -> cs[k] == "_", range(i, j))
+    :uri
+  end
+end
+
+@doc """
+nix_symbol: The token at i that is not white space, a comment or an
+ellipsis, given the shape guessed for it.
+
+    nix_symbol(chars("//"), 2, 0, [[:plain]], nil)[0] #=> "TOKEN_UPDATE"
+"""
+def nix_symbol(cs, n, i, ctx, shape)
+  c = cs[i]
+  c1 = cs[i + 1]
+  pair = get(nix_pairs, nix_text(cs, i, kazu::min(i + 2, n)))
+  single = get(nix_singles, c)
+  if c == "/" and c1 == "/"
+    ["TOKEN_UPDATE", i + 2, ctx]
+  elsif c == "~" and c1 == "/"
+    nix_path_check(
+      cs,
+      n,
+      i,
+      i + 2,
+      "TOKEN_PATH_HOME",
+      nix_path_ctx(ctx, "HOME")
+    )
+  elsif c == "~"
+    ["TOKEN_ERROR", kazu::min(i + 2, n), ctx]
+  elsif c == "/" and (shape == :abs or nix_class?(:path, c1))
+    nix_path_check(cs, n, i, i + 1, "TOKEN_PATH_ABS", nix_path_ctx(ctx, "ABS"))
+  elsif shape == :rel
+    nix_path_check(cs, n, i, i + 1, "TOKEN_PATH_REL", nix_path_ctx(ctx, "REL"))
+  elsif c == "<" and shape == :search and c1 != "|"
+    nix_search_path(cs, n, i, ctx)
+  elsif pair != nil
+    [pair, i + 2, ctx]
+  elsif c == "." and nix_class?(:digit, c1)
+    nix_exponent(
+      cs,
+      n,
+      run_end(cs, n, i + 1, (x) -> nix_class?(:digit, x)),
+      ctx
+    )
+  elsif single != nil
+    [single, i + 1, ctx]
+  else
+    nix_symbol_rest(cs, n, i, ctx, shape)
+  end
+end
+
+@doc """
+nix_symbol_rest: The token at i that no operator table names: a brace, an
+interpolation, a string, a word, a number, or TOKEN_ERROR.
+
+    nix_symbol_rest(chars("12"), 2, 0, [[:plain]], nil)[0] #=> "TOKEN_INTEGER"
+"""
+def nix_symbol_rest(cs, n, i, ctx, shape)
+  c = cs[i]
+  c1 = cs[i + 1]
+  if c == "{"
+    ["TOKEN_L_BRACE", i + 1, nix_bracket(ctx, 1)]
+  elsif c == "}" and first(ctx) == [:interpol, 0]
+    ["TOKEN_INTERPOL_END", i + 1, rest(ctx)]
+  elsif c == "}"
+    ["TOKEN_R_BRACE", i + 1, nix_bracket(ctx, -1)]
+  elsif c == "$" and c1 == "{"
+    ["TOKEN_INTERPOL_START", i + 2, cons([:interpol, 0], ctx)]
+  elsif c == "\""
+    ["TOKEN_STRING_START", i + 1, cons([:body, false], ctx)]
+  elsif c == "'" and c1 == "'"
+    ["TOKEN_STRING_START", i + 2, cons([:body, true], ctx)]
+  elsif nix_class?(:start, c)
+    nix_word(cs, n, i, ctx, shape == :uri)
+  elsif nix_class?(:digit, c)
+    nix_number(cs, n, i, ctx)
+  else
+    ["TOKEN_ERROR", i + 1, ctx]
+  end
+end
+
+@doc """
+nix_path_ctx: The context with a path of the named kind opened.
+
+    nix_path_ctx([], "ABS") #=> [[:path, "TOKEN_PATH_ABS"]]
+"""
+def nix_path_ctx(ctx, kind)
+  cons([:path, concat("TOKEN_PATH_", kind)], ctx)
+end
+
+@doc """
+nix_bracket: The context after a brace inside an interpolation, its open
+brace count moved by d; outside one, the context unchanged.
+
+    nix_bracket([[:interpol, 1]], -1) #=> [[:interpol, 0]]
+"""
+def nix_bracket(ctx, d)
+  top = first(ctx)
+  if top[0] == :interpol
+    cons([:interpol, top[1] + d], rest(ctx))
+  else
+    ctx
+  end
+end
+
+@doc """
+nix_pairs: The two-character operators, by their text.
+
+    nix_pairs["++"] #=> "TOKEN_CONCAT"
+"""
+def nix_pairs()
+  {
+    "==" => "TOKEN_EQUAL",
+    "!=" => "TOKEN_NOT_EQUAL",
+    "++" => "TOKEN_CONCAT",
+    "->" => "TOKEN_IMPLICATION",
+    "<|" => "TOKEN_PIPE_LEFT",
+    "&&" => "TOKEN_AND_AND",
+    "|>" => "TOKEN_PIPE_RIGHT",
+    "||" => "TOKEN_OR_OR",
+    "<=" => "TOKEN_LESS_OR_EQ",
+    ">=" => "TOKEN_MORE_OR_EQ"
+  }
+end
+
+@doc """
+nix_singles: The one-character symbols, by their text.
+
+    nix_singles["@"] #=> "TOKEN_AT"
+"""
+def nix_singles()
+  {
+    "=" => "TOKEN_ASSIGN",
+    "!" => "TOKEN_INVERT",
+    "[" => "TOKEN_L_BRACK",
+    "]" => "TOKEN_R_BRACK",
+    "@" => "TOKEN_AT",
+    ":" => "TOKEN_COLON",
+    "," => "TOKEN_COMMA",
+    "." => "TOKEN_DOT",
+    "?" => "TOKEN_QUESTION",
+    ";" => "TOKEN_SEMICOLON",
+    "(" => "TOKEN_L_PAREN",
+    ")" => "TOKEN_R_PAREN",
+    "+" => "TOKEN_ADD",
+    "-" => "TOKEN_SUB",
+    "*" => "TOKEN_MUL",
+    "/" => "TOKEN_DIV",
+    "<" => "TOKEN_LESS",
+    ">" => "TOKEN_MORE"
+  }
+end
+
+@doc """
+nix_search_path: A <path> from the < at i: TOKEN_LESS when no path character
+follows, TOKEN_ERROR when > does not close it.
+
+    nix_search_path(chars("<a>"), 3, 0, [])[0] #=> "TOKEN_PATH_SEARCH"
+"""
+def nix_search_path(cs, n, i, ctx)
+  p = run_end(cs, n, i + 1, (x) -> nix_class?(:path, x))
+  if p == i + 1
+    ["TOKEN_LESS", p, ctx]
+  elsif cs[p] != ">"
+    ["TOKEN_ERROR", kazu::min(p + 1, n), ctx]
+  else
+    ["TOKEN_PATH_SEARCH", p + 1, ctx]
+  end
+end
+
+@doc """
+nix_word: An identifier, keyword or (uri) URI from i.
+
+    nix_word(chars("let"), 3, 0, [], false)[0] #=> "TOKEN_LET"
+"""
+def nix_word(cs, n, i, ctx, uri)
+  j = run_end(
+    cs,
+    n,
+    i + 1,
+    (x) -> nix_class?(:ident, x) or uri and nix_uri_char?(x)
+  )
+  keywords = {
+    "assert" => "TOKEN_ASSERT",
+    "else" => "TOKEN_ELSE",
+    "if" => "TOKEN_IF",
+    "in" => "TOKEN_IN",
+    "inherit" => "TOKEN_INHERIT",
+    "let" => "TOKEN_LET",
+    "or" => "TOKEN_OR",
+    "rec" => "TOKEN_REC",
+    "then" => "TOKEN_THEN",
+    "with" => "TOKEN_WITH"
+  }
+  word = get(keywords, nix_text(cs, i, j))
+  if uri
+    ["TOKEN_URI", j, ctx]
+  elsif word != nil
+    [word, j, ctx]
+  else
+    ["TOKEN_IDENT", j, ctx]
+  end
+end
+
+@doc """
+nix_number: An integer or float from the digit at i; a 0 not followed by .
+reads digits only, as rnix reads it.
+
+    nix_number(chars("1.5"), 3, 0, [])[0] #=> "TOKEN_FLOAT"
+"""
+def nix_number(cs, n, i, ctx)
+  p = run_end(cs, n, i + 1, (x) -> nix_class?(:digit, x))
+  if cs[p] == "." and (cs[i] != "0" or cs[i + 1] == ".")
+    nix_exponent(
+      cs,
+      n,
+      run_end(cs, n, p + 1, (x) -> nix_class?(:digit, x)),
+      ctx
+    )
+  else
+    ["TOKEN_INTEGER", p, ctx]
+  end
+end
+
+@doc """
+nix_exponent: A float read on from p, its exponent if any; an exponent with
+no digit is TOKEN_ERROR.
+
+    nix_exponent(chars("1.5e-3"), 6, 3, [])[1] #=> 6
+"""
+def nix_exponent(cs, n, p, ctx)
+  q = if member?(cs[p + 1], %w[- +])
+    p + 2
+  else
+    p + 1
+  end
+  r = run_end(cs, n, q, (x) -> nix_class?(:digit, x))
+  if not member?(cs[p], %w[e E])
+    ["TOKEN_FLOAT", p, ctx]
+  elsif r == q
+    ["TOKEN_ERROR", r, ctx]
+  else
+    ["TOKEN_FLOAT", r, ctx]
+  end
+end
+
+@doc """
+nix_levels: The binary operator levels of rnix's parser, loosest first:
+each [how it binds, its operators]; :invert and :hasattr are the two levels
+that are not binary.
+
+    nix_levels[0] #=> [:right, ["TOKEN_PIPE_LEFT"]]
+"""
+def nix_levels()
+  [
+    [:right, ["TOKEN_PIPE_LEFT"]],
+    [:left, ["TOKEN_PIPE_RIGHT"]],
+    [:right, ["TOKEN_IMPLICATION"]],
+    [:left, ["TOKEN_OR_OR"]],
+    [:left, ["TOKEN_AND_AND"]],
+    [:non, %w[TOKEN_EQUAL TOKEN_NOT_EQUAL]],
+    [:non, %w[TOKEN_LESS TOKEN_LESS_OR_EQ TOKEN_MORE TOKEN_MORE_OR_EQ]],
+    [:right, ["TOKEN_UPDATE"]],
+    [:invert, []],
+    [:left, %w[TOKEN_ADD TOKEN_SUB]],
+    [:left, %w[TOKEN_MUL TOKEN_DIV]],
+    [:right, ["TOKEN_CONCAT"]],
+    [:hasattr, []]
+  ]
+end
+
+@doc """
+nix_skip: The index of the first token from i that is not white space or a
+comment.
+
+    nix_skip([[{kind: "TOKEN_WHITESPACE"}, {kind: nil}]], 0) #=> 1
+"""
+def nix_skip(t, i)
+  run_end(
+    t[0],
+    count(t[0]),
+    i,
+    (x) -> x[:kind] == "TOKEN_WHITESPACE" or x[:kind] == "TOKEN_COMMENT"
+  )
+end
+
+@doc """
+nix_peek: The kind of the next token that is not trivia, nil at the end.
+
+    nix_peek([[{kind: nil}]], [0, [], 0, [], 0]) #=> nil
+"""
+def nix_peek(t, s)
+  t[0][nix_skip(t, s[0])][:kind]
+end
+
+@doc """
+nix_emit: The parser state with one token or node added to the open node.
+
+    nix_emit([0, [], 0, [], 0], {kind: "x"})[2] #=> 1
+"""
+def nix_emit(s, x)
+  [s[0] + 1, cons(x, s[1]), s[2] + 1, s[3], s[4]]
+end
+
+@doc """
+nix_eat: The state with the white space and comments before the next token
+added to the open node.
+
+    nix_eat([[{kind: "TOKEN_WHITESPACE"}, {kind: nil}]], [0, [], 0, [], 0])[0] #=> 1
+"""
+def nix_eat(t, s)
+  reduce((acc, k) -> nix_emit(acc, t[0][k]), s, range(s[0], nix_skip(t, s[0])))
+end
+
+@doc """
+nix_bump: The state with the next token taken, kind its kind in the tree
+(nil keeps it); the end of the input is refused.
+
+    nix_bump([[{kind: "TOKEN_IDENT"}, {kind: nil}]], [0, [], 0, [], 0], nil)[2] #=> 1
+"""
+def nix_bump(t, s, kind)
+  e = nix_eat(t, s)
+  tok = t[0][e[0]]
+  if tok[:kind].nil?
+    nix_malformed("unexpected end of input")
+  elsif kind.nil?
+    nix_emit(e, tok)
+  else
+    nix_emit(e, assoc(tok, :kind, kind))
+  end
+end
+
+@doc """
+nix_open: The state with a node of kind opened after the trivia before it.
+
+    nix_open([[{kind: nil}]], [0, [], 0, [], 0], "NODE_X")[3] #=> [["NODE_X", 0]]
+"""
+def nix_open(t, s, kind)
+  e = nix_eat(t, s)
+  nix_open_at(e, e[2], kind)
+end
+
+@doc """
+nix_open_at: The state with a node of kind opened at checkpoint cp, so it
+takes the children made since.
+
+    nix_open_at([0, [], 0, [], 0], 0, "NODE_X")[3] #=> [["NODE_X", 0]]
+"""
+def nix_open_at(s, cp, kind)
+  [s[0], s[1], s[2], cons([kind, cp], s[3]), s[4]]
+end
+
+@doc """
+nix_close: The state with the innermost open node closed over the children
+made since it opened.
+
+    nix_close([1, [{start: 0, end: 1}], 1, [["NODE_X", 0]], 0])[1][0][:kind] #=> "NODE_X"
+"""
+def nix_close(s)
+  top = first(s[3])
+  k = s[2] - top[1]
+  kids = reverse(take(k, s[1]))
+  node = {
+    kind: top[0],
+    start: first(kids)[:start],
+    end: last(kids)[:end],
+    children: kids
+  }
+  [s[0], cons(node, drop(k, s[1])), top[1] + 1, rest(s[3]), s[4]]
+end
+
+@doc """
+nix_mark: The state after the trivia, and the checkpoint a later node may
+open at.
+
+    nix_mark([[{kind: nil}]], [0, [], 0, [], 0])[1] #=> 0
+"""
+def nix_mark(t, s)
+  e = nix_eat(t, s)
+  [e, e[2]]
+end
+
+@doc """
+nix_want: The next kind when it is one of allowed; anything else, the end of
+the input among them, is refused.
+
+    raised(() -> nix_want([[{kind: nil}]], [0, [], 0, [], 0], ["TOKEN_IDENT"])) #=> :nix_malformed
+"""
+def nix_want(t, s, allowed)
+  k = nix_peek(t, s)
+  if not member?(k, allowed)
+    nix_malformed(
+      concat("wanted one of ", join(allowed, ", "), ", got ", to_s(k))
+    )
+  end
+  k
+end
+
+@doc """
+nix_expect: The state with the next token taken, refused unless it is kind.
+
+    nix_expect([[{kind: "TOKEN_IDENT"}, {kind: nil}]], [0, [], 0, [], 0], "TOKEN_IDENT")[0] #=> 1
+"""
+def nix_expect(t, s, kind)
+  nix_want(t, s, [kind])
+  nix_bump(t, s, nil)
+end
+
+@doc """
+nix_ident: The state with an identifier taken as NODE_IDENT.
+
+    nix_document("a")[:root][:children][0][:children][0][:text] #=> "a"
+"""
+def nix_ident(t, s)
+  nix_want(t, s, ["TOKEN_IDENT"])
+  nix_close(nix_bump(t, nix_open(t, s, "NODE_IDENT"), nil))
+end
+
+@doc """
+nix_expr: The state with one expression read, as rnix's parse_expr reads it:
+let, with, if and assert, else the operator levels; deeper than 512 is refused.
+
+    nix_document("with a; b")[:root][:children][0][:kind] #=> "NODE_WITH"
+"""
+def nix_expr(t, s)
+  depth = s[4]
+  if depth >= 512
+    nix_malformed("nested too deeply to parse")
+  end
+  d = [s[0], s[1], s[2], s[3], depth + 1]
+  k = nix_peek(t, d)
+  out = if k == "TOKEN_LET"
+    nix_let(t, d)
+  elsif k == "TOKEN_IF"
+    nix_if(t, d)
+  elsif k == "TOKEN_WITH" or k == "TOKEN_ASSERT"
+    nix_scoped(t, d, replace(k, "TOKEN_", "NODE_"))
+  else
+    nix_level(t, d, 0)[0]
+  end
+  [out[0], out[1], out[2], out[3], depth]
+end
+
+@doc """
+nix_if: The state after `if c then a else b`.
+
+    nix_document("if a then b else c")[:root][:children][0][:kind] #=> "NODE_IF_ELSE"
+"""
+def nix_if(t, s)
+  o = nix_bump(t, nix_open(t, s, "NODE_IF_ELSE"), nil)
+  o2 = nix_expect(t, nix_expr(t, o), "TOKEN_THEN")
+  o3 = nix_expect(t, nix_expr(t, o2), "TOKEN_ELSE")
+  nix_close(nix_expr(t, o3))
+end
+
+@doc """
+nix_scoped: The state after `with e; body` or `assert e; body`, a node of kind.
+
+    nix_document("assert a; b")[:root][:children][0][:kind] #=> "NODE_ASSERT"
+"""
+def nix_scoped(t, s, kind)
+  o = nix_bump(t, nix_open(t, s, kind), nil)
+  nix_close(nix_expr(t, nix_expect(t, nix_expr(t, o), "TOKEN_SEMICOLON")))
+end
+
+@doc """
+nix_let: The state with a let read: `let { … }` (NODE_LEGACY_LET) or
+`let … in e` (NODE_LET_IN).
+
+    nix_document("let { a = 1; }")[:root][:children][0][:kind] #=> "NODE_LEGACY_LET"
+"""
+def nix_let(t, s)
+  m = nix_mark(t, s)
+  cp = m[1]
+  b = nix_bump(t, m[0], nil)
+  if nix_peek(t, b) == "TOKEN_L_BRACE"
+    o = nix_bump(t, nix_open_at(b, cp, "NODE_LEGACY_LET"), nil)
+    nix_close(nix_set(t, o, "TOKEN_R_BRACE"))
+  else
+    o = nix_set(t, nix_open_at(b, cp, "NODE_LET_IN"), "TOKEN_IN")
+    nix_close(nix_expr(t, o))
+  end
+end
+
+@doc """
+nix_level: [state, checkpoint] after the operator level n and every tighter
+one is read (nix_levels names them).
+
+    nix_document("a -> b")[:root][:children][0][:kind] #=> "NODE_BIN_OP"
+"""
+def nix_level(t, s, n)
+  level = t[1][n]
+  shape = level[0]
+  tighter = (t2, s2) -> nix_level(t2, s2, n + 1)
+  if shape == :invert
+    nix_unary(t, s, "TOKEN_INVERT", tighter)
+  elsif shape == :hasattr
+    got = nix_unary(t, s, "TOKEN_SUB", nix_apply)
+    [nix_has(t, got[0], got[1]), got[1]]
+  else
+    got = tighter(t, s)
+    [nix_binary(t, got[0], got[1], n, level), got[1]]
+  end
+end
+
+@doc """
+nix_binary: The state after the operators of level n that follow the
+operand begun at cp: one (:non), many leftward (:left) or nested rightward
+(:right).
+
+    nix_document("a // b // c")[:root][:children][0][:children][4][:kind] #=> "NODE_BIN_OP"
+"""
+def nix_binary(t, s, cp, n, level)
+  shape = level[0]
+  next_level = if shape == :right
+    n
+  else
+    n + 1
+  end
+  if member?(nix_peek(t, s), level[1])
+    o = nix_bump(t, nix_open_at(s, cp, "NODE_BIN_OP"), nil)
+    done = nix_close(nix_level(t, o, next_level)[0])
+    if shape == :left
+      nix_binary(t, done, cp, n, level)
+    else
+      done
+    end
+  else
+    s
+  end
+end
+
+@doc """
+nix_unary: [state, checkpoint] after a run of the prefix operator op (- or !)
+and what operand reads after it.
+
+    nix_document("!a")[:root][:children][0][:kind] #=> "NODE_UNARY_OP"
+"""
+def nix_unary(t, s, op, operand)
+  if nix_peek(t, s) == op
+    m = nix_mark(t, s)
+    o = nix_bump(t, nix_open(t, m[0], "NODE_UNARY_OP"), nil)
+    [nix_close(nix_unary(t, o, op, operand)[0]), m[1]]
+  else
+    operand(t, s)
+  end
+end
+
+@doc """
+nix_has: The state after each `? attrpath` that follows the operand at cp.
+
+    nix_document("a ? b")[:root][:children][0][:kind] #=> "NODE_HAS_ATTR"
+"""
+def nix_has(t, s, cp)
+  if nix_peek(t, s) == "TOKEN_QUESTION"
+    o = nix_bump(t, nix_open_at(s, cp, "NODE_HAS_ATTR"), nil)
+    nix_has(t, nix_close(nix_attrpath(t, o)), cp)
+  else
+    s
+  end
+end
+
+@doc """
+nix_apply: [state, checkpoint] after a function applied to each argument that
+follows it.
+
+    nix_document("f a")[:root][:children][0][:kind] #=> "NODE_APPLY"
+"""
+def nix_apply(t, s)
+  got = nix_simple(t, s)
+  [nix_arguments(t, got[0], got[1]), got[1]]
+end
+
+@doc """
+nix_arguments: The state after the arguments that follow the function at cp,
+each wrapping what came before in NODE_APPLY.
+
+    nix_document("f a b")[:root][:children][0][:children][0][:kind] #=> "NODE_APPLY"
+"""
+def nix_arguments(t, s, cp)
+  args = %w[
+    TOKEN_REC
+    TOKEN_L_BRACE
+    TOKEN_L_BRACK
+    TOKEN_L_PAREN
+    TOKEN_STRING_START
+    TOKEN_IDENT
+    TOKEN_CUR_POS
+    TOKEN_FLOAT
+    TOKEN_INTEGER
+    TOKEN_PATH_ABS
+    TOKEN_PATH_REL
+    TOKEN_PATH_HOME
+    TOKEN_PATH_SEARCH
+    TOKEN_URI
+  ]
+  if member?(nix_peek(t, s), args)
+    o = nix_simple(t, nix_open_at(s, cp, "NODE_APPLY"))[0]
+    nix_arguments(t, nix_close(o), cp)
+  else
+    s
+  end
+end
+
+@doc """
+nix_simple: [state, checkpoint] after one primary expression and the
+selection or `or` that follows it.
+
+    nix_document("a.b or c")[:root][:children][0][:kind] #=> "NODE_SELECT"
+"""
+def nix_simple(t, s)
+  k = nix_peek(t, s)
+  m = nix_mark(t, s)
+  e = m[0]
+  paths = %w[TOKEN_PATH_ABS TOKEN_PATH_REL TOKEN_PATH_HOME TOKEN_PATH_SEARCH]
+  body = if k == "TOKEN_L_PAREN"
+    o = nix_expr(t, nix_bump(t, nix_open(t, e, "NODE_PAREN"), nil))
+    nix_close(nix_bump(t, o, nil))
+  elsif k == "TOKEN_REC"
+    o = nix_bump(t, nix_open(t, e, "NODE_ATTR_SET"), nil)
+    nix_close(nix_set(t, nix_expect(t, o, "TOKEN_L_BRACE"), "TOKEN_R_BRACE"))
+  elsif k == "TOKEN_L_BRACE"
+    nix_brace(t, e)
+  elsif k == "TOKEN_L_BRACK"
+    o = nix_items(t, nix_bump(t, nix_open(t, e, "NODE_LIST"), nil))
+    nix_close(nix_bump(t, o, nil))
+  elsif k == "TOKEN_STRING_START"
+    nix_string(t, e)
+  elsif k == "TOKEN_IDENT"
+    nix_name(t, e, m[1])
+  elsif member?(k, paths)
+    nix_path(t, e, k)
+  elsif member?(k, %w[TOKEN_FLOAT TOKEN_INTEGER TOKEN_URI])
+    nix_close(nix_bump(t, nix_open(t, e, "NODE_LITERAL"), nil))
+  else
+    nix_malformed(concat("unexpected ", to_s(k), ", wanted an expression"))
+  end
+  [nix_select(t, body, m[1]), m[1]]
+end
+
+@doc """
+nix_select: The state after the `.attrpath` (and `or default`) or the bare
+`or` that follows the expression at cp.
+
+    nix_document("a or")[:root][:children][0][:kind] #=> "NODE_APPLY"
+"""
+def nix_select(t, s, cp)
+  k = nix_peek(t, s)
+  if k == "TOKEN_DOT"
+    o = nix_attrpath(t, nix_bump(t, nix_open_at(s, cp, "NODE_SELECT"), nil))
+    if nix_peek(t, o) == "TOKEN_OR"
+      nix_close(nix_simple(t, nix_bump(t, o, nil))[0])
+    else
+      nix_close(o)
+    end
+  elsif k == "TOKEN_OR"
+    o = nix_open(t, nix_open_at(s, cp, "NODE_APPLY"), "NODE_IDENT")
+    nix_close(nix_close(nix_bump(t, o, "TOKEN_IDENT")))
+  else
+    s
+  end
+end
+
+@doc """
+nix_items: The state after a list's items, up to its ].
+
+    nix_document("[ a b ]")[:root][:children][0][:kind] #=> "NODE_LIST"
+"""
+def nix_items(t, s)
+  k = nix_peek(t, s)
+  if k != nil and k != "TOKEN_R_BRACK"
+    nix_items(t, nix_simple(t, s)[0])
+  else
+    s
+  end
+end
+
+@doc """
+nix_brace: The state after a {: a lambda's pattern when the two tokens after
+it look like one, as rnix looks, else an attribute set.
+
+    nix_document("{ a }: a")[:root][:children][0][:kind] #=> "NODE_LAMBDA"
+"""
+def nix_brace(t, s)
+  j = nix_skip(t, s[0])
+  a = nix_skip(t, j + 1)
+  b = nix_skip(t, a + 1)
+  look = [t[0][a][:kind], t[0][b][:kind]]
+  patterns = [
+    %w[TOKEN_IDENT TOKEN_COMMA],
+    %w[TOKEN_IDENT TOKEN_QUESTION],
+    %w[TOKEN_IDENT TOKEN_R_BRACE],
+    %w[TOKEN_ELLIPSIS TOKEN_R_BRACE],
+    %w[TOKEN_R_BRACE TOKEN_COLON],
+    %w[TOKEN_R_BRACE TOKEN_AT]
+  ]
+  if member?(look, patterns)
+    o = nix_open(t, nix_open(t, s, "NODE_LAMBDA"), "NODE_PATTERN")
+    p = nix_close(nix_pattern(t, nix_bump(t, o, nil), false))
+    nix_close(nix_expr(t, nix_expect(t, p, "TOKEN_COLON")))
+  else
+    o = nix_bump(t, nix_open(t, s, "NODE_ATTR_SET"), nil)
+    nix_close(nix_set(t, o, "TOKEN_R_BRACE"))
+  end
+end
+
+@doc """
+nix_pattern: The state after a pattern's entries and its } (and an `@ name`;
+bound says the name came before, so a second one is refused).
+
+    raised(() -> nix_document("a @ { } @ b: a")) #=> :nix_malformed
+"""
+def nix_pattern(t, s, bound)
+  o = if member?(nix_peek(t, s), [nil, "TOKEN_R_BRACE"])
+    nix_bump(t, s, nil)
+  else
+    nix_entries(t, s)
+  end
+  if nix_peek(t, o) != "TOKEN_AT"
+    o
+  elsif bound
+    nix_malformed("a pattern bound twice")
+  else
+    b = nix_bump(t, nix_open(t, o, "NODE_PAT_BIND"), nil)
+    nix_close(nix_ident(t, b))
+  end
+end
+
+@doc """
+nix_entries: The state after a pattern's entries, each `name` or
+`name ? default`, through its } (and a `...`).
+
+    nix_document("{ a ? 1, ... }: a")[:root][:children][0][:kind] #=> "NODE_LAMBDA"
+"""
+def nix_entries(t, s)
+  k = nix_want(t, s, %w[TOKEN_R_BRACE TOKEN_ELLIPSIS TOKEN_IDENT])
+  if k == "TOKEN_R_BRACE"
+    nix_bump(t, s, nil)
+  elsif k == "TOKEN_ELLIPSIS"
+    nix_expect(t, nix_bump(t, s, nil), "TOKEN_R_BRACE")
+  else
+    o = nix_ident(t, nix_open(t, s, "NODE_PAT_ENTRY"))
+    d = if nix_peek(t, o) == "TOKEN_QUESTION"
+      nix_expr(t, nix_bump(t, o, nil))
+    else
+      o
+    end
+    e = nix_close(d)
+    if nix_peek(t, e) == "TOKEN_COMMA"
+      nix_entries(t, nix_bump(t, e, nil))
+    else
+      nix_expect(t, e, "TOKEN_R_BRACE")
+    end
+  end
+end
+
+@doc """
+nix_set: The state after a set's entries (`path = e;` and `inherit …;`) and
+the until token that closes them.
+
+    nix_document("{ inherit a; }")[:root][:children][0][:children][2][:kind] #=> "NODE_INHERIT"
+"""
+def nix_set(t, s, until)
+  k = nix_peek(t, s)
+  if k.nil? or k == until
+    nix_bump(t, s, nil)
+  else
+    nix_set(t, nix_binding(t, s, k), until)
+  end
+end
+
+@doc """
+nix_binding: The state after one entry of a set, whose first token is of
+kind k: `inherit …;` or `path = e;`.
+
+    nix_document("{ a = 1; }")[:root][:children][0][:children][2][:kind] #=> "NODE_ATTRPATH_VALUE"
+"""
+def nix_binding(t, s, k)
+  if k == "TOKEN_INHERIT"
+    nix_inherit(t, s)
+  else
+    o = nix_attrpath(t, nix_open(t, s, "NODE_ATTRPATH_VALUE"))
+    v = nix_expr(t, nix_expect(t, o, "TOKEN_ASSIGN"))
+    nix_close(nix_expect(t, v, "TOKEN_SEMICOLON"))
+  end
+end
+
+@doc """
+nix_inherit: The state after `inherit (from) names;`.
+
+    nix_document("{ inherit (a) b; }")[:root][:children][0][:children][2][:children][2][:kind] #=> "NODE_INHERIT_FROM"
+"""
+def nix_inherit(t, s)
+  o = nix_bump(t, nix_open(t, s, "NODE_INHERIT"), nil)
+  from = if nix_peek(t, o) == "TOKEN_L_PAREN"
+    f = nix_expr(t, nix_bump(t, nix_open(t, o, "NODE_INHERIT_FROM"), nil))
+    nix_close(nix_expect(t, f, "TOKEN_R_PAREN"))
+  else
+    o
+  end
+  nix_close(nix_expect(t, nix_inherited(t, from), "TOKEN_SEMICOLON"))
+end
+
+@doc """
+nix_inherited: The state after the names an inherit takes, up to its ;.
+
+    nix_document("{ inherit a \"b\"; }")[:root][:children][0][:kind] #=> "NODE_ATTR_SET"
+"""
+def nix_inherited(t, s)
+  k = nix_peek(t, s)
+  if k != nil and k != "TOKEN_SEMICOLON"
+    nix_inherited(t, nix_attr(t, s))
+  else
+    s
+  end
+end
+
+@doc """
+nix_attrpath: The state after an attribute path, its parts joined by dots.
+
+    nix_document("{ a.b = 1; }")[:root][:children][0][:children][2][:children][0][:kind] #=> "NODE_ATTRPATH"
+"""
+def nix_attrpath(t, s)
+  nix_close(nix_attrs(t, nix_open(t, s, "NODE_ATTRPATH")))
+end
+
+@doc """
+nix_attrs: The state after one attribute and every `.attribute` after it.
+
+    nix_document("a.b.c")[:root][:children][0][:children][2][:kind] #=> "NODE_ATTRPATH"
+"""
+def nix_attrs(t, s)
+  o = nix_attr(t, s)
+  if nix_peek(t, o) == "TOKEN_DOT"
+    nix_attrs(t, nix_bump(t, o, nil))
+  else
+    o
+  end
+end
+
+@doc """
+nix_attr: The state after one attribute: an interpolation (NODE_DYNAMIC), a
+string, or a name (`or` read as a name).
+
+    nix_document("a.or")[:root][:children][0][:kind] #=> "NODE_SELECT"
+"""
+def nix_attr(t, s)
+  k = nix_peek(t, s)
+  if k == "TOKEN_INTERPOL_START"
+    o = nix_bump(t, nix_open(t, s, "NODE_DYNAMIC"), nil)
+    nix_close(nix_bump(t, nix_interpolated(t, o), nil))
+  elsif k == "TOKEN_STRING_START"
+    nix_string(t, s)
+  else
+    nix_want(t, s, %w[TOKEN_IDENT TOKEN_OR TOKEN_CUR_POS])
+    nix_close(nix_bump(t, nix_open(t, s, "NODE_IDENT"), "TOKEN_IDENT"))
+  end
+end
+
+@doc """
+nix_interpolated: The state after the expressions of a dynamic attribute, up
+to its }.
+
+    nix_document("a.${b}")[:root][:children][0][:kind] #=> "NODE_SELECT"
+"""
+def nix_interpolated(t, s)
+  k = nix_peek(t, s)
+  if k != nil and k != "TOKEN_INTERPOL_END"
+    nix_interpolated(t, nix_expr(t, s))
+  else
+    s
+  end
+end
+
+@doc """
+nix_string: The state after a string: its contents and interpolations.
+
+    nix_document("\"a\"")[:root][:children][0][:kind] #=> "NODE_STRING"
+"""
+def nix_string(t, s)
+  o = nix_expect(t, nix_open(t, s, "NODE_STRING"), "TOKEN_STRING_START")
+  nix_close(nix_expect(t, nix_parts(t, o), "TOKEN_STRING_END"))
+end
+
+@doc """
+nix_parts: The state after a string's contents and interpolations, up to its
+end.
+
+    nix_document("''a''")[:root][:children][0][:children][1][:kind] #=> "TOKEN_STRING_CONTENT"
+"""
+def nix_parts(t, s)
+  k = nix_want(
+    t,
+    s,
+    %w[TOKEN_STRING_END TOKEN_STRING_CONTENT TOKEN_INTERPOL_START]
+  )
+  if k == "TOKEN_STRING_END"
+    s
+  else
+    nix_parts(t, nix_piece(t, s, k))
+  end
+end
+
+@doc """
+nix_piece: The state after one piece of a string or path whose kind is k: an
+interpolation, or the token taken as it is.
+
+    nix_piece([[{kind: "TOKEN_STRING_CONTENT"}, {kind: nil}]], [0, [], 0, [], 0], "TOKEN_STRING_CONTENT")[2] #=> 1
+"""
+def nix_piece(t, s, k)
+  if k == "TOKEN_INTERPOL_START"
+    nix_interpol(t, s)
+  else
+    nix_bump(t, s, nil)
+  end
+end
+
+@doc """
+nix_interpol: The state after an interpolation, `${` e `}` (NODE_INTERPOL).
+
+    nix_document("\"${a}\"")[:root][:children][0][:children][1][:kind] #=> "NODE_INTERPOL"
+"""
+def nix_interpol(t, s)
+  o = nix_expr(t, nix_bump(t, nix_open(t, s, "NODE_INTERPOL"), nil))
+  nix_close(nix_expect(t, o, "TOKEN_INTERPOL_END"))
+end
+
+@doc """
+nix_path: The state after a path of token kind k, with the interpolations and
+pieces of a path that interpolates (a search path never does).
+
+    nix_document("./a/${b}")[:root][:children][0][:kind] #=> "NODE_PATH_REL"
+"""
+def nix_path(t, s, k)
+  o = nix_bump(t, nix_open(t, s, replace(k, "TOKEN_", "NODE_")), nil)
+  if k != "TOKEN_PATH_SEARCH" and nix_peek(t, o) == "TOKEN_INTERPOL_START"
+    nix_close(nix_path_parts(t, nix_interpol(t, o)))
+  else
+    nix_close(o)
+  end
+end
+
+@doc """
+nix_path_parts: The state after the pieces and interpolations that follow an
+interpolating path with nothing between them.
+
+    nix_document("/${a}/b${c}")[:root][:children][0][:children][3][:kind] #=> "NODE_INTERPOL"
+"""
+def nix_path_parts(t, s)
+  k = t[0][s[0]][:kind]
+  pieces = %w[
+    TOKEN_PATH_ABS
+    TOKEN_PATH_REL
+    TOKEN_PATH_HOME
+    TOKEN_INTERPOL_START
+  ]
+  if member?(k, pieces)
+    nix_path_parts(t, nix_piece(t, s, k))
+  else
+    s
+  end
+end
+
+@doc """
+nix_name: The state after an identifier at cp: a lambda's parameter
+(`x: e`), its bound pattern (`x @ { … }: e`), __curPos, or a name.
+
+    nix_document("x: x")[:root][:children][0][:children][0][:kind] #=> "NODE_IDENT_PARAM"
+"""
+def nix_name(t, s, cp)
+  ahead = t[0][nix_skip(t, nix_skip(t, s[0]) + 1)][:kind]
+  if ahead == "TOKEN_COLON"
+    l = nix_open_at(nix_ident(t, s), cp, "NODE_LAMBDA")
+    p = nix_close(nix_open_at(l, cp, "NODE_IDENT_PARAM"))
+    nix_close(nix_expr(t, nix_expect(t, p, "TOKEN_COLON")))
+  elsif ahead == "TOKEN_AT"
+    l = nix_open_at(nix_ident(t, s), cp, "NODE_LAMBDA")
+    b = nix_open_at(nix_open_at(l, cp, "NODE_PATTERN"), cp, "NODE_PAT_BIND")
+    p = nix_close(nix_expect(t, b, "TOKEN_AT"))
+    q = nix_close(nix_pattern(t, nix_expect(t, p, "TOKEN_L_BRACE"), true))
+    nix_close(nix_expr(t, nix_expect(t, q, "TOKEN_COLON")))
+  elsif t[0][s[0]][:text] == "__curPos"
+    nix_close(nix_bump(t, nix_open(t, s, "NODE_CUR_POS"), "TOKEN_CUR_POS"))
+  else
+    nix_ident(t, s)
+  end
+end
+
+volatile(nix_text)
+volatile(nix_string_stop)
+volatile(nix_string_end)
+volatile(nix_path_check)
+volatile(nix_plain)
+volatile(nix_skip)
+volatile(nix_emit)
+volatile(nix_close)
+volatile(nix_open_at)
+volatile(nix_shape_rest)
+volatile(nix_exponent)
+volatile(nix_search_path)
+volatile(nix_block_comment)
+
+test "nix_document gives nix_parse's tree for every construct", {kind: :unit}
+  samples = [
+    "{ a = 1; }",
+    "x",
+    unlines(["# c", "{ a.b = 1; /* x */ c = \"é ${d}\"; }"]),
+    concat("a", code_point_text(160), "b"),
+    "/**/x /* a * b */",
+    "a/*c*/b",
+    "{ ... }: 1",
+    "{ a, b ? 1, ... }: a",
+    "{ a, }: a",
+    "{ }: 1",
+    "{}@a: a",
+    "{ a }@b: a",
+    "a@{ b }: b",
+    "a @ { }: a",
+    "x: y: x",
+    "/a/b",
+    "/${a}/b",
+    "./a/${b}c${d}",
+    "./a${b}${c}",
+    "./a ${b}",
+    "~/a/b",
+    "<nixpkgs/lib>",
+    "a <<b>",
+    "a/b",
+    "1/2",
+    "a // b // c",
+    "https://e.org/a?b=c&d=%20",
+    "a_b:c",
+    "[ 0 01 01.5 0.5 1.5e3 1.5e-3 1.5E+3 .5 1. 1.e5 ]",
+    "a == b",
+    "a != b",
+    "a ++ b ++ c",
+    "a -> b -> c",
+    "f <| g <| a",
+    "a |> f |> g",
+    "a && b && c",
+    "a || b",
+    "a <= b",
+    "a >= b",
+    "a < b",
+    "a > b",
+    "a + b - c",
+    "a * b / c",
+    "!!a",
+    "--a",
+    "-a.b",
+    "a ? b.c ? d",
+    "a.b or c",
+    "a.b.c or d e",
+    "a or",
+    "f a or b",
+    "a.or",
+    "a.${b}.\"c\"",
+    "\"${ { a = 1; }.a }\"",
+    "\"a\\\"b\\\\\"",
+    "\"$$ { $\"",
+    "\"a${b}c${d}\"",
+    "\"\"",
+    "''a ''' b ''$ c ''\\n d $$ ' e''",
+    "''${a}''",
+    "''''",
+    "let a = 1; b = a; in a + b",
+    "let { a = 1; body = a; }",
+    "with a; b",
+    "assert a; b",
+    "if a then b else c",
+    "{ }",
+    "rec { a = 1; }",
+    "{ inherit a b; inherit (c) d \"e\"; inherit ${f}; }",
+    "{ a.b.c = 1; \"x\" = 2; ${y} = 3; }",
+    "[ ]",
+    "[ 1 [ 2 ] (3) ]",
+    "(a)",
+    "__curPos",
+    "f a b c",
+    "f { a = 1; } [ 2 ] (3) \"s\" ./p <q> 1.5 x",
+    "(a ~)",
+    "(1]",
+    "a: { b }: c @ { }: d"
+  ]
+  assert filter((t) -> nix_document(t) != nix_parse(t), samples) == []
+  assert parse("x: x", :nix) == nix_parse("x: x")
+end
+
+test "nix_document refuses what nix_parse finds errors in", {kind: :unit}
+  bad = [
+    "{ a = ; }",
+    "",
+    "   ",
+    "/* a",
+    "a/",
+    "./a//b",
+    "~",
+    "~x",
+    "<a<b>",
+    "1.5e",
+    "a & b",
+    "a | b",
+    "$a",
+    "'a",
+    "\"abc",
+    "\"a\\",
+    "''abc",
+    "''a''\\",
+    "a; b",
+    "a )",
+    "{ a = 1 }",
+    "a @ { } @ b: a",
+    "a@{",
+    "{ a, b",
+    "{ a b }: a",
+    "{ inherit a",
+    "{ inherit (a b; }",
+    "a.${b",
+    "a.${b c",
+    "[ 1",
+    "(a",
+    "f (",
+    "\"${a\"",
+    "{ a.1 = 2; }",
+    "a.",
+    "let a = 1;",
+    "if a then b",
+    "x:",
+    "a + ",
+    "a == b == c",
+    "\"a\" \"",
+    "./${a",
+    "{ ... b }: a",
+    "{ a ? }: a"
+  ]
+  assert filter((t) -> nix_parse(t)[:errors] == [], bad) == []
+  assert filter((t) -> raised(() -> nix_document(t)) != :nix_malformed, bad) ==
+    []
+  deep = concat(join(map((_i) -> "(", range(0, 520)), ""), "a")
+  assert raised(() -> nix_document(deep)) == :nix_malformed
+  assert nix_parse(deep)[:errors] != []
+end
+
+test "each step of the Nix reader does its own part", {kind: :unit}
+  cs = chars("a")
+  assert nix_text(cs, 0, 1) == "a"
+  assert nix_space?(" ") and nix_space?(code_point_text(8287))
+  assert not nix_space?("x") and not nix_space?(code_point_text(233))
+  assert not nix_class?(:path, nil) and not nix_class?(:path, "@")
+  assert nix_uri_char?("~") and not nix_uri_char?(nil)
+  assert not nix_class?(:ident, nil) and not nix_class?(:ident, ".")
+  assert not nix_class?(:digit, nil) and not nix_class?(:digit, "a")
+  assert nix_tokens(chars(""), 0, 0, [[:plain]], []) == []
+  assert nix_bracket([[:plain]], 1) == [[:plain]]
+  assert nix_path_ctx([], "REL") == [[:path, "TOKEN_PATH_REL"]]
+  assert nix_pairs["->"] == "TOKEN_IMPLICATION"
+  assert nix_singles["/"] == "TOKEN_DIV"
+  assert nix_shape(chars("//"), 2, 0).nil?
+  assert nix_shape(chars("~/a"), 3, 0) == :home
+  assert nix_shape(chars("a/ "), 3, 0).nil?
+  assert nix_string_skip(chars("x"), 1, 0, false) == 1
+  assert nix_string_stop(chars("a"), 0, true, [[:body, true]]).nil?
+  assert raised(() -> nix_malformed("no")) == :nix_malformed
+  assert nix_levels[12] == [:hasattr, []]
+  s = [0, [], 0, [], 0]
+  t = [
+    [{kind: "TOKEN_COMMENT", start: 0, end: 1}, {kind: nil}, {kind: nil}],
+    []
+  ]
+  assert nix_skip(t, 0) == 1
+  assert nix_peek(t, s).nil?
+  assert nix_eat(t, s)[2] == 1
+  assert raised(() -> nix_bump(t, s, nil)) == :nix_malformed
+  assert nix_mark(t, s)[1] == 1
+  assert nix_open(t, s, "NODE_X")[3] == [["NODE_X", 1]]
+  assert nix_open_at(s, 0, "NODE_Y")[3] == [["NODE_Y", 0]]
+  assert nix_emit(s, {kind: "x"})[1] == [{kind: "x"}]
+  assert nix_close(nix_eat(t, nix_open_at(s, 0, "NODE_X")))[1][0][:end] == 1
 end
 
 test "xml_document gives the element map xml_parse gives", {kind: :unit}

@@ -197,7 +197,7 @@ The three sub-rungs, each its own slice:
 
 - **R6a — JSON and hashes.** First commit: the blue JSON reader and writer above, differential against `json_read`/`json_write` on `spec/rows/json.b`; then BLAKE3 against `blake3_hex`, then SHA-2. Exit: the json and hash rows pass natively.
 - **R6b — crypto.** First commit: X25519 in blue over L2's unsigned words, differential against the Rust `x25519` on RFC 7748's vectors; then Ed25519, ChaCha20-Poly1305, HMAC, Bao, FROST, ECDSA P-256, RSA. Exit: the crypto rows natively; the purity ledger falls by `crypto.rs`'s lines.
-- **R6c — formats.** Unblocked now (needs only R3). First commit: a blue YAML reader, differential against `yaml_read` on `spec/rows/yaml.b`; then XML, then Nix parsing against rnix. Exit: their rows natively; the ledger falls.
+- **R6c — formats.** Unblocked now (needs only R3). First commit: a blue YAML reader, differential against `yaml_read` on `spec/rows/yaml.b`; then XML, then Nix parsing against rnix. Exit: their rows natively; the ledger falls. Landed 2026-11-20: all three readers. Nix is `deeta::nix_document` (`parse(text, :nix)`), which gives `nix_parse`'s tree and refuses each source rnix reports an error in as `:nix_malformed`. Measured: 121 of 121 files identical (this repository's 24 and the fleet `lib/`'s 97); 2,758 of 2,759 on a wider sweep, the last refused by both.
 
 ### R7 — TLS
 

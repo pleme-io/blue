@@ -1580,9 +1580,7 @@ test "a lever slower than its recorded ratio to Rust is refused"
   ) == 1
 end
 
-test "a program with no N is run and held to its twin's output but not timed against it", {
-  kind: :unit
-}
+test "a program with no N is not timed against its Rust twin", {kind: :unit}
   path = {name: "tree", field: :tree, scaled: true}
   timed_one = {name: "fib", work: 2, tree: {cpu: 30}, rust: {cpu: 3}}
   startup = {

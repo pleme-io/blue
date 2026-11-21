@@ -16,7 +16,7 @@ A file is a program. `blue examples/00_script.b one two` runs this one, and so d
 `examples/00_script.b`:
 
 ```blue
-#!/usr/bin/env blue
+#!/usr/bin/env -S blue --allow environment
 use("retsu", [:is_empty])
 
 # The arguments as one shouted line, or how to call the script.

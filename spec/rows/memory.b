@@ -73,3 +73,40 @@ row(
   ),
   leaks(0)
 )
+
+row(
+  "memory.closes_at.a_listener_left_open_closes_when_the_run_ends",
+  join_lines(["l = tcp_listen(\"127.0.0.1:0\")", "tcp_port(l) > 0"]),
+  closes_at(:end),
+  host()
+)
+
+row(
+  "memory.closes_at.a_connection_closed_by_hand_closes_at_once",
+  join_lines(
+    [
+      "l = tcp_listen(\"127.0.0.1:0\")",
+      "c = tcp_connect(concat(\"127.0.0.1:\", tcp_port(l)), 1000)",
+      "tcp_close(c)",
+      "tcp_close(l)",
+      "true"
+    ]
+  ),
+  closes_at(:end),
+  host()
+)
+
+row(
+  "memory.closes_at.an_accepted_connection_left_open_closes_when_the_run_ends",
+  join_lines(
+    [
+      "l = tcp_listen(\"127.0.0.1:0\")",
+      "c = tcp_connect(concat(\"127.0.0.1:\", tcp_port(l)), 1000)",
+      "net_wait([[l, :read]], 1000)",
+      "s = tcp_accept(l)",
+      "s != nil"
+    ]
+  ),
+  closes_at(:end),
+  host()
+)

@@ -13,6 +13,7 @@ use crate::sys::{arg_int, arg_str};
 pub struct Listener {
     socket: TcpListener,
     closed: AtomicBool,
+    counted: crate::handles::Counted,
 }
 
 /// The wire a [`Conn`] reads: a TCP stream, or a serial port opened by
@@ -100,6 +101,7 @@ impl std::io::Write for Stream {
 pub struct Conn {
     socket: Stream,
     closed: AtomicBool,
+    counted: crate::handles::Counted,
 }
 
 #[cfg(unix)]
@@ -184,6 +186,7 @@ fn open(socket: TcpStream, name: &'static str, span: Span) -> Result<Value, Eval
     Ok(Value::Foreign(Arc::new(Conn {
         socket: Stream::Tcp(socket),
         closed: AtomicBool::new(false),
+        counted: crate::handles::Counted::opened(),
     })))
 }
 
@@ -225,6 +228,7 @@ fn serial_open(path: &str, name: &'static str, span: Span) -> Result<Value, Eval
     Ok(Value::Foreign(Arc::new(Conn {
         socket: Stream::Serial(file),
         closed: AtomicBool::new(false),
+        counted: crate::handles::Counted::opened(),
     })))
 }
 
@@ -395,6 +399,7 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
             Ok(Value::Foreign(Arc::new(Listener {
                 socket,
                 closed: AtomicBool::new(false),
+                counted: crate::handles::Counted::opened(),
             })))
         },
     );
@@ -547,6 +552,7 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
         |args: &[Value], _h: &mut H, span| {
             if let Ok(c) = conn_of(&args[0], "tcp_close", span) {
                 if !c.closed.swap(true, Ordering::Relaxed) {
+                    c.counted.close();
                     if let Stream::Tcp(s) = &c.socket {
                         let _ = s.shutdown(Shutdown::Both);
                     }
@@ -555,6 +561,7 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
             }
             let l = listener_of(&args[0], "tcp_close", span)?;
             l.closed.store(true, Ordering::Relaxed);
+            l.counted.close();
             Ok(Value::Nil)
         },
     );

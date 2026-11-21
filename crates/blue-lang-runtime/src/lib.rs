@@ -63,6 +63,7 @@ pub mod erase;
 pub mod errors;
 pub mod fold;
 pub mod fuse;
+pub mod handles;
 pub mod host_surface;
 pub mod hosted;
 pub mod inputs;

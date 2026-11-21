@@ -148,6 +148,7 @@ pub enum Expect {
     /// from the resolved tree, one line each, in order (docs/PURE-BLUE.md M1).
     Facts(Vec<String>),
     Leaks(i64),
+    ClosesAtEnd,
 }
 
 impl Expect {
@@ -162,6 +163,7 @@ impl Expect {
             Expect::Shifts(..) => "shifts",
             Expect::Facts(_) => "facts",
             Expect::Leaks(_) => "leaks",
+            Expect::ClosesAtEnd => "closes_at",
         }
     }
 }
@@ -304,6 +306,14 @@ fn expect_of(s: &Sexp) -> Result<Expect, String> {
         "leaks" => match args {
             [Sexp::Atom(Atom::Int(n))] => Expect::Leaks(*n),
             _ => return Err("leaks(N) takes one integer, the bytes a run may leave live".into()),
+        },
+        "closes_at" => match args {
+            [Sexp::Atom(Atom::Keyword(k))] if k == "end" => Expect::ClosesAtEnd,
+            _ => {
+                return Err(
+                    "closes_at(:end): every handle the run opens is closed when it ends".into(),
+                )
+            }
         },
         "prints" => Expect::Prints(one_str("prints", args)?.to_owned()),
         "formats" => Expect::Formats(one_str("formats", args)?.to_owned()),

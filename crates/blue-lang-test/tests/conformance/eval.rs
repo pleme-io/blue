@@ -266,6 +266,9 @@ pub fn walker(env: &mut Env, row: &Row) -> Obs {
     if let Expect::Leaks(_) = row.expect {
         return leaks(env, row, walker);
     }
+    if let Expect::ClosesAtEnd = row.expect {
+        return closes(env, row, walker);
+    }
     sweep(env, row, "walker", walker);
     if !runs(row) {
         return Obs::Blind(format!(
@@ -379,6 +382,9 @@ fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64, usize) {
 pub fn vm(env: &mut Env, row: &Row) -> Obs {
     if let Expect::Leaks(_) = row.expect {
         return leaks(env, row, vm);
+    }
+    if let Expect::ClosesAtEnd = row.expect {
+        return closes(env, row, vm);
     }
     sweep(env, row, "vm", vm);
     if !runs(row) {
@@ -876,9 +882,10 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         // The printer has rows of its own (spec/rows/printing.b).
         return Obs::Blind("a value is not observable on stdout; see printing.b".into());
     }
-    if let Expect::Leaks(_) = row.expect {
+    if let Expect::Leaks(_) | Expect::ClosesAtEnd = row.expect {
         return Obs::Blind(
-            "a run's allocations are counted in process, by the walker and VM columns".into(),
+            "a run's allocations and handles are counted in process, by the walker and VM columns"
+                .into(),
         );
     }
     if row.frontend.is_some() {
@@ -926,7 +933,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
         Expect::Facts(_) => {
             cmd.arg("explain").arg("--memory").arg(&file);
         }
-        Expect::Value(_) | Expect::Leaks(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Leaks(_) | Expect::ClosesAtEnd => unreachable!("returned above"),
     }
     let out = match output_within(&mut cmd) {
         Ok(o) => o,
@@ -1001,7 +1008,7 @@ pub fn cli(env: &mut Env, row: &Row, n: usize) -> Obs {
                 .collect();
             Obs::Shift { rung, holding }
         }
-        Expect::Value(_) | Expect::Leaks(_) => unreachable!("returned above"),
+        Expect::Value(_) | Expect::Leaks(_) | Expect::ClosesAtEnd => unreachable!("returned above"),
     }
 }
 
@@ -1172,7 +1179,7 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
             Expect::Value(_),
             Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo | Ev::Default | Ev::Scheduled,
         ) => true,
-        (Expect::Leaks(_), Ev::Walker | Ev::Vm) => true,
+        (Expect::Leaks(_) | Expect::ClosesAtEnd, Ev::Walker | Ev::Vm) => true,
         (
             Expect::Fails(..),
             Ev::Walker
@@ -1302,6 +1309,23 @@ fn measure(env: &mut Env, row: &Row, run: fn(&mut Env, &Row) -> Obs) -> Obs {
         least = Some(least.map_or(kept, |l| l.min(kept)));
     }
     Obs::Value(format!("leaks {}", least.unwrap_or(0).max(0)))
+}
+
+pub fn closes(env: &mut Env, row: &Row, run: fn(&mut Env, &Row) -> Obs) -> Obs {
+    let probe = Row {
+        expect: Expect::Value(String::new()),
+        ..row.clone()
+    };
+    let before = blue_lang_runtime::handles::open();
+    let got = run(env, &probe);
+    if !matches!(got, Obs::Value(_)) {
+        return got;
+    }
+    drop(got);
+    Obs::Value(format!(
+        "open {}",
+        blue_lang_runtime::handles::open() - before
+    ))
 }
 
 pub static SWEPT: std::sync::Mutex<Vec<(String, &'static str, i64)>> =

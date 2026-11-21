@@ -826,9 +826,10 @@ pub(crate) fn planned(
     memo: bool,
     native: bool,
     slow: bool,
+    entry: &[u8],
 ) -> Option<blue_lang_runtime::pipeline::Planned> {
     let memo = if memo {
-        crate::memo::planned(w, repeating).or_else(|| crate::memo::costly(w, slow))
+        crate::memo::planned(w, repeating).or_else(|| crate::memo::costly(w, slow, entry))
     } else {
         None
     };

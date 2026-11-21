@@ -154,3 +154,21 @@ fn a_slow_program_records_its_pure_results_on_the_next_run_and_answers_from_them
     );
     let _ = std::fs::remove_dir_all(&d);
 }
+
+const MANY_CHEAP: &str = "def inc(x)\n  x + 1\nend\n\ndef main()\n  write_stdout(to_s(reduce((a, x) -> inc(a), 0, range(300_000))))\nend\n";
+
+#[test]
+fn a_program_slow_only_by_cheap_calls_records_once_then_runs_without_the_store() {
+    let d = scratch("settles");
+    let program = d.join("cheap.b");
+    std::fs::write(&program, MANY_CHEAP).expect("program");
+    let cache = d.join("cache");
+    let first = run(&program, &cache, None, None);
+    assert!(!first.door.contains("the store records"), "{}", first.door);
+    let second = run(&program, &cache, None, None);
+    assert!(second.door.contains("the store records"), "{}", second.door);
+    let third = run(&program, &cache, None, None);
+    assert!(!third.door.contains("the store"), "{}", third.door);
+    assert_eq!(first.stdout, third.stdout);
+    let _ = std::fs::remove_dir_all(&d);
+}

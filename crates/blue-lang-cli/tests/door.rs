@@ -222,3 +222,33 @@ fn an_effect_or_a_single_self_call_keeps_the_vm() {
         assert_eq!(String::from_utf8_lossy(&ran.stdout), out, "{name}");
     }
 }
+
+#[test]
+fn a_repeating_definition_in_a_used_package_does_not_plan_the_memo() {
+    let d = dir("imported");
+    std::fs::create_dir_all(d.join("lib/rec")).expect("package dir");
+    write(&d, "lib/rec/Bluefile", "package(\"rec\", \"0.1.0\")\n");
+    write(
+        &d,
+        "lib/rec/rec.b",
+        "def fib(n)\n  if n < 2\n    n\n  else\n    fib(n - 1) + fib(n - 2)\n  end\nend\n\ndef twice(n)\n  n * 2\nend\n",
+    );
+    let file = write(
+        &d,
+        "main.b",
+        "use(\"rec\", [:twice])\n\ndef main()\n  twice(21)\nend\n",
+    );
+    let lib = d.join("lib");
+    let ran = run_with(
+        &file,
+        &d.join("r"),
+        Some(("BLUE_PATH", lib.to_str().unwrap())),
+    );
+    assert!(
+        ran.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    let door = door_of(&d.join("r"));
+    assert_eq!(door["door"], "vm", "{door}");
+}

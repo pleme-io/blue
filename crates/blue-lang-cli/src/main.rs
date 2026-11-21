@@ -2704,7 +2704,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             let native_plans = plain && native::mode() == native::Mode::Auto;
             let slow = memo_plans && blue_lang_mondou::store::marked_slow(entry.text.as_bytes());
             let planner = |w: &blue_lang_runtime::pipeline::Watched<'_>, r: &[(usize, String)]| {
-                native::planned(w, r, memo_plans, native_plans, slow)
+                native::planned(w, r, memo_plans, native_plans, slow, entry.text.as_bytes())
             };
             blue_lang_runtime::pipeline::run_framed_planned(
                 entry,

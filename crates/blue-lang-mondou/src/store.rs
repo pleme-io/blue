@@ -327,6 +327,13 @@ pub const SLOW_TIER: &str = "slow";
 ///
 /// The directory or the file cannot be written.
 pub fn mark_slow_in(root: &Path, text: &[u8]) -> std::io::Result<bool> {
+    if root
+        .join(SETTLED_TIER)
+        .join(blake3::hash(text).to_hex().as_str())
+        .is_file()
+    {
+        return Ok(false);
+    }
     let dir = root.join(SLOW_TIER);
     std::fs::create_dir_all(&dir)?;
     let mark = dir.join(blake3::hash(text).to_hex().as_str());
@@ -354,6 +361,37 @@ pub fn marked_slow_in(root: &Path, text: &[u8]) -> bool {
 #[must_use]
 pub fn marked_slow(text: &[u8]) -> bool {
     cache_root().is_some_and(|root| marked_slow_in(&root, text))
+}
+
+/// The tier marking programs a recording run found no costly result in: one
+/// empty file per program text, named by its content hash. [`mark_slow_in`]
+/// leaves a settled program unmarked, so a program slow only because it makes
+/// many cheap calls is not recorded on the walker run after run.
+pub const SETTLED_TIER: &str = "settled";
+
+/// Settle the program whose source is `text` under `root`: its slow mark is
+/// taken away and it is not marked slow again.
+///
+/// # Errors
+///
+/// The directory or the file cannot be written.
+pub fn settle_in(root: &Path, text: &[u8]) -> std::io::Result<()> {
+    let name = blake3::hash(text).to_hex();
+    let dir = root.join(SETTLED_TIER);
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join(name.as_str()), b"")?;
+    match std::fs::remove_file(root.join(SLOW_TIER).join(name.as_str())) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    }
+}
+
+/// [`settle_in`] under this node's cache root. A failure costs the next run a
+/// recording it did not need, never this run its result.
+pub fn settle(text: &[u8]) {
+    if let Some(root) = cache_root() {
+        let _ = settle_in(&root, text);
+    }
 }
 
 /// Whether any native root holds a native tier (this node's, or a shared
@@ -894,6 +932,20 @@ mod tests {
         assert!(!want_native_in(&root, "ab12", Path::new("/p/a.b")).expect("not asked"));
         assert!(!wanted.exists());
         assert!(want_native_in(&root, "cd34", Path::new("/p/a.b")).expect("an edited text"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_settled_program_loses_its_slow_mark_and_is_not_marked_again() {
+        let root = temp("settled");
+        let text = b"def main()\n  1\nend\n";
+        assert!(mark_slow_in(&root, text).expect("marks"));
+        assert!(marked_slow_in(&root, text));
+        settle_in(&root, text).expect("settles");
+        assert!(!marked_slow_in(&root, text));
+        assert!(!mark_slow_in(&root, text).expect("reads"));
+        assert!(!marked_slow_in(&root, text));
+        assert!(mark_slow_in(&root, b"other").expect("marks"));
         let _ = std::fs::remove_dir_all(&root);
     }
 

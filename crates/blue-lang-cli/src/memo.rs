@@ -111,8 +111,11 @@ pub(crate) fn planning(no_memo: bool, cfg: &crate::config::BlueConfig) -> bool {
 }
 
 /// The planner `blue run` offers the pipeline: an in-process memo over the
-/// program when it can cache one of the definitions that repeat their own
-/// calls, named by what the author wrote.
+/// program when it can cache one of the entry file's definitions that repeat
+/// their own calls, named by what the author wrote. A repeating definition in
+/// a used package does not plan it: the memo takes the walker and keys every
+/// pure call, which slowed a program that reads XML through deeta about
+/// eightfold because deeta's YAML reader recurses.
 pub(crate) fn planned(
     watched: &blue_lang_runtime::pipeline::Watched<'_>,
     repeating: &[(usize, String)],
@@ -132,6 +135,9 @@ pub(crate) fn planned(
         .iter()
         .enumerate()
         .find(|(i, d)| {
+            if !d.entry {
+                return false;
+            }
             let mut held = Vec::new();
             if repeating.iter().any(|(top, _)| *top == d.top_level) {
                 held.push("self_overlapping");
@@ -155,7 +161,10 @@ pub(crate) fn planned(
 /// save more than leaving the VM costs.
 pub(crate) const COSTLY: std::time::Duration = std::time::Duration::from_millis(20);
 
-struct Flushing(Arc<Recall>);
+struct Flushing {
+    recall: Arc<Recall>,
+    settles: Option<(Vec<u8>, Vec<blue_lang_runtime::def_hash::DefHash>)>,
+}
 
 impl CallObserver for Flushing {
     fn enter(
@@ -163,7 +172,7 @@ impl CallObserver for Flushing {
         call: &blue_lang_runtime::observe::Call<'_>,
         args: &[tatara_lisp_eval::Value],
     ) -> Option<tatara_lisp_eval::Value> {
-        self.0.enter(call, args)
+        self.recall.enter(call, args)
     }
 
     fn leave(
@@ -171,13 +180,18 @@ impl CallObserver for Flushing {
         call: &blue_lang_runtime::observe::Call<'_>,
         exit: blue_lang_runtime::observe::Exit<'_>,
     ) {
-        self.0.leave(call, exit);
+        self.recall.leave(call, exit);
     }
 }
 
 impl Drop for Flushing {
     fn drop(&mut self) {
-        let _ = self.0.flush();
+        let _ = self.recall.flush();
+        if let Some((text, hashes)) = &self.settles {
+            if hashes.iter().all(|h| costly_results(h) == 0) {
+                store::settle(text);
+            }
+        }
     }
 }
 
@@ -195,6 +209,7 @@ fn store_holds_anything() -> bool {
 pub(crate) fn costly(
     watched: &blue_lang_runtime::pipeline::Watched<'_>,
     slow: bool,
+    entry: &[u8],
 ) -> Option<blue_lang_runtime::pipeline::Planned> {
     if !slow && !store_holds_anything() {
         return None;
@@ -202,6 +217,7 @@ pub(crate) fn costly(
     let plan = Plan::of(watched.definitions, watched.lowered, watched.erased);
     let opened = store()?;
     let mut answered = false;
+    let mut hashes = Vec::new();
     let mut names: Vec<String> = watched
         .definitions
         .iter()
@@ -210,6 +226,7 @@ pub(crate) fn costly(
             let Some(Ok(hash)) = plan.target(i) else {
                 return None;
             };
+            hashes.push(*hash);
             let stored = opened.load(hash).entries.values().any(|s| s.cost >= COSTLY);
             answered |= stored;
             let held: &[&str] = match (stored, slow) {
@@ -235,7 +252,10 @@ pub(crate) fn costly(
         None,
     );
     Some((
-        Arc::new(Flushing(recall)),
+        Arc::new(Flushing {
+            recall,
+            settles: (!answered).then(|| (entry.to_vec(), hashes)),
+        }),
         if answered {
             format!(
                 "the store answers `{}`, whose stored results cost {} ms or more to compute",

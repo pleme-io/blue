@@ -4069,6 +4069,7 @@ pub const WORD_SHAPES: &[(&str, &str, bool)] = &[
     ("b233db326ada61e2", "kaaneru/bpf::spin_lock_given", false),
     ("b23e5f56a717c4a9", "kaaneru/bpf::size_code", false),
     ("b24cb06770cd7938", "ukai::infer_enforcement", false),
+    ("b25712b0dec3b932", "kuzushi::program_of", false),
     ("b25ea8d8a794c684", "mokuroku::graph_assemble", false),
     ("b2907f444d2b20ec", "toriyose/outou::type_whys", false),
     ("b2a1b9f93ea10a48", "kakehashi/kirikae::finish", false),

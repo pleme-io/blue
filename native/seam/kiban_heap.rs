@@ -83,6 +83,22 @@ pub fn rc_count(l: &List) -> i64 {
     i64::try_from(l.len()).unwrap_or_else(|_| kiban_io::fault())
 }
 
+/// A function value another function value holds: refcounted, so a variant
+/// can hold a value of its own enum.
+pub type Held<T> = Rc<T>;
+
+/// A function value, now held.
+#[must_use]
+pub fn held<T>(v: T) -> Held<T> {
+    Rc::new(v)
+}
+
+/// The function value a variant holds, given back by a clone (a count).
+#[must_use]
+pub fn unheld<T: Clone>(h: &Held<T>) -> T {
+    T::clone(h)
+}
+
 /// A refcounted list of records, each the record's own struct.
 pub type Items<T> = Rc<Vec<T>>;
 

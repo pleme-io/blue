@@ -477,8 +477,20 @@ Each wave lists defaults in the order their gain is known. Each default meets
     curried function and a function taking a function run natively"
     (`uncurried` and `twiced` agree with the interpreter; each `_up`
     artifact swapped in answers differently).
-  - Not built: a function value that holds a function (a capture of a
-    function type), which needs its enum to hold itself.
+  - ✅ A function value that holds a function: `twice_of(f) -> (x) ->
+    f(f(x))`, so `twice_of(twice_of((y) -> y + k))` holds one of its own
+    enum. A variant holds a captured function in `kiban_heap::Held` (a
+    count, `held`), so an enum can hold itself (`cap_rs_ty`), and the arm
+    takes it back by a clone (`unheld_let`). The depth of a call through
+    held functions is the depth of the value the program built, step by
+    step, as on the interpreter. Locks: chuuzou 195 tests ("a function
+    value takes, answers and holds a map, any record, a list of records and
+    a function, each by a clone": the variant is `Held<F_i_i>`);
+    `checks.native-defs` "a function value that holds a function runs
+    natively" (`doubled_twice` agrees with the interpreter; the `_up`
+    artifact swapped in answers 7 where the interpreter answers 13).
+  - Not built: a lambda that leaves its definition while it reads a lambda
+    held in a local (`f = (x) -> …` then `(y) -> f(y)`).
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

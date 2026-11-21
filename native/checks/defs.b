@@ -547,3 +547,18 @@ test "a curried function and a function taking a function run natively", {
     swapped(work, "twiced", "twiced_up")
   ) == unlines(["20"])
 end
+
+test "a function value that holds a function runs natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-held-fn")
+  calls = [["doubled_twice", [1, 3]], ["doubled_twice", [0, 0]]]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "doubled_twice", [1, 3], off) == unlines(["13"])
+  assert interpreted(
+    work,
+    "doubled_twice",
+    [1, 3],
+    swapped(work, "doubled_twice", "doubled_twice_up")
+  ) == unlines(["7"])
+end

@@ -406,3 +406,15 @@ end
 def twiced_up(x: Int, m: Int) -> Int
   apply_twice(twice_after(2), (z) -> z * m, x)
 end
+
+def twice_of(f: Fn(Int) -> Int) -> Fn(Int) -> Int
+  (x) -> f(f(x))
+end
+
+def doubled_twice(x: Int, k: Int) -> Int
+  apply_to(twice_of(twice_of((y) -> y + k)), x)
+end
+
+def doubled_twice_up(x: Int, k: Int) -> Int
+  apply_to(twice_of((y) -> y + k), x)
+end

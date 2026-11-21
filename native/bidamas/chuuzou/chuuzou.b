@@ -886,8 +886,8 @@ def fun_entry(site, at)
     cz_refuse("a lambda that leaves its definition reads a lambda held in a local; a function value holds no function")
   end
   caps = cz_fun_caps(lam, scope)
-  if not every?((t) -> cz_fun_held?(second(t)), caps)
-    cz_refuse("a lambda that leaves its definition captures values only; a function value holds no function")
+  if not every?((t) -> cz_fun_held?(second(t)) or cz_fun?(second(t)), caps)
+    cz_refuse("a lambda that leaves its definition captures values and function values only")
   end
   if cz_strategy(name, env) == :arena and
       member?(:list, append(map(second, caps), ty[:fun], [ty[:ret]]))
@@ -938,7 +938,17 @@ cz_fun_value_held: The variant of a lambda that captures, built with the capture
 def cz_fun_value_held(site, ctx)
   rs_call(
     [cz_fun_name(site[:ty]), site[:name]],
-    map((c) -> cz_expr({sym: first(c)}, ctx), site[:caps])
+    map(
+      fn(c)
+        v = cz_expr({sym: first(c)}, ctx)
+        if cz_fun?(second(c))
+          rs_call(%w[kiban_heap held], [v])
+        else
+          v
+        end
+      end,
+      site[:caps]
+    )
   )
 end
 
@@ -1017,6 +1027,40 @@ def cz_fun_derives(mine)
 end
 
 @doc """
+cap_rs_ty: The Rust type a variant holds a capture of `ty` in: its own, or, for a
+function value, `Held` of its enum, so a variant can hold a value of its own
+enum.
+
+    cap_rs_ty(:word, 64) #=> {ident: "i64"}
+    cap_rs_ty({fun: [:word], ret: :word}, 64) #=> {ident: "Held", generics: [{ident: "F_i_i"}]}
+"""
+def cap_rs_ty(ty, word)
+  if cz_fun?(ty)
+    {ident: "Held", generics: [cz_rs_ty(ty, word)]}
+  else
+    cz_rs_ty(ty, word)
+  end
+end
+
+@doc """
+unheld_let: The arm's local for a captured function value `[name, ty]`: the held
+value given back by a clone, under the name the body reads.
+
+    unheld_let(["g", {fun: [], ret: :word}])[:value][:func] #=> %w[kiban_heap unheld]
+"""
+def unheld_let(cap)
+  p = cz_param_name(first(cap))
+  {
+    kind: "local",
+    name: p,
+    value: rs_call(
+      %w[kiban_heap unheld],
+      [{kind: "ref", mutable: false, expr: rs_path(p)}]
+    )
+  }
+end
+
+@doc """
 fun_types: Every function type among `tys` and inside them, each once: a function
 that takes or answers a function needs that function's enum too.
 
@@ -1064,15 +1108,18 @@ def cz_fun_items(tys, funs, env)
             types: bound,
             shared: cz_fun_shared(bound, third(e[:lam]), env[:records] or [])
           }
-          lets = map(
-            fn(i)
-              {
-                kind: "local",
-                name: cz_param_name(own[i]),
-                value: rs_path(args[i])
-              }
-            end,
-            range(count(own))
+          lets = append(
+            map(
+              fn(i)
+                {
+                  kind: "local",
+                  name: cz_param_name(own[i]),
+                  value: rs_path(args[i])
+                }
+              end,
+              range(count(own))
+            ),
+            map(unheld_let, filter((c) -> cz_fun?(second(c)), e[:caps]))
           )
           rs_arm(
             if empty?(e[:caps])
@@ -1101,7 +1148,7 @@ def cz_fun_items(tys, funs, env)
             fn(e)
               {
                 name: e[:name],
-                elems: map((c) -> cz_rs_ty(second(c), word), e[:caps])
+                elems: map((c) -> cap_rs_ty(second(c), word), e[:caps])
               }
             end,
             mine
@@ -4249,6 +4296,11 @@ def cz_lower(forms, board)
       else
         []
       end,
+      if any?((e) -> any?((c) -> cz_fun?(second(c)), e[:caps]), funs)
+        [{kind: "use", item: {path: %w[kiban_heap Held]}}]
+      else
+        []
+      end,
       if strings
         [{kind: "use", item: {path: %w[kiban_heap Str]}}]
       else
@@ -6135,7 +6187,7 @@ test "a function value takes, answers and holds a Str, a list or a record, each 
   assert cz_counted?(sty, [])
 end
 
-test "a function value takes, answers and holds a map, any record and a list of records, each by a clone, and never a function"
+test "a function value takes, answers and holds a map, any record, a list of records and a function, each by a clone"
   rec = "(blue-record %root/pt %root/pt? :x :y)"
   map_ap = "(define-typed (%root/map_ap (f (Fn (Map Str Int) -> Int)) (m (Map Str Int))) Int (f m))"
   map_at = "(define-typed (%root/map_at (k Str)) (Fn (Map Str Int) -> Int) (lambda (m) (get m k)))"
@@ -6159,25 +6211,24 @@ test "a function value takes, answers and holds a map, any record and a list of 
   assert first(funs)[:caps] == [["k", :str]]
   assert cz_fun_derives(funs) == ["Clone"]
   assert cz_counted?(mty, [])
-  held = begin
-    cz_funs(
-      cz_read("(define-typed (%root/h (g (Fn Int -> Int))) (Fn Int -> Int) (lambda (x) (g x)))"),
-      [
-        [
-          "%root/h",
-          {
-            params: [{fun: [:word], ret: :word}],
-            ret: {fun: [:word], ret: :word}
-          }
-        ]
-      ],
-      {records: [], fns: [], word: 64}
-    )
-    nil
-  rescue :chuuzou as e
-    e.message
-  end
-  assert contains?(held, "holds no function")
+  ity = {fun: [:word], ret: :word}
+  held = cz_funs(
+    cz_read("(define-typed (%root/h (g (Fn Int -> Int))) (Fn Int -> Int) (lambda (x) (g (g x))))"),
+    [["%root/h", {params: [ity], ret: ity}]],
+    {records: [], fns: [], word: 64}
+  )
+  assert first(held)[:caps] == [["g", ity]]
+  assert cz_fun_derives(held) == ["Clone"]
+  items = cz_fun_items([ity], held, {word: 64, records: []})
+  assert first(items)[:variants] ==
+    [{name: "L0", elems: [{ident: "Held", generics: [{ident: "F_i_i"}]}]}]
+  assert cap_rs_ty(:word, 64) == {ident: "i64"}
+  assert unheld_let(["g", ity])[:name] == "p_g"
+  hval = cz_fun_value_held(
+    first(held),
+    {params: ["g"], types: [["g", ity]], word: 64}
+  )
+  assert first(hval[:args])[:func] == %w[kiban_heap held]
   bare = [
     {
       ty: {fun: [:word], ret: :word},

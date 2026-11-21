@@ -416,9 +416,8 @@ Each wave lists defaults in the order their gain is known. Each default meets
     value (`cz_fun_derives`). A function value is counted, so a second use
     takes a clone; a call through one gives its `apply` a clone. An arm
     clones a counted name its body reads twice (`cz_fun_shared`). Refused,
-    each named: a map, `dyn` or a list of records in a function type or a
-    capture, and a list in a function of a definition that reclaims by
-    arena. The held-lambda refusal now sees a call, `g(x)`: `cz_uses`
+    named: a list in a function of a definition that reclaims by arena.
+    The held-lambda refusal now sees a call, `g(x)`: `cz_uses`
     does not count a call's head, so `cz_funs` asks `cz_mentions?`. Locks:
     chuuzou 184 tests ("a function value takes, answers and holds a Str, a
     list or a record, each by a clone, and an arena never lends it a
@@ -426,8 +425,38 @@ Each wave lists defaults in the order their gain is known. Each default meets
     `checks.native-defs` "a function value over a Str, a list or a record
     runs natively" (`framed`, `drawn` and `grown_by` agree with the
     interpreter; each `_up` artifact swapped in answers differently).
-  - Not built: a function over a map, `dyn` or a list of records, and a
-    lambda written inside a lambda that leaves its definition.
+  - ✅ A function value over a map, any record or a list of records:
+    `Fn(Map(Str, Int)) -> Int`, `Fn(List(pt)) -> List(pt)`, and a lambda
+    that captures one. The type codes are `m`, `d`, and `l` before a
+    record's code (`F_m_i`, `F_lrpt_lrpt`). Each is held by a clone.
+    Refused, named: a function that takes, answers or captures a function
+    ("a function value holds no function"). A lambda that calls a function
+    parameter of its definition, `(lambda (x) (g x))`, is now refused:
+    `cz_fun_caps` reads a function-typed name at a call's head, which
+    `cz_uses` does not count. Before, the capture was missed. Locks:
+    chuuzou 185 tests ("a function value takes, answers and holds a map,
+    any record and a list of records, each by a clone, and never a
+    function"); `checks.native-defs` "a function value over a map or a list
+    of records runs natively" (`keyed_sum` and `fanned` agree with the
+    interpreter; each `_up` artifact swapped in answers differently). `dyn`
+    is locked in chuuzou only, as no native def takes any record.
+  - ✅ A function value calls a definition and maps with a lambda of its
+    own: `(x) -> cubed(x) + k` and `(ys) -> map((y) -> y * k, ys)`. An
+    `apply` arm calls a definition as any caller does, its depth from 0.
+    A lambda that captures nothing is a unit variant, built and matched by
+    its path (`F_i_i::L1`); before, rustc refused it as `F_i_i::L1()`, and
+    no earlier fixture had such a lambda.
+    Refused, named: a call to a definition that takes or answers a
+    function, or reaches one (`cz_fun_looping`), since only that call can
+    come back to an `apply` and grow the stack past the depth bound. Locks:
+    chuuzou 187 tests (the old "calls a definition" refusal now reads "never
+    loops back" for a lambda that calls its own definition);
+    `checks.native-defs` "a function value calls a definition and maps
+    natively" (`cubed_sum` and `rescaled` agree
+    with the interpreter; each `_up` artifact swapped in answers
+    differently).
+  - Not built: a lambda that leaves a lambda (a curried
+    `(x) -> (y) -> x + y`), since a function value holds no function.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

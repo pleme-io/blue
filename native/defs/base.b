@@ -310,3 +310,63 @@ end
 def grown_by_up(xs: List(Int), k: Int) -> List(Int)
   apply_list(grow_by(k + 1), apply_list((ys) -> append(ys, xs), xs))
 end
+
+def keyed(k: Str) -> Fn(Map(Str, Int)) -> Int
+  (m) -> get(m, k) + count(m)
+end
+
+def apply_map(f: Fn(Map(Str, Int)) -> Int, m: Map(Str, Int)) -> Int
+  f(m)
+end
+
+def keyed_sum(m: Map(Str, Int), k: Str) -> Int
+  apply_map(keyed(k), m) + apply_map((n) -> count(n) * 10, m)
+end
+
+def keyed_sum_up(m: Map(Str, Int), k: Str) -> Int
+  apply_map(keyed(k), m) + apply_map((n) -> count(n) * 100, m)
+end
+
+def shifted_by(d: Int) -> Fn(List(pt)) -> List(pt)
+  (ps) -> append(ps, [pt(d, d)])
+end
+
+def apply_pts(f: Fn(List(pt)) -> List(pt), ps: List(pt)) -> List(pt)
+  f(ps)
+end
+
+def fanned(ps: List(pt), d: Int) -> List(pt)
+  apply_pts(shifted_by(d), apply_pts((qs) -> append(qs, ps), ps))
+end
+
+def fanned_up(ps: List(pt), d: Int) -> List(pt)
+  apply_pts(shifted_by(d + 1), apply_pts((qs) -> append(qs, ps), ps))
+end
+
+def cubed(x: Int) -> Int
+  x * x * x
+end
+
+def cubing(k: Int) -> Fn(Int) -> Int
+  (x) -> cubed(x) + k
+end
+
+def cubed_sum(x: Int, k: Int) -> Int
+  apply_to(cubing(k), x) + apply_to((y) -> cubed(y + 1), x)
+end
+
+def cubed_sum_up(x: Int, k: Int) -> Int
+  apply_to(cubing(k), x) + apply_to((y) -> cubed(y + 2), x)
+end
+
+def scaled_all(k: Int) -> Fn(List(Int)) -> List(Int)
+  (ys) -> map((y) -> y * k, ys)
+end
+
+def rescaled(xs: List(Int), k: Int) -> List(Int)
+  apply_list(scaled_all(k), xs)
+end
+
+def rescaled_up(xs: List(Int), k: Int) -> List(Int)
+  apply_list(scaled_all(k + 1), xs)
+end

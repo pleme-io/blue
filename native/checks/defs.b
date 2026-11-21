@@ -467,3 +467,56 @@ test "a function value over a Str, a list or a record runs natively", {
     swapped(work, "grown_by", "grown_by_up")
   ) == unlines(["[1, 2, 1, 2, 6]"])
 end
+
+test "a function value over a map or a list of records runs natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-map")
+  m = assoc(assoc({}, "b", 2), "a", 1)
+  calls = [
+    ["keyed_sum", [m, "a"]],
+    ["keyed_sum", [assoc({}, "", 0), ""]],
+    ["fanned", [[pt(1, 2)], 3]],
+    ["fanned", [[], 0]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "keyed_sum", [m, "a"], off) == unlines(["23"])
+  assert interpreted(
+    work,
+    "keyed_sum",
+    [m, "a"],
+    swapped(work, "keyed_sum", "keyed_sum_up")
+  ) == unlines(["203"])
+  assert interpreted(
+    work,
+    "fanned",
+    [[pt(1, 2)], 3],
+    swapped(work, "fanned", "fanned_up")
+  ) == unlines(["[pt({x: 1, y: 2}), pt({x: 1, y: 2}), pt({x: 4, y: 4})]"])
+end
+
+test "a function value calls a definition and maps natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-calls")
+  calls = [
+    ["cubed_sum", [2, 5]],
+    ["cubed_sum", [0, 0]],
+    ["rescaled", [[1, 2, 3], 4]],
+    ["rescaled", [[], 0]]
+  ]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "cubed_sum", [2, 5], off) == unlines(["40"])
+  assert interpreted(
+    work,
+    "cubed_sum",
+    [2, 5],
+    swapped(work, "cubed_sum", "cubed_sum_up")
+  ) == unlines(["77"])
+  assert interpreted(
+    work,
+    "rescaled",
+    [[1, 2, 3], 4],
+    swapped(work, "rescaled", "rescaled_up")
+  ) == unlines(["[5, 10, 15]"])
+end

@@ -545,15 +545,20 @@ end
 
 @doc """
 cz_fun_held?: Whether a function value takes, answers or holds a value of the lowered
-type `ty`: an Int, a Bool or a Float by copy, a Str, a list of Ints or a
-record by a clone (a count, not a copy).
+type `ty`: an Int, a Bool or a Float by copy; a Str, a map, a list of Ints, a
+record, any record (`dyn`) or a list of records by a clone (a count, not a
+copy). A function is never held: a function value holds no function.
 
     cz_fun_held?(:str) #=> true
     cz_fun_held?("%root/p") #=> true
-    cz_fun_held?(:map) #=> false
+    cz_fun_held?(:map) #=> true
+    cz_fun_held?({items: "%root/p"}) #=> true
+    cz_fun_held?({fun: [:word], ret: :word}) #=> false
 """
 def cz_fun_held?(ty)
-  member?(ty, %i[word bool float str list]) or string?(ty)
+  member?(ty, %i[word bool float str list map dyn]) or
+    string?(ty) or
+    cz_items?(ty)
 end
 
 @doc """
@@ -570,7 +575,7 @@ def cz_fun_of(n, records)
   )
   if not every?(cz_fun_held?, tys)
     cz_refuse(
-      "a function type compiles natively over Ints, Bools, Floats, Strs, lists of Ints and records; `#{to_s(n)}` holds another"
+      "a function type compiles natively over values, never over a function; `#{to_s(n)}` takes or answers one"
     )
   end
   {fun: take(count(tys) - 1, tys), ret: last(tys)}
@@ -578,19 +583,35 @@ end
 
 @doc """
 cz_fun_name: The enum a function type lowers to, named by its parameters and answer:
-`i` an Int, `b` a Bool, `f` a Float, `s` a Str, `l` a list, `r` and its name
-a record.
+`i` an Int, `b` a Bool, `f` a Float, `s` a Str, `m` a map, `d` any record,
+`l` a list of Ints, `r` and its name a record, `l` before a record's code a
+list of that record.
 
     cz_fun_name({fun: [:word, :bool], ret: :word}) #=> "F_i_b_i"
     cz_fun_name({fun: [], ret: :float}) #=> "F_f"
     cz_fun_name({fun: [:str, "%root/pt"], ret: :list}) #=> "F_s_rpt_l"
+    cz_fun_name({fun: [:map, {items: "%root/pt"}], ret: :dyn}) #=> "F_m_lrpt_d"
 """
 def cz_fun_name(ty)
+  rec = (t) -> "r#{cz_checked_ident(cz_local(t), "a record")}"
   code = fn(t)
     if string?(t)
-      "r#{cz_checked_ident(cz_local(t), "a record")}"
+      rec(t)
+    elsif cz_items?(t)
+      "l#{rec(t[:items])}"
     else
-      get({word: "i", bool: "b", float: "f", str: "s", list: "l"}, t)
+      get(
+        {
+          word: "i",
+          bool: "b",
+          float: "f",
+          str: "s",
+          list: "l",
+          map: "m",
+          dyn: "d"
+        },
+        t
+      )
     end
   end
   "F_#{join(map(code, append(ty[:fun], [ty[:ret]])), "_")}"
@@ -676,17 +697,55 @@ end
 @doc """
 cz_fun_caps: The names a lambda leaving its definition reads from the scope `scope`
 holds where it stands, each with its type: the definition's parameters and
-the locals bound before it, held in its variant by copy.
+the locals bound before it, held in its variant by copy. A function the
+lambda calls by name is read too, though `cz_uses` counts no call's head.
 
     cz_fun_caps(first(cz_read("(lambda (x) (+ x m))")), {types: [["k", :word], ["m", :word]]}) #=> [["m", :word]]
+    cz_fun_caps(first(cz_read("(lambda (x) (g x))")), {types: [["g", {fun: [:word], ret: :word}]]}) #=> [["g", {fun: [:word], ret: :word}]]
 """
 def cz_fun_caps(lam, scope)
   own = map(cz_sym, second(lam))
+  ty_of = (x) -> last(filter((t) -> first(t) == x, scope[:types]))
+  read? = fn(x)
+    cz_uses(third(lam), x) > 0 or
+      cz_fun?(second(ty_of(x))) and cz_mentions?(third(lam), [x])
+  end
   names = filter(
-    (x) -> not member?(x, own) and cz_uses(third(lam), x) > 0,
+    (x) -> not member?(x, own) and read?(x),
     distinct(map(first, scope[:types] or []))
   )
-  map((x) -> last(filter((t) -> first(t) == x, scope[:types])), names)
+  map(ty_of, names)
+end
+
+@doc """
+cz_fun_looping: The definitions a function value must not call: each that takes or
+answers a function, and each that reaches one through the call graph. A
+call from an `apply` arm to any other definition never comes back to an
+`apply`, so its depth starts at 0 and stays bounded.
+
+    cz_fun_looping(cz_read("(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/up (x Int)) Int (%root/ap x)) (define-typed (%root/ap (x Int)) (Fn Int -> Int) (lambda (y) y))"), [["%root/sq", {params: [:word], ret: :word}], ["%root/up", {params: [:word], ret: :word}], ["%root/ap", {params: [:word], ret: {fun: [:word], ret: :word}}]], %w[%root/sq %root/up %root/ap]) #=> %w[%root/up %root/ap]
+"""
+def cz_fun_looping(fn_forms, sigs, fns)
+  graph = map(
+    (f) -> [cz_sym(first(second(f))), cz_calls(fourth(f), fns, nil, false)],
+    fn_forms
+  )
+  fun_defs = map(
+    first,
+    filter(
+      (s) -> any?(cz_fun?, append(second(s)[:params], [second(s)[:ret]])),
+      sigs
+    )
+  )
+  filter(
+    fn(h)
+      any?(
+        (r) -> member?(r, fun_defs),
+        append([h], cz_reach(cz_lookup(h, graph) or [], [], graph))
+      )
+    end,
+    fns
+  )
 end
 
 @doc """
@@ -699,6 +758,7 @@ copy, a Str, list or record by a clone).
 """
 def cz_funs(fn_forms, sigs, env)
   records = env[:records]
+  looping = cz_fun_looping(fn_forms, sigs, env[:fns] or [])
   sites = flat_map(
     fn_forms,
     fn(f)
@@ -725,8 +785,10 @@ def cz_funs(fn_forms, sigs, env)
               "a lambda of #{count(own)} parameters stands where a function of #{count(ty[:fun])} is expected"
             )
           end
-          if cz_mentions?(third(lam), env[:fns])
-            cz_refuse("a lambda that leaves its definition calls a definition; a function value compiles natively over its parameters and captures only")
+          if cz_mentions?(third(lam), looping)
+            cz_refuse(
+              "a lambda that leaves its definition calls `#{cz_local(find(looping, (h) -> cz_mentions?(third(lam), [h])))}`, which reaches a definition that takes or answers a function; a call through a function value never loops back to one"
+            )
           end
           if cz_mentions?(
             third(lam),
@@ -739,7 +801,7 @@ def cz_funs(fn_forms, sigs, env)
           end
           caps = cz_fun_caps(lam, scope)
           if not every?((t) -> cz_fun_held?(second(t)), caps)
-            cz_refuse("a lambda that leaves its definition captures Ints, Bools, Floats, Strs, lists of Ints and records only")
+            cz_refuse("a lambda that leaves its definition captures values only; a function value holds no function")
           end
           if cz_strategy(name, env) == :arena and
               member?(:list, append(map(second, caps), ty[:fun], [ty[:ret]]))
@@ -768,11 +830,25 @@ end
 
 @doc """
 cz_fun_value: A lambda that leaves its definition, lowered: its variant, holding the
-parameters it captures.
+parameters it captures; a unit variant, a path, when it captures none.
 
-    cz_fun_value({ty: {fun: [:word], ret: :word}, name: "L0", caps: []}, {})[:func] #=> ["F_i_i", "L0"]
+    cz_fun_value({ty: {fun: [:word], ret: :word}, name: "L0", caps: [["k", :word]]}, {params: ["k"], types: [["k", :word]], word: 64})[:func] #=> ["F_i_i", "L0"]
+    cz_fun_value({ty: {fun: [:word], ret: :word}, name: "L0", caps: []}, {}) #=> {kind: "path", segments: ["F_i_i", "L0"]}
 """
 def cz_fun_value(site, ctx)
+  if empty?(site[:caps])
+    {kind: "path", segments: [cz_fun_name(site[:ty]), site[:name]]}
+  else
+    cz_fun_value_held(site, ctx)
+  end
+end
+
+@doc """
+cz_fun_value_held: The variant of a lambda that captures, built with the captures it holds.
+
+    cz_fun_value_held({ty: {fun: [:word], ret: :word}, name: "L0", caps: [["k", :word]]}, {params: ["k"], types: [["k", :word]], word: 64})[:func] #=> ["F_i_i", "L0"]
+"""
+def cz_fun_value_held(site, ctx)
   rs_call(
     [cz_fun_name(site[:ty]), site[:name]],
     map((c) -> cz_expr({sym: first(c)}, ctx), site[:caps])
@@ -893,11 +969,18 @@ def cz_fun_items(tys, funs, env)
             range(count(own))
           )
           rs_arm(
-            {
-              kind: "tuple-struct",
-              path: [name, e[:name]],
-              elems: map((c) -> cz_bind_pat(cz_param_name(first(c))), e[:caps])
-            },
+            if empty?(e[:caps])
+              {kind: "path", segments: [name, e[:name]]}
+            else
+              {
+                kind: "tuple-struct",
+                path: [name, e[:name]],
+                elems: map(
+                  (c) -> cz_bind_pat(cz_param_name(first(c))),
+                  e[:caps]
+                )
+              }
+            end,
             rs_seq(lets, cz_as(third(e[:lam]), ty[:ret], ctx))
           )
         end,
@@ -5829,16 +5912,21 @@ test "a lambda that leaves its definition is a variant of its type's enum, and a
   assert cz_def_native(slice, "%root/run").nil?
   assert cz_def_native(slice, "%root/ap") != nil
   calls = "(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/ad (k Int)) (Fn Int -> Int) (lambda (x) (%root/sq k)))"
-  assert cz_def_native(concat(calls, " #{ap}"), "%root/sq") != nil
   user = "#{ap} (define-typed (%root/use (x Int)) Int (%root/ap (%root/ad x) x))"
+  assert cz_def_native("#{calls} #{user}", "%root/use").nil?
+  back = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (lambda (x) (%root/ap (%root/ad k) x)))"
+  assert contains?(
+    cz_def_native("#{back} #{user}", "%root/use"),
+    "never loops back"
+  )
   wide = "(define-typed (%root/ad (k Int)) (Fn Int -> Int) (lambda (x y) x))"
   assert contains?(
     cz_def_native("#{wide} #{user}", "%root/use"),
     "a lambda of 2 parameters"
   )
-  mapped = "(define-typed (%root/ad (k Int)) (Fn (Map Str Int) -> Int) (lambda (x) k))"
+  nested = "(define-typed (%root/ad (k Int)) (Fn (Fn Int -> Int) -> Int) (lambda (x) k))"
   assert contains?(
-    cz_def_native(mapped, "%root/ad"),
+    cz_def_native(nested, "%root/ad"),
     "a function type compiles natively"
   )
   fty = {fun: [:word], ret: :word}
@@ -5929,7 +6017,6 @@ test "a function value takes, answers and holds a Str, a list or a record, each 
   sty = {fun: [:str], ret: :str}
   assert cz_fun_name(sty) == "F_s_s"
   assert cz_fun_held?(:list)
-  assert not cz_fun_held?(:dyn)
   sigs = [["%root/suf", {params: [:str], ret: sty}]]
   funs = cz_funs(cz_read(tail), sigs, {records: [], fns: [], word: 64})
   assert first(funs)[:caps] == [["t", :str]]
@@ -5944,4 +6031,96 @@ test "a function value takes, answers and holds a Str, a list or a record, each 
   )
   assert second(call[:args])[:method] == "clone"
   assert cz_counted?(sty, [])
+end
+
+test "a function value takes, answers and holds a map, any record and a list of records, each by a clone, and never a function"
+  rec = "(blue-record %root/pt %root/pt? :x :y)"
+  map_ap = "(define-typed (%root/map_ap (f (Fn (Map Str Int) -> Int)) (m (Map Str Int))) Int (f m))"
+  map_at = "(define-typed (%root/map_at (k Str)) (Fn (Map Str Int) -> Int) (lambda (m) (get m k)))"
+  map_use = "(define-typed (%root/map_use (m (Map Str Int)) (k Str)) Int (+ (%root/map_ap (%root/map_at k) m) (%root/map_ap (lambda (n) (count n)) m)))"
+  assert cz_def_native("#{map_ap} #{map_at} #{map_use}", "%root/map_use").nil?
+  pts_ap = "(define-typed (%root/pts_ap (f (Fn (List pt) -> Int)) (ps (List pt))) Int (f ps))"
+  pts_by = "(define-typed (%root/pts_by (qs (List pt))) (Fn (List pt) -> Int) (lambda (ps) (+ (count ps) (count qs))))"
+  pts_use = "(define-typed (%root/pts_use (ps (List pt))) Int (%root/pts_ap (%root/pts_by ps) ps))"
+  assert cz_def_native(
+    "#{rec} #{pts_ap} #{pts_by} #{pts_use}",
+    "%root/pts_use"
+  ).nil?
+  nested = "(define-typed (%root/ad (k Int)) (Fn (Fn Int -> Int) -> Int) (lambda (g) k))"
+  assert contains?(cz_def_native(nested, "%root/ad"), "never over a function")
+  assert cz_fun_held?(:map)
+  assert cz_fun_held?(:dyn)
+  assert cz_fun_held?({items: "%root/pt"})
+  assert not cz_fun_held?({fun: [], ret: :word})
+  assert cz_fun_name({fun: [{items: "%root/pt"}], ret: :dyn}) == "F_lrpt_d"
+  mty = {fun: [:map], ret: :word}
+  msigs = [["%root/map_at", {params: [:str], ret: mty}]]
+  funs = cz_funs(cz_read(map_at), msigs, {records: [], fns: [], word: 64})
+  assert first(funs)[:caps] == [["k", :str]]
+  assert cz_fun_derives(funs) == ["Clone"]
+  assert cz_counted?(mty, [])
+  held = begin
+    cz_funs(
+      cz_read("(define-typed (%root/h (g (Fn Int -> Int))) (Fn Int -> Int) (lambda (x) (g x)))"),
+      [
+        [
+          "%root/h",
+          {
+            params: [{fun: [:word], ret: :word}],
+            ret: {fun: [:word], ret: :word}
+          }
+        ]
+      ],
+      {records: [], fns: [], word: 64}
+    )
+    nil
+  rescue :chuuzou as e
+    e.message
+  end
+  assert contains?(held, "holds no function")
+  bare = [
+    {
+      ty: {fun: [:word], ret: :word},
+      lam: first(cz_read("(lambda (y) y)")),
+      caps: [],
+      name: "L0"
+    }
+  ]
+  arm = get(
+    get(
+      first(
+        get(
+          get(
+            get(
+              second(
+                cz_fun_items(
+                  [{fun: [:word], ret: :word}],
+                  bare,
+                  {word: 64, records: []}
+                )
+              ),
+              :item
+            ),
+            :body
+          ),
+          :stmts
+        )
+      ),
+      :expr
+    ),
+    :arms
+  )
+  assert first(arm)[:pattern] == {kind: "path", segments: %w[F_i_i L0]}
+  site = {ty: {fun: [:word], ret: :word}, name: "L0", caps: [["k", :word]]}
+  kctx = {params: ["k"], types: [["k", :word]], word: 64}
+  assert cz_fun_value_held(site, kctx)[:func] == %w[F_i_i L0]
+  forms = cz_read("(define-typed (%root/sq (x Int)) Int (* x x)) (define-typed (%root/up (x Int)) Int (%root/ap x)) (define-typed (%root/ap (x Int)) (Fn Int -> Int) (lambda (y) y))")
+  isig = {params: [:word], ret: :word}
+  fsig = {params: [:word], ret: {fun: [:word], ret: :word}}
+  assert cz_fun_looping(
+    forms,
+    [["%root/sq", isig], ["%root/up", isig], ["%root/ap", fsig]],
+    %w[%root/sq %root/up %root/ap]
+  ) == %w[%root/up %root/ap]
+  assert cz_fun_looping([], [], []) == []
 end

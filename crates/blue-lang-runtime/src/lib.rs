@@ -259,7 +259,9 @@ pub fn attach_node_accounted<H: 'static>(
     }
     dispatch::install(interp);
     #[cfg(feature = "host")]
-    sys::install_temp_dir(interp);
+    if hold.is_none_or(|h| h.frame.reach.permits("temp_dir")) {
+        sys::install_temp_dir(interp);
+    }
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
 }
 

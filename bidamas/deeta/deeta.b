@@ -4657,6 +4657,72 @@ test "each step of the Nix reader does its own part", {kind: :unit}
   assert nix_close(nix_eat(t, nix_open_at(s, 0, "NODE_X")))[1][0][:end] == 1
 end
 
+test "each step of the Nix tokenizer cuts its own token", {kind: :unit}
+  ctx = [[:plain]]
+  assert nix_next(chars("a"), 1, 0, ctx)[0] == "TOKEN_IDENT"
+  assert nix_path_more(chars(" "), 1, 0, [[:path, "X"], [:plain]], "X")[0] ==
+    "TOKEN_WHITESPACE"
+  assert nix_path_check(chars("a//b"), 4, 0, 0, "K", ctx)[0] == "TOKEN_ERROR"
+  assert nix_lex_string(chars("a${"), 3, 0, false, ctx)[1] == 1
+  assert nix_string_end(chars("\""), 0, ctx)[1] == 1
+  assert nix_plain(chars("..."), 3, 0, ctx)[0] == "TOKEN_ELLIPSIS"
+  assert nix_block_comment(chars("*"), 1, 0, ctx)[0] == "TOKEN_ERROR"
+  assert nix_shape_rest(chars("a/b"), 3, 0, false) == :rel
+  assert nix_symbol(chars("=="), 2, 0, ctx, nil)[0] == "TOKEN_EQUAL"
+  assert nix_symbol_rest(chars("&"), 1, 0, ctx, nil)[0] == "TOKEN_ERROR"
+  assert nix_search_path(chars("<<"), 2, 0, ctx)[0] == "TOKEN_LESS"
+  assert nix_word(chars("a:b"), 3, 0, ctx, true)[0] == "TOKEN_URI"
+  assert nix_number(chars("01."), 3, 0, ctx)[1] == 2
+  assert nix_exponent(chars("1.e"), 3, 2, ctx)[0] == "TOKEN_ERROR"
+end
+
+test "each step of the Nix parser reads its own construct", {kind: :unit}
+  t = fn(src)
+    cs = chars(src)
+    n = count(cs)
+    ends = [{kind: nil, start: n, end: n}, {kind: nil, start: n, end: n}]
+    [append(nix_tokens(cs, n, 0, [[:plain]], []), ends), nix_levels]
+  end
+  s = [0, [], 0, [["NODE_ROOT", 0]], 0]
+  top = (st) -> st[1][0][:kind]
+  assert nix_want(t("a"), s, ["TOKEN_IDENT"]) == "TOKEN_IDENT"
+  assert nix_expect(t(";"), s, "TOKEN_SEMICOLON")[0] == 1
+  assert top(nix_ident(t("a"), s)) == "NODE_IDENT"
+  assert top(nix_expr(t("a"), s)) == "NODE_IDENT"
+  assert top(nix_if(t("if a then b else c"), s)) == "NODE_IF_ELSE"
+  assert top(nix_scoped(t("with a; b"), s, "NODE_WITH")) == "NODE_WITH"
+  assert top(nix_let(t("let in a"), s)) == "NODE_LET_IN"
+  assert top(nix_level(t("a || b"), s, 3)[0]) == "NODE_BIN_OP"
+  assert top(nix_binary(t("+ b"), nix_ident(t("a"), s), 0, 9, nix_levels[9])) ==
+    "NODE_IDENT"
+  assert top(nix_unary(t("-a"), s, "TOKEN_SUB", nix_apply)[0]) ==
+    "NODE_UNARY_OP"
+  assert nix_has(t("a"), s, 0) == s
+  assert top(nix_apply(t("f x"), s)[0]) == "NODE_APPLY"
+  assert nix_arguments(t(";"), s, 0) == s
+  assert top(nix_simple(t("[ ]"), s)[0]) == "NODE_LIST"
+  assert nix_select(t(";"), s, 0) == s
+  assert nix_items(t("]"), s) == s
+  assert top(nix_brace(t("{ a = 1; }"), s)) == "NODE_ATTR_SET"
+  assert nix_pattern(t("}"), s, false)[0] == 1
+  assert nix_entries(t("... }"), s)[0] == 3
+  assert nix_set(t("}"), s, "TOKEN_R_BRACE")[0] == 1
+  assert top(nix_binding(t("inherit a;"), s, "TOKEN_INHERIT")) == "NODE_INHERIT"
+  assert top(nix_inherit(t("inherit (a) b;"), s)) == "NODE_INHERIT"
+  assert nix_inherited(t(";"), s) == s
+  assert top(nix_attrpath(t("a.b"), s)) == "NODE_ATTRPATH"
+  assert nix_attrs(t("a.b"), s)[0] == 3
+  assert top(nix_attr(t("or"), s)) == "NODE_IDENT"
+  assert top(nix_interpolated(t("a"), s)) == "NODE_IDENT"
+  assert top(nix_string(t("\"a\""), s)) == "NODE_STRING"
+  assert nix_parts(t("\"\""), [1, [], 0, s[3], 0])[0] == 1
+  assert top(nix_piece(t("${a}"), s, "TOKEN_INTERPOL_START")) == "NODE_INTERPOL"
+  assert top(nix_interpol(t("${a}"), s)) == "NODE_INTERPOL"
+  assert top(nix_path(t("<a>"), s, "TOKEN_PATH_SEARCH")) == "NODE_PATH_SEARCH"
+  assert nix_path_parts(t(" "), s) == s
+  assert top(nix_name(t("__curPos"), s, 0)) == "NODE_CUR_POS"
+end
+
 test "xml_document gives the element map xml_parse gives", {kind: :unit}
   samples = [
     "<r a=\"1 &amp; 2\"><c>x &lt; y</c><c/></r>",

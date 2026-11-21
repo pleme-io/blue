@@ -878,6 +878,153 @@ SHOW_FD_AT: where the program keeps the descriptor rt_show writes to, as an offs
 SHOW_FD_AT = FREE_CLASSES * 8 + 24
 
 @doc """
+EXEC_MS_AT: where exec_within leaves its milliseconds plus one for rt_exec_capture, which turns it into a deadline on the monotonic clock; 0 is no deadline, as exec_capture runs.
+
+    EXEC_MS_AT #=> 544
+"""
+EXEC_MS_AT = FREE_CLASSES * 8 + 32
+
+@doc """
+EXEC_TIMED_AT: where rt_exec_capture records whether the deadline passed (true, 2) or not (0), which exec_timed_out reads.
+
+    EXEC_TIMED_AT #=> 552
+"""
+EXEC_TIMED_AT = FREE_CLASSES * 8 + 40
+
+@doc """
+now_ms_rax: the instructions that put the monotonic clock in milliseconds in rax, through a timespec at rbp-496 (rt_exec_capture's frame); rcx, rdx, rsi, rdi and r10 are used.
+
+    length(now_ms_rax) #=> 14
+"""
+def now_ms_rax()
+  [
+    {op: "mov", dst: "rdi", imm: 1},
+    {op: "mov", dst: "rsi", src: "rbp"},
+    {op: "add", dst: "rsi", imm: -496},
+    {op: "mov", dst: "rax", imm: 228},
+    {op: "syscall"},
+    {op: "load", dst: "rax", base: "rbp", disp: -496},
+    {op: "mov", dst: "rcx", imm: 1000},
+    {op: "imul", dst: "rax", src: "rcx"},
+    {op: "mov", dst: "r10", src: "rax"},
+    {op: "load", dst: "rax", base: "rbp", disp: -488},
+    {op: "cqo"},
+    {op: "mov", dst: "rcx", imm: 1_000_000},
+    {op: "idiv", src: "rcx"},
+    {op: "add", dst: "rax", src: "r10"}
+  ]
+end
+
+@doc """
+exec_deadline: rt_exec_capture's first step: the time out cleared, and, when exec_within left milliseconds, a deadline that many from now in their place; rdi, which the clock call takes, is the command list again after it, as argv_on_stack reads it there.
+
+    exec_deadline[0] #=> {op: "mov", dst: "rcx", imm: 0}
+"""
+def exec_deadline()
+  append(
+    *[
+      [
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "r14", disp: EXEC_TIMED_AT},
+        {op: "load", dst: "rcx", base: "r14", disp: EXEC_MS_AT},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "rt_xc_untimed"}
+      ],
+      now_ms_rax,
+      [
+        {op: "load", dst: "rcx", base: "r14", disp: EXEC_MS_AT},
+        {op: "add", dst: "rax", src: "rcx"},
+        {op: "store", src: "rax", base: "r14", disp: EXEC_MS_AT},
+        {op: "label", name: "rt_xc_untimed"},
+        {op: "load", dst: "rdi", base: "rbp", disp: -8}
+      ]
+    ]
+  )
+end
+
+@doc """
+exec_own_group: the child's first step under a deadline: a process group of its own (setpgid), so the deadline can end it and everything it started.
+
+    exec_own_group[1] #=> {op: "cmp", dst: "rcx", imm: 0}
+"""
+def exec_own_group()
+  [
+    {op: "load", dst: "rcx", base: "r14", disp: EXEC_MS_AT},
+    {op: "cmp", dst: "rcx", imm: 0},
+    {op: "j", cond: "e", label: "rt_xc_one_group"},
+    {op: "mov", dst: "rdi", imm: 0},
+    {op: "mov", dst: "rsi", imm: 0},
+    {op: "mov", dst: "rax", imm: 109},
+    {op: "syscall"},
+    {op: "label", name: "rt_xc_one_group"}
+  ]
+end
+
+@doc """
+exec_poll_until: the poll of rt_exec_capture's three pollfds, waiting as long as it takes, or under a deadline only until it; a poll that finds the deadline passed kills the child's process group, records the time out and drops the deadline, so the loop reads the pipes to their end.
+
+    last(exec_poll_until)[:name] #=> "rt_xc_polled"
+"""
+def exec_poll_until()
+  append(
+    *[
+      [
+        {op: "mov", dst: "rdx", imm: -1},
+        {op: "load", dst: "rcx", base: "r14", disp: EXEC_MS_AT},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "rt_xc_wait"}
+      ],
+      now_ms_rax,
+      [
+        {op: "load", dst: "rdx", base: "r14", disp: EXEC_MS_AT},
+        {op: "sub", dst: "rdx", src: "rax"},
+        {op: "cmp", dst: "rdx", imm: 0},
+        {op: "j", cond: "ge", label: "rt_xc_wait"},
+        {op: "mov", dst: "rdx", imm: 0},
+        {op: "label", name: "rt_xc_wait"},
+        {op: "mov", dst: "rdi", src: "rbp"},
+        {op: "add", dst: "rdi", imm: -432},
+        {op: "mov", dst: "rsi", imm: 3},
+        {op: "mov", dst: "rax", imm: 7},
+        {op: "syscall"},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "ne", label: "rt_xc_polled"},
+        {op: "load", dst: "rcx", base: "r14", disp: EXEC_MS_AT},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "rt_xc_polled"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -160},
+        {op: "mov", dst: "rdi", imm: 0},
+        {op: "sub", dst: "rdi", src: "rcx"},
+        {op: "mov", dst: "rsi", imm: 9},
+        {op: "mov", dst: "rax", imm: 62},
+        {op: "syscall"},
+        {op: "mov", dst: "rcx", imm: 2},
+        {op: "store", src: "rcx", base: "r14", disp: EXEC_TIMED_AT},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "r14", disp: EXEC_MS_AT},
+        {op: "label", name: "rt_xc_polled"}
+      ]
+    ]
+  )
+end
+
+@doc """
+exec_status_when_timed: the status a child the deadline ended answers, -1 (tagged, still -1), in place of what wait4 read.
+
+    exec_status_when_timed[1] #=> {op: "cmp", dst: "rcx", imm: 0}
+"""
+def exec_status_when_timed()
+  [
+    {op: "load", dst: "rcx", base: "r14", disp: EXEC_TIMED_AT},
+    {op: "cmp", dst: "rcx", imm: 0},
+    {op: "j", cond: "e", label: "rt_xc_on_time"},
+    {op: "mov", dst: "rcx", imm: -1},
+    {op: "store", src: "rcx", base: "rbp", disp: -200},
+    {op: "label", name: "rt_xc_on_time"}
+  ]
+end
+
+@doc """
 swap_word: the instructions that turn the word from in reg into to, leaving any other word as it is, with no branch: tmp (kept on the stack) holds whether reg is from, and r11 the difference. tmp must be rax, which set and movzx write, and reg must not be.
 
     length(swap_word("rbx", EMPTY, 0, "rax")) #=> 9
@@ -1091,6 +1238,23 @@ def rc_op(slots, op, args)
         {op: "mov", dst: "rdi", src: "rax"},
         {op: "call_label", label: "rt_exec_check"}
       ]
+    )
+  elsif op == "exec_within_raw"
+    append(
+      *[
+        tagged_atom(slots, args[0], "rcx"),
+        [
+          {op: "sar1", dst: "rcx"},
+          {op: "add", dst: "rcx", imm: 1},
+          {op: "store", src: "rcx", base: "r14", disp: EXEC_MS_AT}
+        ],
+        rc_op(slots, "exec_capture", rest(args))
+      ]
+    )
+  elsif op == "exec_timed_out"
+    append(
+      [{op: "load", dst: "rax", base: "r14", disp: EXEC_TIMED_AT}],
+      AS_BOOLEAN
     )
   elsif op == "exec_capture"
     append(
@@ -1502,7 +1666,7 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 32}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 48}
       ],
       save_envp,
       save_argv,
@@ -4653,7 +4817,7 @@ RT_EXEC_CAPTURE = append(
       {op: "label", name: "rt_exec_capture"},
       {op: "push_rbp"},
       {op: "mov", dst: "rbp", src: "rsp"},
-      {op: "sub", dst: "rsp", imm: 480},
+      {op: "sub", dst: "rsp", imm: 496},
       {op: "store", src: "rdi", base: "rbp", disp: -8},
       {op: "store", src: "rsi", base: "rbp", disp: -56},
       {op: "store", src: "rdx", base: "rbp", disp: -64},
@@ -4661,6 +4825,7 @@ RT_EXEC_CAPTURE = append(
       {op: "store", src: "r8", base: "rbp", disp: -264},
       {op: "store", src: "r9", base: "rbp", disp: -328}
     ],
+    exec_deadline,
     argv_on_stack("rt_xc"),
     sigpipe_to(1),
     [
@@ -4699,7 +4864,10 @@ RT_EXEC_CAPTURE = append(
       {op: "mov", dst: "rax", imm: 57},
       {op: "syscall"},
       {op: "cmp", dst: "rax", imm: 0},
-      {op: "j", cond: "ne", label: "rt_xc_parent"},
+      {op: "j", cond: "ne", label: "rt_xc_parent"}
+    ],
+    exec_own_group,
+    [
       {op: "load", dst: "rdi", base: "rbp", disp: -104},
       {op: "mov", dst: "rsi", imm: 1},
       {op: "mov", dst: "rax", imm: 33},
@@ -4756,20 +4924,16 @@ RT_EXEC_CAPTURE = append(
     poll_word(-96, -432, 1),
     poll_word(-112, -424, 1),
     poll_word(-352, -416, 4),
-    [
-      {op: "mov", dst: "rdi", src: "rbp"},
-      {op: "add", dst: "rdi", imm: -432},
-      {op: "mov", dst: "rsi", imm: 3},
-      {op: "mov", dst: "rdx", imm: -1},
-      {op: "mov", dst: "rax", imm: 7},
-      {op: "syscall"}
-    ],
+    [],
+    exec_poll_until,
     drain_ready(-432, -96, -128, -136),
     drain_ready(-424, -112, -144, -152),
     feed_ready(-416),
     [
       {op: "jmp", label: "rt_xc_poll"},
       {op: "label", name: "rt_xc_read"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "r14", disp: EXEC_MS_AT},
       {op: "load", dst: "rdi", base: "rbp", disp: -352},
       {op: "cmp", dst: "rdi", imm: 0},
       {op: "j", cond: "l", label: "rt_xc_in_done"},
@@ -4794,6 +4958,7 @@ RT_EXEC_CAPTURE = append(
       {op: "add", dst: "rax", imm: 1},
       {op: "store", src: "rax", base: "rbp", disp: -200}
     ],
+    exec_status_when_timed,
     string_from_buffer(-128, -136, -248, "rt_xc_out"),
     string_from_buffer(-144, -152, -256, "rt_xc_err"),
     flat_map(
@@ -7828,6 +7993,26 @@ def call_bare(form, bound)
         call_bare(form[2], bound),
         call_bare(form[3], bound)
       ]
+    elsif head_is?(form, "exec_within") and length(form) > 2
+      w = read_forms("__within")[0]
+      [
+        read_forms("let")[0],
+        [
+          [
+            w,
+            cons(
+              read_forms("exec_within_raw")[0],
+              map((f) -> call_bare(f, bound), rest(form))
+            )
+          ]
+        ],
+        nth(
+          0,
+          read_forms("(append __within (list (list :timed_out (exec_timed_out))))")
+        )
+      ]
+    elsif head_is?(form, "sh_exec") and length(form) == 2
+      [read_forms("exec_capture")[0], "sh", "-c", call_bare(form[1], bound)]
     elsif symbol?(form[0]) and to_s(form[0]) == "path_join" and length(form) > 3
       call_bare(
         append([form[0], [form[0], form[1], form[2]]], rest(rest(rest(form)))),
@@ -10392,6 +10577,8 @@ test "division, the date, walk_dir and the byte readers natively", {
 end
 
 test "floor of a quotient and read_bytes with a range lower to the prelude's words"
+  assert bare_calls(read_forms("(sh_exec s)")[0]) ==
+    read_forms("(exec_capture \"sh\" \"-c\" s)")[0]
   assert bare_calls(read_forms("(floor (/ a b))")[0]) ==
     read_forms("(int_div a b)")[0]
   assert bare_calls(read_forms("(read_bytes f 1 2)")[0]) ==
@@ -10485,4 +10672,56 @@ test "a program keeps only the definitions its own forms reach"
   assert reached([read_forms("(define (f) (g))")[0]], %w[f f]) == %w[f define g]
   assert length(compile_program(read_forms("(drop 1 (list 1 2))")[0], :exit)) >
     0
+end
+
+@doc """
+within_programs: programs over exec_within natively, compiled with the prelude, in :show mode, with what each must write: a command that ends in time, and one the deadline ends with its process group.
+
+    length(within_programs) #=> 2
+"""
+def within_programs()
+  [
+    [
+      "(exec_within 5000 \"printf\" \"x\")",
+      "[[:status, 0], [:stdout, \"x\"], [:stderr, \"\"], [:timed_out, false]]"
+    ],
+    [
+      "(exec_within 200 \"sleep\" \"5\")",
+      "[[:status, -1], [:stdout, \"\"], [:stderr, \"\"], [:timed_out, true]]"
+    ]
+  ]
+end
+
+test "exec_within runs a command to its end or its deadline natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-within"), "within.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      within_programs
+    )
+  end
+end
+
+test "exec_within is a timed exec_capture with its time out appended"
+  assert EXEC_MS_AT == FREE_CLASSES * 8 + 32
+  assert EXEC_TIMED_AT == EXEC_MS_AT + 8
+  assert length(now_ms_rax) == 14
+  assert exec_deadline[0] == {op: "mov", dst: "rcx", imm: 0}
+  assert exec_own_group[1] == {op: "cmp", dst: "rcx", imm: 0}
+  assert last(exec_poll_until)[:name] == "rt_xc_polled"
+  assert exec_status_when_timed[1] == {op: "cmp", dst: "rcx", imm: 0}
+  assert member?(
+    {op: "store", src: "rcx", base: "r14", disp: EXEC_MS_AT},
+    rc_op([], "exec_within_raw", [5, "true"])
+  )
+  assert length(rc_op([], "exec_timed_out", [])) == 4
+  assert head_is?(bare_calls(read_forms("(exec_within 5 \"true\")")[0]), "let")
+  assert length(within_programs) == 2
 end

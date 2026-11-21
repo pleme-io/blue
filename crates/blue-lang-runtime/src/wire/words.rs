@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use super::*;
 
-pub struct WireHandle(Mutex<Option<Wire>>);
+pub struct WireHandle(Mutex<Option<Wire>>, crate::handles::Counted);
 
 fn locked(h: &WireHandle) -> MutexGuard<'_, Option<Wire>> {
     h.0.lock()
@@ -218,7 +218,10 @@ fn open(
     if let Value::Str(addr) = target {
         let mut wire = transport.bind(addr).map_err(native(fname, span))?;
         wire.open(channel, ring);
-        return Ok(Value::Foreign(Arc::new(WireHandle(Mutex::new(Some(wire))))));
+        return Ok(Value::Foreign(Arc::new(WireHandle(
+            Mutex::new(Some(wire)),
+            crate::handles::Counted::opened(),
+        ))));
     }
     let h = handle(target, fname, span).map_err(|_| {
         EvalError::native_fn(
@@ -256,6 +259,7 @@ fn close(v: &Value, channel: Channel, fname: &'static str, span: Span) -> Result
     if let Some(wire) = guard.as_mut() {
         if !wire.close(channel) {
             *guard = None;
+            h.1.close();
         }
     }
     Ok(Value::Nil)

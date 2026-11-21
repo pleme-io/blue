@@ -117,3 +117,17 @@ row(
   closes_at(:end),
   host()
 )
+
+row(
+  "memory.closes_at.a_wire_left_open_closes_when_the_run_ends",
+  join_lines(["w = flash_open(\"127.0.0.1:0\")", "w != nil"]),
+  closes_at(:end),
+  host()
+)
+
+row(
+  "memory.closes_at.a_wire_closed_by_hand_closes_at_once",
+  join_lines(["w = flash_open(\"127.0.0.1:0\")", "flash_close(w)", "true"]),
+  closes_at(:end),
+  host()
+)

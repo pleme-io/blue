@@ -1271,6 +1271,18 @@ def rc_op(slots, op, args)
         rc_op(slots, "exec_capture", rest(args))
       ]
     )
+  elsif op == "exec_within_stdin_raw"
+    append(
+      *[
+        tagged_atom(slots, args[0], "rcx"),
+        [
+          {op: "sar1", dst: "rcx"},
+          {op: "add", dst: "rcx", imm: 1},
+          {op: "store", src: "rcx", base: "r14", disp: EXEC_MS_AT}
+        ],
+        rc_op(slots, "exec_with_stdin", rest(args))
+      ]
+    )
   elsif op == "exec_timed_out"
     append(
       [{op: "load", dst: "rax", base: "r14", disp: EXEC_TIMED_AT}],
@@ -2167,7 +2179,9 @@ def runtime()
       RT_STARTS_WITH,
       RT_GLOB_MATCH,
       RT_GM,
-      RT_STRING_DROP
+      RT_STRING_DROP,
+      RT_STRING_BYTES,
+      RT_BYTES_STRING
     ]
   )
 end
@@ -2958,6 +2972,7 @@ PRELUDE = [
   "(define (rfc3339 s) (rfc_civil (+ (int_div s 86400) 719468) (mod s 86400)))",
   "(define (now_rfc3339) (rfc3339 (now)))",
   "(define (not= a b) (if (equal? a b) false true))",
+  "(define (exchange_result r n) (list (first r) (list :stdout (take_n n (string_bytes (first (rest (first (rest r))))))) (first (rest (rest r)))))",
   "(define (glob p) (if (starts_with? p \"/\") (list) (filter (lambda (f) (glob_match p f)) (map (lambda (f) (string_drop f 2)) (walk_dir \".\")))))",
   "(define (temp_dir_made p) (begin (mkdir p) (register_temp p) p))",
   "(define (temp_dir label) (temp_dir_made (path_join (getenv \"TMPDIR\" \"/tmp\") (concat (concat label \"-\") (to_s (first (u32s (random_bytes 4) 1)))))))"
@@ -8217,6 +8232,20 @@ def call_bare(form, bound)
           read_forms("(append __within (list (list :timed_out (exec_timed_out))))")
         )
       ]
+    elsif head_is?(form, "exec_exchange") and length(form) > 4
+      parts = map((f) -> call_bare(f, bound), rest(form))
+      [
+        read_forms("exchange_result")[0],
+        append(
+          [
+            read_forms("exec_within_stdin_raw")[0],
+            parts[2],
+            [read_forms("bytes_string")[0], parts[0]]
+          ],
+          drop(3, parts)
+        ),
+        parts[1]
+      ]
     elsif head_is?(form, "sh_exec") and length(form) == 2
       [read_forms("exec_capture")[0], "sh", "-c", call_bare(form[1], bound)]
     elsif symbol?(form[0]) and to_s(form[0]) == "path_join" and length(form) > 3
@@ -8427,13 +8456,15 @@ HOST_OPS = [
   %w[register_temp rt_register_temp],
   %w[starts_with? rt_starts_with],
   %w[glob_match rt_glob_match],
-  %w[string_drop rt_string_drop]
+  %w[string_drop rt_string_drop],
+  %w[string_bytes rt_string_bytes],
+  %w[bytes_string rt_bytes_string]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 37
+    length(ROUTINE_OPS) #=> 39
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8610,7 +8641,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 37
+  assert length(ROUTINE_OPS) == 39
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -9352,54 +9383,21 @@ RT_RM_TREE = [
 ]
 
 @doc """
-RT_READ_BYTES: read_bytes natively (the one-argument form): the file at the path in rdi (consumed) read with rt_read_file, then its bytes as a list of numbers built from the last back; the error when it cannot be read.
+RT_READ_BYTES: read_bytes natively (the one-argument form): the file at the path in rdi (consumed) read with rt_read_file, then its bytes as a list through rt_string_bytes; the error when it cannot be read.
 
     RT_READ_BYTES[0] #=> {op: "label", name: "rt_read_bytes"}
 """
-RT_READ_BYTES = append(
-  *[
-    [
-      {op: "label", name: "rt_read_bytes"},
-      {op: "push_rbp"},
-      {op: "mov", dst: "rbp", src: "rsp"},
-      {op: "sub", dst: "rsp", imm: 48},
-      {op: "call_label", label: "rt_read_file"},
-      {op: "store", src: "rax", base: "rbp", disp: -8},
-      {op: "store", src: "rax", base: "rbp", disp: -24},
-      {op: "load", dst: "rcx", base: "rax", disp: 0},
-      {op: "cmp", dst: "rcx", imm: 4},
-      {op: "j", cond: "e", label: "rt_rb_raise"},
-      {op: "mov", dst: "rcx", imm: 0},
-      {op: "store", src: "rcx", base: "rbp", disp: -24},
-      {op: "load", dst: "rcx", base: "rax", disp: 24},
-      {op: "store", src: "rcx", base: "rbp", disp: -32},
-      {op: "label", name: "rt_rb_byte"},
-      {op: "load", dst: "rcx", base: "rbp", disp: -32},
-      {op: "cmp", dst: "rcx", imm: 0},
-      {op: "j", cond: "e", label: "rt_rb_out"},
-      {op: "sub", dst: "rcx", imm: 1},
-      {op: "store", src: "rcx", base: "rbp", disp: -32},
-      {op: "load", dst: "rdx", base: "rbp", disp: -8},
-      {op: "add", dst: "rdx", imm: 32},
-      {op: "add", dst: "rdx", src: "rcx"},
-      {op: "load_byte", dst: "rcx", base: "rdx"},
-      {op: "mov", dst: "rdx", src: "rcx"},
-      {op: "add", dst: "rcx", src: "rdx"},
-      {op: "add", dst: "rcx", imm: 1},
-      {op: "store", src: "rcx", base: "rbp", disp: -40}
-    ],
-    cell(-40, -24, -24),
-    [{op: "jmp", label: "rt_rb_byte"}, {op: "label", name: "rt_rb_out"}],
-    leave_with(-8, -24),
-    [
-      {op: "label", name: "rt_rb_raise"},
-      {op: "load", dst: "rax", base: "rbp", disp: -24},
-      {op: "mov", dst: "rsp", src: "rbp"},
-      {op: "pop_rbp"},
-      {op: "ret"}
-    ]
-  ]
-)
+RT_READ_BYTES = [
+  {op: "label", name: "rt_read_bytes"},
+  {op: "call_label", label: "rt_read_file"},
+  {op: "load", dst: "rcx", base: "rax", disp: 0},
+  {op: "cmp", dst: "rcx", imm: 4},
+  {op: "j", cond: "e", label: "rt_rb_raise"},
+  {op: "mov", dst: "rdi", src: "rax"},
+  {op: "jmp", label: "rt_string_bytes"},
+  {op: "label", name: "rt_rb_raise"},
+  {op: "ret"}
+]
 
 @doc """
 RT_RM_RF: rm_rf natively: the path in rdi (consumed) removed with everything under it, through rt_rm_tree from the working directory (AT_FDCWD); nil, also when there is nothing, or an error carrying the errno.
@@ -9523,7 +9521,7 @@ end
 
 test "the filesystem routines assemble, and a field call of a predicate becomes the predicate"
   stand_ins = flat_map(
-    %w[rt_alloc rt_drop rt_read_file],
+    %w[rt_alloc rt_drop rt_read_file rt_string_bytes],
     (n) -> [{op: "label", name: n}, {op: "ret"}]
   )
   assert length(assemble(append(FS_ROUTINES, stand_ins))) > 0
@@ -10904,6 +10902,7 @@ RC_OP_WORDS = %w[
   exec_with_env
   exec_with_stdin
   exec_within_raw
+  exec_within_stdin_raw
   exit_with
   failed?
   first
@@ -10938,9 +10937,19 @@ RC_OP_WORDS = %w[
 @doc """
 LOWERED_WORDS: the blue words a pass before ANF lowers to native code (bare_calls, map_calls).
 
-    member?("exec_within", LOWERED_WORDS) #=> true
+    member?("exec_exchange", LOWERED_WORDS) #=> true
 """
-LOWERED_WORDS = %w[sh_exec exec_within ls drop read_bytes get assoc path_join]
+LOWERED_WORDS = %w[
+  sh_exec
+  exec_within
+  exec_exchange
+  ls
+  drop
+  read_bytes
+  get
+  assoc
+  path_join
+]
 
 @doc """
 native_names: every name a native program can call, sorted: rc_op's primitives, the runtime routines' words, the type predicates, the zero-argument words, the prelude's definitions and the words lowered before ANF. docs/REFERENCE.md's home column reads it.
@@ -11347,4 +11356,157 @@ test "glob's matcher and string_drop assemble"
     )
   ) > 0
   assert length(glob_programs) == 3
+end
+
+@doc """
+RT_STRING_BYTES: string_bytes natively: the bytes of the string in rdi (consumed) as a list of numbers, built from the last back; EMPTY for an empty string.
+
+    RT_STRING_BYTES[0] #=> {op: "label", name: "rt_string_bytes"}
+"""
+RT_STRING_BYTES = frame_routine(
+  "rt_string_bytes",
+  48,
+  append(
+    *[
+      [
+        {op: "store", src: "rdi", base: "rbp", disp: -8},
+        {op: "mov", dst: "rcx", imm: 0},
+        {op: "store", src: "rcx", base: "rbp", disp: -40},
+        {op: "load", dst: "rcx", base: "rdi", disp: 24},
+        {op: "store", src: "rcx", base: "rbp", disp: -32},
+        {op: "label", name: "rt_sb_byte"},
+        {op: "load", dst: "rcx", base: "rbp", disp: -32},
+        {op: "cmp", dst: "rcx", imm: 0},
+        {op: "j", cond: "e", label: "rt_sb_done"},
+        {op: "sub", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rbp", disp: -32},
+        {op: "load", dst: "rdx", base: "rbp", disp: -8},
+        {op: "add", dst: "rdx", imm: 32},
+        {op: "add", dst: "rdx", src: "rcx"},
+        {op: "load_byte", dst: "rcx", base: "rdx"},
+        {op: "mov", dst: "rdx", src: "rcx"},
+        {op: "add", dst: "rcx", src: "rdx"},
+        {op: "add", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "rbp", disp: -24}
+      ],
+      cell(-24, -40, -40),
+      [{op: "jmp", label: "rt_sb_byte"}, {op: "label", name: "rt_sb_done"}],
+      empty_when_none(-40),
+      [
+        {op: "load", dst: "rdi", base: "rbp", disp: -8},
+        {op: "call_label", label: "rt_drop"}
+      ]
+    ]
+  )
+)
+
+@doc """
+RT_BYTES_STRING: bytes_string natively: the list of numbers in rdi (consumed; EMPTY or nil is no byte) as a new string of those bytes, each its low byte.
+
+    RT_BYTES_STRING[0] #=> {op: "label", name: "rt_bytes_string"}
+"""
+RT_BYTES_STRING = frame_routine(
+  "rt_bytes_string",
+  48,
+  [
+    {op: "store", src: "rdi", base: "rbp", disp: -8},
+    {op: "mov", dst: "r8", src: "rdi"},
+    {op: "mov", dst: "r9", imm: 0},
+    {op: "label", name: "rt_bs_count"},
+    {op: "cmp", dst: "r8", imm: 0},
+    {op: "j", cond: "e", label: "rt_bs_counted"},
+    {op: "cmp", dst: "r8", imm: EMPTY},
+    {op: "j", cond: "e", label: "rt_bs_counted"},
+    {op: "add", dst: "r9", imm: 1},
+    {op: "load", dst: "r8", base: "r8", disp: 32},
+    {op: "jmp", label: "rt_bs_count"},
+    {op: "label", name: "rt_bs_counted"},
+    {op: "store", src: "r9", base: "rbp", disp: -16},
+    {op: "mov", dst: "rdi", src: "r9"},
+    {op: "add", dst: "rdi", imm: 7},
+    {op: "shr1", dst: "rdi"},
+    {op: "shr1", dst: "rdi"},
+    {op: "shr1", dst: "rdi"},
+    {op: "add", dst: "rdi", imm: 4},
+    {op: "call_label", label: "rt_alloc"},
+    {op: "mov", dst: "rcx", imm: 1},
+    {op: "store", src: "rcx", base: "rax", disp: 0},
+    {op: "load", dst: "rcx", base: "rbp", disp: -16},
+    {op: "store", src: "rcx", base: "rax", disp: 24},
+    {op: "store", src: "rax", base: "rbp", disp: -40},
+    {op: "mov", dst: "r10", src: "rax"},
+    {op: "add", dst: "r10", imm: 32},
+    {op: "load", dst: "r8", base: "rbp", disp: -8},
+    {op: "label", name: "rt_bs_copy"},
+    {op: "cmp", dst: "r8", imm: 0},
+    {op: "j", cond: "e", label: "rt_bs_copied"},
+    {op: "cmp", dst: "r8", imm: EMPTY},
+    {op: "j", cond: "e", label: "rt_bs_copied"},
+    {op: "load", dst: "rcx", base: "r8", disp: 24},
+    {op: "sar1", dst: "rcx"},
+    {op: "store_byte", src: "rcx", base: "r10"},
+    {op: "add", dst: "r10", imm: 1},
+    {op: "load", dst: "r8", base: "r8", disp: 32},
+    {op: "jmp", label: "rt_bs_copy"},
+    {op: "label", name: "rt_bs_copied"},
+    {op: "load", dst: "rdi", base: "rbp", disp: -8},
+    {op: "call_label", label: "rt_drop"}
+  ]
+)
+
+@doc """
+exchange_programs: programs over exec_exchange and the byte conversions natively, compiled with the prelude, in :show mode, with what each must write.
+
+    length(exchange_programs) #=> 3
+"""
+def exchange_programs()
+  [
+    [
+      "(exec_exchange (list 235 0) 2 5000 \"head\" \"-c\" \"2\")",
+      "[[:status, 0], [:stdout, [235, 0]], [:stderr, \"\"]]"
+    ],
+    ["(string_bytes (bytes_string (list 104 105)))", "[104, 105]"],
+    ["(bytes_string (list))", "\"\""]
+  ]
+end
+
+test "exec_exchange writes bytes and reads bytes back natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-exchange"), "exchange.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      exchange_programs
+    )
+  end
+end
+
+test "exec_exchange is a timed exec_with_stdin over the byte conversions"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_read_file],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(
+    assemble(
+      append(
+        append(append(RT_STRING_BYTES, RT_BYTES_STRING), RT_READ_BYTES),
+        stand_ins
+      )
+    )
+  ) > 0
+  assert head_is?(
+    bare_calls(read_forms("(exec_exchange b 2 9 \"head\")")[0]),
+    "exchange_result"
+  )
+  assert member?(
+    {op: "store", src: "rcx", base: "r14", disp: EXEC_MS_AT},
+    rc_op([], "exec_within_stdin_raw", [5, "x", "cat"])
+  )
+  assert length(exchange_programs) == 3
 end

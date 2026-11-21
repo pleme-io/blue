@@ -871,6 +871,13 @@ MAP_KIND: the block kind of a native map: [kind, count, size 4, its entries], th
 MAP_KIND = 7
 
 @doc """
+SHOW_FD_AT: where the program keeps the descriptor rt_show writes to, as an offset from r14: 1 (standard output), or the memfd rt_to_text gathers a value's text in.
+
+    SHOW_FD_AT #=> 536
+"""
+SHOW_FD_AT = FREE_CLASSES * 8 + 24
+
+@doc """
 swap_word: the instructions that turn the word from in reg into to, leaving any other word as it is, with no branch: tmp (kept on the stack) holds whether reg is from, and r11 the difference. tmp must be rax, which set and movzx write, and reg must not be.
 
     length(swap_word("rbx", EMPTY, 0, "rax")) #=> 9
@@ -1479,11 +1486,15 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 24}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 32}
       ],
       save_envp,
       save_argv,
       save_stack_floor,
+      [
+        {op: "mov", dst: "rcx", imm: 1},
+        {op: "store", src: "rcx", base: "r14", disp: SHOW_FD_AT}
+      ],
       main[0],
       fns[0],
       runtime
@@ -1842,7 +1853,8 @@ def runtime()
       FS_ROUTINES,
       PROCESS_ROUTINES,
       RT_LS_RAW,
-      RT_STRING_LT
+      RT_STRING_LT,
+      RT_TO_TEXT
     ]
   )
 end
@@ -2823,6 +2835,14 @@ RT_TO_S = append(
       {op: "and", dst: "rax", imm: 1},
       {op: "cmp", dst: "rax", imm: 0},
       {op: "j", cond: "ne", label: "rt_to_s_int"},
+      {op: "cmp", dst: "rdi", imm: 4096},
+      {op: "j", cond: "l", label: "rt_to_s_as_is"},
+      {op: "load", dst: "rax", base: "rdi", disp: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_to_text"},
+      {op: "cmp", dst: "rax", imm: MAP_KIND},
+      {op: "j", cond: "e", label: "rt_to_text"},
+      {op: "label", name: "rt_to_s_as_is"},
       {op: "mov", dst: "rax", src: "rdi"},
       {op: "ret"},
       {op: "label", name: "rt_to_s_int"},
@@ -5918,7 +5938,7 @@ RT_PUT_INT = [
   {op: "sub", dst: "r10", imm: 1},
   {op: "store_byte", src: "rcx", base: "r10"},
   {op: "label", name: "rt_pi_write"},
-  {op: "mov", dst: "rdi", imm: 1},
+  {op: "load", dst: "rdi", base: "r14", disp: SHOW_FD_AT},
   {op: "mov", dst: "rsi", src: "r10"},
   {op: "mov", dst: "rdx", src: "r8"},
   {op: "sub", dst: "rdx", src: "r10"},
@@ -5946,7 +5966,7 @@ RT_PUT_BYTE = [
   {op: "mov", dst: "rsi", src: "rbp"},
   {op: "add", dst: "rsi", imm: -16},
   {op: "store_byte", src: "rcx", base: "rsi"},
-  {op: "mov", dst: "rdi", imm: 1},
+  {op: "load", dst: "rdi", base: "r14", disp: SHOW_FD_AT},
   {op: "mov", dst: "rdx", imm: 1},
   {op: "mov", dst: "rax", imm: 1},
   {op: "syscall"},
@@ -7191,7 +7211,7 @@ SHOW_MAP = append(
       {op: "mov", dst: "rsi", src: "rdi"},
       {op: "load", dst: "rdx", base: "rsi", disp: 24},
       {op: "add", dst: "rsi", imm: 32},
-      {op: "mov", dst: "rdi", imm: 1},
+      {op: "load", dst: "rdi", base: "r14", disp: SHOW_FD_AT},
       {op: "mov", dst: "rax", imm: 1},
       {op: "syscall"}
     ],
@@ -7289,7 +7309,7 @@ RT_SHOW = append(
       {op: "load", dst: "rsi", base: "rbp", disp: -8},
       {op: "load", dst: "rdx", base: "rsi", disp: 24},
       {op: "add", dst: "rsi", imm: 32},
-      {op: "mov", dst: "rdi", imm: 1},
+      {op: "load", dst: "rdi", base: "r14", disp: SHOW_FD_AT},
       {op: "mov", dst: "rax", imm: 1},
       {op: "syscall"},
       {op: "jmp", label: "rt_sh_out"},
@@ -9842,4 +9862,115 @@ test "a map literal, get and assoc become the prelude's map words"
   )
   assert length(rc_op([], "map_alist", [1])) > 0
   assert length(map_programs) == 6
+end
+
+@doc """
+RT_TO_TEXT: to_s of a list or a map natively: its text as rt_show writes it, gathered by pointing SHOW_FD_AT at a memfd for the show, then read back into a new string; the value in rdi is consumed, and SHOW_FD_AT is put back.
+
+    RT_TO_TEXT[0] #=> {op: "label", name: "rt_to_text"}
+"""
+RT_TO_TEXT = [
+  {op: "label", name: "rt_to_text"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: 64},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "mov", dst: "rcx", imm: 115},
+  {op: "store", src: "rcx", base: "rbp", disp: -16},
+  {op: "mov", dst: "rdi", src: "rbp"},
+  {op: "add", dst: "rdi", imm: -16},
+  {op: "mov", dst: "rsi", imm: 0},
+  {op: "mov", dst: "rax", imm: 319},
+  {op: "syscall"},
+  {op: "store", src: "rax", base: "rbp", disp: -24},
+  {op: "load", dst: "rcx", base: "r14", disp: SHOW_FD_AT},
+  {op: "store", src: "rcx", base: "rbp", disp: -32},
+  {op: "store", src: "rax", base: "r14", disp: SHOW_FD_AT},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "call_label", label: "rt_show"},
+  {op: "load", dst: "rcx", base: "rbp", disp: -32},
+  {op: "store", src: "rcx", base: "r14", disp: SHOW_FD_AT},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rsi", imm: 0},
+  {op: "mov", dst: "rdx", imm: 2},
+  {op: "mov", dst: "rax", imm: 8},
+  {op: "syscall"},
+  {op: "store", src: "rax", base: "rbp", disp: -40},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rsi", imm: 0},
+  {op: "mov", dst: "rdx", imm: 0},
+  {op: "mov", dst: "rax", imm: 8},
+  {op: "syscall"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -40},
+  {op: "add", dst: "rdi", imm: 7},
+  {op: "shr1", dst: "rdi"},
+  {op: "shr1", dst: "rdi"},
+  {op: "shr1", dst: "rdi"},
+  {op: "add", dst: "rdi", imm: 4},
+  {op: "call_label", label: "rt_alloc"},
+  {op: "mov", dst: "rcx", imm: 1},
+  {op: "store", src: "rcx", base: "rax", disp: 0},
+  {op: "load", dst: "rcx", base: "rbp", disp: -40},
+  {op: "store", src: "rcx", base: "rax", disp: 24},
+  {op: "store", src: "rax", base: "rbp", disp: -48},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rsi", src: "rax"},
+  {op: "add", dst: "rsi", imm: 32},
+  {op: "load", dst: "rdx", base: "rbp", disp: -40},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "syscall"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -24},
+  {op: "mov", dst: "rax", imm: 3},
+  {op: "syscall"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "call_label", label: "rt_drop"},
+  {op: "load", dst: "rax", base: "rbp", disp: -48},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+text_programs: programs whose to_s of a list or a map is its text natively, in :show mode, with what each must write.
+
+    length(text_programs) #=> 3
+"""
+def text_programs()
+  [
+    ["(to_s (hash-map :b 2 :a (list 1)))", "\"{a: [1], b: 2}\""],
+    ["(to_s (list 1 \"x\" :k))", "\"[1, \\\"x\\\", :k]\""],
+    ["(concat \"n = \" (list 1 2))", "\"n = [1, 2]\""]
+  ]
+end
+
+test "to_s of a list or a map is its text natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-text"), "text.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      text_programs
+    )
+  end
+end
+
+test "rt_show writes to the descriptor at SHOW_FD_AT, which to_s points at a memfd"
+  assert SHOW_FD_AT == FREE_CLASSES * 8 + 24
+  assert member?(
+    {op: "load", dst: "rdi", base: "r14", disp: SHOW_FD_AT},
+    RT_PUT_BYTE
+  )
+  assert member?({op: "j", cond: "e", label: "rt_to_text"}, RT_TO_S)
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_show],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(RT_TO_TEXT, stand_ins))) > 0
+  assert length(text_programs) == 3
 end

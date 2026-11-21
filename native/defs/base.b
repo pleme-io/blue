@@ -245,3 +245,18 @@ end
 def offset_up(x: Int, j: Int) -> Int
   apply_to(add_to(3), x) + apply_to((y) -> y * j, x)
 end
+
+def move_by(k: Int) -> Fn(Int) -> Int
+  m = k * 2
+  (x) -> x + m
+end
+
+def moved(x: Int, j: Int) -> Int
+  m = j + 1
+  apply_to(move_by(x), j) + apply_to((y) -> y * m, x)
+end
+
+def moved_up(x: Int, j: Int) -> Int
+  m = j + 2
+  apply_to(move_by(x), j) + apply_to((y) -> y * m, x)
+end

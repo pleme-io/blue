@@ -392,9 +392,23 @@ Each wave lists defaults in the order their gain is known. Each default meets
     definition runs natively" (`offset`, through `add_to` and `apply_to`,
     agrees with the interpreter; `offset_up`'s artifact swapped in answers
     23 where the interpreter answers 22).
-  - Not built: a function over records, lists or strings, a capture that
-    is a local rather than a parameter, and a lambda written inside a
-    lambda that leaves its definition.
+  - ✅ A lambda that leaves its definition captures a local too, not only
+    a parameter: `m = k * 2`, then `(x) -> x + m` as the answer or as an
+    argument. Each site carries the locals its enclosing `begin`s bind
+    before it (`cz_fun_leads`), typed as the lowering types them
+    (`cz_scope`), and its variant holds each one it reads by copy
+    (`cz_fun_caps`), so a local bound again after the site does not change
+    what the function holds. Refused, each named: a capture of a list or
+    another non-copy type, and a read of a lambda held in a local. Locks:
+    chuuzou 180 tests ("a lambda that leaves its definition captures a
+    local bound before it, by copy, and a held lambda never", red with
+    the site's locals dropped); `checks.native-defs` "a lambda that
+    captures a local and leaves its definition runs natively" (`moved`,
+    through `move_by` and `apply_to`, agrees with the interpreter;
+    `moved_up`'s artifact swapped in answers 38 where the interpreter
+    answers 33).
+  - Not built: a function over records, lists or strings, and a lambda
+    written inside a lambda that leaves its definition.
 - ✅ Doctests as profiles. The builder runs a program's tests once it has
   built its definitions, and the test run seeds the profile through the
   native tier (`native::Tier::seeding`): it answers no call, times each

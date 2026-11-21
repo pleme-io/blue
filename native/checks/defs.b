@@ -418,3 +418,18 @@ test "a lambda that leaves its definition runs natively", {kind: :integration}
     swapped(work, "offset", "offset_up")
   ) == unlines(["23"])
 end
+
+test "a lambda that captures a local and leaves its definition runs natively", {
+  kind: :integration
+}
+  work = temp_dir("native-fn-local")
+  calls = [["moved", [5, 3]], ["moved", [-2, 0]], ["moved", [0, 7]]]
+  assert disagreeing(work, calls) == []
+  assert interpreted(work, "moved", [5, 3], off) == unlines(["33"])
+  assert interpreted(
+    work,
+    "moved",
+    [5, 3],
+    swapped(work, "moved", "moved_up")
+  ) == unlines(["38"])
+end

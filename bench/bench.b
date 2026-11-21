@@ -1069,6 +1069,7 @@ def native_row(blue, spec, work, runs, host)
   {
     name:,
     work: spec.work,
+    startup: spec.n.nil?,
     tree: timed(join(c.tree, " "), runs, out),
     vm: timed(join(c.vm, " "), runs, out),
     chuuzou: timed(join(c.chuuzou, " "), runs, out),
@@ -1120,7 +1121,7 @@ def native_measures(results, path, host)
         per_mille(get(r, path.field).cpu * work_of(r, path), r.rust.cpu)
       )
     end,
-    filter((r) -> get(r, path.field) != nil, results)
+    filter((r) -> get(r, path.field) != nil and r[:startup] != true, results)
   )
 end
 
@@ -1577,4 +1578,20 @@ test "a lever slower than its recorded ratio to Rust is refused"
   assert size(
     failures_within(rows, "lever-ratio", lever_measures(slow, "darwin"), 500)
   ) == 1
+end
+
+test "a program with no N is run and held to its twin's output but not timed against it", {
+  kind: :unit
+}
+  path = {name: "tree", field: :tree, scaled: true}
+  timed_one = {name: "fib", work: 2, tree: {cpu: 30}, rust: {cpu: 3}}
+  startup = {
+    name: "mutual",
+    work: 1,
+    startup: true,
+    tree: {cpu: 1},
+    rust: {cpu: 1}
+  }
+  assert native_measures([timed_one, startup], path, "linux") ==
+    [{key: "fib tree linux", size: 20000}]
 end

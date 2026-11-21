@@ -134,6 +134,8 @@ replacement (`docs/COMPOUNDING.md`).
 | `hashiru` | `rc_call` | `hashiru::call_code` | 0.1.0 |
 | `hashiru` | `run_exit` | `hashiru::run_status` | 0.1.0 |
 | `hashiru` | `run_closures_exit` | `hashiru::run_status` | 0.1.0 |
+| `hashiru` | `returns_var?` | `kuzushi::returns_var?` | 0.1.0 |
+| `hashiru` | `mark_tail` | `kuzushi::mark_tail` | 0.1.0 |
 | `kuzushi` | `meet` | `shuugou::intersection` | 0.1.0 |
 | `kuzushi` | `count_of` | `retsu::count_of` | 0.1.0 |
 | `kuzushi` | `has_lambda?` | `kuzushi::holds_head?` | 0.1.0 |

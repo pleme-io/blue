@@ -1604,7 +1604,11 @@ def settle_sigs(globals, sigs)
       [
         g[:name],
         map(
-          (i) -> was[i] and reads_only?(g[:body], g[:params][i], sigs),
+          fn(i)
+            was[i] and
+              reads_only?(g[:body], g[:params][i], sigs) and
+              tail_lends?(g, i, was)
+          end,
           range(0, length(g[:params]))
         )
       ]
@@ -1615,6 +1619,119 @@ def settle_sigs(globals, sigs)
     sigs
   else
     settle_sigs(globals, next)
+  end
+end
+
+@doc """
+tail_lends?: whether every call a global makes of itself in tail position (tail_args) passes, at parameter i, a literal or one of its own parameters that is borrowed (was, its borrowed? per parameter), so borrowing parameter i keeps those calls tail calls. An owned name passed to a borrowed parameter is dropped by the caller after the call, so the call is no longer the last thing it does: such a parameter is owned instead, and the loop stays a jump.
+
+    tail_lends?({name: "f", params: ["n"], body: read_forms("(let (t (- n 1)) (let (r (gcall \"f\" t)) (ret r)))")[0]}, 0, [true]) #=> false
+    tail_lends?({name: "f", params: ["n"], body: read_forms("(let (r (gcall \"f\" n)) (ret r))")[0]}, 0, [true]) #=> true
+"""
+def tail_lends?(g, i, was)
+  lent_params = filter((j) -> was[j], range(0, length(g[:params])))
+  borrowed = map((j) -> g[:params][j], lent_params)
+  retsu::find_first(
+    fn(args)
+      names = names_of(args[i])
+      names != [] and not member?(names[0], borrowed)
+    end,
+    tail_args(g[:body], g[:name])
+  ).nil?
+end
+
+@doc """
+tail_args: the argument lists of every call a global named name makes of itself in tail position, the calls mark_tail turns into tailcalls.
+
+    tail_args(read_forms("(let (r (gcall \"f\" 1)) (ret r))")[0], "f") == [[1]] #=> true
+"""
+def tail_args(term, name)
+  tailcalls_in(mark_tail(term, name))
+end
+
+@doc """
+tailcalls_in: the argument lists of every tailcall in a term, down its lets and into its ifs' branches.
+
+    tailcalls_in(read_forms("(let (r (tailcall \"f\" 1 2)) (ret r))")[0]) == [[1, 2]] #=> true
+"""
+def tailcalls_in(term)
+  if not head_is?(term, "let")
+    []
+  else
+    rhs = term[1][1]
+    here = if head_is?(rhs, "tailcall")
+      [rest(rest(rhs))]
+    elsif head_is?(rhs, "if")
+      append(tailcalls_in(rhs[2]), tailcalls_in(rhs[3]))
+    else
+      []
+    end
+    append(here, tailcalls_in(term[2]))
+  end
+end
+
+@doc """
+returns_var?: whether the rest of a term only answers the variable v: a ret of it, or the check a call's answer goes through (failed?, an if that rets it either way, and a ret of that), after Perceus behind a dup of v.
+
+    returns_var?(read_forms("(ret x)")[0], read_forms("x")[0]) #=> true
+    returns_var?(read_forms("(let (c (failed? x)) (let (r (if c (ret x) (ret x))) (ret r)))")[0], read_forms("x")[0]) #=> true
+"""
+def returns_var?(term, v)
+  s = to_s(v)
+  if head_is?(term, "ret")
+    to_s(term[1]) == s
+  elsif head_is?(term, "let") and head_is?(term[1][1], "dup")
+    checked_return?(term[2], s)
+  else
+    checked_return?(term, s)
+  end
+end
+
+@doc """
+checked_return?: whether a term is the check propagate puts on a call's answer named s and nothing after it: (failed? s), an if that rets s either way, and a ret of that if.
+
+    checked_return?(read_forms("(ret x)")[0], "x") #=> false
+"""
+def checked_return?(c, s)
+  if head_is?(c, "let") and head_is?(c[1][1], "failed?")
+    r = c[2]
+    head_is?(r, "let") and
+      head_is?(r[1][1], "if") and
+      head_is?(r[1][1][2], "ret") and
+      to_s(r[1][1][2][1]) == s and
+      head_is?(r[1][1][3], "ret") and
+      to_s(r[1][1][3][1]) == s and
+      head_is?(r[2], "ret") and
+      to_s(r[2][1]) == to_s(r[1][0])
+  else
+    false
+  end
+end
+
+@doc """
+mark_tail: a global's body with each call of the global itself in tail position made a tailcall: a gcall whose answer the rest only returns, found down the body and into the branches of an if whose value is returned the same way.
+
+    mark_tail(read_forms("(let (t (gcall \"f\" 1)) (ret t))")[0], "f")[1][1][0] == read_forms("tailcall")[0] #=> true
+"""
+def mark_tail(term, name)
+  if not head_is?(term, "let")
+    term
+  else
+    v = term[1][0]
+    rhs = term[1][1]
+    after = term[2]
+    if returns_var?(after, v)
+      marked = if head_is?(rhs, "gcall") and rhs[1] == name
+        cons(read_forms("tailcall")[0], rest(rhs))
+      elsif head_is?(rhs, "if")
+        [rhs[0], rhs[1], mark_tail(rhs[2], name), mark_tail(rhs[3], name)]
+      else
+        rhs
+      end
+      [term[0], [v, marked], after]
+    else
+      [term[0], [v, rhs], mark_tail(after, name)]
+    end
   end
 end
 
@@ -2611,7 +2728,7 @@ BORROW_SHAPED = [
     12
   ],
   [
-    "(begin (define (sum l acc) (if (equal? (length l) 0) acc (sum (rest l) (+ acc (first l))))) (sum (list 1 2 3) 0))",
+    "(begin (define (sum l) (if (equal? (length l) 0) 0 (+ (first l) (sum (rest l))))) (sum (list 1 2 3)))",
     6
   ],
   [
@@ -2644,7 +2761,7 @@ test "a parameter that is only read is borrowed, and Perceus emits fewer dups an
     end,
     BORROW_SHAPED
   )
-  assert counts == [[1, 0, 6, 5], [5, 3, 6, 5], [10, 4, 13, 9], [6, 4, 7, 6]]
+  assert counts == [[1, 0, 6, 5], [6, 4, 7, 6], [10, 7, 13, 10], [6, 4, 7, 6]]
   assert retsu::find_first((c) -> c[1] >= c[0] or c[3] >= c[2], counts).nil?
 end
 
@@ -2659,6 +2776,42 @@ test "a parameter returned, stored, captured or passed to an owned parameter sta
   assert map((g) -> [g[:name], g[:borrowed]], w[:globals]) ==
     [["back", []], ["keep", []], ["pass", []], ["wrap", []], ["both", []]]
   assert ir_live(w) == []
+end
+
+test "a tail call that passes an owned name makes that parameter owned"
+  src = "(begin (define (sum l acc) (if (equal? (length l) 0) acc (sum (rest l) (+ acc (first l))))) (define (has x l) (if (equal? (length l) 0) #f (if (equal? (first l) x) #t (has x (rest l))))) (list (sum (list 1 2 3) 0) (has 2 (list 1 2))))"
+  w = whole_in(read_forms(src)[0], :borrow)
+  assert map((g) -> [g[:name], g[:borrowed]], w[:globals]) ==
+    [["sum", []], ["has", ["x"]]]
+  assert eval_whole(w) == [6, true]
+  assert ir_live(w) == []
+  assert map((g) -> length(tail_args(g[:body], g[:name])), w[:globals]) ==
+    [1, 1]
+  call = read_forms("(let (r (tailcall \"f\" 1 2)) (ret r))")[0]
+  assert tailcalls_in(call) == [[1, 2]]
+  assert tailcalls_in(read_forms("(ret 1)")[0]) == []
+  self_call = read_forms("(let (r (gcall \"f\" 1 2)) (ret r))")[0]
+  assert mark_tail(self_call, "f") == call
+  assert mark_tail(read_forms("(ret 1)")[0], "f") == read_forms("(ret 1)")[0]
+  assert not checked_return?(read_forms("(ret x)")[0], "x")
+  checked = nth(
+    0,
+    read_forms("(let (c (failed? x)) (let (r (if c (ret x) (ret x))) (ret r)))")
+  )
+  assert checked_return?(checked, "x")
+  assert returns_var?(checked, read_forms("x")[0])
+  assert returns_var?(
+    [read_forms("let")[0], read_forms("(_ (dup x))")[0], checked],
+    read_forms("x")[0]
+  )
+  g = {
+    name: "f",
+    params: %w[a b],
+    body: read_forms("(let (t (- a 1)) (let (r (gcall \"f\" t b)) (ret r)))")[0]
+  }
+  assert not tail_lends?(g, 0, [true, true])
+  assert tail_lends?(g, 1, [true, true])
+  assert not tail_lends?(g, 1, [true, false])
 end
 
 test "borrowing settles over the call graph: a parameter passed on stays borrowed only while the callee's is"

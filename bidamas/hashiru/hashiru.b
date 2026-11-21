@@ -8,7 +8,20 @@ This first code generator is the simplest correct one: every named value lives i
 
 use("kaaneru/erufu", [:executable])
 use("kikaigo", %i[assemble le64])
-use("kuzushi", %i[anf closure_convert head_is? perceus_program whole whole_in])
+
+use(
+  "kuzushi",
+  %i[
+    anf
+    closure_convert
+    head_is?
+    mark_tail
+    perceus_program
+    returns_var?
+    whole
+    whole_in
+  ]
+)
 
 use(
   "retsu",
@@ -22,7 +35,9 @@ legacy_names(
   [
     %w[rc_call hashiru::call_code hashiru::tagged_atom],
     %w[run_exit hashiru::run_status hashiru::compile],
-    %w[run_closures_exit hashiru::run_status hashiru::compile_closures]
+    %w[run_closures_exit hashiru::run_status hashiru::compile_closures],
+    %w[returns_var? kuzushi::returns_var?],
+    %w[mark_tail kuzushi::mark_tail]
   ]
 )
 
@@ -1950,7 +1965,13 @@ rc_global: one global function: its label, a frame with a slot per parameter and
 """
 def rc_global(g, n)
   slots = append(g[:params], rc_names(g[:body]))
-  body = rc_gen(slots, mark_tail(g[:body], g[:name]), :return, n)
+  marked = mark_tail(g[:body], g[:name])
+  term = if g[:convention] == :borrow
+    lend_natively(marked, g[:borrowed])
+  else
+    marked
+  end
+  body = rc_gen(slots, term, :return, n)
   [
     append(
       *[
@@ -1973,6 +1994,90 @@ def rc_global(g, n)
     ),
     body[1]
   ]
+end
+
+@doc """
+lend_natively: a term compiled under kuzushi's :borrow convention made to count as native code counts. Every native primitive consumes its arguments, while kuzushi lends a borrowed name to a primitive that only reads it, so each borrowed name a primitive reads is duplicated first, once per use. And under :borrow an if consumes its test (kuzushi's tests: :dup), while native code only reads it, so an if whose test is a name not borrowed drops it first thing in each branch.
+
+    lend_natively(read_forms("(let (t (length l)) (ret t))")[0], ["l"]) == read_forms("(let (_ (dup l)) (let (t (length l)) (ret t)))")[0] #=> true
+    lend_natively(read_forms("(let (r (if c (ret 1) (ret 2))) (ret r))")[0], []) == read_forms("(let (r (if c (let (_ (drop c)) (ret 1)) (let (_ (drop c)) (ret 2)))) (ret r))")[0] #=> true
+"""
+def lend_natively(term, borrowed)
+  if not head_is?(term, "let")
+    term
+  else
+    v = term[1][0]
+    rhs = term[1][1]
+    kept = [
+      term[0],
+      [v, lent_rhs(rhs, borrowed)],
+      lend_natively(term[2], borrowed)
+    ]
+    reduce(
+      fn(acc, x)
+        [
+          read_forms("let")[0],
+          [read_forms("_")[0], [read_forms("dup")[0], x]],
+          acc
+        ]
+      end,
+      kept,
+      native_lent(rhs, borrowed)
+    )
+  end
+end
+
+@doc """
+NOT_PRIMITIVE: the right-hand side heads lend_natively leaves alone: they are not a native primitive that consumes its arguments.
+
+    member?("gcall", NOT_PRIMITIVE) #=> true
+"""
+NOT_PRIMITIVE = %w[if try gcall call tailcall closure dup drop]
+
+@doc """
+native_lent: the borrowed names a primitive right-hand side reads, once per use, each of which lend_natively duplicates before it; none for an rhs that is not a primitive.
+
+    native_lent(read_forms("(equal? l l)")[0], ["l"]) == read_forms("(l l)")[0] #=> true
+    native_lent(read_forms("(gcall \"f\" l)")[0], ["l"]) #=> []
+"""
+def native_lent(rhs, borrowed)
+  if list?(rhs) and
+      length(rhs) > 0 and
+      symbol?(first(rhs)) and
+      not member?(to_s(first(rhs)), NOT_PRIMITIVE)
+    filter((x) -> symbol?(x) and member?(to_s(x), borrowed), rest(rhs))
+  else
+    []
+  end
+end
+
+@doc """
+lent_rhs: one right-hand side under lend_natively: an if with its branches lent and, when its test is a name not borrowed, the test dropped at the start of each; a try with its body lent; any other as it is.
+
+    lent_rhs(read_forms("(if l (ret 1) (ret 2))")[0], ["l"]) == read_forms("(if l (ret 1) (ret 2))")[0] #=> true
+"""
+def lent_rhs(rhs, borrowed)
+  if head_is?(rhs, "if")
+    t = rhs[1]
+    owned_test = symbol?(t) and not member?(to_s(t), borrowed)
+    branch = fn(b)
+      inner = lend_natively(b, borrowed)
+      if owned_test
+        [
+          read_forms("let")[0],
+          [read_forms("_")[0], [read_forms("drop")[0], t]],
+          inner
+        ]
+      else
+        inner
+      end
+    end
+    [rhs[0], t, branch(rhs[2]), branch(rhs[3])]
+  elsif head_is?(rhs, "try")
+    [rhs[0], lend_natively(rhs[1], borrowed), rhs[2]]
+  else
+    rhs
+  end
 end
 
 @doc """
@@ -2094,11 +2199,25 @@ rc_whole: the instructions of a program with global functions: rc_program's fram
     rc_whole(whole(read_forms("7")[0]), :exit)[0] #=> {op: "push_rbp"}
 """
 def rc_whole(w, mode)
-  base = rc_program({main: w[:main], fns: w[:fns]}, mode)
+  lending = w[:convention] == :borrow
+  native = fn(body)
+    if lending
+      lend_natively(body, [])
+    else
+      body
+    end
+  end
+  base = rc_program(
+    {
+      main: native(w[:main]),
+      fns: map((f) -> assoc(f, :body, native(f[:body])), w[:fns])
+    },
+    mode
+  )
   start = length(base) - length(runtime)
   globals = reduce(
     fn(acc, g)
-      c = rc_global(g, acc[1])
+      c = rc_global(assoc(g, :convention, w[:convention]), acc[1])
       [append(acc[0], c[0]), c[1]]
     end,
     [[], 100_000],
@@ -2135,7 +2254,7 @@ CONVENTION: the calling convention compile_whole asks kuzushi for (whole_in): :o
 
     member?(CONVENTION, %i[owned borrow]) #=> true
 """
-CONVENTION = :owned
+CONVENTION = :borrow
 
 @doc """
 compile_whole_in: compile_whole under the calling convention named, :owned or :borrow.
@@ -2198,22 +2317,69 @@ test "recursive programs give their value and free every block on x86-64", {
   end
 end
 
-test "lent, recursive programs give the value they give owned", {
+test "lent programs give the value they give owned and free every block", {
   kind: :integration,
   allow: %i[filesystem process]
 }
   if linux_x86?
+    path = path_join(temp_dir("hashiru"), "b.out")
+    run = fn(bytes)
+      write_bytes(path, bytes)
+      exec_capture("chmod", "+x", path)
+      status_of(exec_capture(path))
+    end
     map(
       fn(p)
-        path = path_join(temp_dir("hashiru"), "b.out")
         form = read_forms(p[0])[0]
-        write_bytes(path, compile_whole_in(form, :exit, :borrow))
-        exec_capture("chmod", "+x", path)
-        assert status_of(exec_capture(path)) == p[1]
+        assert run(compile_whole_in(form, :exit, :borrow)) == p[1]
+        assert run(compile_whole_in(form, :leaks, :borrow)) == 0
       end,
       RECURSIVE_PROGRAMS
     )
+    map(
+      fn(p)
+        form = read_forms(p[0])[0]
+        assert run(compile_program_in(form, :exit, :borrow)) == p[1]
+        assert run(compile_program_in(form, :leaks, :borrow)) == 0
+      end,
+      PRELUDE_PROGRAMS
+    )
+    map(
+      fn(p)
+        assert run(compile_program_in(read_forms(p[0])[0], :exit, :borrow)) ==
+          p[1]
+      end,
+      tail_programs
+    )
   end
+end
+
+test "native code lends as kuzushi does: dups before primitives, test drops"
+  sum = "(begin (define (sum l) (if (equal? (length l) 0) 0 (+ (first l) (sum (rest l))))) (sum (list 1 2)))"
+  w = whole_in(read_forms(sum)[0], :borrow)
+  g = w[:globals][0]
+  assert g[:borrowed] == ["l"]
+  lent_body = lend_natively(g[:body], g[:borrowed])
+  dups = (t) -> length(filter((x) -> to_s(x) == "dup", flatten(t)))
+  assert dups(lent_body) == dups(g[:body]) + 3
+  assert native_lent(read_forms("(equal? l l)")[0], ["l"]) ==
+    read_forms("(l l)")[0]
+  assert native_lent(read_forms("(+ x 1)")[0], ["l"]) == []
+  assert native_lent(read_forms("(gcall \"f\" l)")[0], ["l"]) == []
+  assert member?("tailcall", NOT_PRIMITIVE)
+  test_if = read_forms("(if c (ret 1) (ret 2))")[0]
+  assert lent_rhs(test_if, ["c"]) == test_if
+  assert lent_rhs(test_if, []) ==
+    nth(
+      0,
+      read_forms("(if c (let (_ (drop c)) (ret 1)) (let (_ (drop c)) (ret 2)))")
+    )
+  tried = read_forms("(try (let (t (length l)) (ret t)) h)")[0]
+  assert lent_rhs(tried, ["l"]) ==
+    read_forms("(try (let (_ (dup l)) (let (t (length l)) (ret t))) h)")[0]
+  owned = rc_global(assoc(g, :convention, :owned), 0)[0]
+  lent = rc_global(assoc(g, :convention, :borrow), 0)[0]
+  assert length(lent) > length(owned)
 end
 
 test "the convention is a setting: compile_whole compiles under CONVENTION, and a parameter only read compiles another way under :borrow than under :owned"
@@ -2924,9 +3090,19 @@ compile_program: a program compiled with the prelude through Perceus to a refere
     compile_program(read_forms("7")[0], :exit)[0] #=> 127
 """
 def compile_program(form, mode)
-  compile_whole(
+  compile_program_in(form, mode, CONVENTION)
+end
+
+@doc """
+compile_program_in: compile_program under the calling convention named, :owned or :borrow.
+
+    compile_program_in(read_forms("7")[0], :exit, :borrow)[0] #=> 127
+"""
+def compile_program_in(form, mode, convention)
+  compile_whole_in(
     shake(bare_calls(map_calls(with_prelude(front_erased(form))))),
-    mode
+    mode,
+    convention
   )
 end
 
@@ -10060,63 +10236,6 @@ def tail_jump(slots, name, args)
     ),
     [{op: "jmp", label: "g_#{name}_tail"}]
   )
-end
-
-@doc """
-returns_var?: whether the rest of a term only answers the variable v: a ret of it, or the check a call's answer goes through (a dup, failed?, an if that rets it either way, and a ret of that).
-
-    returns_var?(read_forms("(ret x)")[0], read_forms("x")[0]) #=> true
-"""
-def returns_var?(term, v)
-  s = to_s(v)
-  if head_is?(term, "ret")
-    to_s(term[1]) == s
-  elsif head_is?(term, "let") and head_is?(term[1][1], "dup")
-    c = term[2]
-    rest_ok = head_is?(c, "let") and head_is?(c[1][1], "failed?")
-    if rest_ok
-      r = c[2]
-      head_is?(r, "let") and
-        head_is?(r[1][1], "if") and
-        head_is?(r[1][1][2], "ret") and
-        to_s(r[1][1][2][1]) == s and
-        head_is?(r[1][1][3], "ret") and
-        to_s(r[1][1][3][1]) == s and
-        head_is?(r[2], "ret") and
-        to_s(r[2][1]) == to_s(r[1][0])
-    else
-      false
-    end
-  else
-    false
-  end
-end
-
-@doc """
-mark_tail: a global's body with each call of the global itself in tail position made a tailcall: a gcall whose answer the rest only returns, found down the body and into the branches of an if whose value is returned the same way.
-
-    mark_tail(read_forms("(let (t (gcall \"f\" 1)) (ret t))")[0], "f")[1][1][0] == read_forms("tailcall")[0] #=> true
-"""
-def mark_tail(term, name)
-  if not head_is?(term, "let")
-    term
-  else
-    v = term[1][0]
-    rhs = term[1][1]
-    after = term[2]
-    if returns_var?(after, v)
-      marked = if head_is?(rhs, "gcall") and rhs[1] == name
-        cons(read_forms("tailcall")[0], rest(rhs))
-      elsif head_is?(rhs, "if")
-        [rhs[0], rhs[1], mark_tail(rhs[2], name), mark_tail(rhs[3], name)]
-      else
-        rhs
-      end
-      [term[0], [v, marked], after]
-    else
-      [term[0], [v, rhs], mark_tail(after, name)]
-    end
-  end
 end
 
 @doc """

@@ -114,22 +114,39 @@ the repo root and were read on 2026-11-17.
     and ranges 75 ms; `front` as one call 375 ms. The reader is 46 times faster; the other
     passes are the same code and cost the same.
   - *hashiru's convention is a setting* (`CONVENTION`, `compile_whole_in(form, mode,
-    convention)`; `compile_whole` compiles under `CONVENTION`), and it stays `:owned`, because
-    the native column says no to `:borrow` yet. Measured on rio (x86-64 Linux, 2026-11-21,
-    `BLUE_CONFORMANCE_NATIVE=1`, 1136 rows, at be5a5e5d): `:owned` 133 rows pass, that commit's ledger (C3 has since raised it to 134, owned);
-    `:borrow` 116. The 17 rows that pass owned and fail borrowed: `canon.B0066.eval`,
-    `fold.value.int`, `fold.kind.keyword`, `fn.value`, `fn.method_call`,
-    `fusion.value.map_map`, `fusion.value.closure_over_a_local`, `host.rename_rm`,
-    `keywords.not_a_string`, `lists.index`, `lists.append`, `lists.reverse` (each runs past
-    45 s), `host.ls` (signal 11), `fn.tail_calls` (an error), and
-    `bind.local.recursion_keeps_each_frame`, `fn.pipe`, `unions.union_stays_a_free_name`
-    (a function value where the walker has a list). Nearly all pass a function or a list
-    through the prelude's `map`, `reduce`, `nth` or `append`: hashiru's code for a borrowed
-    parameter of a prelude function, or a lent argument held across a closure call, is the
-    likely gap. hashiru's own recursive programs give their values under `:borrow`, but one,
-    `sum` over `(first l)` and `(rest l)`, leaves a block live (its `:leaks` run exits 254);
-    whether the fault is there or in the inference is not yet found. The next step is to compile those 17 under
-    `:borrow` and fix hashiru until the column holds 133 or more, then flip `CONVENTION`.
+    convention)`, `compile_program_in`; `compile_whole` compiles under `CONVENTION`), and it is
+    `:borrow` since 2026-11-21. Before, measured on rio at be5a5e5d, `:owned` passed 133 native
+    rows and `:borrow` 116, and hashiru's `sum` left a block live under `:borrow` (its `:leaks`
+    run exited 254, two frees too many). kuzushi's inference was right by its own evaluator and
+    reference-count checker (`ir_live` of `sum` under `:borrow` is empty); two faults sat
+    between it and native code:
+    - *Native primitives consume their arguments; kuzushi lends a borrowed name to one.* A
+      borrowed `l` passed to `length`, `first` or `rest` was dropped by the primitive's native
+      code, and the caller that lent it dropped it again after the call: a block freed twice,
+      then reused. That is every hang, the signal 11 and every function value where a list was
+      wanted. Fix in hashiru, `lend_natively`: each borrowed name a primitive reads is
+      duplicated first, once per use. And under `:borrow` an if consumes its test (kuzushi's
+      `tests: :dup`) while native code only reads it, so an if whose test is an owned name drops
+      it at the start of each branch.
+    - *Lending breaks a self tail call.* A caller drops what it lent after the call, so a
+      self call passing an owned name to a borrowed parameter is no longer in tail position,
+      and `fn.tail_calls` ran out of stack. Fix in kuzushi's inference, as Lean 4 does
+      (`tail_lends?`): a parameter that a self tail call passes an owned name stays owned, so
+      the loop stays a jump. `mark_tail` and `returns_var?` moved from hashiru to kuzushi for
+      it (`tail_args`, `tailcalls_in`, `checked_return?`); hashiru imports them.
+    - *Measured on rio (x86-64 Linux, 2026-11-21, `BLUE_CONFORMANCE_NATIVE=1`, 1136 rows):*
+      `:owned` 147 rows pass and `:borrow` 147, the same rows; on top of R4's prelude shake
+      (bc996b26) both pass 151, the same rows; on top of R4's sh_exec and home column
+      (bbc4b5d1), whose ledger `spec/native.baseline` holds 153 owned, `:borrow` passes 153;
+      on R4's temp_dir (a7ce23d1), ledger 157, `:borrow` passes 157.
+      All 17 rows named above pass under `:borrow`, and `sum` frees every block.
+      Over kuzushi's borrow-shaped programs the function dup/drop counts are 1→0, 6→4, 10→7
+      and 6→4 (the tail-recursive `sum l acc` of the old list keeps `l` owned now, so the list
+      holds a non-tail `sum`). Locks: kuzushi's "a tail call that passes an owned name makes
+      that parameter owned" (red without `tail_lends?`), hashiru's "lent programs give the
+      value they give owned and free every block" (`RECURSIVE_PROGRAMS`, `PRELUDE_PROGRAMS`
+      and the tail programs under `:borrow` on x86-64, leaks 0) and "native code lends as
+      kuzushi does"; `checks.ir-conformance` holds at 138.
 - **The core the IR must accept (measured 2026-11-18).** `blue ast --resolved` lowers all of
   blue to a small core. Over the four compiler sources (chuuzou, bpf, erufu, baito) the heads
   are `equal?` 2819, `list` 2766, `get` 2347, `define` 2079, `hash-map` 1263, `if` 745,

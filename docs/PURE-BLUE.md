@@ -72,7 +72,7 @@ Built and on main, each with its lock:
 Proven on x86-64 Linux: 59 programs across every feature, compiled by blue with no other
 language in the path, give their value and end with 0 blocks live.
 
-Not yet: hashiru on the borrowed convention (17 native rows fail under `:borrow`, named in `pure-blue/backend-runtime.md` §B1, so `CONVENTION` stays `:owned`); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1's other kinds (borrow, unique, escape, reuse), spans and the def-hash cache; M2-M5 on the Rust runtime; B5; R4's last host rows (`write_program`, `glob`, `exec_into`, `exec_exchange`); its home column landed 2026-11-21 (82 names native) and R5-R7
+Not yet: hashiru on the borrowed convention (17 native rows fail under `:borrow`, named in `pure-blue/backend-runtime.md` §B1, so `CONVENTION` stays `:owned`); B3's `checks.native-x64-corpus`; M3a, `Env::take`; M1's other kinds (borrow, unique, escape, reuse), spans and the def-hash cache; M2-M5 on the Rust runtime; B5; R4's last host rows (`write_program`, `exec_into`, `exec_exchange`); its home column landed 2026-11-21 (82 names native) and R5-R7
 beyond the raw words; the front end in blue (F1-F4); the tower (S1-S5); C2 beyond `leaks` (`closes_at`, cycle-through-cell, move vs copy, and I3 over every row); D6.
 
 Next, in order (2026-11-19). Every open rung whose dependencies in §7 are met, each with its

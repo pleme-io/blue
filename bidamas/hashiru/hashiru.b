@@ -2059,7 +2059,10 @@ def runtime()
       RT_FLOOR_DIV,
       RT_CLEANUP,
       RT_REGISTER_TEMP,
-      RT_STARTS_WITH
+      RT_STARTS_WITH,
+      RT_GLOB_MATCH,
+      RT_GM,
+      RT_STRING_DROP
     ]
   )
 end
@@ -2789,6 +2792,7 @@ PRELUDE = [
   "(define (rfc3339 s) (rfc_civil (+ (int_div s 86400) 719468) (mod s 86400)))",
   "(define (now_rfc3339) (rfc3339 (now)))",
   "(define (not= a b) (if (equal? a b) false true))",
+  "(define (glob p) (if (starts_with? p \"/\") (list) (filter (lambda (f) (glob_match p f)) (map (lambda (f) (string_drop f 2)) (walk_dir \".\")))))",
   "(define (temp_dir_made p) (begin (mkdir p) (register_temp p) p))",
   "(define (temp_dir label) (temp_dir_made (path_join (getenv \"TMPDIR\" \"/tmp\") (concat (concat label \"-\") (to_s (first (u32s (random_bytes 4) 1)))))))"
 ]
@@ -8245,13 +8249,15 @@ HOST_OPS = [
   %w[string_lt rt_string_lt],
   %w[int_div rt_floor_div],
   %w[register_temp rt_register_temp],
-  %w[starts_with? rt_starts_with]
+  %w[starts_with? rt_starts_with],
+  %w[glob_match rt_glob_match],
+  %w[string_drop rt_string_drop]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 35
+    length(ROUTINE_OPS) #=> 37
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8428,7 +8434,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 35
+  assert length(ROUTINE_OPS) == 37
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -11027,4 +11033,199 @@ test "the temp list is kept beside the stack floor and every exit cleans it"
     rc_op([], "exit_with", [1])
   )
   assert length(temp_programs) == 3
+end
+
+@doc """
+RT_GM: the matcher glob_match runs, recursive: whether the pattern of rsi bytes at rdi matches the path of rcx bytes at rdx, rax 1 or 0. A * matches any bytes but a slash, a ** any bytes at all, and any other byte itself.
+
+    RT_GM[0] #=> {op: "label", name: "rt_gm"}
+"""
+RT_GM = [
+  {op: "label", name: "rt_gm"},
+  {op: "push_rbp"},
+  {op: "mov", dst: "rbp", src: "rsp"},
+  {op: "sub", dst: "rsp", imm: 48},
+  {op: "cmp", dst: "rsi", imm: 0},
+  {op: "j", cond: "ne", label: "rt_gm_more"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "ne", label: "rt_gm_out"},
+  {op: "mov", dst: "rax", imm: 1},
+  {op: "jmp", label: "rt_gm_out"},
+  {op: "label", name: "rt_gm_more"},
+  {op: "load_byte", dst: "rax", base: "rdi"},
+  {op: "cmp", dst: "rax", imm: 42},
+  {op: "j", cond: "e", label: "rt_gm_star"},
+  {op: "cmp", dst: "rcx", imm: 0},
+  {op: "j", cond: "e", label: "rt_gm_fail"},
+  {op: "load_byte", dst: "r9", base: "rdx"},
+  {op: "cmp", dst: "rax", src: "r9"},
+  {op: "j", cond: "ne", label: "rt_gm_fail"},
+  {op: "add", dst: "rdi", imm: 1},
+  {op: "sub", dst: "rsi", imm: 1},
+  {op: "add", dst: "rdx", imm: 1},
+  {op: "sub", dst: "rcx", imm: 1},
+  {op: "call_label", label: "rt_gm"},
+  {op: "jmp", label: "rt_gm_out"},
+  {op: "label", name: "rt_gm_star"},
+  {op: "mov", dst: "r10", imm: 0},
+  {op: "add", dst: "rdi", imm: 1},
+  {op: "sub", dst: "rsi", imm: 1},
+  {op: "cmp", dst: "rsi", imm: 0},
+  {op: "j", cond: "e", label: "rt_gm_single"},
+  {op: "load_byte", dst: "r9", base: "rdi"},
+  {op: "cmp", dst: "r9", imm: 42},
+  {op: "j", cond: "ne", label: "rt_gm_single"},
+  {op: "mov", dst: "r10", imm: 1},
+  {op: "add", dst: "rdi", imm: 1},
+  {op: "sub", dst: "rsi", imm: 1},
+  {op: "label", name: "rt_gm_single"},
+  {op: "store", src: "rdi", base: "rbp", disp: -8},
+  {op: "store", src: "rsi", base: "rbp", disp: -16},
+  {op: "store", src: "rdx", base: "rbp", disp: -24},
+  {op: "store", src: "rcx", base: "rbp", disp: -32},
+  {op: "store", src: "r10", base: "rbp", disp: -40},
+  {op: "mov", dst: "rcx", imm: 0},
+  {op: "store", src: "rcx", base: "rbp", disp: -48},
+  {op: "label", name: "rt_gm_try"},
+  {op: "load", dst: "rdi", base: "rbp", disp: -8},
+  {op: "load", dst: "rsi", base: "rbp", disp: -16},
+  {op: "load", dst: "rdx", base: "rbp", disp: -24},
+  {op: "load", dst: "r8", base: "rbp", disp: -48},
+  {op: "add", dst: "rdx", src: "r8"},
+  {op: "load", dst: "rcx", base: "rbp", disp: -32},
+  {op: "sub", dst: "rcx", src: "r8"},
+  {op: "call_label", label: "rt_gm"},
+  {op: "cmp", dst: "rax", imm: 1},
+  {op: "j", cond: "e", label: "rt_gm_out"},
+  {op: "load", dst: "r8", base: "rbp", disp: -48},
+  {op: "load", dst: "rcx", base: "rbp", disp: -32},
+  {op: "cmp", dst: "r8", src: "rcx"},
+  {op: "j", cond: "e", label: "rt_gm_fail"},
+  {op: "load", dst: "rdx", base: "rbp", disp: -24},
+  {op: "add", dst: "rdx", src: "r8"},
+  {op: "load_byte", dst: "rax", base: "rdx"},
+  {op: "load", dst: "r10", base: "rbp", disp: -40},
+  {op: "cmp", dst: "r10", imm: 0},
+  {op: "j", cond: "ne", label: "rt_gm_next"},
+  {op: "cmp", dst: "rax", imm: 47},
+  {op: "j", cond: "e", label: "rt_gm_fail"},
+  {op: "label", name: "rt_gm_next"},
+  {op: "add", dst: "r8", imm: 1},
+  {op: "store", src: "r8", base: "rbp", disp: -48},
+  {op: "jmp", label: "rt_gm_try"},
+  {op: "label", name: "rt_gm_fail"},
+  {op: "mov", dst: "rax", imm: 0},
+  {op: "label", name: "rt_gm_out"},
+  {op: "mov", dst: "rsp", src: "rbp"},
+  {op: "pop_rbp"},
+  {op: "ret"}
+]
+
+@doc """
+RT_GLOB_MATCH: glob_match natively: true when the pattern string in rdi matches the path string in rsi (RT_GM), else false; both consumed.
+
+    RT_GLOB_MATCH[0] #=> {op: "label", name: "rt_glob_match"}
+"""
+RT_GLOB_MATCH = frame_routine(
+  "rt_glob_match",
+  48,
+  [
+    {op: "store", src: "rdi", base: "rbp", disp: -8},
+    {op: "store", src: "rsi", base: "rbp", disp: -16},
+    {op: "mov", dst: "rdx", src: "rsi"},
+    {op: "add", dst: "rdx", imm: 32},
+    {op: "load", dst: "rcx", base: "rsi", disp: 24},
+    {op: "load", dst: "rsi", base: "rdi", disp: 24},
+    {op: "add", dst: "rdi", imm: 32},
+    {op: "call_label", label: "rt_gm"},
+    {op: "add", dst: "rax", src: "rax"},
+    {op: "mov", dst: "rcx", imm: FALSE},
+    {op: "sub", dst: "rcx", src: "rax"},
+    {op: "store", src: "rcx", base: "rbp", disp: -40},
+    {op: "load", dst: "rdi", base: "rbp", disp: -8},
+    {op: "call_label", label: "rt_drop"},
+    {op: "load", dst: "rdi", base: "rbp", disp: -16},
+    {op: "call_label", label: "rt_drop"}
+  ]
+)
+
+@doc """
+RT_STRING_DROP: string_drop natively: the string in rdi (consumed) without its first n bytes, n the tagged number in rsi, as a new string; the empty string when n is past its end.
+
+    RT_STRING_DROP[0] #=> {op: "label", name: "rt_string_drop"}
+"""
+RT_STRING_DROP = frame_routine(
+  "rt_string_drop",
+  64,
+  append(
+    *[
+      [
+        {op: "store", src: "rdi", base: "rbp", disp: -8},
+        {op: "sar1", dst: "rsi"},
+        {op: "load", dst: "rcx", base: "rdi", disp: 24},
+        {op: "cmp", dst: "rsi", src: "rcx"},
+        {op: "j", cond: "le", label: "rt_sd_fit"},
+        {op: "mov", dst: "rsi", src: "rcx"},
+        {op: "label", name: "rt_sd_fit"},
+        {op: "sub", dst: "rcx", src: "rsi"},
+        {op: "store", src: "rcx", base: "rbp", disp: -32},
+        {op: "mov", dst: "rax", src: "rdi"},
+        {op: "add", dst: "rax", imm: 32},
+        {op: "add", dst: "rax", src: "rsi"},
+        {op: "store", src: "rax", base: "rbp", disp: -24}
+      ],
+      string_from_buffer(-24, -32, -40, "rt_sd_copy"),
+      [
+        {op: "load", dst: "rdi", base: "rbp", disp: -8},
+        {op: "call_label", label: "rt_drop"}
+      ]
+    ]
+  )
+)
+
+@doc """
+glob_programs: programs over glob natively, compiled with the prelude, in :show mode, with what each must write.
+
+    length(glob_programs) #=> 3
+"""
+def glob_programs()
+  [
+    [
+      "(list (glob_match \"*.b\" \"x.b\") (glob_match \"*.b\" \"d/x.b\") (glob_match \"**.b\" \"d/x.b\") (glob_match \"a*c\" \"abbc\") (glob_match \"a*c\" \"abd\"))",
+      "[true, false, true, true, false]"
+    ],
+    ["(string_drop \"./ab\" 2)", "\"ab\""],
+    ["(length (glob \"/tmp/*.b\"))", "0"]
+  ]
+end
+
+test "glob matches * and ** natively on x86-64", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-glob"), "glob.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      glob_programs
+    )
+  end
+end
+
+test "glob's matcher and string_drop assemble"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(
+    assemble(
+      append(append(append(RT_GM, RT_GLOB_MATCH), RT_STRING_DROP), stand_ins)
+    )
+  ) > 0
+  assert length(glob_programs) == 3
 end

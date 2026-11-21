@@ -382,7 +382,7 @@ Higher binding power binds tighter.
 | `cwd` | `cwd` | 0 | native | The current directory. |
 | `file_mtime_ms` | `file_mtime_ms(path)` | 1 | native | The last modification time, in Unix milliseconds. |
 | `file_size` | `file_size(path)` | 1 | native | The size in bytes. |
-| `glob` | `glob(pattern)` | 1 | — | Paths matching * and ** relative to the current directory. An absolute pattern finds nothing; walk_dir and filter instead. |
+| `glob` | `glob(pattern)` | 1 | native | Paths matching * and ** relative to the current directory. An absolute pattern finds nothing; walk_dir and filter instead. |
 | `is_dir?` | `is_dir?(path)` | 1 | native | Whether path is a directory. |
 | `is_file?` | `is_file?(path)` | 1 | native | Whether path is a regular file. |
 | `ls` | `ls(dir)` | 1 | native | The entries of a directory as full paths, sorted. |

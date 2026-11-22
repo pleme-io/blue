@@ -1311,6 +1311,11 @@ pub fn ir_driver(repo: &Path) -> Option<PathBuf> {
 /// which lowers the core through kuzushi and runs its evaluator. Exit 0 is
 /// the value's literal on stdout; exit 3 is kuzushi refusing the row (blind,
 /// never counted); any other exit, a reference left live included, is a crash.
+/// The call depth kuzushi's evaluator may reach under the ir column: a row deeper
+/// than this is refused within seconds on any machine, where the walker's own
+/// 100,000 took 20 s here and past the column's 45 s on CI (fn.tail_calls).
+pub const IR_CALL_DEPTH: usize = 20_000;
+
 pub fn ir(env: &mut Env, row: &Row, n: usize) -> Obs {
     let Some(driver) = env.ir.clone() else {
         return Obs::Blind("the ir column runs under BLUE_CONFORMANCE_IR".into());
@@ -1325,10 +1330,15 @@ pub fn ir(env: &mut Env, row: &Row, n: usize) -> Obs {
         Ok(p) => p,
         Err(o) => return o,
     };
+    let bound = lowered.with_file_name(format!("ir-{n}-depth.yaml"));
+    if let Err(e) = std::fs::write(&bound, format!("max_call_depth: {IR_CALL_DEPTH}\n")) {
+        return Obs::Blind(format!("cannot write the ir depth bound: {e}"));
+    }
     let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
     let run = match output_within(
         Command::new(&bin)
             .env("BLUE_PATH", &blue_path)
+            .env("BLUE_CONFIG", &bound)
             .args(["run", "--quiet"])
             .arg(&driver)
             .arg("--")

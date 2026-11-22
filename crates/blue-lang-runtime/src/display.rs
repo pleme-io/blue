@@ -22,7 +22,7 @@ struct Open {
     screen: Option<Screen>,
 }
 
-struct Handle(Mutex<Option<Open>>);
+struct Handle(Mutex<Option<Open>>, crate::handles::Counted);
 
 fn bad_option(word: &'static str, message: String, span: Span) -> EvalError {
     raise_kind("bad_option", format!("{word}: {message}"), span)
@@ -123,10 +123,10 @@ fn open_canvas(surface: Surface, opts: &Value, span: Span) -> Result<Value, Eval
         ),
         Surface::Framebuffer => None,
     };
-    Ok(Value::Foreign(Arc::new(Handle(Mutex::new(Some(Open {
-        canvas,
-        screen,
-    }))))))
+    Ok(Value::Foreign(Arc::new(Handle(
+        Mutex::new(Some(Open { canvas, screen })),
+        crate::handles::Counted::opened(),
+    ))))
 }
 
 fn install<H: 'static>(interp: &mut Interpreter<H>, key: Key, surface: Surface) {
@@ -223,6 +223,7 @@ fn install<H: 'static>(interp: &mut Interpreter<H>, key: Key, surface: Surface) 
         |a: &[Value], _: &mut H, span| {
             let h = handle(&a[0], "canvas_close", span)?;
             let open = h.0.lock().unwrap_or_else(PoisonError::into_inner).take();
+            h.1.close();
             if let Some(screen) = open.and_then(|o| o.screen) {
                 let _ = screen.close();
             }
@@ -294,6 +295,31 @@ mod tests {
             "closing twice is done"
         );
         assert_eq!(kind(&mut i, "(canvas_pixel c 0 0)"), "closed");
+    }
+
+    #[test]
+    fn a_canvas_counts_as_open_until_closed_or_its_interpreter_is_dropped() {
+        let at = crate::handles::open();
+        let mut i = framebuffer();
+        ok(
+            &mut i,
+            "(define c (canvas_open (hash-map :width 4 :height 4)))",
+        );
+        assert_eq!(crate::handles::open(), at + 1);
+        ok(&mut i, "(canvas_close c)");
+        ok(&mut i, "(canvas_close c)");
+        assert_eq!(crate::handles::open(), at, "closed by hand, once");
+        ok(
+            &mut i,
+            "(define d (canvas_open (hash-map :width 4 :height 4)))",
+        );
+        assert_eq!(crate::handles::open(), at + 1);
+        drop(i);
+        assert_eq!(
+            crate::handles::open(),
+            at,
+            "left open until its interpreter goes"
+        );
     }
 
     #[test]

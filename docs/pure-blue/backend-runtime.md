@@ -285,6 +285,11 @@ the repo root and were read on 2026-11-17.
   monitors, supervisors, over R2's per-process heaps and B3's yield points.
 - **First commit.** `spawn`/`send`/`receive`, cooperative, natively.
 - **Exit.** The 28 `spec/rows/processes.b` rows natively; a dead process's heap reads zero.
+- **Timers (2026-11-24).** Node time lives in the process table (`CLOCK_OFF`); a sleeping
+  process waits with its wake time in its record, and `rt_pick`, finding nothing runnable,
+  calls `rt_advance`, which moves the clock to the earliest wake and makes each process due
+  runnable. `sleep_until` and `after` are prelude words over `sleep_for`. The four
+  `processes.timers` rows run natively (`timer_programs` in `bidamas/hashiru`).
 
 ### R6 — libraries in blue
 

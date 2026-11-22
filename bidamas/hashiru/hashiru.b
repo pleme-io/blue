@@ -2239,7 +2239,8 @@ def runtime()
       PROC_ROUTINES,
       RT_RECEIVE,
       RT_MATCH,
-      PROC_SIGNALS
+      PROC_SIGNALS,
+      TIMER_ROUTINES
     ]
   )
 end
@@ -3080,7 +3081,9 @@ PRELUDE = [
   "(define (sup_loop kids n most) (sup_step (receive) kids n most))",
   "(define (supervisor strategy specs most) (spawn (lambda () (begin (trap_exit #t) (sup_loop (map (lambda (sp) (sup_start sp)) specs) 0 most)))))",
   "(define (children sup) (begin (send sup (list :children self)) (nth 2 (receive (list :children_of sup :_)))))",
-  "(define (supervisor_adopt sup f args) (begin (send sup (list :adopt f args)) sup))"
+  "(define (supervisor_adopt sup f args) (begin (send sup (list :adopt f args)) sup))",
+  "(define (sleep_until t) (sleep_for (- t node_time)))",
+  "(define (after ms msg) (let ((me self)) (spawn (lambda () (begin (sleep_for ms) (send me msg))))))"
 ]
 
 @doc """
@@ -4924,11 +4927,18 @@ MON_OFF: where the monitor table starts: two words for each monitor, its watcher
 MON_OFF = MON_NEXT + 8
 
 @doc """
-PROC_TABLE: the bytes rt_proc_init maps: the records, the link matrix, the monitor count and the monitor table.
+CLOCK_OFF: where the process table keeps node time, the virtual clock timers read: milliseconds since the program began, moved only when every process waits and one sleeps.
 
-    PROC_TABLE #=> 45064
+    CLOCK_OFF #=> 45064
 """
-PROC_TABLE = MON_OFF + MON_SLOTS * 16
+CLOCK_OFF = MON_OFF + MON_SLOTS * 16
+
+@doc """
+PROC_TABLE: the bytes rt_proc_init maps: the records, the link matrix, the monitor count and the monitor table, the monitor table and node time.
+
+    PROC_TABLE #=> 45072
+"""
+PROC_TABLE = CLOCK_OFF + 8
 
 @doc """
 PROC_KEYWORDS: the keywords the process words answer with or read: receive's wildcard, the reasons :normal and :kill, the signals :exit and :down, :noproc for a monitor of no process, and :crashed, a raising process's reason ([:crashed, what it raised], as blue gives it).
@@ -8299,6 +8309,7 @@ ZERO_ARITY_WORDS = %w[
   cwd
   argv
   self
+  node_time
 ]
 
 @doc """
@@ -8659,13 +8670,15 @@ HOST_OPS = [
   %w[spawn_link rt_spawn_link],
   %w[trap_exit rt_trap_exit],
   %w[monitor rt_monitor],
-  %w[demonitor rt_demonitor]
+  %w[demonitor rt_demonitor],
+  %w[node_time rt_node_time],
+  %w[sleep_for rt_sleep_for]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 50
+    length(ROUTINE_OPS) #=> 52
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8842,7 +8855,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 50
+  assert length(ROUTINE_OPS) == 52
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -11798,7 +11811,7 @@ test "exec_into runs exec_child with a raising tail, without a fork"
 end
 
 @doc """
-PROC_AT: where the program keeps its process table (R5 of docs/PURE-BLUE.md), as an offset from r14: PROC_SLOTS records of PROC_REC bytes, each state (0 free, 1 runnable, 2 waiting, 3 ended), saved stack pointer, mailbox head and tail, closure, stack, its stack floor (STACK_AT while it runs: the program's own, or a spawned stack's base and a page), whether it traps exits, and the error a link left it to raise; then the link matrix (LINK_OFF) and the monitor table (MON_OFF); 0 until a process word first runs.
+PROC_AT: where the program keeps its process table (R5 of docs/PURE-BLUE.md), as an offset from r14: PROC_SLOTS records of PROC_REC bytes, each state (0 free, 1 runnable, 2 waiting, 3 ended), saved stack pointer, mailbox head and tail, closure, stack, its stack floor (STACK_AT while it runs: the program's own, or a spawned stack's base and a page), whether it traps exits, the error a link left it to raise, and the node time it sleeps until (0 for none); then the link matrix (LINK_OFF) and the monitor table (MON_OFF); 0 until a process word first runs.
 
     PROC_AT #=> 568
 """
@@ -11863,7 +11876,7 @@ def proc_resume()
 end
 
 @doc """
-PROC_ROUTINES: the process words natively, cooperative (R5's first commit): rt_proc_init (the table, mapped once, the program its slot 0), rt_pick (a runnable slot other than the one in rdi, or -1), rt_yield_to (save the running process, switch to the slot in rdi), rt_proc_start (a spawned process's first frame: its closure called, then it ends and the next runnable runs, else the program), spawn, self, send, receive and alive?.
+PROC_ROUTINES: the process words natively, cooperative (R5's first commit): rt_proc_init (the table, mapped once, the program its slot 0), rt_pick (a runnable slot other than the one in rdi; with none, node time moved on by rt_advance and any runnable slot, else -1), rt_yield_to (save the running process, switch to the slot in rdi), rt_proc_start (a spawned process's first frame: its closure called, then it ends and the next runnable runs, else the program), spawn, self, send, receive and alive?.
 
     PROC_ROUTINES[0] #=> {op: "label", name: "rt_proc_init"}
 """
@@ -11892,6 +11905,8 @@ PROC_ROUTINES = append(
       {op: "label", name: "rt_pi_ready"},
       {op: "ret"},
       {op: "label", name: "rt_pick"},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "label", name: "rt_pk_scan"},
       {op: "mov", dst: "rdx", imm: 0},
       {op: "label", name: "rt_pk_next"},
       {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
@@ -11910,6 +11925,17 @@ PROC_ROUTINES = append(
       {op: "add", dst: "rdx", imm: 1},
       {op: "jmp", label: "rt_pk_next"},
       {op: "label", name: "rt_pk_none"},
+      {op: "cmp", dst: "r9", imm: 0},
+      {op: "j", cond: "ne", label: "rt_pk_fail"},
+      {op: "mov", dst: "r9", imm: 1},
+      {op: "push", src: "rdi"},
+      {op: "call_label", label: "rt_advance"},
+      {op: "pop", dst: "rdi"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_pk_fail"},
+      {op: "mov", dst: "rdi", imm: -1},
+      {op: "jmp", label: "rt_pk_scan"},
+      {op: "label", name: "rt_pk_fail"},
       {op: "mov", dst: "rax", imm: -1},
       {op: "ret"},
       {op: "label", name: "rt_yield_to"},
@@ -12206,7 +12232,7 @@ end
 test "the process table, its switch and the process words assemble"
   stand_ins = flat_map(
     append(
-      %w[rt_alloc rt_drop rt_dup rt_cons rt_proc_end],
+      %w[rt_alloc rt_drop rt_dup rt_cons rt_proc_end rt_advance],
       [kw_label(:normal), kw_label(:crashed)]
     ),
     (n) -> [{op: "label", name: n}, {op: "ret"}]
@@ -13143,7 +13169,8 @@ test "the link matrix, the monitor table and the signal words assemble"
     (n) -> [{op: "label", name: n}, {op: "ret"}]
   )
   assert length(assemble(append(PROC_SIGNALS, stand_ins))) > 0
-  assert PROC_TABLE == MON_OFF + MON_SLOTS * 16
+  assert PROC_TABLE == CLOCK_OFF + 8
+  assert CLOCK_OFF == MON_OFF + MON_SLOTS * 16
   assert LINK_OFF == PROC_SLOTS * PROC_REC
   assert MON_NEXT == LINK_OFF + PROC_SLOTS * PROC_SLOTS * 8
   assert length(link_addr("rcx", "rdx", "r8")) == 18
@@ -13276,4 +13303,181 @@ test "a global named as a value becomes a lambda that calls it"
   assert global_arities(read_forms("(f 1)")[0]) == []
   assert eta_walk(7, [], false) == 7
   assert eta_walk(read_forms("f")[0], [["f", 0]], false) == read_forms("(f)")[0]
+end
+
+@doc """
+TIMER_ROUTINES: node time natively (R5): rt_advance (when no process can run, node time moved to the earliest a sleeping process wakes, and every process due made runnable; rax 1, or 0 when none sleeps), node_time (the clock, tagged) and sleep_for (the running process waits until node time has moved on by the milliseconds in rdi, letting every other process run, and the clock jumps when only sleepers are left, so a long sleep costs nothing).
+
+    TIMER_ROUTINES[0] #=> {op: "label", name: "rt_advance"}
+"""
+TIMER_ROUTINES = append(
+  *[
+    [
+      {op: "label", name: "rt_advance"},
+      {op: "mov", dst: "r8", imm: 0},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_ad_min"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_ad_found"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "ne", label: "rt_ad_next"},
+      {op: "load", dst: "rax", base: "rcx", disp: 72},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_ad_next"},
+      {op: "cmp", dst: "r8", imm: 0},
+      {op: "j", cond: "e", label: "rt_ad_take"},
+      {op: "cmp", dst: "rax", src: "r8"},
+      {op: "j", cond: "ge", label: "rt_ad_next"},
+      {op: "label", name: "rt_ad_take"},
+      {op: "mov", dst: "r8", src: "rax"},
+      {op: "label", name: "rt_ad_next"},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "jmp", label: "rt_ad_min"},
+      {op: "label", name: "rt_ad_found"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "cmp", dst: "r8", imm: 0},
+      {op: "j", cond: "e", label: "rt_ad_out"},
+      {op: "load", dst: "rcx", base: "r14", disp: PROC_AT},
+      {op: "load", dst: "rax", base: "rcx", disp: CLOCK_OFF},
+      {op: "cmp", dst: "rax", src: "r8"},
+      {op: "j", cond: "ge", label: "rt_ad_keep"},
+      {op: "store", src: "r8", base: "rcx", disp: CLOCK_OFF},
+      {op: "label", name: "rt_ad_keep"},
+      {op: "load", dst: "r8", base: "rcx", disp: CLOCK_OFF},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_ad_wake"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_ad_done"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "ne", label: "rt_ad_wnext"},
+      {op: "load", dst: "rax", base: "rcx", disp: 72},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_ad_wnext"},
+      {op: "cmp", dst: "rax", src: "r8"},
+      {op: "j", cond: "g", label: "rt_ad_wnext"},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "label", name: "rt_ad_wnext"},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "jmp", label: "rt_ad_wake"},
+      {op: "label", name: "rt_ad_done"},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "label", name: "rt_ad_out"},
+      {op: "ret"},
+      {op: "label", name: "rt_node_time"},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "load", dst: "rcx", base: "r14", disp: PROC_AT},
+      {op: "load", dst: "rax", base: "rcx", disp: CLOCK_OFF},
+      {op: "add", dst: "rax", src: "rax"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "ret"},
+      {op: "label", name: "rt_sleep_for"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 16},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "load", dst: "rax", base: "rbp", disp: -8},
+      {op: "sar1", dst: "rax"},
+      {op: "load", dst: "rcx", base: "r14", disp: PROC_AT},
+      {op: "load", dst: "rdx", base: "rcx", disp: CLOCK_OFF},
+      {op: "add", dst: "rax", src: "rdx"},
+      {op: "store", src: "rax", base: "rbp", disp: -16},
+      {op: "label", name: "rt_sf_check"},
+      {op: "load", dst: "rcx", base: "r14", disp: PROC_AT},
+      {op: "load", dst: "rdx", base: "rcx", disp: CLOCK_OFF},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "cmp", dst: "rdx", src: "rax"},
+      {op: "j", cond: "ge", label: "rt_sf_done"},
+      {op: "load", dst: "rdx", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "store", src: "rax", base: "rcx", disp: 72},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rdi", base: "r14", disp: CUR_AT},
+      {op: "call_label", label: "rt_pick"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_sf_done"},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "call_label", label: "rt_yield_to"},
+      {op: "jmp", label: "rt_sf_check"},
+      {op: "label", name: "rt_sf_done"},
+      {op: "load", dst: "rdx", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 72},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+timer_programs: programs over node time natively, compiled with the prelude, in :show mode, with what each must write, as blue answers them on its virtual clock.
+
+    length(timer_programs) #=> 4
+"""
+def timer_programs()
+  [
+    [
+      "(begin (define t0 node_time) (sleep_for 600000) (- node_time t0))",
+      "600000"
+    ],
+    [
+      "(begin (define t (+ node_time 250)) (sleep_until t) (equal? node_time t))",
+      "true"
+    ],
+    [
+      "(begin (after 300 :late) (after 100 :early) (list (receive) (receive)))",
+      "[:early, :late]"
+    ],
+    [
+      "(begin (define me self) (spawn (lambda () (begin (sleep_for 1000) (send me :slow)))) (spawn (lambda () (send me :fast))) (list (receive) (receive)))",
+      "[:fast, :slow]"
+    ]
+  ]
+end
+
+test "node time moves only when every process waits", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-timer"), "timer.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      timer_programs
+    )
+  end
+end
+
+test "the clock, the advance and the sleep assemble"
+  stand_ins = flat_map(
+    %w[rt_proc_init rt_pick rt_yield_to],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(TIMER_ROUTINES, stand_ins))) > 0
+  assert member?("node_time", ZERO_ARITY_WORDS)
+  assert length(timer_programs) == 4
 end

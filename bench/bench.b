@@ -1204,9 +1204,97 @@ def other_hosts(rows, host)
   )
 end
 
+@doc """
+cpu_slug: A CPU model name as one key word: lower case, each run of other
+characters one dash.
+
+    cpu_slug("AMD Ryzen 9 9955HX 16-Core Processor") #=> "amd-ryzen-9-9955hx-16-core-processor"
+"""
+def cpu_slug(text)
+  words = filter(
+    (w) -> w != "",
+    split(
+      join(
+        map(
+          fn(c)
+            if contains?("abcdefghijklmnopqrstuvwxyz0123456789", c)
+              c
+            else
+              " "
+            end
+          end,
+          chars(downcase(trim(text)))
+        ),
+        ""
+      ),
+      " "
+    )
+  )
+  join(words, "-")
+end
+
+@doc """
+machine_name: This machine's CPU model as a slug: the first `model name` of
+/proc/cpuinfo on Linux, `machdep.cpu.brand_string` on macOS, or "unknown".
+
+    member?(machine_name("plan9"), ["unknown"]) #=> true
+"""
+def machine_name(host)
+  text = if host == "linux"
+    lines = filter(
+      (l) -> starts_with?(l, "model name"),
+      split(read_or("/proc/cpuinfo", ""), line_break)
+    )
+    if lines == []
+      ""
+    else
+      trim(after_first(first(lines), ":"))
+    end
+  elsif host == "darwin"
+    json_get(exec_capture("sysctl", "-n", "machdep.cpu.brand_string"), :stdout)
+  else
+    ""
+  end
+  if trim(text) == ""
+    "unknown"
+  else
+    cpu_slug(text)
+  end
+end
+
+@doc """
+native_machine: The machine a host's native rows were measured on, as its
+baseline records it, or nil when it records none.
+
+    native_machine([{kind: "native-machine", key: "linux amd-x", size: 1}], "linux") #=> "amd-x"
+"""
+def native_machine(rows, host)
+  found = filter(
+    (r) -> r.kind == "native-machine" and starts_with?(r.key, "#{host} "),
+    rows
+  )
+  if found != []
+    after_first(first(found).key, " ")
+  end
+end
+
+@doc """
+native_gated?: Whether this machine's native ratios are judged against the
+host's rows: when the baseline records no machine for the host, or records
+this one. Another machine's ratios are advisory, since a ratio to Rust moves
+with the CPU (C3's rio rows read 1.5 to 3 times higher on a hosted runner).
+
+    native_gated?([{kind: "native-machine", key: "linux amd-x", size: 1}], "linux", "intel-y") #=> false
+"""
+def native_gated?(rows, host, machine)
+  m = native_machine(rows, host)
+  m.nil? or m == machine
+end
+
 def native_command(blue, work, flags)
   runs = 3
   host = host_name
+  machine = machine_name(host)
   results = map((n) -> native_row(blue, n, work, runs, host), native_programs)
   write_stdout(
     unlines(
@@ -1239,12 +1327,27 @@ def native_command(blue, work, flags)
     )
     refused = receipt_refusal(flag(flags, "--receipt"))
     if refused.nil?
+      machines = append(
+        map(
+          (r) -> measurement(r.key, r.size),
+          filter(
+            fn(r)
+              r.kind == "native-machine" and not starts_with?(r.key, "#{host} ")
+            end,
+            rows
+          )
+        ),
+        [measurement("#{host} #{machine}", 1)]
+      )
       write_file(
         NATIVE_BASELINE,
         receipted(
           old,
           flag(flags, "--receipt"),
-          render("native-ratio", measures)
+          concat(
+            render("native-machine", machines),
+            render("native-ratio", measures)
+          )
         )
       )
       true
@@ -1252,6 +1355,15 @@ def native_command(blue, work, flags)
       write_stdout(unlines([refused]))
       false
     end
+  elsif not native_gated?(rows, host, machine)
+    write_stdout(
+      unlines(
+        [
+          "advisory: the #{host} native rows were measured on #{native_machine(rows, host)}; this is #{machine}, so its ratios are shown, not judged"
+        ]
+      )
+    )
+    true
   else
     bad = native_refusals(rows, results, host)
     map((b) -> write_stdout(unlines([why(b)])), bad)
@@ -1592,4 +1704,18 @@ test "a program with no N is not timed against its Rust twin", {kind: :unit}
   }
   assert native_measures([timed_one, startup], path, "linux") ==
     [{key: "fib tree linux", size: 20000}]
+end
+
+test "native rows are judged only on the machine that measured them", {
+  kind: :unit
+}
+  rows = [{kind: "native-machine", key: "linux amd-ryzen-9", size: 1}]
+  assert native_gated?(rows, "linux", "amd-ryzen-9")
+  assert not native_gated?(rows, "linux", "amd-epyc-7763")
+  assert native_gated?(rows, "darwin", "apple-m1-max")
+  assert native_gated?([], "linux", "anything")
+  assert native_machine(rows, "linux") == "amd-ryzen-9"
+  assert native_machine(rows, "darwin").nil?
+  assert cpu_slug("  Apple M1 Max ") == "apple-m1-max"
+  assert machine_name("plan9") == "unknown"
 end

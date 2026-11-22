@@ -5,6 +5,8 @@
 # receipt: 2026-11-10: a decrement and a remainder that a range proves safe are plain operators (loop 1.61 -> 0.88 of Rust)
 # receipt: platform: 2026-11-21: first linux rows, measured on rio (x86-64, 32 cores): every native path, and bluec (hashiru through gen/native-row.b, :run mode) for fib, loop and mutual; bluec refuses shapes (records) and sums (reclaim)
 # receipt: un-gain: 2026-11-21: mutual's seven rows leave the gate. It has no N, so each path's time and Rust's are a process start of 0.2-0.6 ms and their ratio is noise (bluec linux read 1333, 3000 and 1500 on three runs of one build); a program with no N is still run and its output still held to the Rust twin's, it is only not timed against it
+# receipt: 2026-11-21: the linux rows name the machine that measured them (rio); on any other machine CI's hosted runners among them, the native ratios are shown, not judged
+native-machine: linux amd-ryzen-9-9955hx-16-core-processor 1
 native-ratio: fib bluec linux 13577
 native-ratio: fib chuuzou darwin 1284
 native-ratio: fib chuuzou linux 1604

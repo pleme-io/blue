@@ -1748,7 +1748,12 @@ compile_rc: a core form compiled through Perceus to a reference-counted executab
 """
 def compile_rc(form, mode)
   executable(
-    assemble(rc_program(perceus_program(closure_convert(anf(form))), mode))
+    assemble(
+      append(
+        rc_program(perceus_program(closure_convert(anf(form))), mode),
+        static_data(RUNTIME_KEYWORDS)
+      )
+    )
   )
 end
 
@@ -2197,7 +2202,8 @@ def runtime()
       RT_EXEC_INTO,
       PROC_ROUTINES,
       RT_RECEIVE,
-      RT_MATCH
+      RT_MATCH,
+      PROC_SIGNALS
     ]
   )
 end
@@ -4789,19 +4795,75 @@ NETWORK_KEYWORDS: the keywords tcp_connect_ms answers with when a connect fails:
 NETWORK_KEYWORDS = %i[error refused timeout unreachable unresolved failed]
 
 @doc """
-NET_WAIT_KEYWORDS: the interests net_wait reads and the readiness it answers, and receive's wildcard :_.
+PROC_SLOTS: how many processes the table holds, the program among them.
 
-    NET_WAIT_KEYWORDS #=> %i[read write both closed _]
+    PROC_SLOTS #=> 64
 """
-NET_WAIT_KEYWORDS = %i[read write both closed _]
+PROC_SLOTS = 64
+
+@doc """
+PROC_REC: the bytes of one process record in the table.
+
+    PROC_REC #=> 128
+"""
+PROC_REC = 128
+
+@doc """
+LINK_OFF: where the link matrix starts in the process table: one word for each ordered pair of slots, 1 when the two are linked.
+
+    LINK_OFF #=> 8192
+"""
+LINK_OFF = PROC_SLOTS * PROC_REC
+
+@doc """
+MON_SLOTS: how many monitors a program can take; a monitor's reference is its place in the monitor table, counted from 1.
+
+    MON_SLOTS #=> 256
+"""
+MON_SLOTS = 256
+
+@doc """
+MON_NEXT: where the process table keeps the number of monitors taken so far.
+
+    MON_NEXT #=> 40960
+"""
+MON_NEXT = LINK_OFF + PROC_SLOTS * PROC_SLOTS * 8
+
+@doc """
+MON_OFF: where the monitor table starts: two words for each monitor, its watcher's slot plus one (0 once it fired or was taken down) and the slot it watches.
+
+    MON_OFF #=> 40968
+"""
+MON_OFF = MON_NEXT + 8
+
+@doc """
+PROC_TABLE: the bytes rt_proc_init maps: the records, the link matrix, the monitor count and the monitor table.
+
+    PROC_TABLE #=> 45064
+"""
+PROC_TABLE = MON_OFF + MON_SLOTS * 16
+
+@doc """
+PROC_KEYWORDS: the keywords the process words answer with or read: receive's wildcard, the reasons :normal and :kill, the signals :exit and :down, and :noproc for a monitor of no process.
+
+    PROC_KEYWORDS #=> %i[_ normal kill exit down noproc]
+"""
+PROC_KEYWORDS = %i[_ normal kill exit down noproc]
+
+@doc """
+NET_WAIT_KEYWORDS: the interests net_wait reads and the readiness it answers.
+
+    NET_WAIT_KEYWORDS #=> %i[read write both closed]
+"""
+NET_WAIT_KEYWORDS = %i[read write both closed]
 
 @doc """
 RUNTIME_KEYWORDS: every keyword a runtime routine answers with, placed in the data section of every program rc_whole builds.
 
-    length(RUNTIME_KEYWORDS) #=> 14
+    length(RUNTIME_KEYWORDS) #=> 19
 """
 RUNTIME_KEYWORDS = append(
-  *[CAPTURE_KEYWORDS, NETWORK_KEYWORDS, NET_WAIT_KEYWORDS]
+  *[CAPTURE_KEYWORDS, NETWORK_KEYWORDS, NET_WAIT_KEYWORDS, PROC_KEYWORDS]
 )
 
 @doc """
@@ -6312,7 +6374,7 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
   assert member?({op: "mov", dst: "rax", imm: 55}, RT_TCP_CONNECT)
   assert length(classify_connect) > 10
   assert NETWORK_KEYWORDS[0] == :error
-  assert length(RUNTIME_KEYWORDS) == 14
+  assert length(RUNTIME_KEYWORDS) == 19
   stand_ins = [
     {op: "label", name: "rt_alloc"},
     {op: "ret"},
@@ -8503,13 +8565,20 @@ HOST_OPS = [
   %w[spawn rt_spawn],
   %w[self rt_self],
   %w[send rt_send],
-  %w[alive? rt_alive]
+  %w[alive? rt_alive],
+  %w[exit rt_exit],
+  %w[link rt_link],
+  %w[unlink rt_unlink],
+  %w[spawn_link rt_spawn_link],
+  %w[trap_exit rt_trap_exit],
+  %w[monitor rt_monitor],
+  %w[demonitor rt_demonitor]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 43
+    length(ROUTINE_OPS) #=> 50
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8686,7 +8755,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 43
+  assert length(ROUTINE_OPS) == 50
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -11642,7 +11711,7 @@ test "exec_into runs exec_child with a raising tail, without a fork"
 end
 
 @doc """
-PROC_AT: where the program keeps its process table (R5 of docs/PURE-BLUE.md), as an offset from r14: PROC_SLOTS records of 64 bytes, each state (0 free, 1 runnable, 2 waiting, 3 ended), saved stack pointer, mailbox head and tail, closure, stack, and its stack floor (STACK_AT while it runs: the program's own, or a spawned stack's base and a page); 0 until a process word first runs.
+PROC_AT: where the program keeps its process table (R5 of docs/PURE-BLUE.md), as an offset from r14: PROC_SLOTS records of PROC_REC bytes, each state (0 free, 1 runnable, 2 waiting, 3 ended), saved stack pointer, mailbox head and tail, closure, stack, its stack floor (STACK_AT while it runs: the program's own, or a spawned stack's base and a page), whether it traps exits, and the error a link left it to raise; then the link matrix (LINK_OFF) and the monitor table (MON_OFF); 0 until a process word first runs.
 
     PROC_AT #=> 568
 """
@@ -11654,13 +11723,6 @@ CUR_AT: where the program keeps the slot of the process that runs, as an offset 
     CUR_AT #=> 576
 """
 CUR_AT = FREE_CLASSES * 8 + 64
-
-@doc """
-PROC_SLOTS: how many processes the table holds, the program among them.
-
-    PROC_SLOTS #=> 64
-"""
-PROC_SLOTS = 64
 
 @doc """
 PROC_STACK: the bytes of each spawned process's own stack, mapped as it is spawned.
@@ -11680,6 +11742,7 @@ def proc_rec(dst, idx)
       [{op: "mov", dst:, src: idx}],
       times8(dst),
       times8(dst),
+      [{op: "add", dst:, src: dst}],
       [
         {op: "push", src: "rax"},
         {op: "load", dst: "rax", base: "r14", disp: PROC_AT},
@@ -11725,7 +11788,7 @@ PROC_ROUTINES = append(
       {op: "cmp", dst: "rax", imm: 0},
       {op: "j", cond: "ne", label: "rt_pi_ready"},
       {op: "mov", dst: "rdi", imm: 0},
-      {op: "mov", dst: "rsi", imm: PROC_SLOTS * 64},
+      {op: "mov", dst: "rsi", imm: PROC_TABLE},
       {op: "mov", dst: "rdx", imm: 3},
       {op: "mov", dst: "r10", imm: 34},
       {op: "mov", dst: "r8", imm: -1},
@@ -11782,22 +11845,28 @@ PROC_ROUTINES = append(
     [
       {op: "load", dst: "r11", base: "rcx", disp: 32},
       {op: "call_r11"},
+      {op: "mov", dst: "rcx", src: "rax"},
+      {op: "and", dst: "rcx", imm: 1},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_ps_normal"},
+      {op: "cmp", dst: "rax", imm: 4096},
+      {op: "j", cond: "l", label: "rt_ps_normal"},
+      {op: "load", dst: "rcx", base: "rax", disp: 0},
+      {op: "cmp", dst: "rcx", imm: 4},
+      {op: "j", cond: "e", label: "rt_ps_ended"},
+      {op: "label", name: "rt_ps_normal"},
       {op: "mov", dst: "rdi", src: "rax"},
       {op: "call_label", label: "rt_drop"},
-      {op: "load", dst: "rax", base: "r14", disp: CUR_AT}
-    ],
-    proc_rec("rcx", "rax"),
-    [
-      {op: "push", src: "rcx"},
-      {op: "load", dst: "rdi", base: "rcx", disp: 32},
+      {op: "lea_label", dst: "rax", label: kw_label(:normal)},
+      {op: "label", name: "rt_ps_ended"},
+      {op: "push", src: "rax"},
+      {op: "push", src: "rax"},
+      {op: "mov", dst: "rsi", src: "rax"},
+      {op: "load", dst: "rdi", base: "r14", disp: CUR_AT},
+      {op: "call_label", label: "rt_proc_end"},
+      {op: "pop", dst: "rdi"},
+      {op: "pop", dst: "rdi"},
       {op: "call_label", label: "rt_drop"},
-      {op: "pop", dst: "rcx"},
-      {op: "push", src: "rcx"},
-      {op: "load", dst: "rdi", base: "rcx", disp: 16},
-      {op: "call_label", label: "rt_drop"},
-      {op: "pop", dst: "rcx"},
-      {op: "mov", dst: "rax", imm: 3},
-      {op: "store", src: "rax", base: "rcx", disp: 0},
       {op: "load", dst: "rdi", base: "r14", disp: CUR_AT},
       {op: "call_label", label: "rt_pick"},
       {op: "cmp", dst: "rax", imm: 0},
@@ -12032,7 +12101,7 @@ end
 
 test "the process table, its switch and the process words assemble"
   stand_ins = flat_map(
-    %w[rt_alloc rt_drop],
+    append(%w[rt_alloc rt_drop rt_proc_end], [kw_label(:normal)]),
     (n) -> [{op: "label", name: n}, {op: "ret"}]
   )
   assert length(assemble(append(PROC_ROUTINES, stand_ins))) > 0
@@ -12172,6 +12241,16 @@ RT_RECEIVE = append(
     proc_rec("rcx", "rax"),
     [
       {op: "store", src: "rcx", base: "rbp", disp: -48},
+      {op: "load", dst: "rax", base: "rcx", disp: 64},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_rv_unsignalled"},
+      {op: "store", src: "rax", base: "rbp", disp: -80},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 64},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_drop"},
+      {op: "jmp", label: "rt_rv_done"},
+      {op: "label", name: "rt_rv_unsignalled"},
       {op: "mov", dst: "rax", imm: 0},
       {op: "store", src: "rax", base: "rbp", disp: -56},
       {op: "load", dst: "rax", base: "rcx", disp: 16},
@@ -12374,4 +12453,598 @@ test "a shake before the lowering keeps the prelude words the lowering brings"
   assert shake(prog) ==
     read_forms("(begin (define (list_drop n l) l) (drop 1 x))")[0]
   assert IMPLIED_WORDS[6] == ["get", ["map_get"]]
+end
+
+@doc """
+link_addr: the instructions that put in dst the address of the link matrix's word for the slots in i and j (dst, i and j distinct, none rax or r11).
+
+    length(link_addr("rcx", "rdx", "r8")) #=> 18
+"""
+def link_addr(dst, i, j)
+  append(
+    *[
+      [{op: "mov", dst:, src: i}],
+      times8(dst),
+      times8(dst),
+      times8(dst),
+      [{op: "mov", dst: "r11", src: j}],
+      times8("r11"),
+      [
+        {op: "add", dst:, src: "r11"},
+        {op: "load", dst: "r11", base: "r14", disp: PROC_AT},
+        {op: "add", dst:, src: "r11"},
+        {op: "add", dst:, imm: LINK_OFF}
+      ]
+    ]
+  )
+end
+
+@doc """
+mon_addr: the instructions that put in dst the address of the monitor table's entry whose index is in i (dst neither rax nor r11).
+
+    length(mon_addr("rcx", "rdx")) #=> 8
+"""
+def mon_addr(dst, i)
+  append(
+    *[
+      [{op: "mov", dst:, src: i}],
+      times8(dst),
+      [
+        {op: "add", dst:, src: dst},
+        {op: "load", dst: "r11", base: "r14", disp: PROC_AT},
+        {op: "add", dst:, src: "r11"},
+        {op: "add", dst:, imm: MON_OFF}
+      ]
+    ]
+  )
+end
+
+@doc """
+live_or(rec, out): the instructions that leave for out unless the record whose address is in rec is runnable or waiting (rax used).
+
+    length(live_or("rcx", "x")) #=> 5
+"""
+def live_or(rec, out)
+  [
+    {op: "load", dst: "rax", base: rec, disp: 0},
+    {op: "cmp", dst: "rax", imm: 1},
+    {op: "j", cond: "l", label: out},
+    {op: "cmp", dst: "rax", imm: 2},
+    {op: "j", cond: "g", label: out}
+  ]
+end
+
+@doc """
+slot_or(r, out): the instructions that leave for out unless the slot in r is in the table.
+
+    length(slot_or("rdx", "x")) #=> 4
+"""
+def slot_or(r, out)
+  [
+    {op: "cmp", dst: r, imm: 0},
+    {op: "j", cond: "l", label: out},
+    {op: "cmp", dst: r, imm: PROC_SLOTS},
+    {op: "j", cond: "ge", label: out}
+  ]
+end
+
+@doc """
+signal_into(rec, tag): the instructions that leave the record whose address is at rbp+rec an error to raise at its next receive, unless it holds one, and make it runnable: how an exit reaches a process that cannot end where it stands (the program, or the process running).
+
+    signal_into(-40, "x")[0] #=> {op: "load", dst: "rcx", base: "rbp", disp: -40}
+"""
+def signal_into(rec, tag)
+  append(
+    *[
+      [
+        {op: "load", dst: "rcx", base: "rbp", disp: rec},
+        {op: "load", dst: "rax", base: "rcx", disp: 64},
+        {op: "cmp", dst: "rax", imm: 0},
+        {op: "j", cond: "ne", label: "#{tag}_held"},
+        {op: "mov", dst: "rax", imm: -3}
+      ],
+      error_from("rax"),
+      [
+        {op: "load", dst: "rcx", base: "rbp", disp: rec},
+        {op: "store", src: "rax", base: "rcx", disp: 64},
+        {op: "mov", dst: "rax", imm: 1},
+        {op: "store", src: "rax", base: "rcx", disp: 0},
+        {op: "label", name: "#{tag}_held"}
+      ]
+    ]
+  )
+end
+
+@doc """
+PROC_SIGNALS: links, monitors and exits natively (R5): rt_cons (a list cell of the head in rdi and the tail in rsi), rt_note (a signal sent: [tag, ref, pid, reason], or [tag, pid, reason] with no ref), rt_proc_end (a process ended with a reason: its mailbox and closure dropped, each monitor of it sent :down, each link cut, and each linked process told: as [:exit, pid, reason] when it traps, else ended with it, or left the error to raise when it is the program or the one running; :normal ends no one), and exit, link, unlink, spawn_link, trap_exit, monitor and demonitor.
+
+    PROC_SIGNALS[0] #=> {op: "label", name: "rt_cons"}
+"""
+PROC_SIGNALS = append(
+  *[
+    [
+      {op: "label", name: "rt_cons"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 16},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "mov", dst: "rdi", imm: 5},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "load", dst: "rcx", base: "rbp", disp: -8},
+      {op: "store", src: "rcx", base: "rax", disp: 24},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "store", src: "rcx", base: "rax", disp: 32},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_note"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "store", src: "rdx", base: "rbp", disp: -24},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "store", src: "r8", base: "rbp", disp: -40},
+      {op: "mov", dst: "rdi", src: "rcx"},
+      {op: "call_label", label: "rt_dup"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -32},
+      {op: "mov", dst: "rsi", imm: 0},
+      {op: "call_label", label: "rt_cons"},
+      {op: "store", src: "rax", base: "rbp", disp: -48},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "add", dst: "rdi", src: "rdi"},
+      {op: "add", dst: "rdi", imm: 1},
+      {op: "load", dst: "rsi", base: "rbp", disp: -48},
+      {op: "call_label", label: "rt_cons"},
+      {op: "store", src: "rax", base: "rbp", disp: -48},
+      {op: "load", dst: "rax", base: "rbp", disp: -40},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_nt_noref"},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "load", dst: "rsi", base: "rbp", disp: -48},
+      {op: "call_label", label: "rt_cons"},
+      {op: "store", src: "rax", base: "rbp", disp: -48},
+      {op: "label", name: "rt_nt_noref"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "load", dst: "rsi", base: "rbp", disp: -48},
+      {op: "call_label", label: "rt_cons"},
+      {op: "mov", dst: "rsi", src: "rax"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "add", dst: "rdi", src: "rdi"},
+      {op: "add", dst: "rdi", imm: 1},
+      {op: "call_label", label: "rt_send"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_proc_end"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 64},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "mov", dst: "rdx", src: "rdi"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [{op: "store", src: "rcx", base: "rbp", disp: -24}],
+    live_or("rcx", "rt_pe_out"),
+    [
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rdi", base: "rcx", disp: 16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rdi", base: "rcx", disp: 32},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 16},
+      {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "store", src: "rax", base: "rcx", disp: 32},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "label", name: "rt_pe_mon"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "rdx", imm: MON_SLOTS},
+      {op: "j", cond: "ge", label: "rt_pe_links"}
+    ],
+    mon_addr("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_pe_mon_next"},
+      {op: "load", dst: "rdx", base: "rcx", disp: 8},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "cmp", dst: "rdx", src: "rdi"},
+      {op: "j", cond: "ne", label: "rt_pe_mon_next"},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "store", src: "rdx", base: "rcx", disp: 0},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "sub", dst: "rdi", imm: 1},
+      {op: "lea_label", dst: "rsi", label: kw_label(:down)},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "load", dst: "r8", base: "rbp", disp: -32},
+      {op: "add", dst: "r8", src: "r8"},
+      {op: "add", dst: "r8", imm: 3},
+      {op: "call_label", label: "rt_note"},
+      {op: "label", name: "rt_pe_mon_next"},
+      {op: "load", dst: "rax", base: "rbp", disp: -32},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "jmp", label: "rt_pe_mon"},
+      {op: "label", name: "rt_pe_links"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "label", name: "rt_pe_link"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_pe_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8}
+    ],
+    link_addr("rcx", "rdi", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_pe_next"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32}
+    ],
+    link_addr("rcx", "rdx", "rdi"),
+    [
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "lea_label", dst: "rcx", label: kw_label(:normal)},
+      {op: "cmp", dst: "rax", src: "rcx"},
+      {op: "j", cond: "e", label: "rt_pe_next"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32}
+    ],
+    proc_rec("rcx", "rdx"),
+    [{op: "store", src: "rcx", base: "rbp", disp: -40}],
+    live_or("rcx", "rt_pe_next"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 56},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_pe_untrapped"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -32},
+      {op: "lea_label", dst: "rsi", label: kw_label(:exit)},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "mov", dst: "r8", imm: 0},
+      {op: "call_label", label: "rt_note"},
+      {op: "jmp", label: "rt_pe_next"},
+      {op: "label", name: "rt_pe_untrapped"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "e", label: "rt_pe_signal"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT},
+      {op: "cmp", dst: "rdx", src: "rax"},
+      {op: "j", cond: "e", label: "rt_pe_signal"},
+      {op: "mov", dst: "rdi", src: "rdx"},
+      {op: "load", dst: "rsi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_proc_end"},
+      {op: "jmp", label: "rt_pe_next"},
+      {op: "label", name: "rt_pe_signal"}
+    ],
+    signal_into(-40, "rt_pe_sig"),
+    [
+      {op: "label", name: "rt_pe_next"},
+      {op: "load", dst: "rax", base: "rbp", disp: -32},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rbp", disp: -32},
+      {op: "jmp", label: "rt_pe_link"},
+      {op: "label", name: "rt_pe_out"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_exit"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 48},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "mov", dst: "rax", imm: FALSE},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "sar1", dst: "rdx"}
+    ],
+    slot_or("rdx", "rt_ex_out"),
+    [{op: "store", src: "rdx", base: "rbp", disp: -8}],
+    proc_rec("rcx", "rdx"),
+    [{op: "store", src: "rcx", base: "rbp", disp: -40}],
+    live_or("rcx", "rt_ex_out"),
+    [
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "store", src: "rax", base: "rbp", disp: -24},
+      {op: "load", dst: "rax", base: "rcx", disp: 56},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_ex_untrapped"},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "lea_label", dst: "rdx", label: kw_label(:kill)},
+      {op: "cmp", dst: "rax", src: "rdx"},
+      {op: "j", cond: "e", label: "rt_ex_untrapped"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "lea_label", dst: "rsi", label: kw_label(:exit)},
+      {op: "load", dst: "rdx", base: "r14", disp: CUR_AT},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "mov", dst: "r8", imm: 0},
+      {op: "call_label", label: "rt_note"},
+      {op: "jmp", label: "rt_ex_out"},
+      {op: "label", name: "rt_ex_untrapped"},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "lea_label", dst: "rdx", label: kw_label(:normal)},
+      {op: "cmp", dst: "rax", src: "rdx"},
+      {op: "j", cond: "e", label: "rt_ex_out"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "e", label: "rt_ex_signal"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT},
+      {op: "cmp", dst: "rdx", src: "rax"},
+      {op: "j", cond: "e", label: "rt_ex_signal"},
+      {op: "mov", dst: "rdi", src: "rdx"},
+      {op: "load", dst: "rsi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_proc_end"},
+      {op: "jmp", label: "rt_ex_out"},
+      {op: "label", name: "rt_ex_signal"}
+    ],
+    signal_into(-40, "rt_ex_sig"),
+    [
+      {op: "label", name: "rt_ex_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_link"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 16},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "mov", dst: "rax", imm: FALSE},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "sar1", dst: "rdx"}
+    ],
+    slot_or("rdx", "rt_lk_out"),
+    [
+      {op: "store", src: "rdx", base: "rbp", disp: -8},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "load", dst: "rcx", base: "r14", disp: CUR_AT},
+      {op: "cmp", dst: "rdx", src: "rcx"},
+      {op: "j", cond: "e", label: "rt_lk_out"}
+    ],
+    proc_rec("rcx", "rdx"),
+    live_or("rcx", "rt_lk_no"),
+    [{op: "load", dst: "r8", base: "r14", disp: CUR_AT}],
+    link_addr("rcx", "r8", "rdx"),
+    [
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0}
+    ],
+    link_addr("rcx", "rdx", "r8"),
+    [
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "jmp", label: "rt_lk_out"},
+      {op: "label", name: "rt_lk_no"},
+      {op: "mov", dst: "rax", imm: FALSE},
+      {op: "label", name: "rt_lk_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_unlink"},
+      {op: "push", src: "rdi"},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "pop", dst: "rdx"},
+      {op: "sar1", dst: "rdx"}
+    ],
+    slot_or("rdx", "rt_ul_out"),
+    [{op: "load", dst: "r8", base: "r14", disp: CUR_AT}],
+    link_addr("rcx", "r8", "rdx"),
+    [
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 0}
+    ],
+    link_addr("rcx", "rdx", "r8"),
+    [
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "label", name: "rt_ul_out"},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "ret"},
+      {op: "label", name: "rt_spawn_link"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 16},
+      {op: "call_label", label: "rt_spawn"},
+      {op: "store", src: "rax", base: "rbp", disp: -8},
+      {op: "mov", dst: "rcx", src: "rax"},
+      {op: "and", dst: "rcx", imm: 1},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_sl_out"},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "call_label", label: "rt_link"},
+      {op: "label", name: "rt_sl_out"},
+      {op: "load", dst: "rax", base: "rbp", disp: -8},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_trap_exit"},
+      {op: "push", src: "rdi"},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "pop", dst: "rdi"},
+      {op: "load", dst: "rdx", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "cmp", dst: "rdi", imm: 2},
+      {op: "j", cond: "ne", label: "rt_te_set"},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "label", name: "rt_te_set"},
+      {op: "store", src: "rax", base: "rcx", disp: 56},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "ret"},
+      {op: "label", name: "rt_monitor"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "load", dst: "rcx", base: "r14", disp: PROC_AT},
+      {op: "load", dst: "rax", base: "rcx", disp: MON_NEXT},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rax", imm: MON_SLOTS},
+      {op: "j", cond: "g", label: "rt_mo_full"},
+      {op: "store", src: "rax", base: "rcx", disp: MON_NEXT},
+      {op: "store", src: "rax", base: "rbp", disp: -16},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "sar1", dst: "rdx"},
+      {op: "store", src: "rdx", base: "rbp", disp: -24}
+    ],
+    slot_or("rdx", "rt_mo_gone"),
+    proc_rec("rcx", "rdx"),
+    live_or("rcx", "rt_mo_gone"),
+    [
+      {op: "load", dst: "rdx", base: "rbp", disp: -16},
+      {op: "sub", dst: "rdx", imm: 1}
+    ],
+    mon_addr("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "store", src: "rax", base: "rcx", disp: 8},
+      {op: "jmp", label: "rt_mo_ref"},
+      {op: "label", name: "rt_mo_gone"},
+      {op: "load", dst: "rdi", base: "r14", disp: CUR_AT},
+      {op: "lea_label", dst: "rsi", label: kw_label(:down)},
+      {op: "load", dst: "rdx", base: "rbp", disp: -24},
+      {op: "lea_label", dst: "rcx", label: kw_label(:noproc)},
+      {op: "load", dst: "r8", base: "rbp", disp: -16},
+      {op: "add", dst: "r8", src: "r8"},
+      {op: "add", dst: "r8", imm: 1},
+      {op: "call_label", label: "rt_note"},
+      {op: "label", name: "rt_mo_ref"},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "add", dst: "rax", src: "rax"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "jmp", label: "rt_mo_out"},
+      {op: "label", name: "rt_mo_full"},
+      {op: "mov", dst: "rax", imm: -11}
+    ],
+    error_from("rax"),
+    [
+      {op: "label", name: "rt_mo_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_demonitor"},
+      {op: "push", src: "rdi"},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "pop", dst: "rdx"},
+      {op: "sar1", dst: "rdx"},
+      {op: "sub", dst: "rdx", imm: 1},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "l", label: "rt_dm_out"},
+      {op: "cmp", dst: "rdx", imm: MON_SLOTS},
+      {op: "j", cond: "ge", label: "rt_dm_out"}
+    ],
+    mon_addr("rcx", "rdx"),
+    [
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 8},
+      {op: "label", name: "rt_dm_out"},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+signal_programs: programs over exit, links, trap_exit and monitors natively, compiled with the prelude, in :show mode, with what each must write.
+
+    length(signal_programs) #=> 7
+"""
+def signal_programs()
+  [
+    [
+      "(let ((p (spawn (lambda () (receive))))) (let ((a (alive? p))) (begin (exit p :kill) (list a (alive? p)))))",
+      "[true, false]"
+    ],
+    [
+      "(let ((p (spawn (lambda () (receive))))) (list (link p) (unlink p) (link 999)))",
+      "[true, true, false]"
+    ],
+    [
+      "(begin (trap_exit #t) (spawn_link (lambda () (raise :x \"boom\"))) (let ((m (receive))) (list (nth 0 m) (nth 1 m))))",
+      "[:exit, 1]"
+    ],
+    [
+      "(let ((p (spawn (lambda () 1)))) (begin (monitor p) (receive)))",
+      "[:down, 1, 1, :normal]"
+    ],
+    [
+      "(let ((p (spawn (lambda () (receive))))) (begin (demonitor (monitor p)) (exit p :kill) (receive :_ 10 :quiet)))",
+      ":quiet"
+    ],
+    [
+      "(begin (spawn_link (lambda () (raise :x \"boom\"))) (try (receive) (catch (e) 7)))",
+      "7"
+    ],
+    [
+      "(let ((p (spawn (lambda () (receive))))) (begin (monitor p) (exit p :kill) (receive)))",
+      "[:down, 1, 1, :kill]"
+    ]
+  ]
+end
+
+test "links, monitors and exits run natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-signal"), "signal.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      signal_programs
+    )
+  end
+end
+
+test "the link matrix, the monitor table and the signal words assemble"
+  stand_ins = flat_map(
+    append(
+      %w[rt_alloc rt_drop rt_dup rt_send rt_spawn rt_proc_init],
+      map(kw_label, PROC_KEYWORDS)
+    ),
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(PROC_SIGNALS, stand_ins))) > 0
+  assert PROC_TABLE == MON_OFF + MON_SLOTS * 16
+  assert LINK_OFF == PROC_SLOTS * PROC_REC
+  assert MON_NEXT == LINK_OFF + PROC_SLOTS * PROC_SLOTS * 8
+  assert length(link_addr("rcx", "rdx", "r8")) == 18
+  assert length(mon_addr("rcx", "rdx")) == 8
+  assert length(live_or("rcx", "x")) == 5
+  assert length(slot_or("rdx", "x")) == 4
+  assert signal_into(-40, "x")[0] ==
+    {op: "load", dst: "rcx", base: "rbp", disp: -40}
+  assert length(signal_programs) == 7
+  assert PROC_KEYWORDS[1] == :normal
 end

@@ -413,7 +413,7 @@ Higher binding power binds tighter.
 | `exec_capture` | `exec_capture(cmd, args...)` | 1+ | native | Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of. |
 | `exec_check` | `exec_check(cmd, args...)` | 1+ | native | Run a command, no shell; its exit status as an Int. Output passes through. |
 | `exec_exchange` | `exec_exchange(bytes, n, ms, cmd, args...)` | 4+ | native | One request and reply over a child's stdio, for binary protocols: bytes (Ints 0..=255) are written and stdin stays open until n bytes of stdout arrive, stdout closes or ms pass; stdin then closes, and a child still running at ms is ended. :stdout is the list of bytes read, :status -1 when the child had to be ended. |
-| `exec_into` | `exec_into(env, cmd, args...)` | 2+ | — | Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start. |
+| `exec_into` | `exec_into(env, cmd, args...)` | 2+ | native | Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start. |
 | `exec_ok?` | `exec_ok?(cmd, args...)` | 1+ | native | Whether a command exits 0. |
 | `exec_with_env` | `exec_with_env(env, cmd, args...)` | 2+ | native | exec_capture with extra environment variables, given as [[name, value], …]. |
 | `exec_with_stdin` | `exec_with_stdin(input, cmd, args...)` | 2+ | native | exec_capture, with input written to the command's stdin. The INPUT comes first. |

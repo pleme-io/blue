@@ -1316,6 +1316,16 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif op == "exec_into"
+    append(
+      *[
+        list_code(slots, rest(args)),
+        [{op: "mov", dst: "rdi", src: "rax"}],
+        tagged_atom(slots, args[0], "r8"),
+        swap_word("r8", EMPTY, 0, "rax"),
+        [{op: "call_label", label: "rt_exec_into"}]
+      ]
+    )
   elsif op == "exec_with_env"
     append(
       *[
@@ -2181,7 +2191,8 @@ def runtime()
       RT_GM,
       RT_STRING_DROP,
       RT_STRING_BYTES,
-      RT_BYTES_STRING
+      RT_BYTES_STRING,
+      RT_EXEC_INTO
     ]
   )
 end
@@ -4538,6 +4549,23 @@ exec_child: the child's half of running a command, after the fork: argv is at rb
     exec_child("t", -64)[0] #=> {op: "load", dst: "r9", base: "rbp", disp: -24}
 """
 def exec_child(tag, envp)
+  exec_child_then(
+    tag,
+    envp,
+    [
+      {op: "mov", dst: "rdi", imm: 127},
+      {op: "mov", dst: "rax", imm: 60},
+      {op: "syscall"}
+    ]
+  )
+end
+
+@doc """
+exec_child_then: exec_child with on_fail in place of its exit when no directory runs the command: exec_child exits 127, as a forked child does, and exec_into raises, as it has no child.
+
+    exec_child_then("t", -64, [])[0] #=> {op: "load", dst: "r9", base: "rbp", disp: -24}
+"""
+def exec_child_then(tag, envp, on_fail)
   execve = [
     {op: "load", dst: "rsi", base: "rbp", disp: -24},
     {op: "load", dst: "rdx", base: "rbp", disp: envp},
@@ -4620,11 +4648,9 @@ def exec_child(tag, envp)
         {op: "j", cond: "e", label: "#{tag}_fail"},
         {op: "add", dst: "r8", imm: 1},
         {op: "jmp", label: "#{tag}_dir"},
-        {op: "label", name: "#{tag}_fail"},
-        {op: "mov", dst: "rdi", imm: 127},
-        {op: "mov", dst: "rax", imm: 60},
-        {op: "syscall"}
-      ]
+        {op: "label", name: "#{tag}_fail"}
+      ],
+      on_fail
     ]
   )
 end
@@ -10897,6 +10923,7 @@ RC_OP_WORDS = %w[
   equal?
   exec_capture
   exec_check
+  exec_into
   exec_ok?
   exec_timed_out
   exec_with_env
@@ -11509,4 +11536,81 @@ test "exec_exchange is a timed exec_with_stdin over the byte conversions"
     rc_op([], "exec_within_stdin_raw", [5, "x", "cat"])
   )
   assert length(exchange_programs) == 3
+end
+
+@doc """
+RT_EXEC_INTO: exec_into natively: the program replaced by the command in the list at rdi, run with the program's environment and each [name, value] pair of the list at r8 set (envp_with), the directories temp_dir made removed first as the run ends here; an error (ENOENT) when no directory runs the command.
+
+    RT_EXEC_INTO[0] #=> {op: "label", name: "rt_exec_into"}
+"""
+RT_EXEC_INTO = append(
+  *[
+    [
+      {op: "label", name: "rt_exec_into"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 480},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "r8", base: "rbp", disp: -264},
+      {op: "call_label", label: "rt_cleanup"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8}
+    ],
+    argv_on_stack("rt_ei"),
+    envp_with(-264, -272, "rt_ei_env"),
+    exec_child_then("rt_ei", -272, [{op: "mov", dst: "rax", imm: -2}]),
+    error_from("rax"),
+    [{op: "mov", dst: "rsp", src: "rbp"}, {op: "pop_rbp"}, {op: "ret"}]
+  ]
+)
+
+@doc """
+into_programs: programs over exec_into natively, compiled with the prelude, with the status and output each must give: a command that replaces the program and reads the set variable, and one no directory runs, raised and caught.
+
+    length(into_programs) #=> 2
+"""
+def into_programs()
+  [
+    [
+      "(exec_into (list (list \"BLUE_X\" \"hi\")) \"sh\" \"-c\" \"printf %s $BLUE_X\")",
+      0,
+      "hi"
+    ],
+    [
+      "(try (exec_into (list (list \"BLUE_X\" \"v\")) \"blue-surely-absent\") (catch (e) 7))",
+      7,
+      ""
+    ]
+  ]
+end
+
+test "exec_into replaces the program or raises natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-into"), "into.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        r = exec_capture(path)
+        assert status_of(r) == p[1]
+        assert stdout_of(r) == p[2]
+      end,
+      into_programs
+    )
+  end
+end
+
+test "exec_into runs exec_child with a raising tail, without a fork"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_cleanup],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(RT_EXEC_INTO, stand_ins))) > 0
+  assert exec_child_then("t", -64, [])[0] ==
+    {op: "load", dst: "r9", base: "rbp", disp: -24}
+  assert last(rc_op(["e"], "exec_into", [read_forms("e")[0], "true"])) ==
+    {op: "call_label", label: "rt_exec_into"}
+  assert length(into_programs) == 2
 end

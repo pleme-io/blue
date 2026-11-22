@@ -29,6 +29,18 @@ impl fmt::Display for Refusal {
     }
 }
 
+thread_local! {
+    static OPEN: std::cell::Cell<i64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many kernel file descriptors this thread has opened and not yet closed:
+/// each counts from the call that made it until [`Fd::close`] or its drop,
+/// once. The runtime adds it to its own count of open host handles.
+#[must_use]
+pub fn open_fds() -> i64 {
+    OPEN.with(std::cell::Cell::get)
+}
+
 #[derive(Debug)]
 pub struct Fd {
     raw: Mutex<Option<i32>>,
@@ -37,6 +49,7 @@ pub struct Fd {
 impl Fd {
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     fn owning(raw: i32) -> Self {
+        OPEN.with(|c| c.set(c.get() + 1));
         Self {
             raw: Mutex::new(Some(raw)),
         }
@@ -53,6 +66,9 @@ impl Fd {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .take();
+        if taken.is_some() {
+            OPEN.with(|c| c.set(c.get() - 1));
+        }
         #[cfg(target_os = "linux")]
         if let Some(raw) = taken {
             seam::close(raw);

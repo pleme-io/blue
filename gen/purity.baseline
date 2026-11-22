@@ -9,13 +9,13 @@ purity-bytes: crates/blue-lang-fmt 125054
 purity-bytes: crates/blue-lang-host 24481
 purity-bytes: crates/blue-lang-host-macros 9063
 purity-bytes: crates/blue-lang-ios 23082
-purity-bytes: crates/blue-lang-kernel 20080
+purity-bytes: crates/blue-lang-kernel 20606
 purity-bytes: crates/blue-lang-kiwari 67967
 purity-bytes: crates/blue-lang-lsp 209373
 purity-bytes: crates/blue-lang-mondou 282563
 purity-bytes: crates/blue-lang-pkg 618679
 purity-bytes: crates/blue-lang-proc 395068
-purity-bytes: crates/blue-lang-runtime 1837599
+purity-bytes: crates/blue-lang-runtime 1837999
 purity-bytes: crates/blue-lang-saturate 11573
 purity-bytes: crates/blue-lang-senses 47392
 purity-bytes: crates/blue-lang-syntax 399681

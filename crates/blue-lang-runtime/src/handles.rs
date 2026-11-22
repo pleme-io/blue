@@ -2,7 +2,9 @@
 //! serial ports opened by the network words. A handle counts from the word
 //! that opens it until `tcp_close` closes it or its last reference is dropped,
 //! whichever comes first, so a run that closes everything it opened, by hand or
-//! by ending, returns the count to where it began. The conformance suite's
+//! by ending, returns the count to where it began. With the kernel feature the
+//! kernel file descriptors (`fd_open`, `bpf_syscall`, `perf_event_open`) count
+//! too, from the call that makes one until `fd_close` or its drop. The conformance suite's
 //! `closes_at(:end)` reads it before and after a row (I2 of docs/PURE-BLUE.md).
 
 use std::cell::Cell;
@@ -15,7 +17,10 @@ thread_local! {
 /// How many handles this thread has opened and not yet closed.
 #[must_use]
 pub fn open() -> i64 {
-    OPEN.with(Cell::get)
+    let here = OPEN.with(Cell::get);
+    #[cfg(feature = "kernel")]
+    let here = here + blue_lang_kernel::open_fds();
+    here
 }
 
 /// One handle's place in the count: opened when made, closed once.

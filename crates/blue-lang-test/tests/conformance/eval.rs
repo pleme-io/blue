@@ -1029,6 +1029,31 @@ pub const ROW_STEPS: usize = tatara_lisp_eval::vm::DEFAULT_FUEL;
 
 pub const CHILD_LIMIT: std::time::Duration = std::time::Duration::from_secs(45);
 
+/// How long the native column waits for hashiru to compile one row: the compile
+/// loads the whole compiler first, so it is given more time than a program run,
+/// and running past it reads as the compile's, never as the program's runaway.
+pub const COMPILE_LIMIT: std::time::Duration = std::time::Duration::from_secs(180);
+
+/// A native row's compile under [`COMPILE_LIMIT`]: past it the row is blind, the
+/// message naming the compile; any other failure reads as [`output_within`]'s.
+pub fn compile_within(cmd: &mut Command) -> Result<std::process::Output, Obs> {
+    use blue_lang_test::bounded::Unbounded;
+    match blue_lang_test::bounded::output_within(
+        cmd,
+        COMPILE_LIMIT,
+        std::time::Duration::from_secs(5),
+    ) {
+        Ok(o) => Ok(o),
+        Err(Unbounded::Runaway(l)) => Err(Obs::Blind(format!(
+            "native: the compile ran past {l:?}, so the row was not run"
+        ))),
+        Err(Unbounded::Spawn(e)) => Err(Obs::Blind(e)),
+        Err(other) => Err(Obs::Crashed(format!(
+            "native: the compile failed: {other:?}"
+        ))),
+    }
+}
+
 pub fn output_within(cmd: &mut Command) -> Result<std::process::Output, Obs> {
     use blue_lang_test::bounded::Unbounded;
     blue_lang_test::bounded::output_within(cmd, CHILD_LIMIT, std::time::Duration::from_secs(5))
@@ -1226,7 +1251,7 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
     };
     let exe = env.scratch.join(format!("native-{n}.elf"));
     let blue_path = std::env::join_paths(&env.roots).expect("BLUE_PATH roots");
-    let compiled = match output_within(
+    let compiled = match compile_within(
         Command::new(&bin)
             .env("BLUE_PATH", &blue_path)
             .args(["run", "--quiet"])

@@ -1316,6 +1316,8 @@ def rc_op(slots, op, args)
         ]
       ]
     )
+  elsif op == "receive"
+    receive_op(slots, args)
   elsif op == "exec_into"
     append(
       *[
@@ -1723,7 +1725,7 @@ def rc_program(p, mode)
       heap_start,
       [
         {op: "mov", dst: "r14", src: "r15"},
-        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 56}
+        {op: "add", dst: "r15", imm: FREE_CLASSES * 8 + 72}
       ],
       save_envp,
       save_argv,
@@ -2192,7 +2194,10 @@ def runtime()
       RT_STRING_DROP,
       RT_STRING_BYTES,
       RT_BYTES_STRING,
-      RT_EXEC_INTO
+      RT_EXEC_INTO,
+      PROC_ROUTINES,
+      RT_RECEIVE,
+      RT_MATCH
     ]
   )
 end
@@ -3126,7 +3131,7 @@ compile_program_in: compile_program under the calling convention named, :owned o
 """
 def compile_program_in(form, mode, convention)
   compile_whole_in(
-    shake(bare_calls(map_calls(with_prelude(front_erased(form))))),
+    shake(bare_calls(map_calls(shake(with_prelude(front_erased(form)))))),
     mode,
     convention
   )
@@ -4784,16 +4789,16 @@ NETWORK_KEYWORDS: the keywords tcp_connect_ms answers with when a connect fails:
 NETWORK_KEYWORDS = %i[error refused timeout unreachable unresolved failed]
 
 @doc """
-NET_WAIT_KEYWORDS: the interests net_wait reads and the readiness it answers.
+NET_WAIT_KEYWORDS: the interests net_wait reads and the readiness it answers, and receive's wildcard :_.
 
-    NET_WAIT_KEYWORDS #=> %i[read write both closed]
+    NET_WAIT_KEYWORDS #=> %i[read write both closed _]
 """
-NET_WAIT_KEYWORDS = %i[read write both closed]
+NET_WAIT_KEYWORDS = %i[read write both closed _]
 
 @doc """
 RUNTIME_KEYWORDS: every keyword a runtime routine answers with, placed in the data section of every program rc_whole builds.
 
-    length(RUNTIME_KEYWORDS) #=> 13
+    length(RUNTIME_KEYWORDS) #=> 14
 """
 RUNTIME_KEYWORDS = append(
   *[CAPTURE_KEYWORDS, NETWORK_KEYWORDS, NET_WAIT_KEYWORDS]
@@ -6307,7 +6312,7 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
   assert member?({op: "mov", dst: "rax", imm: 55}, RT_TCP_CONNECT)
   assert length(classify_connect) > 10
   assert NETWORK_KEYWORDS[0] == :error
-  assert length(RUNTIME_KEYWORDS) == 13
+  assert length(RUNTIME_KEYWORDS) == 14
   stand_ins = [
     {op: "label", name: "rt_alloc"},
     {op: "ret"},
@@ -8135,7 +8140,17 @@ ZERO_ARITY_WORDS: the native words that take no argument, which blue's lowering 
 
     ZERO_ARITY_WORDS[0] #=> "now"
 """
-ZERO_ARITY_WORDS = %w[now now_ms now_ns now_rfc3339 self_exe read_line cwd argv]
+ZERO_ARITY_WORDS = %w[
+  now
+  now_ms
+  now_ns
+  now_rfc3339
+  self_exe
+  read_line
+  cwd
+  argv
+  self
+]
 
 @doc """
 binders: every name a core form binds anywhere to a value: let's names, lambda's and a defined function's parameters, and a defined value's name (a defined function's own name is a function, which a bare call still calls).
@@ -8484,13 +8499,17 @@ HOST_OPS = [
   %w[glob_match rt_glob_match],
   %w[string_drop rt_string_drop],
   %w[string_bytes rt_string_bytes],
-  %w[bytes_string rt_bytes_string]
+  %w[bytes_string rt_bytes_string],
+  %w[spawn rt_spawn],
+  %w[self rt_self],
+  %w[send rt_send],
+  %w[alive? rt_alive]
 ]
 
 @doc """
 ROUTINE_OPS: every word routine_op compiles, the TCP words and the host words.
 
-    length(ROUTINE_OPS) #=> 39
+    length(ROUTINE_OPS) #=> 43
 """
 ROUTINE_OPS = append(TCP_OPS, HOST_OPS)
 
@@ -8667,7 +8686,7 @@ test "the environment words look an entry up by name and copy its value"
   assert length(assemble(routines)) > 0
   assert last(env_value("t"))[:disp] == -40
   assert HOST_OPS[1] == %w[env_required rt_env_required]
-  assert length(ROUTINE_OPS) == 39
+  assert length(ROUTINE_OPS) == 43
   assert last(rc_op([], "getenv", %w[A b])) ==
     {op: "call_label", label: "rt_getenv"}
   assert length(lookup_programs) == 4
@@ -10806,7 +10825,13 @@ def reached(defs, roots)
   grown = distinct(
     append(
       roots,
-      flat_map(filter((d) -> member?(defined_name(d), roots), defs), symbols_in)
+      append(
+        implied(roots),
+        flat_map(
+          filter((d) -> member?(defined_name(d), roots), defs),
+          symbols_in
+        )
+      )
     )
   )
   if length(grown) == length(distinct(roots))
@@ -11058,12 +11083,13 @@ RT_REGISTER_TEMP = [
 ]
 
 @doc """
-RT_CLEANUP: the directories temp_dir made, each removed with everything under it (rt_rm_rf) and its cell freed, as the program ends, however it ends (every exit calls it).
+RT_CLEANUP: what the run holds as the program ends, however it ends (every exit calls it): the processes it never finished released (rt_proc_finish), then the directories temp_dir made, each removed with everything under it (rt_rm_rf) and its cell freed.
 
     RT_CLEANUP[0] #=> {op: "label", name: "rt_cleanup"}
 """
 RT_CLEANUP = [
   {op: "label", name: "rt_cleanup"},
+  {op: "call_label", label: "rt_proc_finish"},
   {op: "load", dst: "rdi", base: "r14", disp: TEMP_AT},
   {op: "cmp", dst: "rdi", imm: 0},
   {op: "j", cond: "e", label: "rt_cleanup_done"},
@@ -11174,7 +11200,7 @@ end
 test "the temp list is kept beside the stack floor and every exit cleans it"
   assert TEMP_AT == FREE_CLASSES * 8 + 48
   stand_ins = flat_map(
-    %w[rt_alloc rt_drop rt_rm_rf],
+    %w[rt_alloc rt_drop rt_rm_rf rt_proc_finish],
     (n) -> [{op: "label", name: n}, {op: "ret"}]
   )
   routines = append(*[RT_REGISTER_TEMP, RT_CLEANUP, RT_STARTS_WITH, stand_ins])
@@ -11613,4 +11639,739 @@ test "exec_into runs exec_child with a raising tail, without a fork"
   assert last(rc_op(["e"], "exec_into", [read_forms("e")[0], "true"])) ==
     {op: "call_label", label: "rt_exec_into"}
   assert length(into_programs) == 2
+end
+
+@doc """
+PROC_AT: where the program keeps its process table (R5 of docs/PURE-BLUE.md), as an offset from r14: PROC_SLOTS records of 64 bytes, each state (0 free, 1 runnable, 2 waiting, 3 ended), saved stack pointer, mailbox head and tail, closure, stack, and its stack floor (STACK_AT while it runs: the program's own, or a spawned stack's base and a page); 0 until a process word first runs.
+
+    PROC_AT #=> 568
+"""
+PROC_AT = FREE_CLASSES * 8 + 56
+
+@doc """
+CUR_AT: where the program keeps the slot of the process that runs, as an offset from r14; the program itself is slot 0.
+
+    CUR_AT #=> 576
+"""
+CUR_AT = FREE_CLASSES * 8 + 64
+
+@doc """
+PROC_SLOTS: how many processes the table holds, the program among them.
+
+    PROC_SLOTS #=> 64
+"""
+PROC_SLOTS = 64
+
+@doc """
+PROC_STACK: the bytes of each spawned process's own stack, mapped as it is spawned.
+
+    PROC_STACK #=> 65536
+"""
+PROC_STACK = 65536
+
+@doc """
+proc_rec: the instructions that put in dst the address of the process record whose slot is in idx (dst and idx distinct, neither rax).
+
+    length(proc_rec("rcx", "rdx")) > 2 #=> true
+"""
+def proc_rec(dst, idx)
+  append(
+    *[
+      [{op: "mov", dst:, src: idx}],
+      times8(dst),
+      times8(dst),
+      [
+        {op: "push", src: "rax"},
+        {op: "load", dst: "rax", base: "r14", disp: PROC_AT},
+        {op: "add", dst:, src: "rax"},
+        {op: "pop", dst: "rax"}
+      ]
+    ]
+  )
+end
+
+@doc """
+proc_resume: the instructions that make the slot in rax the running process and switch to its stack: the saved stack pointer loaded, its rbx and rbp popped, and a return into where it last yielded (or into rt_proc_start, for a process never run).
+
+    last(proc_resume)[:op] #=> "ret"
+"""
+def proc_resume()
+  append(
+    *[
+      [{op: "store", src: "rax", base: "r14", disp: CUR_AT}],
+      proc_rec("rcx", "rax"),
+      [
+        {op: "load", dst: "rdx", base: "rcx", disp: 48},
+        {op: "store", src: "rdx", base: "r14", disp: STACK_AT},
+        {op: "load", dst: "rsp", base: "rcx", disp: 8},
+        {op: "pop", dst: "rbx"},
+        {op: "pop_rbp"},
+        {op: "ret"}
+      ]
+    ]
+  )
+end
+
+@doc """
+PROC_ROUTINES: the process words natively, cooperative (R5's first commit): rt_proc_init (the table, mapped once, the program its slot 0), rt_pick (a runnable slot other than the one in rdi, or -1), rt_yield_to (save the running process, switch to the slot in rdi), rt_proc_start (a spawned process's first frame: its closure called, then it ends and the next runnable runs, else the program), spawn, self, send, receive and alive?.
+
+    PROC_ROUTINES[0] #=> {op: "label", name: "rt_proc_init"}
+"""
+PROC_ROUTINES = append(
+  *[
+    [
+      {op: "label", name: "rt_proc_init"},
+      {op: "load", dst: "rax", base: "r14", disp: PROC_AT},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_pi_ready"},
+      {op: "mov", dst: "rdi", imm: 0},
+      {op: "mov", dst: "rsi", imm: PROC_SLOTS * 64},
+      {op: "mov", dst: "rdx", imm: 3},
+      {op: "mov", dst: "r10", imm: 34},
+      {op: "mov", dst: "r8", imm: -1},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "mov", dst: "rax", imm: 9},
+      {op: "syscall"},
+      {op: "store", src: "rax", base: "r14", disp: PROC_AT},
+      {op: "mov", dst: "rcx", imm: 1},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "load", dst: "rcx", base: "r14", disp: STACK_AT},
+      {op: "store", src: "rcx", base: "rax", disp: 48},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "r14", disp: CUR_AT},
+      {op: "label", name: "rt_pi_ready"},
+      {op: "ret"},
+      {op: "label", name: "rt_pick"},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_pk_next"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_pk_none"},
+      {op: "cmp", dst: "rdx", src: "rdi"},
+      {op: "j", cond: "e", label: "rt_pk_skip"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "ne", label: "rt_pk_skip"},
+      {op: "mov", dst: "rax", src: "rdx"},
+      {op: "ret"},
+      {op: "label", name: "rt_pk_skip"},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "jmp", label: "rt_pk_next"},
+      {op: "label", name: "rt_pk_none"},
+      {op: "mov", dst: "rax", imm: -1},
+      {op: "ret"},
+      {op: "label", name: "rt_yield_to"},
+      {op: "push_rbp"},
+      {op: "push", src: "rbx"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rax"),
+    [
+      {op: "mov", dst: "rax", src: "rsp"},
+      {op: "store", src: "rax", base: "rcx", disp: 8},
+      {op: "mov", dst: "rax", src: "rdi"}
+    ],
+    proc_resume,
+    [
+      {op: "label", name: "rt_proc_start"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rax"),
+    [
+      {op: "load", dst: "r11", base: "rcx", disp: 32},
+      {op: "call_r11"},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rax"),
+    [
+      {op: "push", src: "rcx"},
+      {op: "load", dst: "rdi", base: "rcx", disp: 32},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rcx"},
+      {op: "push", src: "rcx"},
+      {op: "load", dst: "rdi", base: "rcx", disp: 16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rcx"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rdi", base: "r14", disp: CUR_AT},
+      {op: "call_label", label: "rt_pick"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ge", label: "rt_ps_go"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "label", name: "rt_ps_go"}
+    ],
+    proc_resume,
+    [
+      {op: "label", name: "rt_self"},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT},
+      {op: "add", dst: "rax", src: "rax"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "ret"},
+      {op: "label", name: "rt_spawn"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "mov", dst: "rdx", imm: 1},
+      {op: "label", name: "rt_sp_find"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_sp_full"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_sp_found"},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "jmp", label: "rt_sp_find"},
+      {op: "label", name: "rt_sp_found"},
+      {op: "store", src: "rdx", base: "rbp", disp: -16},
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "mov", dst: "rdi", imm: 0},
+      {op: "mov", dst: "rsi", imm: PROC_STACK},
+      {op: "mov", dst: "rdx", imm: 3},
+      {op: "mov", dst: "r10", imm: 34},
+      {op: "mov", dst: "r8", imm: -1},
+      {op: "mov", dst: "r9", imm: 0},
+      {op: "mov", dst: "rax", imm: 9},
+      {op: "syscall"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "store", src: "rax", base: "rcx", disp: 40},
+      {op: "mov", dst: "rdx", src: "rax"},
+      {op: "add", dst: "rdx", imm: 4096},
+      {op: "store", src: "rdx", base: "rcx", disp: 48},
+      {op: "add", dst: "rax", imm: PROC_STACK},
+      {op: "lea_label", dst: "rdx", label: "rt_proc_start"},
+      {op: "store", src: "rdx", base: "rax", disp: -8},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "store", src: "rdx", base: "rax", disp: -16},
+      {op: "store", src: "rdx", base: "rax", disp: -24},
+      {op: "sub", dst: "rax", imm: 24},
+      {op: "store", src: "rax", base: "rcx", disp: 8},
+      {op: "store", src: "rdx", base: "rcx", disp: 16},
+      {op: "store", src: "rdx", base: "rcx", disp: 24},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "store", src: "rdx", base: "rcx", disp: 32},
+      {op: "mov", dst: "rdx", imm: 1},
+      {op: "store", src: "rdx", base: "rcx", disp: 0},
+      {op: "load", dst: "rax", base: "rbp", disp: -16},
+      {op: "add", dst: "rax", src: "rax"},
+      {op: "add", dst: "rax", imm: 1},
+      {op: "jmp", label: "rt_sp_out"},
+      {op: "label", name: "rt_sp_full"},
+      {op: "mov", dst: "rax", imm: -11}
+    ],
+    error_from("rax"),
+    [
+      {op: "label", name: "rt_sp_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_send"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -8},
+      {op: "sar1", dst: "rdx"},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "l", label: "rt_sn_gone"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_sn_gone"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "store", src: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "l", label: "rt_sn_gone"},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "g", label: "rt_sn_gone"},
+      {op: "mov", dst: "rdi", imm: 5},
+      {op: "call_label", label: "rt_alloc"},
+      {op: "mov", dst: "rcx", imm: 0},
+      {op: "store", src: "rcx", base: "rax", disp: 0},
+      {op: "store", src: "rcx", base: "rax", disp: 32},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "store", src: "rcx", base: "rax", disp: 24},
+      {op: "load", dst: "rcx", base: "rbp", disp: -24},
+      {op: "load", dst: "rdx", base: "rcx", disp: 24},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "ne", label: "rt_sn_append"},
+      {op: "store", src: "rax", base: "rcx", disp: 16},
+      {op: "jmp", label: "rt_sn_tail"},
+      {op: "label", name: "rt_sn_append"},
+      {op: "store", src: "rax", base: "rdx", disp: 32},
+      {op: "label", name: "rt_sn_tail"},
+      {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "ne", label: "rt_sn_done"},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "jmp", label: "rt_sn_done"},
+      {op: "label", name: "rt_sn_gone"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "label", name: "rt_sn_done"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"},
+      {op: "label", name: "rt_proc_finish"},
+      {op: "load", dst: "rax", base: "r14", disp: PROC_AT},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_pf_done"},
+      {op: "mov", dst: "rdx", imm: 0},
+      {op: "label", name: "rt_pf_next"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_pf_done"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rax", base: "rcx", disp: 0},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "l", label: "rt_pf_skip"},
+      {op: "cmp", dst: "rax", imm: 2},
+      {op: "j", cond: "g", label: "rt_pf_skip"},
+      {op: "push", src: "rdx"},
+      {op: "push", src: "rcx"},
+      {op: "load", dst: "rdi", base: "rcx", disp: 16},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rcx"},
+      {op: "push", src: "rcx"},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rcx", disp: 16},
+      {op: "store", src: "rax", base: "rcx", disp: 24},
+      {op: "load", dst: "rdi", base: "rcx", disp: 32},
+      {op: "store", src: "rax", base: "rcx", disp: 32},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rcx"},
+      {op: "pop", dst: "rdx"},
+      {op: "mov", dst: "rax", imm: 3},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "label", name: "rt_pf_skip"},
+      {op: "add", dst: "rdx", imm: 1},
+      {op: "jmp", label: "rt_pf_next"},
+      {op: "label", name: "rt_pf_done"},
+      {op: "ret"},
+      {op: "label", name: "rt_alive"},
+      {op: "push", src: "rdi"},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "pop", dst: "rdx"},
+      {op: "sar1", dst: "rdx"},
+      {op: "mov", dst: "rax", imm: FALSE},
+      {op: "cmp", dst: "rdx", imm: 0},
+      {op: "j", cond: "l", label: "rt_al_out"},
+      {op: "cmp", dst: "rdx", imm: PROC_SLOTS},
+      {op: "j", cond: "ge", label: "rt_al_out"}
+    ],
+    proc_rec("rcx", "rdx"),
+    [
+      {op: "load", dst: "rdx", base: "rcx", disp: 0},
+      {op: "mov", dst: "rax", imm: FALSE},
+      {op: "cmp", dst: "rdx", imm: 1},
+      {op: "j", cond: "l", label: "rt_al_out"},
+      {op: "cmp", dst: "rdx", imm: 2},
+      {op: "j", cond: "g", label: "rt_al_out"},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "label", name: "rt_al_out"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+proc_programs: programs over spawn, self, send, receive and alive? natively, cooperative, compiled with the prelude, with the exit status each must give.
+
+    length(proc_programs) #=> 4
+"""
+def proc_programs()
+  [
+    [
+      "(let ((me self)) (begin (spawn (lambda () (send me 42))) (receive)))",
+      42
+    ],
+    [
+      "(let ((me self)) (begin (spawn (lambda () (send me 1))) (spawn (lambda () (send me 2))) (+ (receive) (* 10 (receive)))))",
+      21
+    ],
+    ["(try (receive) (catch (e) 9))", 9],
+    ["(let ((p (spawn (lambda () 1)))) (if (alive? p) 3 4))", 3]
+  ]
+end
+
+test "spawn, send and receive run cooperatively natively", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-proc5"), "proc.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+        write_bytes(path, compile_program(read_forms(p[0])[0], :leaks))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == 0
+      end,
+      proc_programs
+    )
+  end
+end
+
+test "the process table, its switch and the process words assemble"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(PROC_ROUTINES, stand_ins))) > 0
+  assert PROC_AT == FREE_CLASSES * 8 + 56
+  assert CUR_AT == PROC_AT + 8
+  assert PROC_SLOTS == 64
+  assert PROC_STACK == 65536
+  assert length(proc_rec("rcx", "rdx")) > 2
+  assert last(proc_resume)[:op] == "ret"
+  assert length(proc_programs) == 4
+end
+
+@doc """
+receive_op: the instructions of receive: the pattern in rdi (0 for none: any message), the tagged milliseconds in rsi (0 for none: wait as long as it takes), the default in rdx, and the wildcard keyword :_ in rcx, then a call to rt_receive.
+
+    last(receive_op([], [])) #=> {op: "call_label", label: "rt_receive"}
+"""
+def receive_op(slots, args)
+  append(
+    *[
+      if length(args) > 0
+        tagged_atom(slots, args[0], "rdi")
+      else
+        [{op: "mov", dst: "rdi", imm: 0}]
+      end,
+      if length(args) > 1
+        tagged_atom(slots, args[1], "rsi")
+      else
+        [{op: "mov", dst: "rsi", imm: 0}]
+      end,
+      if length(args) > 2
+        tagged_atom(slots, args[2], "rdx")
+      else
+        [{op: "mov", dst: "rdx", imm: 0}]
+      end,
+      [
+        {op: "lea_label", dst: "rcx", label: kw_label(:_)},
+        {op: "call_label", label: "rt_receive"}
+      ]
+    ]
+  )
+end
+
+@doc """
+RT_MATCH: whether the value in rsi matches the pattern in rdi, rax 1 or 0, both only read: the wildcard in rdx matches anything, two list cells match when their heads and their tails do, and anything else matches when rt_equal says the two are equal.
+
+    RT_MATCH[0] #=> {op: "label", name: "rt_match"}
+"""
+RT_MATCH = append(
+  *[
+    [
+      {op: "label", name: "rt_match"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 32},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "store", src: "rdx", base: "rbp", disp: -24},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "cmp", dst: "rdi", src: "rdx"},
+      {op: "j", cond: "e", label: "rt_mt_out"}
+    ],
+    flat_map(
+      %w[rdi rsi],
+      fn(r)
+        [
+          {op: "mov", dst: "rax", src: r},
+          {op: "and", dst: "rax", imm: 1},
+          {op: "cmp", dst: "rax", imm: 0},
+          {op: "j", cond: "ne", label: "rt_mt_equal"},
+          {op: "cmp", dst: r, imm: 4096},
+          {op: "j", cond: "l", label: "rt_mt_equal"},
+          {op: "load", dst: "rax", base: r, disp: 0},
+          {op: "cmp", dst: "rax", imm: 0},
+          {op: "j", cond: "ne", label: "rt_mt_equal"}
+        ]
+      end
+    ),
+    [
+      {op: "load", dst: "rdi", base: "rdi", disp: 24},
+      {op: "load", dst: "rsi", base: "rsi", disp: 24},
+      {op: "call_label", label: "rt_match"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_mt_out"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "load", dst: "rdi", base: "rdi", disp: 32},
+      {op: "load", dst: "rsi", base: "rbp", disp: -16},
+      {op: "load", dst: "rsi", base: "rsi", disp: 32},
+      {op: "load", dst: "rdx", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_match"},
+      {op: "jmp", label: "rt_mt_out"},
+      {op: "label", name: "rt_mt_equal"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "load", dst: "rsi", base: "rbp", disp: -16},
+      {op: "call_label", label: "rt_equal"},
+      {op: "shr1", dst: "rax"},
+      {op: "label", name: "rt_mt_out"},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+RT_RECEIVE: receive natively: the first message in the running process's mailbox that matches the pattern in rdi (any, for 0; rt_match with the wildcard in rcx), taken out wherever it lies. With none, the process waits and the next runnable one runs; once its deadline (the tagged milliseconds in rsi, from the call) has passed, or when nothing else can run before it, it answers the default in rdx, sleeping out what is left; with no timeout and nothing to run, it raises (the wait would be forever). The pattern is consumed, and the default when a message is taken.
+
+    RT_RECEIVE[0] #=> {op: "label", name: "rt_receive"}
+"""
+RT_RECEIVE = append(
+  *[
+    [
+      {op: "label", name: "rt_receive"},
+      {op: "push_rbp"},
+      {op: "mov", dst: "rbp", src: "rsp"},
+      {op: "sub", dst: "rsp", imm: 512},
+      {op: "store", src: "rdi", base: "rbp", disp: -8},
+      {op: "store", src: "rsi", base: "rbp", disp: -16},
+      {op: "store", src: "rdx", base: "rbp", disp: -24},
+      {op: "store", src: "rcx", base: "rbp", disp: -32},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "call_label", label: "rt_proc_init"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_rv_look"}
+    ],
+    now_ms_rax,
+    [
+      {op: "load", dst: "rcx", base: "rbp", disp: -16},
+      {op: "sar1", dst: "rcx"},
+      {op: "add", dst: "rax", src: "rcx"},
+      {op: "store", src: "rax", base: "rbp", disp: -40},
+      {op: "label", name: "rt_rv_look"},
+      {op: "load", dst: "rax", base: "r14", disp: CUR_AT}
+    ],
+    proc_rec("rcx", "rax"),
+    [
+      {op: "store", src: "rcx", base: "rbp", disp: -48},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rbp", disp: -56},
+      {op: "load", dst: "rax", base: "rcx", disp: 16},
+      {op: "store", src: "rax", base: "rbp", disp: -64},
+      {op: "label", name: "rt_rv_scan"},
+      {op: "load", dst: "rax", base: "rbp", disp: -64},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "e", label: "rt_rv_empty"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "cmp", dst: "rdi", imm: 0},
+      {op: "j", cond: "e", label: "rt_rv_take"},
+      {op: "load", dst: "rsi", base: "rax", disp: 24},
+      {op: "load", dst: "rdx", base: "rbp", disp: -32},
+      {op: "call_label", label: "rt_match"},
+      {op: "cmp", dst: "rax", imm: 1},
+      {op: "j", cond: "e", label: "rt_rv_take"},
+      {op: "load", dst: "rax", base: "rbp", disp: -64},
+      {op: "store", src: "rax", base: "rbp", disp: -56},
+      {op: "load", dst: "rax", base: "rax", disp: 32},
+      {op: "store", src: "rax", base: "rbp", disp: -64},
+      {op: "jmp", label: "rt_rv_scan"},
+      {op: "label", name: "rt_rv_take"},
+      {op: "load", dst: "rdx", base: "rbp", disp: -64},
+      {op: "load", dst: "rcx", base: "rbp", disp: -48},
+      {op: "load", dst: "rax", base: "rdx", disp: 32},
+      {op: "load", dst: "r8", base: "rbp", disp: -56},
+      {op: "cmp", dst: "r8", imm: 0},
+      {op: "j", cond: "ne", label: "rt_rv_mid"},
+      {op: "store", src: "rax", base: "rcx", disp: 16},
+      {op: "jmp", label: "rt_rv_linked"},
+      {op: "label", name: "rt_rv_mid"},
+      {op: "store", src: "rax", base: "r8", disp: 32},
+      {op: "label", name: "rt_rv_linked"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "ne", label: "rt_rv_tail_kept"},
+      {op: "store", src: "r8", base: "rcx", disp: 24},
+      {op: "label", name: "rt_rv_tail_kept"},
+      {op: "load", dst: "rax", base: "rdx", disp: 24},
+      {op: "store", src: "rax", base: "rbp", disp: -72},
+      {op: "mov", dst: "rax", imm: 0},
+      {op: "store", src: "rax", base: "rdx", disp: 24},
+      {op: "store", src: "rax", base: "rdx", disp: 32},
+      {op: "mov", dst: "rdi", src: "rdx"},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rdi", base: "rbp", disp: -24},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -72},
+      {op: "store", src: "rax", base: "rbp", disp: -80},
+      {op: "jmp", label: "rt_rv_done"},
+      {op: "label", name: "rt_rv_empty"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_rv_wait"}
+    ],
+    now_ms_rax,
+    [
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "cmp", dst: "rax", src: "rcx"},
+      {op: "j", cond: "ge", label: "rt_rv_default"},
+      {op: "label", name: "rt_rv_wait"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -48},
+      {op: "mov", dst: "rax", imm: 2},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rdi", base: "r14", disp: CUR_AT},
+      {op: "call_label", label: "rt_pick"},
+      {op: "cmp", dst: "rax", imm: 0},
+      {op: "j", cond: "l", label: "rt_rv_alone"},
+      {op: "mov", dst: "rdi", src: "rax"},
+      {op: "call_label", label: "rt_yield_to"},
+      {op: "jmp", label: "rt_rv_look"},
+      {op: "label", name: "rt_rv_alone"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "e", label: "rt_rv_forever"}
+    ],
+    now_ms_rax,
+    [
+      {op: "load", dst: "rcx", base: "rbp", disp: -40},
+      {op: "sub", dst: "rcx", src: "rax"},
+      {op: "cmp", dst: "rcx", imm: 0},
+      {op: "j", cond: "le", label: "rt_rv_default"},
+      {op: "mov", dst: "rax", src: "rcx"},
+      {op: "cqo"},
+      {op: "mov", dst: "r8", imm: 1000},
+      {op: "idiv", src: "r8"},
+      {op: "store", src: "rax", base: "rbp", disp: -496},
+      {op: "mov", dst: "rax", src: "rdx"},
+      {op: "mov", dst: "r8", imm: 1_000_000},
+      {op: "imul", dst: "rax", src: "r8"},
+      {op: "store", src: "rax", base: "rbp", disp: -488},
+      {op: "mov", dst: "rdi", src: "rbp"},
+      {op: "add", dst: "rdi", imm: -496},
+      {op: "mov", dst: "rsi", imm: 0},
+      {op: "mov", dst: "rax", imm: 35},
+      {op: "syscall"},
+      {op: "label", name: "rt_rv_default"},
+      {op: "load", dst: "rax", base: "rbp", disp: -24},
+      {op: "store", src: "rax", base: "rbp", disp: -80},
+      {op: "jmp", label: "rt_rv_done"},
+      {op: "label", name: "rt_rv_forever"},
+      {op: "mov", dst: "rax", imm: -35}
+    ],
+    error_from("rax"),
+    [
+      {op: "store", src: "rax", base: "rbp", disp: -80},
+      {op: "label", name: "rt_rv_done"},
+      {op: "load", dst: "rcx", base: "rbp", disp: -48},
+      {op: "mov", dst: "rax", imm: 1},
+      {op: "store", src: "rax", base: "rcx", disp: 0},
+      {op: "load", dst: "rdi", base: "rbp", disp: -8},
+      {op: "call_label", label: "rt_drop"},
+      {op: "load", dst: "rax", base: "rbp", disp: -80},
+      {op: "mov", dst: "rsp", src: "rbp"},
+      {op: "pop_rbp"},
+      {op: "ret"}
+    ]
+  ]
+)
+
+@doc """
+receive_programs: programs over receive's pattern and timeout natively, compiled with the prelude, in :show mode, with what each must write.
+
+    length(receive_programs) #=> 3
+"""
+def receive_programs()
+  [
+    [
+      "(let ((me self)) (begin (send me :noise) (send me (list :reply 1)) (list (receive (list :reply :_)) (receive))))",
+      "[[:reply, 1], :noise]"
+    ],
+    ["(receive :_ 10 :late)", ":late"],
+    [
+      "(let ((me self)) (begin (spawn (lambda () (send me 5))) (receive :_ 1000 :late)))",
+      "5"
+    ]
+  ]
+end
+
+test "receive takes the first match and answers its default after its time", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-receive"), "receive.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      receive_programs
+    )
+  end
+end
+
+test "receive scans the mailbox with rt_match, and its op passes the wildcard"
+  stand_ins = flat_map(
+    %w[rt_alloc rt_drop rt_equal rt_proc_init rt_pick rt_yield_to kw_5f],
+    (n) -> [{op: "label", name: n}, {op: "ret"}]
+  )
+  assert length(assemble(append(append(RT_RECEIVE, RT_MATCH), stand_ins))) > 0
+  assert last(receive_op([], [])) == {op: "call_label", label: "rt_receive"}
+  assert length(receive_op([], [1, 2, 3])) == 5
+  assert last(rc_op([], "receive", [])) ==
+    {op: "call_label", label: "rt_receive"}
+  assert length(receive_programs) == 3
+end
+
+@doc """
+IMPLIED_WORDS: for each word a pass before ANF lowers into prelude words, the prelude words it brings, so shaking before the lowering keeps them.
+
+    IMPLIED_WORDS[0] #=> ["drop", ["list_drop"]]
+"""
+IMPLIED_WORDS = [
+  ["drop", ["list_drop"]],
+  ["ls", ["sort_strings"]],
+  ["read_bytes", ["bytes_slice"]],
+  ["exec_exchange", ["exchange_result"]],
+  ["exec_within", ["append"]],
+  ["hash-map", ["map_put"]],
+  ["get", ["map_get"]],
+  ["assoc", ["map_put"]]
+]
+
+@doc """
+implied: the prelude words the lowering will bring for the names given (IMPLIED_WORDS).
+
+    implied(%w[drop x]) #=> ["list_drop"]
+"""
+def implied(names)
+  flat_map(filter((w) -> member?(w[0], names), IMPLIED_WORDS), (w) -> w[1])
+end
+
+test "a shake before the lowering keeps the prelude words the lowering brings"
+  assert implied(%w[get ls]) == %w[sort_strings map_get]
+  prog = nth(
+    0,
+    read_forms("(begin (define (list_drop n l) l) (define (unused) 1) (drop 1 x))")
+  )
+  assert shake(prog) ==
+    read_forms("(begin (define (list_drop n l) l) (drop 1 x))")[0]
+  assert IMPLIED_WORDS[6] == ["get", ["map_get"]]
 end

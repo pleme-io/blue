@@ -2997,7 +2997,18 @@ PRELUDE = [
   "(define (exchange_result r n) (list (first r) (list :stdout (take_n n (string_bytes (first (rest (first (rest r))))))) (first (rest (rest r)))))",
   "(define (glob p) (if (starts_with? p \"/\") (list) (filter (lambda (f) (glob_match p f)) (map (lambda (f) (string_drop f 2)) (walk_dir \".\")))))",
   "(define (temp_dir_made p) (begin (mkdir p) (register_temp p) p))",
-  "(define (temp_dir label) (temp_dir_made (path_join (getenv \"TMPDIR\" \"/tmp\") (concat (concat label \"-\") (to_s (first (u32s (random_bytes 4) 1)))))))"
+  "(define (temp_dir label) (temp_dir_made (path_join (getenv \"TMPDIR\" \"/tmp\") (concat (concat label \"-\") (to_s (first (u32s (random_bytes 4) 1)))))))",
+  "(define (apply_args f args) (if (equal? (length args) 0) (f) (if (equal? (length args) 1) (f (nth 0 args)) (if (equal? (length args) 2) (f (nth 0 args) (nth 1 args)) (f (nth 0 args) (nth 1 args) (nth 2 args))))))",
+  "(define (server_loop h s) (server_loop h (h (receive) s)))",
+  "(define (spawn_server h s) (spawn (lambda () (server_loop h s))))",
+  "(define (sup_start spec) (cons (spawn_link (lambda () (apply_args (first spec) (nth 1 spec)))) spec))",
+  "(define (sup_restart kids pid) (map (lambda (k) (if (equal? (first k) pid) (sup_start (rest k)) k)) kids))",
+  "(define (sup_others kids pid) (filter (lambda (k) (if (equal? (first k) pid) false true)) kids))",
+  "(define (sup_step m kids n most) (if (equal? (first m) :exit) (if (equal? (nth 2 m) :normal) (sup_loop (sup_others kids (nth 1 m)) n most) (if (< n most) (sup_loop (sup_restart kids (nth 1 m)) (+ n 1) most) :shutdown)) (if (equal? (first m) :children) (begin (send (nth 1 m) (list :children_of self (map (lambda (k) (first k)) kids))) (sup_loop kids n most)) (if (equal? (first m) :adopt) (sup_loop (append kids (list (sup_start (rest m)))) n most) (sup_loop kids n most)))))",
+  "(define (sup_loop kids n most) (sup_step (receive) kids n most))",
+  "(define (supervisor strategy specs most) (spawn (lambda () (begin (trap_exit #t) (sup_loop (map (lambda (sp) (sup_start sp)) specs) 0 most)))))",
+  "(define (children sup) (begin (send sup (list :children self)) (nth 2 (receive (list :children_of sup :_)))))",
+  "(define (supervisor_adopt sup f args) (begin (send sup (list :adopt f args)) sup))"
 ]
 
 @doc """
@@ -3137,7 +3148,11 @@ compile_program_in: compile_program under the calling convention named, :owned o
 """
 def compile_program_in(form, mode, convention)
   compile_whole_in(
-    shake(bare_calls(map_calls(shake(with_prelude(front_erased(form)))))),
+    shake(
+      bare_calls(
+        map_calls(eta_globals(shake(with_prelude(front_erased(form)))))
+      )
+    ),
     mode,
     convention
   )
@@ -4844,11 +4859,11 @@ PROC_TABLE: the bytes rt_proc_init maps: the records, the link matrix, the monit
 PROC_TABLE = MON_OFF + MON_SLOTS * 16
 
 @doc """
-PROC_KEYWORDS: the keywords the process words answer with or read: receive's wildcard, the reasons :normal and :kill, the signals :exit and :down, and :noproc for a monitor of no process.
+PROC_KEYWORDS: the keywords the process words answer with or read: receive's wildcard, the reasons :normal and :kill, the signals :exit and :down, :noproc for a monitor of no process, and :crashed, a raising process's reason ([:crashed, what it raised], as blue gives it).
 
-    PROC_KEYWORDS #=> %i[_ normal kill exit down noproc]
+    PROC_KEYWORDS #=> %i[_ normal kill exit down noproc crashed]
 """
-PROC_KEYWORDS = %i[_ normal kill exit down noproc]
+PROC_KEYWORDS = %i[_ normal kill exit down noproc crashed]
 
 @doc """
 NET_WAIT_KEYWORDS: the interests net_wait reads and the readiness it answers.
@@ -4860,7 +4875,7 @@ NET_WAIT_KEYWORDS = %i[read write both closed]
 @doc """
 RUNTIME_KEYWORDS: every keyword a runtime routine answers with, placed in the data section of every program rc_whole builds.
 
-    length(RUNTIME_KEYWORDS) #=> 19
+    length(RUNTIME_KEYWORDS) #=> 20
 """
 RUNTIME_KEYWORDS = append(
   *[CAPTURE_KEYWORDS, NETWORK_KEYWORDS, NET_WAIT_KEYWORDS, PROC_KEYWORDS]
@@ -6374,7 +6389,7 @@ test "tcp_connect_ms passes its keywords to rt_tcp_connect, which polls a non-bl
   assert member?({op: "mov", dst: "rax", imm: 55}, RT_TCP_CONNECT)
   assert length(classify_connect) > 10
   assert NETWORK_KEYWORDS[0] == :error
-  assert length(RUNTIME_KEYWORDS) == 19
+  assert length(RUNTIME_KEYWORDS) == 20
   stand_ins = [
     {op: "label", name: "rt_alloc"},
     {op: "ret"},
@@ -11853,7 +11868,24 @@ PROC_ROUTINES = append(
       {op: "j", cond: "l", label: "rt_ps_normal"},
       {op: "load", dst: "rcx", base: "rax", disp: 0},
       {op: "cmp", dst: "rcx", imm: 4},
-      {op: "j", cond: "e", label: "rt_ps_ended"},
+      {op: "j", cond: "ne", label: "rt_ps_normal"},
+      {op: "push", src: "rax"},
+      {op: "push", src: "rax"},
+      {op: "load", dst: "rdi", base: "rax", disp: 24},
+      {op: "call_label", label: "rt_dup"},
+      {op: "mov", dst: "rsi", imm: 0},
+      {op: "call_label", label: "rt_cons"},
+      {op: "mov", dst: "rsi", src: "rax"},
+      {op: "lea_label", dst: "rdi", label: kw_label(:crashed)},
+      {op: "call_label", label: "rt_cons"},
+      {op: "pop", dst: "rdi"},
+      {op: "pop", dst: "rdi"},
+      {op: "push", src: "rax"},
+      {op: "push", src: "rax"},
+      {op: "call_label", label: "rt_drop"},
+      {op: "pop", dst: "rax"},
+      {op: "pop", dst: "rax"},
+      {op: "jmp", label: "rt_ps_ended"},
       {op: "label", name: "rt_ps_normal"},
       {op: "mov", dst: "rdi", src: "rax"},
       {op: "call_label", label: "rt_drop"},
@@ -12101,7 +12133,10 @@ end
 
 test "the process table, its switch and the process words assemble"
   stand_ins = flat_map(
-    append(%w[rt_alloc rt_drop rt_proc_end], [kw_label(:normal)]),
+    append(
+      %w[rt_alloc rt_drop rt_dup rt_cons rt_proc_end],
+      [kw_label(:normal), kw_label(:crashed)]
+    ),
     (n) -> [{op: "label", name: n}, {op: "ret"}]
   )
   assert length(assemble(append(PROC_ROUTINES, stand_ins))) > 0
@@ -13047,4 +13082,126 @@ test "the link matrix, the monitor table and the signal words assemble"
     {op: "load", dst: "rcx", base: "rbp", disp: -40}
   assert length(signal_programs) == 7
   assert PROC_KEYWORDS[1] == :normal
+end
+
+@doc """
+server_programs: programs over spawn_server, supervisor, children and supervisor_adopt natively (prelude words over the process words), in :show mode, with what each must write.
+
+    length(server_programs) #=> 3
+"""
+def server_programs()
+  [
+    [
+      "(begin (define (h msg n) (if (list? msg) (begin (send (nth 1 msg) n) n) (+ n msg))) (define s (spawn_server h 1)) (send s 2) (send s (list :get self)) (receive))",
+      "3"
+    ],
+    [
+      "(begin (define (child parent) (begin (send parent :up) (if (equal? (receive) :crash) (raise :asked \"crash\")))) (define me self) (define sup (supervisor :one_for_one (list (list child (list me))) 3)) (define c (nth 0 (children sup))) (receive :up) (send c :crash) (receive :up))",
+      ":up"
+    ],
+    [
+      "(begin (define (child parent) (begin (send parent :up) (receive))) (define me self) (define sup (supervisor :one_for_one (list) 3)) (supervisor_adopt sup child (list me)) (receive :up) (length (children sup)))",
+      "1"
+    ]
+  ]
+end
+
+test "servers and supervisors run natively over the process words", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  if linux_x86?
+    path = path_join(temp_dir("hashiru-server"), "server.out")
+    map(
+      fn(p)
+        write_bytes(path, compile_program(read_forms(p[0])[0], :show))
+        exec_capture("chmod", "+x", path)
+        assert stdout_of(exec_capture(path)) == p[1]
+      end,
+      server_programs
+    )
+  end
+end
+
+test "the server and supervisor words are prelude words"
+  names = map((d) -> defined_name(read_forms(d)[0]), PRELUDE)
+  assert every?(
+    (n) -> member?(n, names),
+    %w[spawn_server supervisor children supervisor_adopt]
+  )
+  assert length(server_programs) == 3
+end
+
+@doc """
+global_arities: each global function a (begin …) program defines, as its name and the number of its parameters.
+
+    global_arities(read_forms("(begin (define (f a b) a) (define x 1) x)")[0]) #=> [["f", 2]]
+"""
+def global_arities(form)
+  if head_is?(form, "begin")
+    map(
+      (d) -> [defined_name(d), length(d[1]) - 1],
+      filter((d) -> defined_name(d) != nil, rest(form))
+    )
+  else
+    []
+  end
+end
+
+@doc """
+eta_globals: a program in which each global function named as a value, not called, is wrapped in a lambda that calls it (one of no parameters, named bare, is called, as blue reads it), so a global can be passed, stored and sent as a closure is (spawn_server(h, …), supervisor([[child, …]])). A name a define or lambda binds hides the global it shadows.
+
+    eta_globals(read_forms("(begin (define (f a) a) (g f))")[0]) == read_forms("(begin (define (f a) a) (g (lambda (eta_0) (f eta_0))))")[0] #=> true
+"""
+def eta_globals(form)
+  eta_walk(form, global_arities(form), false)
+end
+
+@doc """
+eta_walk: eta_globals over one form, given the globals still in sight and whether the form is a call's head.
+
+    eta_walk(read_forms("f")[0], [["f", 1]], false) == read_forms("(lambda (eta_0) (f eta_0))")[0] #=> true
+"""
+def eta_walk(form, globals, head)
+  if symbol?(form)
+    seen = filter((g) -> g[0] == to_s(form), globals)
+    if head or length(seen) == 0
+      form
+    elsif seen[0][1] == 0
+      [form]
+    else
+      params = map((i) -> read_forms("eta_#{to_s(i)}")[0], range(0, seen[0][1]))
+      [read_forms("lambda")[0], params, cons(form, params)]
+    end
+  elsif list?(form) and length(form) > 0
+    if (head_is?(form, "define") or head_is?(form, "lambda")) and list?(form[1])
+      hidden = map(to_s, form[1])
+      kept = filter((g) -> not member?(g[0], hidden), globals)
+      append(
+        [form[0], form[1]],
+        map((f) -> eta_walk(f, kept, false), drop(2, form))
+      )
+    else
+      cons(
+        eta_walk(form[0], globals, true),
+        map((f) -> eta_walk(f, globals, false), rest(form))
+      )
+    end
+  else
+    form
+  end
+end
+
+test "a global named as a value becomes a lambda that calls it"
+  prog = read_forms("(begin (define (f a) a) (define (g h) (h 1)) (g f))")[0]
+  assert eta_globals(prog) ==
+    nth(
+      0,
+      read_forms("(begin (define (f a) a) (define (g h) (h 1)) (g (lambda (eta_0) (f eta_0))))")
+    )
+  shadow = read_forms("(begin (define (f a) a) (define (k f) (f 2)) (k 1))")[0]
+  assert eta_globals(shadow) == shadow
+  assert global_arities(read_forms("(f 1)")[0]) == []
+  assert eta_walk(7, [], false) == 7
+  assert eta_walk(read_forms("f")[0], [["f", 0]], false) == read_forms("(f)")[0]
 end

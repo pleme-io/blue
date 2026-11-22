@@ -692,8 +692,14 @@ Each wave lists defaults in the order their gain is known. Each default meets
 
 ### W5: safety and resources from facts
 
-- A program's capability hold narrowed to what it reaches, by default.
-  Waits on the operator: [SAFETY.md](SAFETY.md) D3 keeps an undeclared
+- ✅ A program's capability hold narrowed by default (operator, 2026-11-22):
+  an undeclared script, held by no Bluefile, runs as `--allow none`
+  ([SAFETY.md](SAFETY.md) D3); `BLUE_SCRIPTS=ambient` turns it off. The run
+  and the census read one predicate, `script::undeclared`, and `held` in
+  `main.rs` maps such a script to `none`. Lock: `census_undeclared.rs`
+  (refused before any effect, by shebang and by `blue run`; ambient,
+  declared, `--allow`, held, pure and shebang-less runs unchanged).
+  Before the flip: D3 kept an undeclared
   script ambient, and flips it to declared through a ratchet when `blue
   check` counts no undeclared script that reaches the host. Narrowing to a
   computed reach would refuse a script whose reach the analysis cannot see
@@ -715,7 +721,7 @@ Each wave lists defaults in the order their gain is known. Each default meets
   process), declares them now. The census resolves each file as `blue
   run` does (its project and sources, `BLUE_PATH`, `BLUE_DIST`, then the
   compiled-in distribution), so it counts a repository that has no
-  `bidamas/` of its own. Still open: the operator's flip. Lock:
+  `bidamas/` of its own. The flip followed (above). Lock:
   `crates/blue-lang-cli/tests/census_undeclared.rs` (counted and named; a
   reach through a loaded bidama counted, a pure call into it not; a
   declared, pure, held or shebang-less file not counted; a tree with no

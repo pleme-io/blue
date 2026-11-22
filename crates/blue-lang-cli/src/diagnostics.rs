@@ -21,6 +21,7 @@
 
 use std::path::Path;
 
+use blue_lang_check::names;
 use blue_lang_check::project::Finding;
 use blue_lang_check::{Diagnostic, Fix, Outcome};
 use blue_lang_pkg::project_rules::{Failure, Outcome as ProjectOutcome};
@@ -411,9 +412,9 @@ struct TargetJson {
     key: Option<String>,
 }
 
-fn target_json(t: &blue_lang_check::names::Target) -> TargetJson {
-    use blue_lang_check::names::Target;
+fn target_json(t: &names::Target) -> TargetJson {
     use blue_lang_check::Namespace;
+    use names::Target;
     let key = t.resolved_symbol();
     match t {
         Target::Local => TargetJson {
@@ -526,9 +527,9 @@ struct DefinitionJson {
 /// Serialization only.
 pub fn resolved_json(
     checked: &blue_lang_runtime::pipeline::Checked,
-    resolved: &blue_lang_check::names::Resolved,
+    resolved: &names::Resolved,
 ) -> Result<String, serde_json::Error> {
-    use blue_lang_check::names::Rule;
+    use names::Rule;
     let program = &checked.program;
     let entry = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
     let tree = |rule| -> Vec<String> {
@@ -558,13 +559,13 @@ pub fn resolved_json(
                 ns: target_json(&r.ns),
                 locals: r.locals.clone(),
                 position: match r.position {
-                    blue_lang_check::names::Position::Value => "value",
-                    blue_lang_check::names::Position::Call(_) => "call",
-                    blue_lang_check::names::Position::Place => "place",
-                    blue_lang_check::names::Position::Syntax => "syntax",
+                    names::Position::Value => "value",
+                    names::Position::Call(_) => "call",
+                    names::Position::Place => "place",
+                    names::Position::Syntax => "syntax",
                 },
                 argc: match r.position {
-                    blue_lang_check::names::Position::Call(n) => Some(n),
+                    names::Position::Call(n) => Some(n),
                     _ => None,
                 },
                 nullary: r.nullary_ns,
@@ -602,7 +603,7 @@ pub fn resolved_json(
             .enumerate()
             .filter(|(i, _)| entry(*i))
             .flat_map(|(i, f)| {
-                blue_lang_check::names::definitions_of(f)
+                names::definitions_of(f)
                     .into_iter()
                     .map(move |(name, span, _)| (i, name, span))
             })
@@ -640,8 +641,8 @@ pub fn resolved_json(
 
 // ---- cross-tier overrides ----------------------------------------------------
 
-fn tier_word(t: blue_lang_check::names::Tier) -> &'static str {
-    use blue_lang_check::names::Tier;
+fn tier_word(t: names::Tier) -> &'static str {
+    use names::Tier;
     match t {
         Tier::Local => "local",
         Tier::Own => "own",
@@ -686,9 +687,9 @@ struct OverrideJson {
 /// Serialization only.
 pub fn overrides_json(
     checked: &blue_lang_runtime::pipeline::Checked,
-    resolved: &blue_lang_check::names::Resolved,
+    resolved: &names::Resolved,
 ) -> Result<String, serde_json::Error> {
-    use blue_lang_check::names::Target;
+    use names::Target;
     let program = &checked.program;
     let file = program.file(ResolvedProgram::ENTRY);
     let mut out = String::new();
@@ -727,7 +728,7 @@ pub fn overrides_json(
 /// tier of its resolution path.
 fn tier_of_winner(
     checked: &blue_lang_runtime::pipeline::Checked,
-    r: &blue_lang_check::names::Reference,
+    r: &names::Reference,
 ) -> &'static str {
     let own = blue_lang_runtime::pipeline::namespace_of(&checked.program, r.top_level);
     checked

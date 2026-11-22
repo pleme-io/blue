@@ -113,6 +113,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use blue_lang_pkg::lock::{Freshness, LOCK_FILE};
+use blue_lang_runtime::{pipeline, uses};
 use clap::{CommandFactory, Parser, Subcommand};
 
 use config::BlueConfig;
@@ -1295,11 +1296,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             defs,
             ..
         } => {
-            use blue_lang_runtime::pipeline::{check_entry, Checking};
+            use pipeline::{check_entry, Checking};
             let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
             let src = read(&file)?;
             let checked = check_entry(
-                blue_lang_runtime::uses::Entry {
+                uses::Entry {
                     path: Some(&file),
                     text: &src,
                 },
@@ -1328,9 +1329,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     println!("{}", source_lines::source_form(&path, &src));
                 }
                 for (i, form) in tree.iter().enumerate() {
-                    if checked.program.owner_of(i)
-                        == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
-                    {
+                    if checked.program.owner_of(i) == Some(uses::ResolvedProgram::ENTRY) {
                         if lines {
                             let marked = source_lines::with_source_lines(form.clone(), &src);
                             println!("{}", marked.to_sexp());
@@ -1391,13 +1390,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 
         Cmd::Migrate { files } => {
             blue_lang_runtime::sys::set_program_args(files);
-            blue_lang_runtime::pipeline::run_in_surface(
-                blue_lang_runtime::uses::Entry {
+            pipeline::run_in_surface(
+                uses::Entry {
                     path: Some(Path::new("crates/blue-lang-cli/blue/migrate.b")),
                     text: MIGRATE,
                 },
                 blue_lang_runtime::inputs::Inputs::new(),
-                &blue_lang_runtime::uses::NoLoader,
+                &uses::NoLoader,
                 None,
             )?;
             Ok(ExitCode::SUCCESS)
@@ -1424,7 +1423,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     return Ok(ExitCode::FAILURE);
                 };
                 let text = read(&file)?;
-                let bidama = blue_lang_runtime::uses::Loader::entry_package(
+                let bidama = uses::Loader::entry_package(
                     &blue_lang_pkg::load_path::LoadPath::for_entry(&file),
                     &file,
                 );
@@ -1468,19 +1467,17 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 .and_then(|(p, l)| l.parse::<usize>().ok().map(|l| (PathBuf::from(p), l)))
                 .ok_or_else(|| CliError::Pkg(format!("expected FILE:LINE, got `{at}`")))?;
             let src = read(&path)?;
-            let checked = blue_lang_runtime::pipeline::check_entry(
-                blue_lang_runtime::uses::Entry {
+            let checked = pipeline::check_entry(
+                uses::Entry {
                     path: Some(&path),
                     text: &src,
                 },
                 &blue_lang_pkg::load_path::LoadPath::for_entry(&path),
                 None,
-                blue_lang_runtime::pipeline::Checking::WithTests,
+                pipeline::Checking::WithTests,
             )?;
             let program = &checked.program;
-            let entry = |i: usize| {
-                program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
-            };
+            let entry = |i: usize| program.owner_of(i) == Some(uses::ResolvedProgram::ENTRY);
             let form = (0..program.forms().len())
                 .filter(|i| entry(*i))
                 .filter(|i| {
@@ -1490,7 +1487,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 .ok_or_else(|| {
                     CliError::Pkg(format!("no top-level form at or before line {line}"))
                 })?;
-            let own = blue_lang_runtime::pipeline::namespace_of(program, form);
+            let own = pipeline::namespace_of(program, form);
             println!("`{name}` at {}:{line}, in {own}:", path.display());
             println!("  local     a parameter or local of that name in scope at the line wins over everything below");
             let mut won = false;
@@ -2051,7 +2048,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             let src = read(&file)?;
             let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
             let bundle = blue_lang_runtime::bundle::bundle_of(
-                blue_lang_runtime::uses::Entry {
+                uses::Entry {
                     path: Some(&file),
                     text: &src,
                 },
@@ -2172,10 +2169,10 @@ fn check(
     no_cache: bool,
 ) -> Result<ExitCode, CliError> {
     use blue_lang_runtime::check_cache;
-    use blue_lang_runtime::pipeline::{check_entry_cached, render, syntax_diagnostic, Checking};
+    use pipeline::{check_entry_cached, render, syntax_diagnostic, Checking};
     let cache = check_cache::installed().filter(|_| !no_cache);
-    let check_entry = |entry: blue_lang_runtime::uses::Entry<'_>,
-                       loader: &dyn blue_lang_runtime::uses::Loader,
+    let check_entry = |entry: uses::Entry<'_>,
+                       loader: &dyn uses::Loader,
                        surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
                        checking: Checking| {
         check_entry_cached(entry, loader, surface, checking, cache.as_ref())
@@ -2221,8 +2218,8 @@ fn check(
             source,
         })?
     };
-    fn entry<'a>(file: &'a Path, text: &'a str) -> blue_lang_runtime::uses::Entry<'a> {
-        blue_lang_runtime::uses::Entry {
+    fn entry<'a>(file: &'a Path, text: &'a str) -> uses::Entry<'a> {
+        uses::Entry {
             path: Some(file),
             text,
         }
@@ -2231,7 +2228,7 @@ fn check(
     // above the file (`blue_lang_pkg::project_rules`).
     let rules =
         blue_lang_pkg::project_rules::discover(file).map_err(|e| CliError::Pkg(e.to_string()))?;
-    let project_pass = |checked: &blue_lang_runtime::pipeline::Checked| {
+    let project_pass = |checked: &pipeline::Checked| {
         let form = |i: usize| checked.form_identity(i);
         let rule_cache = cache
             .as_ref()
@@ -2285,7 +2282,7 @@ fn check(
                     blue_lang_check::Code::B0019 | blue_lang_check::Code::B0074
                 )
             }))
-        && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some()
+        && uses::Loader::entry_package(&loader, file).is_some()
     {
         let dir = manifest_dir_of(file);
         let disagrees = checked.outcome.diagnostics.iter().any(|d| {
@@ -2346,20 +2343,17 @@ fn check(
     }
     let mut with_form = checked.outcome.clone();
     let entry_form = (0..checked.program.forms().len())
-        .find(|i| {
-            checked.program.owner_of(*i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
-        })
+        .find(|i| checked.program.owner_of(*i) == Some(uses::ResolvedProgram::ENTRY))
         .unwrap_or(0);
     with_form.diagnostics.extend(
-        blue_lang_runtime::pipeline::form_diagnostics(&src)
+        pipeline::form_diagnostics(&src)
             .into_iter()
             .map(|d| d.at_top_level(entry_form)),
     );
     if matches!(format, Format::Json) {
         if let Ok(rewritten) = blue_lang_pkg::canonical::format_resolved(file, &src) {
-            let owner = |i: usize| {
-                checked.program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
-            };
+            let owner =
+                |i: usize| checked.program.owner_of(i) == Some(uses::ResolvedProgram::ENTRY);
             blue_lang_check::fixes::complete_with_rewrite(
                 &mut with_form.diagnostics,
                 &owner,
@@ -2537,7 +2531,7 @@ struct Invocation<'a> {
     receipts: Option<&'a Path>,
     receipt_steps: bool,
     no_memo: bool,
-    executor: blue_lang_runtime::pipeline::Executor,
+    executor: pipeline::Executor,
     args: Vec<String>,
     taping: record::Taping,
     watch: Option<Watch<'a>>,
@@ -2545,7 +2539,7 @@ struct Invocation<'a> {
 
 type Watch<'a> = Box<
     dyn FnOnce(
-            &blue_lang_runtime::pipeline::Watched<'_>,
+            &pipeline::Watched<'_>,
         ) -> std::sync::Arc<dyn blue_lang_runtime::observe::CallObserver>
         + 'a,
 >;
@@ -2554,28 +2548,41 @@ struct Invoked {
     hold: Option<blue_lang_runtime::Hold>,
     account: blue_lang_runtime::Account,
     src: String,
-    ran: Result<blue_lang_runtime::pipeline::Run, blue_lang_runtime::pipeline::RunError>,
+    ran: Result<pipeline::Run, pipeline::RunError>,
+}
+
+/// What a run of `file` is held to: `--allow` narrowed by its project's
+/// hold, or that hold alone. An undeclared script no Bluefile holds runs as
+/// `--allow none` (SAFETY.md D3), unless `BLUE_SCRIPTS=ambient`.
+fn held(
+    file: &Path,
+    src: &str,
+    allow: &[String],
+) -> Result<Option<blue_lang_runtime::Hold>, CliError> {
+    let project = blue_lang_pkg::capabilities::hold_for(file).map_err(CliError::Pkg)?;
+    let none = ["none".to_string()];
+    let ambient = std::env::var_os("BLUE_SCRIPTS").is_some_and(|v| v == "ambient");
+    let allow = match allow {
+        [] if project.is_none() && !ambient && script::undeclared(src) => &none[..],
+        _ => allow,
+    };
+    if allow.is_empty() {
+        return Ok(project);
+    }
+    let asked =
+        blue_lang_runtime::session::frame_granting(&repl::granted(allow).map_err(CliError::Fmt)?);
+    Ok(Some(match project {
+        Some(p) => blue_lang_runtime::Hold {
+            frame: asked.narrow(&p.frame),
+            provisions: p.provisions,
+            bounds: p.bounds,
+        },
+        None => blue_lang_runtime::Hold::from(asked),
+    }))
 }
 
 fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
     inputs::hold(inv.file, inputs::Word::Generate)?;
-    let project = blue_lang_pkg::capabilities::hold_for(inv.file).map_err(CliError::Pkg)?;
-    let hold = if inv.allow.is_empty() {
-        project
-    } else {
-        let asked = blue_lang_runtime::session::frame_granting(
-            &repl::granted(inv.allow).map_err(CliError::Fmt)?,
-        );
-        Some(match project {
-            Some(p) => blue_lang_runtime::Hold {
-                frame: asked.narrow(&p.frame),
-                provisions: p.provisions,
-                bounds: p.bounds,
-            },
-            None => blue_lang_runtime::Hold::from(asked),
-        })
-    };
-    let hold = receipt::hold_for(hold, inv.receipts);
     let mut account = receipt::account(inv.receipts.map(Path::to_path_buf));
     if inv.receipt_steps {
         account.steps = Some(std::sync::Arc::default());
@@ -2617,6 +2624,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             }
         }
     };
+    let hold = receipt::hold_for(held(inv.file, &src, inv.allow)?, inv.receipts);
     // Always bind, even with no `--input` flags: a program that
     // DECLARES an input and gets no material must hear "you forgot the
     // flag", not the macro-level "no input named …" from deep inside
@@ -2641,15 +2649,12 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
     // type error in the file the user named would report against
     // `<anonymous>` while an imported package's reported its real path
     // — the entry file being the one file the CLI always knows.
-    let entry = blue_lang_runtime::uses::Entry {
+    let entry = uses::Entry {
         path: Some(inv.file),
         text: &src,
     };
     let inputs = bind_inputs(&src, inv.inputs, cfg)?;
-    let memo = if inv.receipt_steps
-        || taped
-        || inv.executor == blue_lang_runtime::pipeline::Executor::Vm
-    {
+    let memo = if inv.receipt_steps || taped || inv.executor == pipeline::Executor::Vm {
         memo::Mode::Off
     } else {
         memo::unless_bounded(
@@ -2669,7 +2674,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
     );
     let native = inv.watch.is_none() && native::mode() == native::Mode::On;
     let ran = match (memo, inv.watch) {
-        (memo::Mode::Off, Some(watch)) => blue_lang_runtime::pipeline::run_observed_accounted(
+        (memo::Mode::Off, Some(watch)) => pipeline::run_observed_accounted(
             entry,
             inputs,
             &loader,
@@ -2680,17 +2685,17 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
         )
         .and_then(|o| o.outcome),
         (memo::Mode::Off, None) if !native => {
-            let plain = executor == blue_lang_runtime::pipeline::Executor::Auto
+            let plain = executor == pipeline::Executor::Auto
                 && !inv.receipt_steps
                 && !taped
                 && hold.as_ref().and_then(|h| h.bounds).is_none();
             let memo_plans = plain && memo::planning(inv.no_memo, cfg);
             let native_plans = plain && native::mode() == native::Mode::Auto;
             let slow = memo_plans && blue_lang_mondou::store::marked_slow(entry.text.as_bytes());
-            let planner = |w: &blue_lang_runtime::pipeline::Watched<'_>, r: &[(usize, String)]| {
+            let planner = |w: &pipeline::Watched<'_>, r: &[(usize, String)]| {
                 native::planned(w, r, memo_plans, native_plans, slow, entry.text.as_bytes())
             };
-            blue_lang_runtime::pipeline::run_framed_planned(
+            pipeline::run_framed_planned(
                 entry,
                 inputs,
                 &loader,
@@ -2698,13 +2703,12 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
                 hold.as_ref(),
                 &account,
                 executor,
-                (memo_plans || native_plans)
-                    .then_some(&planner as blue_lang_runtime::pipeline::MemoPlanner<'_>),
+                (memo_plans || native_plans).then_some(&planner as pipeline::MemoPlanner<'_>),
             )
         }
         (mode, _) => {
             let mut held = None;
-            let observed = blue_lang_runtime::pipeline::run_observed_accounted(
+            let observed = pipeline::run_observed_accounted(
                 entry,
                 inputs,
                 &loader,
@@ -2815,8 +2819,8 @@ fn resolve_surface() -> Result<Option<blue_lang_syntax::yakugo::Yakugo>, String>
 fn embedded(name: &str, text: &str, args: Vec<String>) -> Result<ExitCode, CliError> {
     blue_lang_runtime::sys::set_program_args(args);
     let path = format!("{}{name}", "crates/blue-lang-cli/blue/");
-    let out = blue_lang_runtime::pipeline::run_in_surface(
-        blue_lang_runtime::uses::Entry {
+    let out = pipeline::run_in_surface(
+        uses::Entry {
             path: Some(Path::new(&path)),
             text,
         },

@@ -44,11 +44,10 @@ pub struct Census {
 /// holds the count; it refuses no script.
 pub const UNDECLARED: usize = 0;
 
-/// What a script that `blue` runs ambient reaches: its shebang names `blue`
-/// and no `--allow`, and no Bluefile holds it.
+/// What an undeclared script that no Bluefile holds reaches: each is a run
+/// `blue` refuses, unless `BLUE_SCRIPTS=ambient`.
 fn undeclared_reach(path: &Path, text: &str, c: &Checked) -> Vec<&'static str> {
-    if !crate::script::is_blue_shebang(text.as_bytes())
-        || text.lines().next().is_some_and(|l| l.contains("--allow"))
+    if !crate::script::undeclared(text)
         || !matches!(blue_lang_pkg::capabilities::hold_for(path), Ok(None))
     {
         return vec![];

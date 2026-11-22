@@ -12,7 +12,7 @@
 //!   `NAME.b` with its tests, the layout `bidamas/AUTHORING.md` describes. Run
 //!   it inside a distribution's directory.
 //! - **a script** (`blue new --script NAME.b`): one executable file opening
-//!   with `#!/usr/bin/env blue`.
+//!   with `#!/usr/bin/env -S blue --allow environment`.
 //! - **a kernel program** (`blue new --kernel NAME`): a Bluefile that allows
 //!   `:kernel_bpf`, and one file holding the program, its loader and its tests.
 //!   `blue test` runs it on the pure machine with no kernel, and names the one
@@ -99,7 +99,7 @@ test "an empty name is still a name"
 end
 "##;
 
-const SCRIPT: &str = r##"#!/usr/bin/env blue
+const SCRIPT: &str = r##"#!/usr/bin/env -S blue --allow environment
 # `./__FILE__ ARGS` or `blue __FILE__ ARGS`; `blue new` made it executable.
 use("retsu", [:size])
 

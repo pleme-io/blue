@@ -1004,11 +1004,17 @@ before any effect. Rejected: the static check over the whole resolved
 program. It refuses a pure use of a bidama that holds an unrelated host word,
 which is collateral scope: the refusal reaches good states beside the bad one.
 
-**D3. The default for an undeclared script stays ambient now.** Rejected:
-pure by default today. Every working script that reads a file would stop, so
-the refusal is bigger than the fault. The flip happens through a ratchet
-(phase 3): `blue check` counts undeclared scripts that reach the host, and
-the default becomes "declared" when the count is zero.
+**D3. An undeclared script runs as `--allow none` (operator, 2026-11-22;
+replaces "stays ambient now").** A script whose shebang names `blue` and no
+`--allow`, and that no Bluefile holds, reaches no host capability: a host
+name in it is refused before any effect, and one a bidama reaches is a
+breach (D7). `BLUE_SCRIPTS=ambient` runs it with the host, as before. A
+file run as `blue run FILE` with no shebang is not a script and keeps its
+default. The flip came through the ratchet: `blue census` counts the
+undeclared scripts that reach the host (`census::UNDECLARED`), and the flip
+waited until that count was zero over the fleet (2026-11-21, 5 scripts in 4
+repositories). Rejected: pure by default at once (every working script that
+read a file would have stopped, a refusal bigger than the fault).
 
 **D4. B0053 covers first-order words only.** Dropping `assoc(…)` is dead by
 construction. Dropping `map(f, xs)` is not, because `f` may write (22 such
@@ -1049,7 +1055,7 @@ again; a restart spends intensity and then kills innocent siblings).
 | 1 | workspace `unsafe_code = "deny"`, four seam `#[allow]`s, one seam test | a stray `unsafe` in any blue crate | one commit |
 | 2 | injection rule: `sh_exec` / `pg_execute` with interpolation | shell and SQL injection from data | one rule |
 | 3 | `docs/ABSENCE.md` (in flight, other owner) | the nil class | owned elsewhere |
-| 4 | script default flip: census of undeclared host-reaching scripts → 0, then "declared" is the default | ambient authority in scripts | ratchet over the fleet; the census (`blue census`, `census::UNDECLARED`) is built and at 0 in blue and over the fleet (2026-11-21, 5 scripts in 4 repositories), the flip is the operator's |
+| 4 ✅ | script default flip: census of undeclared host-reaching scripts → 0, then "declared" is the default | ambient authority in scripts | landed: an undeclared script runs as `--allow none` (D3, off: `BLUE_SCRIPTS=ambient`); `blue census` holds the count at 0 |
 | 5 | native panic seam → `:internal` refusal | aborts from native code | one seam + totality test |
 | 6 | bidama content hash in `Bluefile.lock` | same-version substitution | lock schema bump |
 | 7 | secret bidama + literal rule | secrets printed, sent or committed | one bidama + one rule |

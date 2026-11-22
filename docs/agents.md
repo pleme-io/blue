@@ -66,7 +66,8 @@ network with no test.
 ### A file is a program; a project is one command away
 
 A script needs no structure. `blue new --script tool.b` writes one that opens
-with `#!/usr/bin/env blue` and is executable, so both of these run it:
+with `#!/usr/bin/env -S blue --allow environment` and is executable, so
+both of these run it:
 
 ```text
 blue tool.b a b        ./tool.b a b
@@ -80,7 +81,9 @@ a file of the same name; `blue ./test` runs the file.
 **Safety first is the default posture.** A script states the host
 capabilities it needs in its shebang, `#!/usr/bin/env -S blue --allow
 filesystem`, and a name outside them is refused (`none`, `host`, or
-`process`, `filesystem`, `environment`, `clock`, `network`, `entropy`). Every
+`process`, `filesystem`, `environment`, `clock`, `network`, `entropy`). A
+script whose shebang names no `--allow`, and that no Bluefile holds, reaches
+no host capability; `BLUE_SCRIPTS=ambient` runs it with the host. Every
 Rust guarantee, the blue gate that matches it and its off switch:
 [`docs/SAFETY.md`](SAFETY.md).
 

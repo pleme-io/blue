@@ -29,7 +29,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | run | **Evaluation by a tree-walking interpreter.** `tatara-lisp-eval` walks the erased tree; a bytecode VM exists, but `blue run` does not use it. [COMPILE-TIME.md](COMPILE-TIME.md) |
 | lowering | **Desugaring.** A shorthand is defined by the longer form it rewrites to: `x++` lowers to `x += 1`, which lowers to `x = x + 1`. [CANONICAL-FORMS.md](CANONICAL-FORMS.md) |
 | door | **A front end, or an entry point into the compiler.** A door is one way into the pipeline: `blue run`, `blue test`, `blue check`, the language server or a bidama build. [DIAGNOSTICS.md](DIAGNOSTICS.md) |
-| script | **A single-file program.** A `.b` file that opens with `#!/usr/bin/env blue` runs with every standard bidama and no Bluefile. [agents.md](agents.md) |
+| script | **A single-file program.** A `.b` file that opens with `#!/usr/bin/env -S blue --allow CAP` runs with every standard bidama and no Bluefile, held to the capabilities it names. [agents.md](agents.md) |
 | project | **A package root with a manifest.** `blue new NAME` writes a Bluefile, its lock, a stub `flake.nix`, a bidama and a `main.b`. [agents.md](agents.md) |
 | `def main()` | **The program entry point.** `blue run` calls `main` after the top level; `blue test`, `blue check` and `use` never call it. [agents.md](agents.md) |
 | session (`eval`, `repl`, `serve`) | **A sandboxed REPL.** A session refuses code that reaches the host unless it starts with `--allow`, and `--budget STEPS` bounds each evaluation. [agents.md](agents.md) |

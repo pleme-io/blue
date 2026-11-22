@@ -92,6 +92,13 @@ pub fn is_blue_shebang(text: &[u8]) -> bool {
         .any(|word| Path::new(word).file_name().is_some_and(|n| n == "blue"))
 }
 
+/// Whether `text` is a script that declares nothing (SAFETY.md D3): its
+/// shebang names `blue` and no `--allow`. Unless a Bluefile holds it, it
+/// runs as `--allow none`; `BLUE_SCRIPTS=ambient` runs it with the host.
+pub fn undeclared(text: &str) -> bool {
+    is_blue_shebang(text.as_bytes()) && !text.lines().next().is_some_and(|l| l.contains("--allow"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,13 +12,13 @@
 //!
 //! [`Tier`] is the call observer that answers a call of a definition whose
 //! hash has an artifact under `BLUE_CACHE_SHARED`
-//! (`blue_lang_mondou::store::native_artifact`), with every argument an Int,
+//! (`store::native_artifact`), with every argument an Int,
 //! by running the artifact; any other call, and any artifact that does not
 //! answer, runs in the interpreter as before. It is on by default (rule R7 of
 //! the default cascade): a run whose program has an artifact answers natively
 //! each definition whose outermost calls averaged [`hot_from`] or more in
 //! earlier runs (0.2 ms with a library, 20 ms without), and records this run's times in the profile tier
-//! (`blue_lang_mondou::store::profile`), so a definition goes native once it is
+//! (`store::profile`), so a definition goes native once it is
 //! known to be hot. `BLUE_NATIVE=on` answers every call it can; `off` none.
 
 use std::collections::{BTreeSet, HashMap};
@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use blue_lang_mondou::def_hash::{DefHash, DefHashes, DefKind};
+use blue_lang_mondou::store;
 use blue_lang_runtime::observe::{Call, CallObserver, Exit};
 use blue_lang_runtime::uses::ResolvedProgram;
 use blue_lang_syntax::{Atom, Span, Spanned, SpannedForm};
@@ -623,7 +624,7 @@ pub(crate) fn mode() -> Mode {
 #[derive(Default)]
 struct Timing {
     open: HashMap<Span, (u32, Option<std::time::Instant>)>,
-    seen: HashMap<DefHash, blue_lang_mondou::store::Profiled>,
+    seen: HashMap<DefHash, store::Profiled>,
     tail: Option<(Span, DefHash)>,
 }
 
@@ -634,7 +635,7 @@ impl Timing {
         };
         let ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
         let p = self.seen.entry(hash).or_default();
-        *p = p.plus(blue_lang_mondou::store::Profiled {
+        *p = p.plus(store::Profiled {
             total_ns: ns,
             calls: 1,
         });
@@ -659,7 +660,7 @@ impl Tier {
         w: &blue_lang_runtime::pipeline::Watched<'_>,
         mode: Mode,
         find: &dyn Fn(&DefHash) -> Option<PathBuf>,
-        profiled: &dyn Fn(&DefHash) -> Option<blue_lang_mondou::store::Profiled>,
+        profiled: &dyn Fn(&DefHash) -> Option<store::Profiled>,
         inner: Option<Arc<dyn CallObserver>>,
     ) -> Arc<Self> {
         let hashes = blue_lang_mondou::hash_checked(w.program, w.lowered);
@@ -689,11 +690,11 @@ impl Tier {
                 Some(_) => items.get(2).map(|l| (l.span, None)),
                 None => Some((d.span, Some(d.key.to_string()))),
             };
-            let mean = profiled(&hashed.hash).and_then(blue_lang_mondou::store::Profiled::mean_ns);
+            let mean = profiled(&hashed.hash).and_then(store::Profiled::mean_ns);
             let library = if mode == Mode::Off {
                 None
             } else {
-                blue_lang_mondou::store::native_library(&artifact).and_then(|l| crate::dl::open(&l))
+                store::native_library(&artifact).and_then(|l| crate::dl::open(&l))
             };
             let threshold = hot_from(library.is_some());
             let hot = match mode {
@@ -749,8 +750,8 @@ impl Tier {
         let tier = Self::over(
             w,
             Mode::Auto,
-            &blue_lang_mondou::store::native_artifact,
-            &blue_lang_mondou::store::profile,
+            &store::native_artifact,
+            &store::profile,
             inner,
         );
         let mut tier = Arc::into_inner(tier)?;
@@ -791,7 +792,7 @@ impl Tier {
     /// The time this run's outermost calls of each definition took, added to
     /// the profile tier through `record`.
     /// When the tier seeds, only the times of definitions that ran hot.
-    pub(crate) fn flush(&self, record: &dyn Fn(&DefHash, blue_lang_mondou::store::Profiled)) {
+    pub(crate) fn flush(&self, record: &dyn Fn(&DefHash, store::Profiled)) {
         let seen = self
             .timing
             .lock()
@@ -812,7 +813,7 @@ impl Tier {
 
 impl Drop for Tier {
     fn drop(&mut self) {
-        self.flush(&blue_lang_mondou::store::record_profile);
+        self.flush(&store::record_profile);
     }
 }
 
@@ -834,7 +835,7 @@ pub(crate) fn planned(
         None
     };
     let current = mode();
-    if !native || current == Mode::Off || !blue_lang_mondou::store::native_present() {
+    if !native || current == Mode::Off || !store::native_present() {
         return memo;
     }
     let (inner, memo_reason) = match memo {
@@ -844,8 +845,8 @@ pub(crate) fn planned(
     let tier = Tier::over(
         w,
         current,
-        &blue_lang_mondou::store::native_artifact,
-        &blue_lang_mondou::store::profile,
+        &store::native_artifact,
+        &store::profile,
         inner.clone(),
     );
     let (hot, fresh) = tier.plan();
@@ -874,7 +875,7 @@ pub(crate) fn planned(
 /// Whether a test run seeds the profile: the tier is not off and a native
 /// tier is present, checked before any hashing.
 pub(crate) fn seeds() -> bool {
-    mode() != Mode::Off && blue_lang_mondou::store::native_present()
+    mode() != Mode::Off && store::native_present()
 }
 
 /// The variable naming the command a run starts, detached, when it asks for
@@ -889,16 +890,13 @@ pub(crate) const BUILDER_ENV: &str = "BLUE_NATIVE_BUILDER";
 /// as a process; start the builder [`BUILDER_ENV`] names when this run asked.
 /// Answers whether it asked.
 pub(crate) fn ask_for_build(file: &std::path::Path, took: std::time::Duration) -> bool {
-    if mode() != Mode::Auto
-        || took.as_nanos() < u128::from(HOT_NS)
-        || !blue_lang_mondou::store::native_present()
-    {
+    if mode() != Mode::Auto || took.as_nanos() < u128::from(HOT_NS) || !store::native_present() {
         return false;
     }
     let (Ok(text), Ok(path)) = (std::fs::read(file), file.canonicalize()) else {
         return false;
     };
-    let asked = blue_lang_mondou::store::want_native(&text, &path);
+    let asked = store::want_native(&text, &path);
     if asked {
         if let Some(builder) = std::env::var_os(BUILDER_ENV).filter(|b| !b.is_empty()) {
             let _ = std::process::Command::new(builder)

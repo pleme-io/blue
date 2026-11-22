@@ -101,10 +101,10 @@ fn a_missing_b_file_is_reported_as_a_missing_file() {
     );
 }
 
-/// `#!/usr/bin/env blue` on an executable file, run by the operating system
-/// with the built `blue` first on PATH, no Bluefile around it and no
-/// `BLUE_PATH`: the script has no `.b` extension, uses two standard bidamas,
-/// and gets its arguments.
+/// `#!/usr/bin/env -S blue --allow environment` on an executable file, run by
+/// the operating system with the built `blue` first on PATH, no Bluefile
+/// around it and no `BLUE_PATH`: the script has no `.b` extension, uses two
+/// standard bidamas, and gets its arguments.
 #[cfg(unix)]
 #[test]
 fn a_shebang_script_runs_directly() {
@@ -112,7 +112,7 @@ fn a_shebang_script_runs_directly() {
     let script = dir.join("greet");
     put(
         &script,
-        "#!/usr/bin/env blue\nuse(\"kazu\", [:clamp])\nuse(\"retsu\", [:size])\n\nwrite_stdout(\"#{size(argv)} #{clamp(99, 1, 10)}\\n\")\n",
+        "#!/usr/bin/env -S blue --allow environment\nuse(\"kazu\", [:clamp])\nuse(\"retsu\", [:size])\n\nwrite_stdout(\"#{size(argv)} #{clamp(99, 1, 10)}\\n\")\n",
     );
     executable(&script);
     let bin = Path::new(env!("CARGO_BIN_EXE_blue")).parent().unwrap();

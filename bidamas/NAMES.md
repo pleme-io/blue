@@ -123,6 +123,7 @@ replacement (`docs/COMPOUNDING.md`).
 | `yomi` | `text_of` | `deeta::text_of` | 0.1.0 |
 | `yomi` | `run_end` | `deeta::run_end` | 0.1.0 |
 | `yomi` | `gap?` | `deeta::space_byte?` | 0.1.0 |
+| `toride` | `write_atomic` | `fairu::write_atomic` | 0.1.0 |
 | `eigyou/heddaa` | `merge_state` | `jisho::merge` | 0.1.1 |
 | `todokede/jitaku` | `unrefused` | `kyohi::standing` | 0.1.1 |
 | `kaaneru` | `map_kinds` | `kaaneru::bpf::map_kinds` | 0.1.0 |

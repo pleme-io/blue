@@ -1,0 +1,14 @@
+[
+  {
+    "name": "the write never lands",
+    "file": "fairu.b",
+    "find": "  rename_file(\"#{path}.tmp\", path)\n  true",
+    "replace": "  true"
+  },
+  {
+    "name": "a failed write reads as written",
+    "file": "fairu.b",
+    "find": "rescue _e\n  false\nend",
+    "replace": "rescue _e\n  true\nend"
+  }
+]

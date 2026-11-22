@@ -1094,8 +1094,70 @@ def config()
   }
 end
 
+@doc """
+poll_of: the seconds between two runs, from the last run's `checked_ms`, for the heartbeat; 30 when there is no last run, and never under 30.
+
+    poll_of(nil, 90000) #=> 30
+    poll_of(0, 90000) #=> 90
+"""
+def poll_of(last_ms, now)
+  secs = if last_ms.nil? or not integer?(last_ms) or last_ms > now
+    0
+  else
+    floor((now - last_ms + 999) / 1000)
+  end
+  if secs < 30
+    30
+  else
+    secs
+  end
+end
+
+@doc """
+beat: the overlay's verdict in the heartbeat form plantao's inbox reads. It is failed when a route command failed or the overlay is down (stopped or logged out) or reaches nothing, degraded when an axis is unread, and ok otherwise; the detail names the outcome and the state.
+
+    beat({overlay: :relay}, {kind: :bypass}, [], 1000, 30) #=> {verdict: "ok", detail: "bypass", at_unix_ms: 1000, poll_seconds: 30}
+    beat({overlay: :down, corp: :absent}, {kind: :noop, reason: :overlay_down}, [], 1000, 30)[:verdict] #=> "failed"
+"""
+def beat(s, o, failed, now, poll)
+  label = outcome_label(o)
+  vd = if not is_empty(failed)
+    [
+      "failed",
+      "#{to_s(size(failed))} route command(s) failed: #{first(failed)}"
+    ]
+  elsif o[:kind] == :blind
+    ["degraded", "unread: #{label}"]
+  elsif member?(s[:overlay], %i[down none])
+    [
+      "failed",
+      "overlay #{to_s(s[:overlay])}: #{label} (corp #{to_s(s[:corp])}, enforcement #{to_s(s[:enforcement])})"
+    ]
+  else
+    ["ok", label]
+  end
+  {verdict: vd[0], detail: vd[1], at_unix_ms: now, poll_seconds: poll}
+end
+
+@doc """
+persist: write each [path, text] of `writes` whole (fairu::write_atomic), and raise `:unwritable` naming the first path that could not be written.
+
+    persist([]) #=> []
+"""
+def persist(writes)
+  map(
+    fn(w)
+      if not fairu::write_atomic(w[0], w[1])
+        raise(:unwritable, "ukai could not write #{w[0]}")
+      end
+    end,
+    writes
+  )
+end
+
 def run(cfg)
   now = now_ms
+  last = json_parse(read_or(cfg[:state_path], "")) rescue nil
   cfg2 = assoc(cfg, :applied, read_applied(cfg[:state_path]))
   s = assemble(cfg2, observe(cfg2))
   o = decide(s)
@@ -1115,10 +1177,23 @@ def run(cfg)
     ),
     applied:
   }
-  mkdir_p(path_dirname(cfg2[:state_path]))
-  tmp = "#{cfg2[:state_path]}.tmp"
-  write_file(tmp, json_stringify(record))
-  rename_file(tmp, cfg2[:state_path])
+  persist(
+    [
+      [cfg2[:state_path], json_stringify(record)],
+      [
+        path_join(path_dirname(cfg2[:state_path]), "beat.json"),
+        json_stringify(
+          beat(
+            s,
+            o,
+            record[:failed],
+            now,
+            poll_of(as_json(last, "checked_ms"), now)
+          )
+        )
+      ]
+    ]
+  )
   write_stdout(
     unlines(
       [
@@ -1594,6 +1669,50 @@ test "a detour outlives no detour: with no corporate tunnel every route this sid
   assert decide(held) == {kind: :refused, reason: :enforcement_blocks_egress}
   assert held_of(%w[a b], %w[b a c b], ["a"]) == ["b"]
   assert held_of([], ["a"], []) == []
+end
+
+test "the beat fails when the overlay reaches nothing or is down, names why, and is ok only through a working overlay"
+  split = {overlay: :none, corp: :split, enforcement: :routes_rewritten}
+  b = beat(split, decide_kind(split), [], 5, 30)
+  assert b[:verdict] == "failed"
+  assert b[:detail] ==
+    "overlay none: noop:split_tunnel_leaves_default (corp split, enforcement routes_rewritten)"
+  corp = {overlay: :none, corp: :full, enforcement: :egress_blocked}
+  assert contains?(
+    beat(corp, refused(:enforcement_blocks_egress), [], 5, 30)[:detail],
+    "refused:enforcement_blocks_egress (corp full"
+  )
+  assert beat({overlay: :down}, noop(:overlay_down), [], 5, 30)[:verdict] ==
+    "failed"
+  assert beat({overlay: :relay}, blind([:corp]), [], 5, 30)[:verdict] ==
+    "degraded"
+  assert get(
+    beat({overlay: :direct}, {kind: :bypass}, ["route: x"], 5, 30),
+    :detail
+  ) == "1 route command(s) failed: route: x"
+  ok = beat({overlay: :direct}, {kind: :bypass}, [], 7, 30)
+  assert ok ==
+    {verdict: "ok", detail: "bypass", at_unix_ms: 7, poll_seconds: 30}
+  assert json_get(json_parse(json_stringify(ok)), :verdict) == "ok"
+  assert poll_of(nil, 5000) == 30
+  assert poll_of(1000, 121_000) == 120
+  assert poll_of(1000, 121_001) == 121
+  assert poll_of(9000, 1000) == 30
+end
+
+test "the state and the beat are written whole, and a path that cannot be written raises unwritable"
+  dir = temp_dir("ukai-persist")
+  persist(
+    [
+      [path_join(dir, "state.json"), "{}"],
+      [path_join(dir, "beat.json"), "{\"verdict\":\"ok\"}"]
+    ]
+  )
+  assert read_file(path_join(dir, "beat.json")) == "{\"verdict\":\"ok\"}"
+  assert tesuto::raises?(
+    :unwritable,
+    () -> persist([[path_join(path_join(dir, "state.json"), "x"), "{}"]])
+  ) == true
 end
 
 test "routes through the current gateway are never stale, and a host this side never applied is never retracted"

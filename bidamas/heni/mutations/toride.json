@@ -704,7 +704,7 @@
   {
     "name": "a failed write is not named",
     "file": "toride.b",
-    "find": "    elsif write_atomic(path, text) != true",
+    "find": "    elsif fairu::write_atomic(path, text) != true",
     "replace": "    elsif false"
   },
   {
@@ -712,12 +712,6 @@
     "file": "toride.b",
     "find": "    elsif reloaded(io, cfg[:reload]) != 0",
     "replace": "    elsif false"
-  },
-  {
-    "name": "the write never lands",
-    "file": "toride.b",
-    "find": "  rename_file(\"#{path}.tmp\", path)\n  true",
-    "replace": "  true"
   },
   {
     "name": "no ports is a probe",

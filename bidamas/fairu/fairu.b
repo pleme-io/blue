@@ -173,6 +173,30 @@ def write_tree(root, fs)
   )
 end
 
+@doc """
+write_atomic: write `text` to `path` through a temporary file beside it and a rename, so a reader sees the old file or the new one, never a part. It makes the parent directory, and answers true on success and false on any failure.
+
+    write_atomic("/proc/no/such/dir/x", "a") #=> false
+"""
+def write_atomic(path, text)
+  mkdir_p(path_dirname(path))
+  write_file("#{path}.tmp", text)
+  rename_file("#{path}.tmp", path)
+  true
+rescue _e
+  false
+end
+
+test "write_atomic writes the whole text, makes its directory, leaves no temporary, and answers false where it cannot write"
+  dir = temp_dir("fairu-atomic")
+  path = path_join(dir, "a/b.txt")
+  assert write_atomic(path, "one") == true
+  assert write_atomic(path, "two") == true
+  assert read_file(path) == "two"
+  assert path_exists("#{path}.tmp") == false
+  assert write_atomic(path_join(path, "under-a-file"), "x") == false
+end
+
 test "normalize removes dot parts, empty parts and each pair that climbs back"
   assert normalize("a/./b//c/../d") == "a/b/d"
   assert normalize("/a/../b") == "/b"

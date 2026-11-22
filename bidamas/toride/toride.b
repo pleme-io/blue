@@ -967,7 +967,7 @@ def converge(cfg, run, io)
       "unchanged"
     elsif cfg[:dry_run]
       "would-write"
-    elsif write_atomic(path, text) != true
+    elsif fairu::write_atomic(path, text) != true
       "write-failed"
     elsif reloaded(io, cfg[:reload]) != 0
       "reload-failed"
@@ -986,20 +986,6 @@ reloaded: The exit status of the reload command `argv`, run through the `exec` o
 def reloaded(io, argv)
   exec = io[:exec]
   exec(argv)[:status]
-end
-
-@doc """
-write_atomic: Write `text` to `path` through a temporary file and a rename, so a reader never sees half a file. It makes the parent directory, and gives true on success and false on any failure.
-
-    write_atomic("#{tesuto::fresh_dir("toride-doc")}/a/b.txt", "x") #=> true
-"""
-def write_atomic(path, text)
-  mkdir_p(path_dirname(path))
-  write_file("#{path}.tmp", text)
-  rename_file("#{path}.tmp", path)
-  true
-rescue _e
-  false
 end
 
 @doc """
@@ -1205,7 +1191,7 @@ def run(cfg, io)
     dry_run: cfg[:dry_run],
     refused: map(last, refusals)
   }
-  write_atomic(cfg[:state_path], json_stringify(record))
+  fairu::write_atomic(cfg[:state_path], json_stringify(record))
   if loud?(line, prior[:line], runs, cfg[:heartbeat_interval])
     write_stdout(unlines([line]))
   end

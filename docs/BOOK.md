@@ -82,7 +82,7 @@ and no configuration.
 Write `greet.b`:
 
 ```blue file=greet.b
-#!/usr/bin/env blue
+#!/usr/bin/env -S blue --allow environment
 def greeting(who)
   "hello, #{who}"
 end
@@ -101,7 +101,8 @@ hello, ryn
 ```
 
 The first line is a shebang. After `chmod +x greet.b`, the script also runs as
-`./greet.b ryn`.
+`./greet.b ryn`. Its `--allow environment` lets the script read its
+arguments; a script that names no `--allow` reaches nothing on the host.
 
 blue writes one formatting. Ask it whether the file is in that form:
 

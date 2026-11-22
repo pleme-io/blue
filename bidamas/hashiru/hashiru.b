@@ -491,6 +491,32 @@ HEAP_EXHAUSTED: the exit status of a program whose heap is used up (ENOMEM), ins
 HEAP_EXHAUSTED = 12
 
 @doc """
+OVERFLOWED: the exit status of a program whose arithmetic leaves the tagged Int range, as `blue run` ends with 1 on an integer overflow, instead of a wrapped value.
+
+    OVERFLOWED #=> 1
+"""
+OVERFLOWED = 1
+
+@doc """
+ON_OVERFLOW: the jump each tagged `+`, `-` and `*` takes when the instruction that made its value set the overflow flag: to rt_overflow, the fault stub.
+
+    ON_OVERFLOW #=> {op: "j", cond: "o", label: "rt_overflow"}
+"""
+ON_OVERFLOW = {op: "j", cond: "o", label: "rt_overflow"}
+
+@doc """
+RT_OVERFLOW: the overflow fault stub: the program ends with OVERFLOWED, never with a wrapped Int.
+
+    RT_OVERFLOW[0] #=> {op: "label", name: "rt_overflow"}
+"""
+RT_OVERFLOW = [
+  {op: "label", name: "rt_overflow"},
+  {op: "mov", dst: "rdi", imm: OVERFLOWED},
+  {op: "mov", dst: "rax", imm: 60},
+  {op: "syscall"}
+]
+
+@doc """
 heap_start: map HEAP_BYTES read-write anonymous and keep its address in r15, the bump pointer.
 
     last(heap_start)[:src] #=> "rax"
@@ -1092,7 +1118,7 @@ AS_BOOLEAN = [
 @doc """
 rc_op: the instructions for a primitive over tagged values, answering in rax: arithmetic corrects for the tag, a comparison answers a boolean, dup and drop call the runtime.
 
-    length(rc_op([], "+", [1, 2])) #=> 4
+    length(rc_op([], "+", [1, 2])) #=> 5
 """
 def rc_op(slots, op, args)
   two = append(
@@ -1102,12 +1128,20 @@ def rc_op(slots, op, args)
   if op == "+"
     append(
       two,
-      [{op: "add", dst: "rax", src: "rcx"}, {op: "sub", dst: "rax", imm: 1}]
+      [
+        {op: "sub", dst: "rax", imm: 1},
+        {op: "add", dst: "rax", src: "rcx"},
+        ON_OVERFLOW
+      ]
     )
   elsif op == "-"
     append(
       two,
-      [{op: "sub", dst: "rax", src: "rcx"}, {op: "add", dst: "rax", imm: 1}]
+      [
+        {op: "sub", dst: "rcx", imm: 1},
+        {op: "sub", dst: "rax", src: "rcx"},
+        ON_OVERFLOW
+      ]
     )
   elsif op == "*"
     append(
@@ -1116,6 +1150,7 @@ def rc_op(slots, op, args)
         {op: "sar1", dst: "rax"},
         {op: "sub", dst: "rcx", imm: 1},
         {op: "imul", dst: "rax", src: "rcx"},
+        ON_OVERFLOW,
         {op: "add", dst: "rax", imm: 1}
       ]
     )
@@ -1498,7 +1533,7 @@ end
 @doc """
 rc_rhs: a right-hand side that is not an if, over tagged values.
 
-    length(rc_rhs([], read_forms("(+ 1 2)")[0])) #=> 4
+    length(rc_rhs([], read_forms("(+ 1 2)")[0])) #=> 5
 """
 def rc_rhs(slots, rhs)
   if head_is?(rhs, "closure")
@@ -1787,14 +1822,14 @@ test "the reference-counted code tags, allocates and calls the runtime"
   assert tagged_atom([], 20, "rax") == [{op: "mov", dst: "rax", imm: 41}]
   assert tagged_atom([], nil, "rax") == [{op: "mov", dst: "rax", imm: 0}]
   assert tagged_atom([], true, "rax") == [{op: "mov", dst: "rax", imm: 2}]
-  assert last(rc_op([], "+", [1, 2])) == {op: "sub", dst: "rax", imm: 1}
+  assert last(rc_op([], "+", [1, 2])) == ON_OVERFLOW
   assert last(rc_op(["x"], "drop", [read_forms("x")[0]])) ==
     {op: "call_label", label: "rt_drop"}
   assert rc_op([], "dup", [1])[1] == {op: "call_label", label: "rt_dup"}
   assert rc_closure([], "f", [1])[1] == {op: "call_label", label: "rt_alloc"}
   assert last(call_code(["f"], read_forms("f")[0], [], tagged_atom)) ==
     {op: "call_r11"}
-  assert length(rc_rhs([], read_forms("(* 2 3)")[0])) == 6
+  assert length(rc_rhs([], read_forms("(* 2 3)")[0])) == 7
   assert rc_names(read_forms("(let (_ (dup x)) (ret 1))")[0]) == []
   assert rc_gen([], read_forms("(ret 3)")[0], :exit, 0)[0][0] ==
     {op: "mov", dst: "rax", imm: 7}
@@ -2200,6 +2235,7 @@ def runtime()
       RT_STRING_BYTES,
       RT_BYTES_STRING,
       RT_EXEC_INTO,
+      RT_OVERFLOW,
       PROC_ROUTINES,
       RT_RECEIVE,
       RT_MATCH,
@@ -2349,6 +2385,42 @@ test "recursive programs give their value and free every block on x86-64", {
         assert status_of(exec_capture(path)) == 0
       end,
       RECURSIVE_PROGRAMS
+    )
+  end
+end
+
+@doc """
+OVERFLOW_PROGRAMS: programs at the edges of the tagged Int range and the exit status each must give: a value inside the range as itself, one past it as OVERFLOWED, from the fault stub.
+
+    OVERFLOW_PROGRAMS[0][1] #=> 1
+"""
+OVERFLOW_PROGRAMS = [
+  ["(begin (define (grow n) (grow (* n 1000))) (grow 1))", OVERFLOWED],
+  ["(- (+ 4611686018427387903 0) 4611686018427387900)", 3],
+  ["(+ 4611686018427387903 1)", OVERFLOWED],
+  ["(- (- (- -4611686018427387903 1) -4611686018427387900) -10)", 6],
+  ["(- -4611686018427387904 1)", OVERFLOWED],
+  ["(- (* 2147483648 2147483647) 4611686016279904200)", 56],
+  ["(* 2147483648 2147483648)", OVERFLOWED]
+]
+
+test "arithmetic past the tagged Int range ends by the fault stub", {
+  kind: :integration,
+  allow: %i[filesystem process]
+}
+  assert length(OVERFLOW_PROGRAMS) == 7
+  assert OVERFLOWED == 1
+  assert ON_OVERFLOW[:cond] == "o"
+  assert RT_OVERFLOW[0] == {op: "label", name: "rt_overflow"}
+  if linux_x86?
+    map(
+      fn(p)
+        path = path_join(temp_dir("hashiru"), "o.out")
+        write_bytes(path, compile_whole(read_forms(p[0])[0], :exit))
+        exec_capture("chmod", "+x", path)
+        assert status_of(exec_capture(path)) == p[1]
+      end,
+      OVERFLOW_PROGRAMS
     )
   end
 end

@@ -343,7 +343,8 @@ CONDS = [
   ["e", 148, 132],
   ["ne", 149, 133],
   ["le", 158, 142],
-  ["ge", 157, 141]
+  ["ge", 157, 141],
+  ["o", 144, 128]
 ]
 
 @doc """
@@ -630,7 +631,7 @@ test "jumps resolve to their labels and conditions refuse a code they do not kno
   assert linked[3][:rel] == 0
   assert assemble([{op: "jmp", label: "a"}, {op: "label", name: "a"}]) ==
     [233, 0, 0, 0, 0]
-  assert length(CONDS) == 6
+  assert length(CONDS) == 7
   assert cond_row("l")[1] == 156
   assert last_or0([3, 4]) == 4
   k = begin
@@ -717,7 +718,7 @@ test "the helpers are exercised by name"
       16 * 16 +
       16 * 5 +
       12 * 8 +
-      6 +
+      7 +
       7 +
       16 * 4
   assert encode({op: "push", src: "r12"}) == [65, 84]

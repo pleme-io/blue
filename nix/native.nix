@@ -59,7 +59,15 @@ let
     CORPUS_DIR = src + "/corpus";
     CORPUS_SEAM = src + "/seam";
     BLUE_PATH = project.bluePath;
-  } "${blue}/bin/blue test ${src + "/checks/corpus.b"} > $out";
+  } "${blue}/bin/blue test --filter chuuzou ${src + "/checks/corpus.b"} > $out";
+
+  x64CorpusCheck = pkgs.runCommand "native-x64-corpus" {
+    nativeBuildInputs = [ pkgs.coreutils ];
+    CORPUS_DIR = src + "/corpus";
+    X64_ROW = ../gen/native-row.b;
+    X64_REFUSED = src + "/checks/x64.refused";
+    BLUE_PATH = "${../bidamas}:${project.bluePath}";
+  } "${blue}/bin/blue test --filter hashiru ${src + "/checks/corpus.b"} > $out || { cat $out; exit 1; }";
 
   wasmCheck = pkgs.runCommand "native-wasm" {
     nativeBuildInputs = [ (rustFor "wasm32-wasip2") emitter pkgs.wasmtime ];
@@ -157,5 +165,8 @@ in
       native-wasm = wasmCheck;
       native-def-keys = keyCheck;
       native-defs = defsCheck;
+    }
+    // lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+      native-x64-corpus = x64CorpusCheck;
     };
 }

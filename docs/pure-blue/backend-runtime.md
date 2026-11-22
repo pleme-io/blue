@@ -186,6 +186,20 @@ the repo root and were read on 2026-11-17.
 - **Exit.** `checks.native-x64-corpus`, then an `Ev::Native` column in
   `crates/blue-lang-test/tests/conformance/rows.rs:28` (and `ALL` :59) with a ratchet on rows
   passing.
+- **Done (2026-11-24).** Both. `checks.native-x64-corpus` (x86_64-linux, `nix/native.nix`)
+  runs `native/checks/corpus.b`'s hashiru test: each `native/corpus` program lowered by
+  `blue ast`, compiled by hashiru through `gen/native-row.b` in `:run` mode (C3's bluec path),
+  run, and held to the interpreter's output and exit with the same `difference` the chuuzou
+  check uses. `native/checks/x64.refused` names each program hashiru refuses and only shrinks:
+  a refusal with no row is red, and so is a row for a program that compiles. On rio: 11
+  programs, 4 compiled and agreeing (fault, fib, loop, mutual), 7 refused (arith and hex: no
+  reference-counted code for `not` and `count`; lists and sums: kiban's `reclaim`; nested:
+  kiban's `mmio_write`; records and shapes: records). fault agrees through the overflow fault
+  stub: without it hashiru's tagged `*` wrapped, so fault's tail call printed `+` until the
+  check's builder was killed after an hour of silence (rio, 2026-11-24); with it the seventh
+  multiply jumps to `rt_overflow` and the program ends with 1 after the same seven `+` the
+  interpreter prints. The Ev::Native column and
+  `spec/native.baseline` landed with C1.
 - **Also:** a stack-depth guard (host64 allows 100,000 frames today, `kiban.b:91`) and yield
   checks at calls and loop back edges for R5's preemption.
 

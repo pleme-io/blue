@@ -1,0 +1,7 @@
+arith.b: no reference-counted code for `not`
+hex.b: no reference-counted code for `count`
+lists.b: no native code for kiban's reclaim
+nested.b: no native code for kiban's mmio_write
+records.b: records (`point` has no slot)
+shapes.b: records (`point` has no slot)
+sums.b: no native code for kiban's reclaim

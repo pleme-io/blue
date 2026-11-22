@@ -708,11 +708,18 @@ Each wave lists defaults in the order their gain is known. Each default meets
   `blue lock`'s floors take). The census fails unless the count is
   `census::UNDECLARED`; it refuses no script and changes no default. The
   one script it found, `examples/00_script.b` (`argv`: environment), now
-  says `--allow environment`. Still open: the count over the other
-  repositories of the fleet, then the operator's flip. Lock:
+  says `--allow environment`. The count is zero over the fleet too
+  (2026-11-21): 5 scripts in 4 pleme-io repositories have a `blue`
+  shebang, and the one that reached the host undeclared,
+  `blackmatter-akeyless/tools/attach.b` (environment, filesystem,
+  process), declares them now. The census resolves each file as `blue
+  run` does (its project and sources, `BLUE_PATH`, `BLUE_DIST`, then the
+  compiled-in distribution), so it counts a repository that has no
+  `bidamas/` of its own. Still open: the operator's flip. Lock:
   `crates/blue-lang-cli/tests/census_undeclared.rs` (counted and named; a
   reach through a loaded bidama counted, a pure call into it not; a
-  declared, pure, held or shebang-less file not counted).
+  declared, pure, held or shebang-less file not counted; a tree with no
+  `bidamas/` resolves the standard ones).
 - ✅ A step and memory bound proposed from the profile ("this runs in 120 ms; hold
   it to 10 s"), applied only when the author accepts it (C9). `blue bounds
   FILE` runs the program once on the tree-walker, which counts every step,

@@ -63,6 +63,16 @@ fn an_undeclared_script_that_reaches_the_host_is_counted_and_named() {
 }
 
 #[test]
+fn a_tree_with_no_bidamas_of_its_own_resolves_the_standard_ones() {
+    let (n, out, err) = measured(&[(
+        "tools/s.b",
+        "#!/usr/bin/env blue\nuse(\"retsu\", [:size])\nwrite_stdout(\"#{size([getenv(\"HOME\")])}\")\n",
+    )]);
+    assert_eq!(n, 1, "{out}\n{err}");
+    assert!(out.contains("    tools/s.b: environment"), "{out}");
+}
+
+#[test]
 fn a_loaded_definition_the_script_calls_carries_its_reach_to_the_script() {
     let home = "def home()\n  getenv(\"HOME\")\nend\n\ndef two()\n  2\nend\n";
     let (n, out, err) = measured(&[

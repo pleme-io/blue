@@ -1049,7 +1049,7 @@ again; a restart spends intensity and then kills innocent siblings).
 | 1 | workspace `unsafe_code = "deny"`, four seam `#[allow]`s, one seam test | a stray `unsafe` in any blue crate | one commit |
 | 2 | injection rule: `sh_exec` / `pg_execute` with interpolation | shell and SQL injection from data | one rule |
 | 3 | `docs/ABSENCE.md` (in flight, other owner) | the nil class | owned elsewhere |
-| 4 | script default flip: census of undeclared host-reaching scripts → 0, then "declared" is the default | ambient authority in scripts | ratchet over the fleet; the census (`blue census`, `census::UNDECLARED`) is built and at 0 in blue, the flip is the operator's |
+| 4 | script default flip: census of undeclared host-reaching scripts → 0, then "declared" is the default | ambient authority in scripts | ratchet over the fleet; the census (`blue census`, `census::UNDECLARED`) is built and at 0 in blue and over the fleet (2026-11-21, 5 scripts in 4 repositories), the flip is the operator's |
 | 5 | native panic seam → `:internal` refusal | aborts from native code | one seam + totality test |
 | 6 | bidama content hash in `Bluefile.lock` | same-version substitution | lock schema bump |
 | 7 | secret bidama + literal rule | secrets printed, sent or committed | one bidama + one rule |

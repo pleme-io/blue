@@ -15,7 +15,7 @@
 //! are counted once per (file, position, code).
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use blue_lang_check::{Code, RULES};
 use blue_lang_runtime::pipeline::{check_entry, render, Checked, Checking};
@@ -192,14 +192,14 @@ pub fn take(root: &Path) -> Result<Census, String> {
 }
 
 #[must_use]
-pub fn files_under(root: &Path, dirs: &[String]) -> Vec<std::path::PathBuf> {
+pub fn files_under(root: &Path, dirs: &[String]) -> Vec<PathBuf> {
     let skipped = blue_lang_pkg::corpus::FIXTURE_DISTRIBUTIONS
         .iter()
         .chain(blue_lang_pkg::corpus::DATA_DIRECTORIES)
         .chain(blue_lang_pkg::corpus::EVAL_TASKS)
         .chain(blue_lang_pkg::corpus::OWN_ROOT_FIXTURES);
     let skipped: Vec<&str> = skipped.copied().collect();
-    let mut out: Vec<std::path::PathBuf> = dirs
+    let mut out: Vec<PathBuf> = dirs
         .iter()
         .flat_map(|d| {
             let at = root.join(d);
@@ -219,8 +219,8 @@ pub fn files_under(root: &Path, dirs: &[String]) -> Vec<std::path::PathBuf> {
     out
 }
 
-pub fn take_files(root: &Path, files: Vec<std::path::PathBuf>) -> Result<Census, String> {
-    let loader = blue_lang_pkg::corpus::load_path(root, &files);
+pub fn take_files(root: &Path, files: Vec<PathBuf>) -> Result<Census, String> {
+    let environment = environment_over(&files);
     let mut findings: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     let mut by_package: BTreeMap<(Code, String), BTreeSet<String>> = BTreeMap::new();
     let mut waived: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
@@ -234,7 +234,7 @@ pub fn take_files(root: &Path, files: Vec<std::path::PathBuf>) -> Result<Census,
                 path: Some(path),
                 text: &text,
             },
-            &loader,
+            &environment.load_path(Some(path)),
             None,
             Checking::WithTests,
         )
@@ -366,8 +366,8 @@ impl ReuseFact {
     }
 }
 
-fn package_roots(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
-    let mut roots: Vec<std::path::PathBuf> = files
+fn package_roots(files: &[PathBuf]) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = files
         .iter()
         .filter_map(|f| {
             let dir = f.parent()?;
@@ -379,9 +379,7 @@ fn package_roots(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
     roots
 }
 
-pub(crate) fn environment_over(
-    files: &[std::path::PathBuf],
-) -> blue_lang_pkg::load_path::Environment {
+pub(crate) fn environment_over(files: &[PathBuf]) -> blue_lang_pkg::load_path::Environment {
     let mut roots = package_roots(files);
     roots.extend(
         std::env::var_os(blue_lang_pkg::load_path::BLUE_PATH)
@@ -511,7 +509,7 @@ pub fn word_copy_lines(file: &Path) -> Vec<String> {
         .collect()
 }
 
-fn hook_file(input: &str) -> Option<std::path::PathBuf> {
+fn hook_file(input: &str) -> Option<PathBuf> {
     let doc: serde_json::Value = serde_json::from_str(input).ok()?;
     let path = Path::new(doc.get("tool_input")?.get("file_path")?.as_str()?);
     (path.extension().is_some_and(|x| x == "b") && path.is_file()).then(|| path.to_path_buf())
@@ -537,7 +535,7 @@ pub fn reuse_hook() {
 mod documented {
     use super::*;
 
-    fn project(name: &str, body: &str) -> std::path::PathBuf {
+    fn project(name: &str, body: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
             "blue-census-documented-{}-{name}",
             std::process::id()
@@ -598,7 +596,7 @@ mod held {
 
     const POINT: &str = "@moduledoc \"\"\"\nkagi asks the machine.\n\n    1 + 1 #=> 2\n\"\"\"\n\n@doc \"\"\"\nkagi runs `date`.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  exec_capture(\"date\")\nend\n";
 
-    fn project(name: &str, body: &str) -> std::path::PathBuf {
+    fn project(name: &str, body: &str) -> PathBuf {
         let root =
             std::env::temp_dir().join(format!("blue-census-held-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);

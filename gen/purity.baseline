@@ -2,7 +2,7 @@ purity-bytes: crates/blue-lang-appliance 929
 purity-bytes: crates/blue-lang-art 13781
 purity-bytes: crates/blue-lang-bidama 125682
 purity-bytes: crates/blue-lang-check 741917
-purity-bytes: crates/blue-lang-cli 547147
+purity-bytes: crates/blue-lang-cli 547051
 purity-bytes: crates/blue-lang-component 1312
 purity-bytes: crates/blue-lang-danpen-diff 1
 purity-bytes: crates/blue-lang-fmt 125054
@@ -15,7 +15,7 @@ purity-bytes: crates/blue-lang-lsp 209373
 purity-bytes: crates/blue-lang-mondou 282563
 purity-bytes: crates/blue-lang-pkg 618679
 purity-bytes: crates/blue-lang-proc 395068
-purity-bytes: crates/blue-lang-runtime 1838892
+purity-bytes: crates/blue-lang-runtime 1839233
 purity-bytes: crates/blue-lang-saturate 11573
 purity-bytes: crates/blue-lang-senses 47392
 purity-bytes: crates/blue-lang-syntax 399681

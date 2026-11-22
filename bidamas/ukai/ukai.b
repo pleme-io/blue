@@ -23,7 +23,8 @@ def axes()
     [:gateway, %i[present absent unread]],
     [:targets, %i[resolved unread]],
     [:platform, %i[darwin nixos]],
-    [:stale, %i[none present unread]]
+    [:stale, %i[none present unread]],
+    [:held, %i[none present unread]]
   ]
 end
 
@@ -44,7 +45,16 @@ def state(axes_map, payload)
     reduce(
       (s, k) -> assoc(s, k, get(payload, k)),
       axes_map,
-      %i[gateway_addr gateway_iface hosts routed stale_hosts table priority]
+      %i[
+        gateway_addr
+        gateway_iface
+        hosts
+        routed
+        stale_hosts
+        held_hosts
+        table
+        priority
+      ]
     )
   else
     raise(
@@ -80,12 +90,32 @@ def blind(what)
 end
 
 @doc """
-decide: noop, bypass, refused or blind, over a total state. A route this host applied through a gateway that is no longer its own is retracted beside any answer but blind, so a move between networks never strands it.
+decide: noop, bypass, refused or blind, over a total state. A route this host applied through a gateway that is no longer its own is retracted beside any answer but blind, so a move between networks never strands it. A route it applied through its own gateway is a detour, so a noop, which needs no detour, retracts it too.
 """
 def decide(s)
   o = decide_kind(s)
-  if o[:kind] != :blind and s[:stale] == :present
-    assoc(o, :retract, retract_set(s))
+  stale = o[:kind] != :blind and s[:stale] == :present
+  held = o[:kind] == :noop and s[:held] == :present
+  if stale or held
+    assoc(
+      o,
+      :retract,
+      retract_set(
+        s,
+        append(
+          if stale
+            as_set(s[:stale_hosts])
+          else
+            []
+          end,
+          if held
+            as_set(s[:held_hosts])
+          else
+            []
+          end
+        )
+      )
+    )
   else
     o
   end
@@ -131,16 +161,16 @@ def route_set(s)
 end
 
 @doc """
-retract_set: the routes to take back for `s`. It carries the backend, table and priority of `s` and its stale hosts, unique and sorted.
+retract_set: the routes to take back for `s`. It carries the backend, table and priority of `s` and `hosts`, unique and sorted.
 
-    retract_set({platform: :darwin, table: 52, priority: 5200, stale_hosts: ["b", "a", "b"]}) #=> {backend: :darwin, table: 52, priority: 5200, hosts: ["a", "b"]}
+    retract_set({platform: :darwin, table: 52, priority: 5200}, ["b", "a", "b"]) #=> {backend: :darwin, table: 52, priority: 5200, hosts: ["a", "b"]}
 """
-def retract_set(s)
+def retract_set(s, hosts)
   {
     backend: s[:platform],
     table: s[:table],
     priority: s[:priority],
-    hosts: sorted(unique(as_set(s[:stale_hosts])))
+    hosts: sorted(unique(as_set(hosts)))
   }
 end
 
@@ -193,7 +223,7 @@ end
 @doc """
 every_state: every total state over ukai's axes, one for each row of the decision matrix.
 
-    size(every_state) #=> 3600
+    size(every_state) #=> 10800
 """
 def every_state()
   tesuto::axis_states(axes)
@@ -261,15 +291,19 @@ def fill(s)
   assoc(
     assoc(
       assoc(
-        assoc(assoc(s, :gateway_addr, "192.0.2.1"), :gateway_iface, "en0"),
-        :hosts,
-        ["198.51.100.1"]
+        assoc(
+          assoc(assoc(s, :gateway_addr, "192.0.2.1"), :gateway_iface, "en0"),
+          :hosts,
+          ["198.51.100.1"]
+        ),
+        :routed,
+        []
       ),
-      :routed,
-      []
+      :stale_hosts,
+      ["198.51.100.9"]
     ),
-    :stale_hosts,
-    ["198.51.100.9"]
+    :held_hosts,
+    ["198.51.100.8"]
   )
 end
 
@@ -712,6 +746,15 @@ def stale_via(routes, gateway, applied)
 end
 
 @doc """
+held_of: the hosts this side applied that a route still carries and that are not stale: the detour it holds through its own gateway.
+
+    held_of(["a", "b", "c"], ["b", "c", "d"], ["c"]) #=> ["b"]
+"""
+def held_of(routed, applied, stale)
+  filter((h) -> member?(h, routed) and not member?(h, stale), unique(applied))
+end
+
+@doc """
 stale_in_table: every host route in ukai's own table whose gateway is not `gateway`.
 
     stale_in_table([{dest: "192.0.2.9", gateway: "192.168.50.1", flags: "UG", iface: "eth0"}], "192.168.1.1") #=> ["192.0.2.9"]
@@ -823,6 +866,7 @@ def assemble(cfg, obs)
   else
     stale_via(routes, gw_addr, cfg[:applied])
   end
+  held_hosts = held_of(routed, cfg[:applied], stale_hosts)
   corp = if ok?(routes_r)
     corp_of(routes, pattern)
   else
@@ -852,7 +896,14 @@ def assemble(cfg, obs)
         :unread
       end,
       platform: cfg[:platform],
-      stale: stale_of(routes_ok, table_r, gw_addr, stale_hosts)
+      stale: stale_of(routes_ok, table_r, gw_addr, stale_hosts),
+      held: if not routes_ok
+        :unread
+      elsif is_empty(held_hosts)
+        :none
+      else
+        :present
+      end
     },
     {
       gateway_addr: gw_addr,
@@ -860,6 +911,7 @@ def assemble(cfg, obs)
       hosts:,
       routed:,
       stale_hosts:,
+      held_hosts:,
       table: cfg[:table],
       priority: cfg[:priority]
     }
@@ -1112,8 +1164,8 @@ end
 
 test "the matrix: every variant of every axis has exactly one row, and decide agrees with each"
   states = tesuto::axis_states(axes)
-  assert size(states) == 4 * 5 * 5 * 3 * 2 * 2 * 3
-  assert size(states) == 3600
+  assert size(states) == 4 * 5 * 5 * 3 * 2 * 2 * 3 * 3
+  assert size(states) == 10800
   findings = tesuto::matrix_findings(
     axes,
     verdict,
@@ -1133,15 +1185,15 @@ test "the matrix gate goes red on a missing row, a stray row and a wrong decisio
   stray = concat(
     text,
     unlines(
-      ["full\tpermissive\trelay\tpresent\tresolved\tsolaris\tnone\tbypass"]
+      ["full\tpermissive\trelay\tpresent\tresolved\tsolaris\tnone\tnone\tbypass"]
     )
   )
   assert first(first(tesuto::matrix_findings(axes, verdict, stray, states))) ==
     :row_without_variant
   flipped = replace(
     text,
-    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tbypass",
-    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tnoop:no_corp_tunnel"
+    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tnone\tbypass",
+    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tnone\tnoop:no_corp_tunnel"
   )
   assert first(
     first(tesuto::matrix_findings(axes, verdict, flipped, states))
@@ -1161,7 +1213,8 @@ test "the measured live row: full tunnel, permissive, relay, gateway present, da
   r = first(
     filter(
       fn(r)
-        first(r) == "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone"
+        first(r) ==
+          "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tnone"
       end,
       rows
     )
@@ -1170,7 +1223,8 @@ test "the measured live row: full tunnel, permissive, relay, gateway present, da
   moved = first(
     filter(
       fn(r)
-        first(r) == "absent\tunknown\tnone\tpresent\tresolved\tdarwin\tpresent"
+        first(r) ==
+          "absent\tunknown\tnone\tpresent\tresolved\tdarwin\tpresent\tnone"
       end,
       rows
     )
@@ -1186,7 +1240,10 @@ test "blind is never noop: an unread axis wins over every other answer"
   assert decide(assoc(s, :corp, :absent))[:kind] == :noop
   assert size(
     filter((x) -> decide(fill(x))[:kind] == :blind, tesuto::axis_states(axes))
-  ) == 3600 - 3 * 4 * 4 * 2 * 1 * 2 * 2
+  ) == 10800 - 3 * 4 * 4 * 2 * 1 * 2 * 2 * 2
+  assert decide(assoc(assoc(s, :corp, :absent), :held, :unread))[:unread] ==
+    [:held]
+  assert decide(assoc(assoc(s, :corp, :unread), :held, :present))[:retract].nil?
   assert decide(assoc(assoc(s, :corp, :absent), :stale, :unread))[:unread] ==
     [:stale]
   assert get(
@@ -1295,7 +1352,8 @@ test "end to end over the measured state before the bypass: enforcement unknown,
     fairu::fixture("ukai", "netcheck-blocked.json")
   )
   s = assemble(cfg_for(:darwin, []), obs)
-  assert row_key(s) == "full\tunknown\tnone\tpresent\tresolved\tdarwin\tnone"
+  assert row_key(s) ==
+    "full\tunknown\tnone\tpresent\tresolved\tdarwin\tnone\tnone"
   o = decide(s)
   assert o[:kind] == :bypass
   assert size(o[:routes][:add]) == 96
@@ -1318,7 +1376,7 @@ test "end to end over the measured state after the bypass: permissive, and only 
   )
   s = assemble(cfg_for(:darwin, []), obs)
   assert row_key(s) ==
-    "full\tpermissive\tdirect\tpresent\tresolved\tdarwin\tnone"
+    "full\tpermissive\tdirect\tpresent\tresolved\tdarwin\tnone\tnone"
   o = decide(s)
   assert o[:kind] == :bypass
   assert o[:routes][:add] ==
@@ -1360,7 +1418,7 @@ test "an unreadable observation is blind, naming what could not be read"
   assert o[:unread] == %i[enforcement targets]
   obs2 = assoc(obs, :routes, bad("netstat exited 1"))
   assert decide(assemble(cfg_for(:darwin, []), obs2))[:unread] ==
-    %i[corp enforcement gateway targets stale]
+    %i[corp enforcement gateway targets stale held]
 end
 
 test "nixos is policy routing: a table route and a rule per host"
@@ -1455,7 +1513,7 @@ test "a move between networks with no corporate tunnel retracts every route this
   cfg = cfg_for(:darwin, moved_applied)
   s = assemble(cfg, obs)
   assert row_key(s) ==
-    "absent\tunknown\tnone\tpresent\tresolved\tdarwin\tpresent"
+    "absent\tunknown\tnone\tpresent\tresolved\tdarwin\tpresent\tnone"
   o = decide(s)
   assert outcome_label(o) == "noop:no_corp_tunnel+retract"
   assert plan(o, cfg) ==
@@ -1495,6 +1553,47 @@ test "a move between networks under a full tunnel retracts the old routes, then 
     argvs
   ) == true
   assert size(argvs) == 3 + size(o[:routes][:add])
+end
+
+test "a detour outlives no detour: with no corporate tunnel every route this side applied through its own gateway is retracted, and under a full tunnel that refuses it is kept"
+  text = replace(
+    fairu::fixture("ukai", "netstat-site-moved.txt"),
+    "192.168.50.1",
+    "192.168.60.1"
+  )
+  cfg = cfg_for(:darwin, moved_applied)
+  s = assemble(
+    cfg,
+    measured(text, fairu::fixture("ukai", "netcheck-blocked.json"))
+  )
+  assert row_key(s) ==
+    "absent\tegress_blocked\tnone\tpresent\tresolved\tdarwin\tnone\tpresent"
+  o = decide(s)
+  assert outcome_label(o) == "noop:no_corp_tunnel+retract"
+  assert plan(o, cfg) ==
+    [
+      %w[/sbin/route -n delete -host 192.200.0.102],
+      %w[/sbin/route -n delete -host 199.38.181.93],
+      %w[/sbin/route -n delete -host 5.161.218.233]
+    ]
+  assert next_applied(moved_applied, o, [], false) == []
+  full = concat(
+    text,
+    unlines(
+      [
+        "0/1                utun7              UScg                utun7       ",
+        "128.0/1            utun7              UScg                utun7       "
+      ]
+    )
+  )
+  held = assemble(
+    cfg,
+    measured(full, fairu::fixture("ukai", "netcheck-blocked.json"))
+  )
+  assert held[:held] == :present
+  assert decide(held) == {kind: :refused, reason: :enforcement_blocks_egress}
+  assert held_of(%w[a b], %w[b a c b], ["a"]) == ["b"]
+  assert held_of([], ["a"], []) == []
 end
 
 test "routes through the current gateway are never stale, and a host this side never applied is never retracted"

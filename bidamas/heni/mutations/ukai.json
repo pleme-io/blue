@@ -2,14 +2,32 @@
   {
     "name": "stale routes are never retracted",
     "file": "ukai.b",
-    "find": "  if o[:kind] != :blind and s[:stale] == :present\n    assoc(o, :retract, retract_set(s))",
-    "replace": "  if false\n    assoc(o, :retract, retract_set(s))"
+    "find": "  stale = o[:kind] != :blind and s[:stale] == :present\n",
+    "replace": "  stale = false\n"
   },
   {
     "name": "a blind answer retracts too",
     "file": "ukai.b",
-    "find": "  if o[:kind] != :blind and s[:stale] == :present",
-    "replace": "  if s[:stale] == :present"
+    "find": "  stale = o[:kind] != :blind and s[:stale] == :present\n",
+    "replace": "  stale = s[:stale] == :present\n"
+  },
+  {
+    "name": "a detour held through the own gateway outlives a noop",
+    "file": "ukai.b",
+    "find": "  held = o[:kind] == :noop and s[:held] == :present\n",
+    "replace": "  held = false\n"
+  },
+  {
+    "name": "a refusal retracts the detour it reads enforcement through",
+    "file": "ukai.b",
+    "find": "  held = o[:kind] == :noop and s[:held] == :present\n",
+    "replace": "  held = o[:kind] != :blind and s[:held] == :present\n"
+  },
+  {
+    "name": "a stale host is retracted as held too",
+    "file": "ukai.b",
+    "find": "member?(h, routed) and not member?(h, stale), unique(applied)",
+    "replace": "member?(h, routed), unique(applied)"
   },
   {
     "name": "a host never applied is retracted",

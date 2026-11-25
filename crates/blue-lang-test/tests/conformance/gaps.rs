@@ -127,24 +127,39 @@ pub fn gate(
 }
 
 pub fn written_in(text: &str) -> usize {
-    text.lines()
-        .filter(|line| !line.trim_start().starts_with('#'))
-        .map(|line| {
-            ["pending(", "flaky("]
-                .iter()
-                .map(|word| {
-                    line.match_indices(word)
-                        .filter(|(at, _)| {
-                            line[..*at]
-                                .chars()
-                                .next_back()
-                                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
-                        })
-                        .count()
-                })
-                .sum::<usize>()
-        })
-        .sum()
+    let mut count = 0;
+    let mut before = None;
+    let mut string = false;
+    let mut escaped = false;
+    let mut comment = false;
+    for (at, c) in text.char_indices() {
+        if comment {
+            comment = c != '\n';
+        } else if string {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                string = false;
+                before = Some(c);
+            }
+        } else if c == '"' {
+            string = true;
+        } else if c == '#' {
+            comment = true;
+        } else if !c.is_whitespace() {
+            if matches!(before, Some(',' | '('))
+                && ["pending(", "flaky("]
+                    .iter()
+                    .any(|word| text[at..].starts_with(word))
+            {
+                count += 1;
+            }
+            before = Some(c);
+        }
+    }
+    count
 }
 
 pub fn marks_written(dir: &Path) -> Result<usize, String> {

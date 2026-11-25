@@ -165,8 +165,10 @@ naming where its design lives and `was(ID)` an id it was once cited by, each
 option said once. The runner refuses a malformed row, an id with two rows, a
 mark or a `door::TABLE` rule naming a gap the ledger does not hold, and one
 naming a closed gap. It also counts the `pending(` and `flaky(` calls in the
-text of `spec/rows/`, outside comment lines, and refuses a run whose loader
-read another number, so a mark it cannot read is never a gap it skips; the
+text of `spec/rows/` that stand where a row option stands (after a `,` or a
+`(`, outside a string and a comment), and refuses a run whose loader read
+another number, so a mark it cannot read is never a gap it skips, and a
+program that calls `saishikou::flaky` is no mark; the
 count follows the marks down as gaps close (`cargo test -p blue-lang-test
 --test gap_ledger` runs the same check alone). A row with no owner is its
 own record: G1 to G16 are the first

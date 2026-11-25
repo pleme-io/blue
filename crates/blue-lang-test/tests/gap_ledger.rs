@@ -64,9 +64,18 @@ fn marks_falling_as_gaps_close_pass_and_a_mark_the_loader_misses_is_refused() {
         "# a header that names pending(\"G9\") is not a mark",
         "row(\"a\", \"1\", value(\"1\"), pending(\"G1\"), flaky(\"G2\", \"component\"))",
         "row(\"b\", \"assert_pending(1)\", value(\"1\"))",
+        "row(\"c\", \"saishikou::flaky(2)\", value(\"\\\"pending(\\\"\"))",
+        "row(\"d\", \"x\", value(\"1\")) # waits on pending(\"G3\")",
+        "row(\"e\", saishikou::flaky(2), value(\"1\"), m.pending(\"G4\"))",
+        "row(",
+        "  \"f\",",
+        "  \"1\",",
+        "  value(\"1\"), # the mark is on the next line",
+        "  pending(\"G5\")",
+        ")",
     ]
     .join("\n");
-    assert_eq!(gaps::written_in(&text), 2);
+    assert_eq!(gaps::written_in(&text), 3);
 }
 
 #[test]

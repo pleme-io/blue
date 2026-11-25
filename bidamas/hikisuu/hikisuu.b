@@ -227,21 +227,27 @@ def help_wanted?(args)
 end
 
 @doc """
-read_value: a flag's text value read as its kind, with the fault named when it does not read.
+read_value: a flag's text value read as its kind, with the fault named when it does not read; a number flag takes no NaN, which no floor can judge, and leaves an infinity to its floor.
 
     read_value({text: "--n", kind: :int, min: 0}, "7") #=> {value: 7}
+    read_value({text: "--r", kind: :float, min: 0.0}, "nan") #=> {problem: "--r takes a number, not nan"}
 """
 def read_value(f, raw)
   numeric = member?(f[:kind], %i[int float])
   if not numeric and f[:read].nil?
     {value: raw}
   else
-    n = if f[:read] != nil
+    got = if f[:read] != nil
       f[:read](raw)
     elsif f[:kind] == :int
       canonical_int(raw)
     else
       to_float(raw)
+    end
+    n = if numeric and got != got
+      nil
+    else
+      got
     end
     if n.nil? and f[:kind] == :int
       {problem: "#{f[:text]} takes a whole number, not #{raw}"}
@@ -999,6 +1005,39 @@ test "a float flag takes a number, and a flag that names its reader reads its va
   assert canonical_int("+7").nil?
   assert canonical_int("7") == 7
   assert kind_of(1.5) == :float
+end
+
+test "a number flag takes no NaN, which no floor can judge, and leaves an infinity to its floor"
+  spec = {
+    name: "x",
+    flags: {rate: {default: 1.5, min: 0.0}, n: {default: 1, read: to_float}}
+  }
+  refused = fn(args)
+    begin
+      parse(args, spec)
+      nil
+    rescue :usage as e
+      e.message
+    end
+  end
+  assert contains?(
+    refused(%w[--rate nan]) or "",
+    "--rate takes a number, not nan"
+  )
+  assert contains?(
+    refused(["--rate=NaN"]) or "",
+    "--rate takes a number, not NaN"
+  )
+  assert contains?(
+    refused(%w[--n nan]) or "",
+    "--n takes a whole number, not nan"
+  )
+  assert contains?(
+    refused(["--rate=-inf"]) or "",
+    "--rate takes 0.0 or more, not -inf"
+  )
+  assert parse(%w[--rate inf], spec)[:rate] > 1000000.0
+  assert parse(%w[--rate 2], spec)[:rate] == 2.0
 end
 
 test "two keys that spell one flag are refused as a key declared twice is, and so is a key that spells --help"

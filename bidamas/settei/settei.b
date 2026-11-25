@@ -13,14 +13,115 @@ use("jisho")
 use("kousei")
 use("kyohi", %i[enforce exit_status refusal])
 use("moji", %i[env_key pad_right])
-use("retsu", %i[first index_of rest size take_while])
+use("retsu", %i[first flat_map index_of rest size take_while])
 
 def env_prefix(app)
   env_key([app, ""])
 end
 
 def env_name(app, path)
-  "#{env_prefix(app)}#{upcase(join(path, "__"))}"
+  "#{env_prefix(app)}#{env_suffix(path)}"
+end
+
+@doc """
+env_suffix: the part of an environment name after the app's prefix: the path upcased, groups joined by two underscores.
+
+    env_suffix([:net, :max_conns]) #=> "NET__MAX_CONNS"
+"""
+def env_suffix(path)
+  upcase(join(map(to_s, path), "__"))
+end
+
+@doc """
+locators: the environment names, after the app's prefix, that locate settei's layers rather than set a setting: <APP>_CONFIG names the config file, <APP>_CONFIG_FORMAT its format and <APP>_DEFAULTS the file of prescribed defaults. No setting may be read from one.
+
+    locators #=> %i[config config_format defaults]
+"""
+def locators()
+  %i[config config_format defaults]
+end
+
+@doc """
+locator: the environment name that locates one of an app's layers, refusing a name that is not a locator.
+
+    locator("ola-mundo", :config) #=> "OLA_MUNDO_CONFIG"
+"""
+def locator(app, which)
+  if not member?(which, locators)
+    raise(
+      :bad_option,
+      "#{to_s(which)} is not a locator; the locators are #{join(map(to_s, locators), ", ")}"
+    )
+  end
+  env_name(app, [which])
+end
+
+@doc """
+locates: what a locator names, as a refusal says it.
+
+    locates(:defaults) #=> "the file of prescribed defaults"
+"""
+def locates(which)
+  get(
+    {
+      config: "the config file",
+      config_format: "the config file's format",
+      defaults: "the file of prescribed defaults"
+    },
+    which
+  )
+end
+
+@doc """
+coincidences: for pairs of a name and who owns it, why two owners share one name, said as the name is read.
+
+    coincidences([["X", "a"], ["Y", "c"], ["X", "b"]], (n) -> "read from #{n}") #=> ["a and b are both read from X"]
+    coincidences([], (n) -> n) #=> []
+"""
+def coincidences(pairs, said)
+  get(
+    reduce(
+      fn(acc, p)
+        prev = acc[:prev]
+        whys = if prev != nil and first(prev) == first(p)
+          append(
+            acc[:whys],
+            ["#{second(prev)} and #{second(p)} are both #{said(first(p))}"]
+          )
+        else
+          acc[:whys]
+        end
+        {prev: p, whys:}
+      end,
+      {prev: nil, whys: []},
+      sort_keyed(first, pairs)
+    ),
+    :whys
+  )
+end
+
+@doc """
+env_clashes: why the environment names some settings are read from do not each name one setting: a name a locator owns, or one name two settings share. Each entry is a setting's env_suffix and who it is, as a refusal names it; prefix is the app's, or <APP>_ where no app is known.
+
+    env_clashes("<APP>_", [["CONFIG", "config"]]) #=> ["config is read from <APP>_CONFIG, which names the config file; rename it or put it in a group"]
+    env_clashes("X_", [["A__B", "a.b"], ["A__B", "a__b"]]) #=> ["a.b and a__b are both read from X_A__B"]
+"""
+def env_clashes(prefix, named)
+  reserved = map((l) -> [env_suffix([l]), l], locators)
+  located = flat_map(
+    named,
+    fn(e)
+      hit = find(reserved, (x) -> first(x) == first(e))
+      if hit.nil?
+        []
+      else
+        [
+          "#{second(e)} is read from #{prefix}#{first(hit)}, which names #{locates(second(hit))}; rename it or put it in a group"
+        ]
+      end
+    end
+  )
+  append(located, coincidences(named, (n) -> "read from #{prefix}#{n}"))
 end
 
 def kind_of(v)
@@ -169,7 +270,33 @@ def env_tier(app, defaults, lookup, path)
   )
 end
 
+@doc """
+leaf_paths: the path of every setting of a plain record of defaults, groups walked.
+
+    leaf_paths({"a" => 1, "g" => {"b" => 2}}, []) #=> [["a"], ["g", "b"]]
+"""
+def leaf_paths(record, path)
+  flat_map(
+    map_entries(record),
+    fn(e)
+      at = append(path, [first(e)])
+      if kind_of(second(e)) == :map
+        leaf_paths(second(e), at)
+      else
+        [at]
+      end
+    end
+  )
+end
+
 def resolve(app, defaults, doc, lookup)
+  clashes = env_clashes(
+    env_prefix(app),
+    map((p) -> [env_suffix(p), dotted_key(p)], leaf_paths(defaults, []))
+  )
+  if clashes != []
+    raise(:bad_option, join(clashes, "; "))
+  end
   from_file = if doc.nil?
     [defaults, []]
   elsif kind_of(doc) == :map
@@ -191,7 +318,7 @@ file: where the config file of an app tier lives.
 """
 def file(app, tier)
   if tier == :explicit
-    getenv("#{env_prefix(app)}CONFIG")
+    getenv(locator(app, :config))
   elsif tier == :xdg
     xdg = getenv("XDG_CONFIG_HOME")
     if xdg.nil?
@@ -222,7 +349,7 @@ def prescribed(app, path)
   if path.nil?
     raise(
       :no_defaults,
-      "#{env_prefix(app)}DEFAULTS names no file of prescribed settings"
+      "#{locator(app, :defaults)} names no file of prescribed settings"
     )
   end
   json_read(read_file(path))
@@ -232,7 +359,7 @@ end
 defaults: the built-in default record of an app.
 """
 def defaults(app)
-  prescribed(app, getenv("#{env_prefix(app)}DEFAULTS"))
+  prescribed(app, getenv(locator(app, :defaults)))
 end
 
 def formats()
@@ -241,7 +368,7 @@ end
 
 def file_format(app, opts)
   chosen = if opts.nil? or opts[:format].nil?
-    getenv("#{env_prefix(app)}CONFIG_FORMAT")
+    getenv(locator(app, :config_format))
   else
     opts[:format]
   end
@@ -619,12 +746,27 @@ def dotted_key(path)
 end
 
 @doc """
-knobs: every knob of a core model with its path, groups walked in key order.
+knobs: every knob of a core model with its path, groups walked in key order. A model whose names do not each name one setting is refused as :bad_option naming both: an environment name a locator owns or two knobs share, or a name a knob was renamed from that another knob or rename holds.
 
     knobs({a: knob(1)}) #=> [{path: [:a], knob: knob(1)}]
 """
 def knobs(model, path?)
-  at = path or []
+  rows = knob_rows(model, path or [])
+  if path.nil?
+    whys = model_clashes(rows)
+    if whys != []
+      raise(:bad_option, join(whys, "; "))
+    end
+  end
+  rows
+end
+
+@doc """
+knob_rows: every knob of a model or group with its path below at, groups walked in key order, refusing a value that is neither a knob nor a group.
+
+    knob_rows({g: {a: knob(1)}}, [])[0][:path] #=> [:g, :a]
+"""
+def knob_rows(model, at)
   reduce(
     fn(acc, e)
       p = append(at, [first(e)])
@@ -632,7 +774,7 @@ def knobs(model, path?)
       if knob?(v)
         append(acc, [{path: p, knob: v}])
       elsif map?(v)
-        append(acc, knobs(v, p))
+        append(acc, knob_rows(v, p))
       else
         raise(
           :bad_option,
@@ -642,6 +784,51 @@ def knobs(model, path?)
     end,
     [],
     map_entries(model)
+  )
+end
+
+@doc """
+model_clashes: why a model's names do not each name one setting: each environment name the environment reads (a knob's own and each it was renamed from) must be no locator and no other knob's, and each key a knob was renamed from must be no live key and no other rename.
+
+    model_clashes(knob_rows({config: knob(1)}, [])) #=> ["config is read from <APP>_CONFIG, which names the config file; rename it or put it in a group"]
+    model_clashes(knob_rows({config: knob(1, {set_by: [:file]})}, [])) #=> []
+"""
+def model_clashes(rows)
+  env_read = flat_map(
+    filter((r) -> by_env?(r[:knob]), rows),
+    fn(r)
+      key = dotted_key(r[:path])
+      append(
+        [[env_suffix(r[:path]), key]],
+        map(
+          fn(old)
+            [env_suffix(split(old, ".")), "#{key} (renamed from #{old})"]
+          end,
+          r[:knob][:renamed]
+        )
+      )
+    end
+  )
+  renamed = filter((r) -> r[:knob][:renamed] != [], rows)
+  keyed = if renamed == []
+    []
+  else
+    append(
+      map((r) -> [dotted_key(r[:path]), dotted_key(r[:path])], rows),
+      flat_map(
+        renamed,
+        fn(r)
+          map(
+            (old) -> [old, "#{dotted_key(r[:path])} (renamed from #{old})"],
+            r[:knob][:renamed]
+          )
+        end
+      )
+    )
+  end
+  append(
+    env_clashes("<APP>_", env_read),
+    coincidences(keyed, (n) -> "read from the file key #{n}")
   )
 end
 
@@ -668,7 +855,7 @@ def defaults_of(model)
   reduce(
     (acc, r) -> put_in(acc, r[:path], r[:knob][:default]),
     {},
-    knobs(model)
+    knob_rows(model, [])
   )
 end
 
@@ -922,6 +1109,7 @@ settle: a core model resolved through its layers, defaults, then the file, then 
     settle("app", {port: knob(80, {min: 1})}, nil, no_env, {"port" => 0})[:config] #=> {port: 80}
 """
 def settle(app, model, doc, lookup, given?)
+  rows = knobs(model)
   flags = given or {}
   base = {config: defaults_of(model), sources: {}, refusals: [], notices: []}
   read_doc = if doc != nil and map?(doc)
@@ -948,7 +1136,7 @@ def settle(app, model, doc, lookup, given?)
   layered = reduce(
     (acc, row) -> settle_knob(app, acc, row, moved[:doc], lookup, flags),
     assoc(start, :notices, moved[:notices]),
-    knobs(model)
+    rows
   )
   derived(app, model, layered)
 end
@@ -991,7 +1179,7 @@ def renames(model, doc)
         )
       end,
       {doc:, notices: []},
-      knobs(model)
+      knob_rows(model, [])
     )
   end
 end
@@ -1075,7 +1263,7 @@ def derived(app, model, s)
       end
     end,
     s,
-    knobs(model)
+    knob_rows(model, [])
   )
 end
 
@@ -3393,6 +3581,83 @@ test "an environment name is shown only where the environment may set the knob, 
     {}
   )
   assert r[:refusals][0][:why] == "url is required and no layer sets it (--url)"
+end
+
+test "no setting is read from a locator's name, and no two settings share an environment name or a file key"
+  why = fn(f)
+    begin
+      f()
+      nil
+    rescue :bad_option as e
+      e.message
+    end
+  end
+  assert contains?(
+    why(() -> knobs({config: knob("none"), port: knob(80)})),
+    "config is read from <APP>_CONFIG, which names the config file"
+  )
+  assert contains?(
+    why(() -> knobs({config_format: knob("yaml")})),
+    "<APP>_CONFIG_FORMAT, which names the config file's format"
+  )
+  assert contains?(
+    why(() -> knobs({defaults: knob(1)})),
+    "<APP>_DEFAULTS, which names the file of prescribed defaults"
+  )
+  assert contains?(
+    why(
+      fn()
+        settle(
+          "zapp",
+          {port: knob(80), config: knob("none")},
+          nil,
+          env_of({"ZAPP_CONFIG" => "zapp.yaml"}),
+          {}
+        )
+      end
+    ),
+    "<APP>_CONFIG"
+  )
+  assert why(() -> knobs({config: knob("x", {set_by: %i[file flag]})})).nil?
+  assert why(() -> knobs({net: {config: knob(1)}})).nil?
+  assert why(() -> knobs({a__b: knob(1), a: {b: knob(2)}})) ==
+    "a.b and a__b are both read from <APP>_A__B"
+  assert contains?(
+    why(
+      fn()
+        knobs(
+          {wait_s: knob(1), wait: {seconds: knob(0, {renamed: ["wait_s"]})}}
+        )
+      end
+    ),
+    "wait_s and wait.seconds (renamed from wait_s) are both read from the file key wait_s"
+  )
+  assert contains?(
+    why(() -> resolve("z", {"config" => "x", "port" => 1}, nil, no_env)),
+    "config is read from Z_CONFIG, which names the config file"
+  )
+  assert resolve("z", {"net" => {"config" => "x"}}, nil, no_env) ==
+    {"net" => {"config" => "x"}}
+end
+
+test "the words under one name per setting and one question per layer answer for small cases"
+  assert settable_by?(knob(1, {set_by: [:file]}), :file)
+  assert not by_env?(knob(1, {set_by: [:flag]}))
+  assert env_names("app", {path: [:w], knob: knob(0, {renamed: ["w_s"]})}) ==
+    %w[APP_W APP_W_S]
+  assert set_by_text(knob(0, {computed: (_c) -> 1})) == "computed"
+  assert set_by_text(knob(0)) == "file, env, flag"
+  assert env_suffix(%i[net port]) == "NET__PORT"
+  assert locators == %i[config config_format defaults]
+  assert locator("zapp", :config) == "ZAPP_CONFIG"
+  assert kyohi::raised(() -> locator("zapp", :port)) == :bad_option
+  assert locates(:config) == "the config file"
+  assert coincidences([["a", 1], ["b", 3], ["a", 2]], (n) -> n) ==
+    ["1 and 2 are both a"]
+  assert env_clashes("X_", []) == []
+  assert knob_rows({}, []) == []
+  assert model_clashes([]) == []
+  assert leaf_paths({"a" => {"b" => 1}}, []) == [%w[a b]]
 end
 
 test "a knob renamed twice is read by every old name, through settle and through the alias map"

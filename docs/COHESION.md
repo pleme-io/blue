@@ -22,7 +22,7 @@ This plan puts 273 confirmed audit findings into 76 units. It defers 3 findings,
 - **Configuration and authority.** A capability has one snake_case spelling. The hold is meet(shebang, CLI, project). Bounds meet at every door, and each has one word. settei configures programs and blue. One switch registry refuses unknown values. Configured off has one encoding, and blue lock decides it.
 - **Processes and time.** A run has one clock source and one provider state. spawn is sealed. pid, ref and timer are typed, and a timer is a process. case and receive share one pattern language. A deadline bounds host waits too.
 - **Evaluators and placements.** The walker is the reference. Every other column passes each row or pends on a named gap. A closure means one thing, and the auto door never hides a raise. Native code lowers only checked trees, and its column can fail.
-- **Pipeline and levers.** parse, check, erase, run, through one door builder. One lever table decides. Every lever stands down under a bound (ROADMAP R10), and R19 fuses only pure chains. Macros expand in one stage. TreeHash and DefHash are two types.
+- **Pipeline and levers.** parse, check, erase, run, through one door builder. One lever table decides. Every lever stands down under a bound (ROADMAP R10), and PERFORMANCE R19 fuses only pure chains. Macros expand in one stage. TreeHash and DefHash are two types.
 - **Host words.** A grant covers where the bytes go. One Fs serves two stores, and a write is atomic. Every handle has one lifecycle, bytes decode per field, and one end-of-run seam writes the receipt.
 - **Gates and ledgers.** One hadome ratchet ledger: every rise has a receipt, and blind reads red. The Bluefile declares every gate. Every gate can fail. A doc claim links checked evidence.
 - **Tooling faces.** mondou's facts are the one source. One recognizer and one resolver serve every face, and blind is never none. The CLI has one flag vocabulary. Tables render from code, and bunsho renders Markdown.
@@ -35,7 +35,7 @@ This plan puts 273 confirmed audit findings into 76 units. It defers 3 findings,
 - A unit lands alone on main with its lock: a test that fails without the change.
 - A changed spelling ships its fixer: a RULES row with a machine fix, a legacy_names row or a formatter rewrite.
 - A retired behaviour gets an off switch. Its code, declaration and tests stay.
-- A new ruling goes into docs/ROADMAP.md as R14 and on, in the same commit as its fix.
+- A new ruling goes into docs/ROADMAP.md as ROADMAP R14 and on, in the same commit as its fix.
 - A unit starts when every unit in its After column is ✅.
 - A gate gets a red run on a broken input before anyone trusts it.
 - A row starts ❌. It goes ⏳ when its first commit lands, and ✅ when its lock is green on main.
@@ -67,7 +67,7 @@ Wave 0 has no dependencies. Each later wave depends only on earlier waves.
 | ⏳ | U4 | Snake-case kinds at the rescue seam | M | ➖ |
 | ❌ | U5 | VM and walker mean one thing | M | ➖ |
 | ⏳ | U6 | The native column can say no | M | ➖ |
-| ⏳ | U7 | R19 sees purity and scope | M | ➖ |
+| ⏳ | U7 | PERFORMANCE R19 sees purity and scope | M | ➖ |
 | ❌ | U8 | Gates and ratchets can say no | L | ➖ |
 | ❌ | U9 | Docs of record match main | L | ➖ |
 | ❌ | U10 | One capability vocabulary and the shebang hold | L | ➖ |

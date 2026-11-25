@@ -988,9 +988,10 @@ def digits_end(cs, i)
 end
 
 @doc """
-r_id_at: The R id a text starts with: `R`, its digits and at most one lower-case letter, when no letter or digit follows; nil otherwise.
+r_id_at: The R id a text starts with: `R`, one to three digits and at most one lower-case letter, when no letter or digit follows; nil otherwise. `R` and four digits is a project rule's code (`rule("R0003", …)`), written bare as a B code is, and names no row.
 
     r_id_at("R6b folds into R7") #=> "R6b"
+    r_id_at("R0003 refuses one spelling") #=> nil
 """
 def r_id_at(text)
   cs = chars(text)
@@ -1003,7 +1004,7 @@ def r_id_at(text)
     else
       d
     end
-    if not name_start?(cs[e]) and not digit?(cs[e])
+    if d < 5 and not name_start?(cs[e]) and not digit?(cs[e])
       text_of(cs, 0, e)
     end
   end
@@ -1277,7 +1278,7 @@ test "every R id a page names is one row of one page"
   assert found == []
 end
 
-test "an id a page does not define, a qualified id its page lacks and a bare id with no table are refused; a declared table and code pass"
+test "an id a page does not define, a qualified id its page lacks and a bare id with no table are refused; a declared table, code and a project rule's code pass"
   pages = [
     [
       "docs/A.md",
@@ -1296,7 +1297,7 @@ test "an id a page does not define, a qualified id its page lacks and a bare id 
       "docs/C.md",
       join_lines(["---", "r_ids: B.md", "---", "", "C cites R1 and R4."])
     ],
-    ["docs/D.md", "D names R3, and `R5` is code."]
+    ["docs/D.md", "D names R3, and `R5` is code, and R0003 a project rule."]
   ]
   assert r_id_failures(pages) ==
     [

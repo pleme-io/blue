@@ -750,9 +750,12 @@ fn main() {
         writeln!(out, "MALFORMED {r}").ok();
         red = true;
     }
-    let mut marks = gaps::row_marks(&all_rows);
-    marks.extend(gaps::door_marks());
-    for f in gaps::refusals(&ledger, &marks) {
+    for f in gaps::gate(
+        &ledger,
+        &gaps::row_marks(&all_rows),
+        gaps::marks_written(&repo.join("spec/rows")),
+        &gaps::door_marks(),
+    ) {
         writeln!(out, "FAIL gaps: {f}").ok();
         red = true;
     }

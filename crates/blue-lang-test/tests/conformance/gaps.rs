@@ -77,7 +77,11 @@ fn gap_of(form: &Sexp) -> Result<Gap, String> {
         };
         match named {
             Some((name, arg)) if ["opened", "closed", "owner", "was"].contains(&name) => {
-                said.insert(name.to_owned(), arg);
+                if said.insert(name.to_owned(), arg).is_some() {
+                    return Err(format!(
+                        "gap {id}: {name}(…) is said twice; a row says each option once"
+                    ));
+                }
             }
             _ => {
                 return Err(format!(
@@ -98,6 +102,62 @@ fn gap_of(form: &Sexp) -> Result<Gap, String> {
         return Err(format!("gap {id}: was(ID) names a gap id"));
     }
     Ok(Gap { id, open })
+}
+
+pub fn gate(
+    ledger: &[Gap],
+    row_marks: &[(String, String)],
+    written: Result<usize, String>,
+    door_marks: &[(String, String)],
+) -> Vec<String> {
+    let mut found = Vec::new();
+    match written {
+        Ok(n) if n == row_marks.len() => {}
+        Ok(n) => found.push(format!(
+            "spec/rows/ writes {n} pending and flaky marks, and the loader read {}; a mark the loader does not read is held by no gate",
+            row_marks.len()
+        )),
+        Err(why) => found.push(format!(
+            "the text of spec/rows/ could not be read to count its marks: {why}"
+        )),
+    }
+    let marks: Vec<(String, String)> = row_marks.iter().chain(door_marks).cloned().collect();
+    found.extend(refusals(ledger, &marks));
+    found
+}
+
+pub fn written_in(text: &str) -> usize {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .map(|line| {
+            ["pending(", "flaky("]
+                .iter()
+                .map(|word| {
+                    line.match_indices(word)
+                        .filter(|(at, _)| {
+                            line[..*at]
+                                .chars()
+                                .next_back()
+                                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                        })
+                        .count()
+                })
+                .sum::<usize>()
+        })
+        .sum()
+}
+
+pub fn marks_written(dir: &Path) -> Result<usize, String> {
+    let unread = |at: &Path, e: std::io::Error| format!("{}: {e}", at.display());
+    let mut written = 0;
+    for entry in std::fs::read_dir(dir).map_err(|e| unread(dir, e))? {
+        let path = entry.map_err(|e| unread(dir, e))?.path();
+        if path.extension().is_some_and(|e| e == "b") {
+            let text = std::fs::read_to_string(&path).map_err(|e| unread(&path, e))?;
+            written += written_in(&text);
+        }
+    }
+    Ok(written)
 }
 
 pub fn refusals(ledger: &[Gap], marks: &[(String, String)]) -> Vec<String> {

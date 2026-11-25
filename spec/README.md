@@ -161,11 +161,15 @@ an `op:` or `keyword:` claim must appear in the program's text.
 `spec/gaps/gaps.b` allocates every G id, one `gap(…)` row each, parsed and
 never evaluated as the rows are: `gap(ID, :open or :closed, WHAT IS MISSING,
 opened(DATE), OPTION...)`, with `closed(DATE)` on a closed gap, `owner(DOC)`
-naming where its design lives and `was(ID)` an id it was once cited by. The
-runner refuses a malformed row, an id with two rows, a mark or a
-`door::TABLE` rule naming a gap the ledger does not hold, and one naming a
-closed gap (`cargo test -p blue-lang-test --test gap_ledger` runs the same
-check alone). A row with no owner is its own record: G1 to G16 are the first
+naming where its design lives and `was(ID)` an id it was once cited by, each
+option said once. The runner refuses a malformed row, an id with two rows, a
+mark or a `door::TABLE` rule naming a gap the ledger does not hold, and one
+naming a closed gap. It also counts the `pending(` and `flaky(` calls in the
+text of `spec/rows/`, outside comment lines, and refuses a run whose loader
+read another number, so a mark it cannot read is never a gap it skips; the
+count follows the marks down as gaps close (`cargo test -p blue-lang-test
+--test gap_ledger` runs the same check alone). A row with no owner is its
+own record: G1 to G16 are the first
 pass of the architecture gap audit (2026-09-29), G17 to G19 the evaluator
 differential that opened this suite. A G id in another document's own table
 (ARIKA G1 to G9, GPU G1 to G4, …) is that document's goal label and is cited

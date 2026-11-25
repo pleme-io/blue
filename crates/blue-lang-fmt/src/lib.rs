@@ -87,6 +87,7 @@ pub mod doc;
 
 use std::cell::{Cell, RefCell};
 
+use blue_lang_syntax::render::render_float;
 use blue_lang_syntax::{Comment, ParseError, Span, Spanned, SpannedForm, Token, TokenKind};
 use doc::{pretty, Doc};
 use tatara_lisp::{Atom, Sexp};
@@ -2335,27 +2336,6 @@ pub fn render_int(i: i64) -> String {
 
 pub fn render_literal(a: &Atom) -> String {
     pretty(&atom(a), usize::MAX / 4)
-}
-
-/// A float must render so it lexes back as a float — `1.0`, never `1`. A
-/// magnitude at or past 1e21, or under 1e-7, keeps its exponent (`1.5e307`),
-/// where ECMAScript's `Number::toString` keeps it: its decimal form pads
-/// zeros past the 17 digits an f64 holds, which no reader can count.
-fn render_float(f: f64) -> String {
-    let a = f.abs();
-    if f.is_finite() && a != 0.0 && !(1e-7..1e21).contains(&a) {
-        let e = format!("{f:e}");
-        return match e.split_once('e') {
-            Some((m, x)) if !m.contains('.') => format!("{m}.0e{x}"),
-            _ => e,
-        };
-    }
-    let s = format!("{f}");
-    if s.contains('.') || s.contains('e') || s.contains("inf") || s.contains("NaN") {
-        s
-    } else {
-        format!("{s}.0")
-    }
 }
 
 /// A type as source text, or `None` for `dyn` — the absence of an annotation.

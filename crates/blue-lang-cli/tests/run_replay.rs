@@ -62,6 +62,13 @@ const ECHO: &str = "def main()
 end
 ";
 
+const MAPPED: &str = "def main()
+  w = flash_open(\"127.0.0.1:0\")
+  s = flash_stats(w)
+  [s.sent, s.rate]
+end
+";
+
 struct Recorded {
     receipt: PathBuf,
     record: PathBuf,
@@ -255,5 +262,32 @@ fn a_frame_without_the_network_refuses_net_wait_before_the_run() {
     let shown = text(&o);
     assert!(!o.status.success(), "{shown}");
     assert!(shown.contains("network"), "{shown}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_run_that_tapes_a_map_reproduces_on_every_replay() {
+    let dir = scratch("mapped");
+    let run = record(&dir, MAPPED, &[]);
+    assert_eq!(run.printed.trim_end(), "[0, 16384]");
+    let tapes = json(&run.record)["tapes"].clone();
+    let stats = tapes["0"]
+        .as_array()
+        .expect("the root's tape")
+        .iter()
+        .find(|e| e["call"] == "flash_stats")
+        .cloned()
+        .expect("flash_stats on the tape");
+    assert!(
+        stats["value"]["map"].as_array().map_or(0, Vec::len) >= 8,
+        "{stats}"
+    );
+    let original = named(&run.receipt);
+    for _ in 0..8 {
+        let o = replay(&run.receipt);
+        let shown = text(&o);
+        assert!(o.status.success(), "{shown}");
+        assert!(shown.contains(&format!("replayed: {original}")), "{shown}");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }

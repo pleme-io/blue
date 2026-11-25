@@ -141,18 +141,10 @@ fn tagged(t: &str, tag: &str) -> Result<Node, String> {
 }
 
 fn float_text(f: f64) -> String {
-    if f.is_nan() {
-        return "NaN".to_owned();
-    }
     if f == 0.0 {
         return "0.0".to_owned();
     }
-    let s = format!("{f}");
-    if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e16 && !s.contains('e') {
-        format!("{s}.0")
-    } else {
-        s
-    }
+    blue_lang_runtime::stdlib::literal_line(&Value::Float(f))
 }
 
 fn key_text(n: &Node) -> Result<String, String> {

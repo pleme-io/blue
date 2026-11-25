@@ -194,7 +194,7 @@ fn build(
     match opts {
         None | Some(Value::Nil) => {}
         Some(Value::Map(m)) => {
-            for (k, v) in m.iter() {
+            for (k, v) in blue_lang_proc::order::sorted_entries(m) {
                 match k {
                     MapKey::Keyword(name) | MapKey::Symbol(name)
                         if matches!(&**name, DATA | CAUSE) =>

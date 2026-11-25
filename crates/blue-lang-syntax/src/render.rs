@@ -1,7 +1,7 @@
-//! The one string renderer. Every surface that turns a string value back
-//! into blue source — the formatter, the runtime's `to_s`, error messages —
-//! writes this exact spelling, so a value rendered anywhere lexes back to
-//! itself. Before this module the formatter and the runtime carried two
+//! The one string and float renderer. Every surface that turns a string or
+//! a float value back into blue source — the formatter, the runtime's `to_s`,
+//! error messages — writes this exact spelling, so a value rendered anywhere
+//! lexes back to itself. Before this module the formatter and the runtime carried two
 //! private tables that had already drifted: `to_s` printed a carriage return
 //! or a NUL raw, so a value holding one rendered differently from the source
 //! that produced it (found by the conformance rows for the control escapes,
@@ -31,6 +31,27 @@ pub fn render_string(s: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// A float must render so it lexes back as a float — `1.0`, never `1`. A
+/// magnitude at or past 1e21, or under 1e-7, keeps its exponent (`1.5e307`),
+/// where ECMAScript's `Number::toString` keeps it: its decimal form pads
+/// zeros past the 17 digits an f64 holds, which no reader can count.
+pub fn render_float(f: f64) -> String {
+    let a = f.abs();
+    if f.is_finite() && a != 0.0 && !(1e-7..1e21).contains(&a) {
+        let e = format!("{f:e}");
+        return match e.split_once('e') {
+            Some((m, x)) if !m.contains('.') => format!("{m}.0e{x}"),
+            _ => e,
+        };
+    }
+    let s = format!("{f}");
+    if s.contains('.') || s.contains('e') || s.contains("inf") || s.contains("NaN") {
+        s
+    } else {
+        format!("{s}.0")
+    }
 }
 
 /// The characters that never print as themselves: control characters besides

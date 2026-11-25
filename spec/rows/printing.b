@@ -59,6 +59,13 @@ row(
 )
 
 row(
+  "output.string.one_text_per_map",
+  "length(distinct(map((i) -> string({d: 4, b: 2, e: i * 0, a: 1, c: 3}), range(0, 100))))",
+  value("1"),
+  flaky("G32")
+)
+
+row(
   "output.print",
   "print(\"x\")",
   prints(unlines(["\"x\""])),

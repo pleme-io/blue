@@ -235,3 +235,88 @@ fn values_and_forms_survive_the_trace_format() {
     wrong["version"] = serde_json::json!(99);
     assert!(Trace::from_json(&wrong).unwrap_err().contains("version 99"));
 }
+
+fn one_map_built(rotation: usize) -> tatara_lisp_eval::Value {
+    use tatara_lisp_eval::{MapKey, Value};
+    let inner = Value::map([
+        (MapKey::Keyword(Arc::from("y")), Value::Int(2)),
+        (MapKey::Keyword(Arc::from("x")), Value::Int(1)),
+        (MapKey::Keyword(Arc::from("z")), Value::Int(3)),
+    ]);
+    let pairs: Vec<(MapKey, Value)> = vec![
+        (MapKey::Keyword(Arc::from("rate")), Value::Int(48_000)),
+        (MapKey::Keyword(Arc::from("channels")), Value::Int(2)),
+        (MapKey::Str(Arc::from("s")), Value::Str(Arc::from("t"))),
+        (MapKey::Int(10), Value::Int(10)),
+        (MapKey::Int(9), Value::Float(9.5)),
+        (MapKey::Nil, Value::Nil),
+        (MapKey::Bool(true), Value::Bool(false)),
+        (
+            MapKey::Float(1.5f64.to_bits()),
+            Value::Keyword(Arc::from("f")),
+        ),
+        (
+            MapKey::Symbol(Arc::from("sym")),
+            Value::list([inner.clone()]),
+        ),
+        (MapKey::Keyword(Arc::from("inner")), inner),
+    ];
+    let n = pairs.len();
+    Value::map((0..n).map(|i| pairs[(i * 3 + rotation) % n].clone()))
+}
+
+#[test]
+fn a_map_has_one_trace_text_however_it_was_built() {
+    use blue_lang_proc::trace::{account_hash, tape_hash, value_to_json, TapeEntry};
+    use tatara_lisp_eval::{ErrorObj, MapKey, Value};
+    let mut texts = std::collections::BTreeSet::new();
+    let mut tapes = std::collections::BTreeSet::new();
+    let mut accounts = std::collections::BTreeSet::new();
+    for rotation in 0..16 {
+        let m = one_map_built(rotation);
+        let raised = Value::Error(Arc::new(ErrorObj {
+            tag: Arc::from("poison"),
+            message: Arc::from("bad"),
+            data: vec![(Value::Keyword(Arc::from("data")), m.clone())],
+        }));
+        let nested = Value::list([
+            m.clone(),
+            Value::map([(MapKey::Keyword(Arc::from("again")), m.clone())]),
+            raised,
+        ]);
+        texts.insert(value_to_json(&nested).to_string());
+        tapes.insert(tape_hash(&[TapeEntry {
+            call: "flash_stats".to_string(),
+            outcome: Ok(m.clone()),
+            fatal: None,
+            at: None,
+        }]));
+        accounts.insert(account_hash(Some(&[m.clone(), m]), 3));
+    }
+    assert_eq!(texts.len(), 1, "{texts:#?}");
+    assert_eq!(tapes.len(), 1, "{tapes:#?}");
+    assert_eq!(accounts.len(), 1, "{accounts:#?}");
+    let text = texts.into_iter().next().unwrap_or_default();
+    let keys: Vec<&str> = [
+        "null",
+        "{\"bool\":true}",
+        "{\"float\":1.5}",
+        "{\"int\":9}",
+        "{\"int\":10}",
+        "{\"str\":\"s\"}",
+        "{\"sym\":\"sym\"}",
+        "{\"kw\":\"channels\"}",
+        "{\"kw\":\"inner\"}",
+        "{\"kw\":\"rate\"}",
+    ]
+    .into_iter()
+    .collect();
+    let at: Vec<usize> = keys
+        .iter()
+        .map(|k| text.find(&format!("[{k},")).unwrap_or(usize::MAX))
+        .collect();
+    assert!(
+        at.windows(2).all(|w| w[0] < w[1]),
+        "the pairs follow map_entries' key order: {at:?} in {text}"
+    );
+}

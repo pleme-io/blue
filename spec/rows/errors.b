@@ -42,6 +42,21 @@ row(
 row("errors.try.no_throw", "try(1 + 1, catch(_e(), 0))", value("2"))
 
 row(
+  "errors.raise.options_in_key_order",
+  join_lines(
+    [
+      "def caught(i)",
+      "  raise(:k, \"m\", {data: i * 0, cause: error(:inner, \"x\")})",
+      "rescue e",
+      "  e",
+      "end",
+      "length(distinct(map((i) -> string(caught(i)), range(0, 100))))"
+    ]
+  ),
+  value("1")
+)
+
+row(
   "errors.try.binding",
   join_lines(
     [

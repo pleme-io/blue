@@ -303,7 +303,7 @@ fn literal(v: &Value) -> String {
         Value::Nil => "nil".into(),
         Value::Bool(b) => b.to_string(),
         Value::Int(n) => n.to_string(),
-        Value::Float(x) => float_text(*x),
+        Value::Float(x) => blue_lang_syntax::render::render_float(*x),
         Value::Str(s) => quoted(s),
         Value::Symbol(s) => s.to_string(),
         Value::Keyword(s) => format!(":{s}"),
@@ -313,12 +313,11 @@ fn literal(v: &Value) -> String {
         }
         Value::Map(m) => {
             let tag = crate::record::name_of(v);
-            let mut entries: Vec<String> = m
-                .iter()
+            let entries: Vec<String> = blue_lang_proc::order::sorted_entries(m)
+                .into_iter()
                 .filter(|(k, _)| tag.is_none() || !crate::record::is_tag_key(k))
                 .map(|(k, v)| format!("{} {}", key_text(k), literal(v)))
                 .collect();
-            entries.sort();
             match tag {
                 Some(name) => format!("{name}({{{}}})", entries.join(", ")),
                 None => format!("{{{}}}", entries.join(", ")),
@@ -336,18 +335,12 @@ fn key_text(k: &tatara_lisp_eval::value::MapKey) -> String {
         MapKey::Keyword(s) | MapKey::Symbol(s) => format!("{s}:"),
         MapKey::Str(s) => format!("{} =>", quoted(s)),
         MapKey::Int(n) => format!("{n} =>"),
-        MapKey::Float(bits) => format!("{} =>", float_text(f64::from_bits(*bits))),
+        MapKey::Float(bits) => format!(
+            "{} =>",
+            blue_lang_syntax::render::render_float(f64::from_bits(*bits))
+        ),
         MapKey::Bool(b) => format!("{b} =>"),
         MapKey::Nil => "nil =>".into(),
-    }
-}
-
-/// A float keeps its point, as in Ruby: `1.0`, `2.5`.
-fn float_text(x: f64) -> String {
-    if x.is_finite() && x.fract() == 0.0 && x.abs() < 1e16 {
-        format!("{x:.1}")
-    } else {
-        format!("{x}")
     }
 }
 
@@ -1031,72 +1024,16 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         "map_entries",
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
-            Value::Map(m) => {
-                let mut entries: Vec<_> = m.iter().collect();
-                entries.sort_by(|a, b| key_order(a.0, b.0));
-                Ok(list(
-                    entries
-                        .into_iter()
-                        .map(|(k, v)| list(vec![k.to_value(), v.clone()]))
-                        .collect(),
-                ))
-            }
+            Value::Map(m) => Ok(list(
+                blue_lang_proc::order::sorted_entries(m)
+                    .into_iter()
+                    .map(|(k, v)| list(vec![k.to_value(), v.clone()]))
+                    .collect(),
+            )),
             Value::Nil => Ok(list(Vec::new())),
             other => Err(EvalError::type_mismatch("a map", other.type_name(), s)),
         },
     );
-}
-
-fn key_rank(k: &tatara_lisp_eval::value::MapKey) -> u8 {
-    use tatara_lisp_eval::value::MapKey;
-    match k {
-        MapKey::Nil => 0,
-        MapKey::Bool(_) => 1,
-        MapKey::Int(_) | MapKey::Float(_) => 2,
-        MapKey::Str(_) => 3,
-        MapKey::Symbol(_) => 4,
-        MapKey::Keyword(_) => 5,
-    }
-}
-
-fn number_order(
-    a: &tatara_lisp_eval::value::MapKey,
-    b: &tatara_lisp_eval::value::MapKey,
-) -> std::cmp::Ordering {
-    use tatara_lisp_eval::value::MapKey;
-    let as_f64 = |k: &MapKey| match k {
-        MapKey::Int(n) => *n as f64,
-        MapKey::Float(bits) => f64::from_bits(*bits),
-        _ => 0.0,
-    };
-    let (x, y) = (as_f64(a), as_f64(b));
-    x.is_nan()
-        .cmp(&y.is_nan())
-        .then_with(|| match (a, b) {
-            (MapKey::Int(m), MapKey::Int(n)) => m.cmp(n),
-            _ => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
-        })
-        .then_with(|| matches!(a, MapKey::Float(_)).cmp(&matches!(b, MapKey::Float(_))))
-        .then_with(|| match (a, b) {
-            (MapKey::Float(p), MapKey::Float(q)) => p.cmp(q),
-            (MapKey::Int(m), MapKey::Int(n)) => m.cmp(n),
-            _ => std::cmp::Ordering::Equal,
-        })
-}
-
-fn key_order(
-    a: &tatara_lisp_eval::value::MapKey,
-    b: &tatara_lisp_eval::value::MapKey,
-) -> std::cmp::Ordering {
-    use tatara_lisp_eval::value::MapKey;
-    key_rank(a).cmp(&key_rank(b)).then_with(|| match (a, b) {
-        (MapKey::Bool(x), MapKey::Bool(y)) => x.cmp(y),
-        (MapKey::Str(x), MapKey::Str(y))
-        | (MapKey::Symbol(x), MapKey::Symbol(y))
-        | (MapKey::Keyword(x), MapKey::Keyword(y)) => x.as_ref().cmp(y.as_ref()),
-        (MapKey::Nil, MapKey::Nil) => std::cmp::Ordering::Equal,
-        _ => number_order(a, b),
-    })
 }
 
 fn as_index(v: &Value, span: tatara_lisp::Span) -> Result<i64, EvalError> {

@@ -637,6 +637,25 @@ test "pretty prints maps sorted, lists in order, scalars as JSON"
     {"k" => {"n" => 1.5, "z" => nil}}
 end
 
+test "a float reads back a Float from the YAML, JSON and TOML deeta writes"
+  xs = [
+    1.0,
+    10000000000000000.0,
+    -25000000000000000.0,
+    1.0e21,
+    1.5e300,
+    0.0000003,
+    2.5e-300
+  ]
+  assert to_s(parse(yaml({"k" => xs}), :yaml)["k"]) == to_s(xs)
+  assert to_s(json_read(pretty({"k" => xs}))["k"]) == to_s(xs)
+  assert every?(float?, parse(yaml({"k" => xs}), :yaml)["k"])
+  assert toml({k: xs}) ==
+    unlines(
+      ["k = [1.0, 10000000000000000.0, -25000000000000000.0, 1.0e21, 1.5e300, 0.0000003, 2.5e-300]"]
+    )
+end
+
 test "yaml writes block maps and lists, quoting every string"
   assert yaml({}) == unlines(["{}"])
   assert yaml([]) == unlines(["[]"])
@@ -2539,12 +2558,20 @@ to the same float, laid out plain when the point falls within sixteen digits,
 as 0.000ddd down to five zeros, else as d.ddde±x; a NaN or an infinity as null.
 
     float_text(1.0e20) #=> "1e+20"
+    float_text(1.5e300) #=> "1.5e+300"
+    float_text(2.5e-300) #=> "2.5e-300"
 """
 def float_text(x)
   if x - x != 0.0
     "null"
   else
-    t = chars(to_s(x))
+    parts = split(to_s(x), "e")
+    shift = if count(parts) == 2
+      to_int(second(parts))
+    else
+      0
+    end
+    t = chars(first(parts))
     neg = first(t) == "-"
     body = if neg
       rest(t)
@@ -2563,7 +2590,7 @@ def float_text(x)
     if digits == []
       "#{sign}0.0"
     else
-      "#{sign}#{ryu_text(digits, count(whole) - lead)}"
+      "#{sign}#{ryu_text(digits, count(whole) - lead + shift)}"
     end
   end
 end

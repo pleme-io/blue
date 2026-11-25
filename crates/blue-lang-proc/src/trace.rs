@@ -76,7 +76,8 @@
 //!
 //! A VALUE is `null` (nil) or a one-key object naming its kind: `int`,
 //! `float`, `str`, `sym`, `kw`, `bool`, `list` (an array), `map` (an array of
-//! `[key, value]` pairs), `error` (`tag`, `message`, `data`), `form` (a quoted
+//! `[key, value]` pairs in map_entries' key order, [`crate::order`]; a reader
+//! takes them in any order), `error` (`tag`, `message`, `data`), `form` (a quoted
 //! form), or `opaque` (a host handle, by type name: replayed as a placeholder
 //! only the tape can consume). A FORM is a one-key object of the same kinds
 //! plus `nil`, `quote`, `quasiquote`, `unquote` and `splice`, with an optional
@@ -450,7 +451,8 @@ pub fn value_to_json(v: &Value) -> Json {
         Value::Map(m) => one(
             "map",
             Json::Array(
-                m.iter()
+                crate::order::sorted_entries(m)
+                    .into_iter()
                     .map(|(k, v)| Json::Array(vec![value_to_json(&k.to_value()), value_to_json(v)]))
                     .collect(),
             ),

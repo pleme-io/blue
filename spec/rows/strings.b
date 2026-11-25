@@ -213,6 +213,24 @@ row(
   value("\"{a: [1], b: 2}\"")
 )
 
+row(
+  "strings.to_s.map_key_order",
+  "to_s({a1: 1, a: 2, 10 => 3, 9 => 4, \"s\" => 5, nil => 6})",
+  value("\"{nil => 6, 9 => 4, 10 => 3, \\\"s\\\" => 5, a: 2, a1: 1}\"")
+)
+
+row(
+  "strings.to_s.float_past_sixteen_digits",
+  "[to_s(10000000000000000.0), to_s(-25000000000000000.0)]",
+  value("[\"10000000000000000.0\", \"-25000000000000000.0\"]")
+)
+
+row(
+  "strings.to_s.float_exponent",
+  "[to_s(1.0e21), to_s(1.5e300), to_s(1.0e-8), to_s(2.5e-300)]",
+  value("[\"1.0e21\", \"1.5e300\", \"1.0e-8\", \"2.5e-300\"]")
+)
+
 row("strings.trim", "trim(\"  x  \")", value("\"x\""), covers("builtin:trim"))
 
 row(

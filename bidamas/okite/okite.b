@@ -406,11 +406,48 @@ def law_to_s_literals()
     to_s(nil) == ""
 end
 
+@doc """
+law_to_s_floats_keep_their_point holds that `to_s` of every finite Float keeps its point and reads back as that Float, from 1e16 up and below 1e-7 as well, written as the formatter writes its literal.
+
+    law_to_s_floats_keep_their_point #=> true
+"""
+def law_to_s_floats_keep_their_point()
+  xs = [
+    1.0,
+    -2.5,
+    1000000000000000.0,
+    10000000000000000.0,
+    -15000000000000000.0,
+    100000000000000000000.0,
+    1.0e21,
+    1.5e300,
+    0.0000001,
+    1.0e-8,
+    2.5e-300
+  ]
+  all((x) -> contains?(to_s(x), ".") and to_float(to_s(x)) == x, xs) and
+    to_s(10000000000000000.0) == "10000000000000000.0" and
+    to_s(1.0e21) == "1.0e21" and
+    to_s([1.0e-8]) == "[1.0e-8]"
+end
+
 def law_to_s_collections()
   to_s([]) == "[]" and
     to_s({}) == "{}" and
     to_s([1, "a", nil, 2.0]) == "[1, \"a\", nil, 2.0]" and
     to_s({b: 2, a: [1]}) == "{a: [1], b: 2}"
+end
+
+@doc """
+law_to_s_maps_walk_the_key_order holds that `to_s` writes a map's entries in `map_entries`' key order: nil, booleans, numbers by value, strings, symbols, then keywords.
+
+    law_to_s_maps_walk_the_key_order #=> true
+"""
+def law_to_s_maps_walk_the_key_order()
+  m = {a1: 1, a: 2, 10 => 3, 9 => 4, "s" => 5, nil => 6, true => 7}
+  to_s(m) ==
+    "{nil => 6, true => 7, 9 => 4, 10 => 3, \"s\" => 5, a: 2, a1: 1}" and
+    to_s(map(first, map_entries(m))) == "[nil, true, 9, 10, \"s\", :a, :a1]"
 end
 
 def law_to_s_equal_maps_render_equally()
@@ -728,7 +765,10 @@ def decisions()
       date: "2026-09-27",
       rule: "`to_s` gives text: a string is itself, nil is \"\", a float keeps its point (1.0).",
       why: "Ruby's to_s; to_s(1.0) was \"1\".",
-      laws: [["literals", () -> law_to_s_literals]]
+      laws: [
+        ["literals", () -> law_to_s_literals],
+        ["every float", () -> law_to_s_floats_keep_their_point]
+      ]
     },
     {
       id: "D0006",
@@ -737,7 +777,8 @@ def decisions()
       why: "to_s of a map was the word \"map\" and a list lost its brackets.",
       laws: [
         ["collections", () -> law_to_s_collections],
-        ["equal maps render equally", () -> law_to_s_equal_maps_render_equally]
+        ["equal maps render equally", () -> law_to_s_equal_maps_render_equally],
+        ["one key order", () -> law_to_s_maps_walk_the_key_order]
       ]
     },
     {
@@ -914,6 +955,11 @@ end
 
 test "every decision is enforced, and every law holds"
   assert failures == []
+end
+
+test "to_s keeps every float's point and walks a map in the key order"
+  assert law_to_s_floats_keep_their_point
+  assert law_to_s_maps_walk_the_key_order
 end
 
 test "decision ids are unique and in order"

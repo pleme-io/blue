@@ -78,11 +78,10 @@ pub fn value_literal(v: &Value) -> Option<Sexp> {
             Sexp::List(out)
         }
         Value::Map(m) => {
-            let mut pairs: Vec<(Sexp, Sexp)> = m
-                .iter()
+            let pairs: Vec<(Sexp, Sexp)> = blue_lang_proc::order::sorted_entries(m)
+                .into_iter()
                 .map(|(k, v)| Some((key_to_sexp(k), value_literal(v)?)))
                 .collect::<Option<Vec<_>>>()?;
-            pairs.sort_by_key(|(k, _)| k.to_string());
             let mut items = vec![Sexp::Atom(Atom::Symbol(
                 blue_lang_syntax::LOWERED_MAP.to_string(),
             ))];

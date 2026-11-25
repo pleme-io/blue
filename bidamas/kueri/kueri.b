@@ -319,16 +319,15 @@ def quote_str(s)
 end
 
 @doc """
-float_text: A float's digits, always with a decimal point: to_s(1.0) is "1", which an
-engine would read as an INTEGER.
+float_text: A float as SQL text: its to_s, which keeps a point for every finite
+float (okite D0005), so an engine reads it as a DOUBLE and never as an INTEGER.
+
+    float_text(1.0) #=> "1.0"
+    float_text(10000000000000000.0) #=> "10000000000000000.0"
+    float_text(1.0e21) #=> "1.0e21"
 """
 def float_text(x)
-  s = to_s(x)
-  if contains?(s, ".") or contains?(s, "e") or contains?(s, "E")
-    s
-  else
-    "#{s}.0"
-  end
+  to_s(x)
 end
 
 # ── types ──────────────────────────────────────────────────────────────────

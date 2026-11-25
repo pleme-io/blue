@@ -745,14 +745,13 @@ def render_at(v, depth)
     "null"
   elsif boolean?(v)
     to_s(v)
-  elsif integer?(v)
-    if v < 0
-      "(#{to_s(v)})"
+  elsif number?(v)
+    t = to_s(v)
+    if starts_with?(t, "-")
+      "(#{t})"
     else
-      to_s(v)
+      t
     end
-  elsif float?(v)
-    to_s(v)
   elsif string?(v)
     nix_string(v)
   elsif nix_ref?(v)
@@ -920,9 +919,13 @@ test "render reads back through Nix's own parser with no error, for every shape"
     [1, "two", nix_ref("pkgs.git")],
     [{a: 1}, [2]],
     {"/" => {device: "/dev/sda1"}, "with-dash" => 1, "rec" => 2},
-    nix_apply(nix_ref("lib.mkForce"), {a: [1]})
+    nix_apply(nix_ref("lib.mkForce"), {a: [1]}),
+    [1.5, -2.5, -0.0, 10000000000000000.0, 1.0e21, 0.0000003, 2.5e-300],
+    nix_apply(nix_ref("lib.mkDefault"), -2.5)
   ]
   assert every?((v) -> read(render(v))[:errors] == [], shapes)
+  assert render([1.5, -2.5, 10000000000000000.0, 1.0e21]) ==
+    "[ 1.5 (-2.5) 10000000000000000.0 1.0e21 ]"
   assert read(module(%w[pkgs lib], {a: nix_ref("pkgs.git")}))[:errors] == []
 end
 

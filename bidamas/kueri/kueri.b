@@ -319,15 +319,21 @@ def quote_str(s)
 end
 
 @doc """
-float_text: A float as SQL text: its to_s, which keeps a point for every finite
-float (okite D0005), so an engine reads it as a DOUBLE and never as an INTEGER.
+float_text: A DOUBLE's number as SQL text, so an engine reads it as a DOUBLE and
+never as an INTEGER: a float as its to_s, which keeps a point for every finite
+float (okite D0005), and an Int with .0 after its digits.
 
     float_text(1.0) #=> "1.0"
+    float_text(3) #=> "3.0"
     float_text(10000000000000000.0) #=> "10000000000000000.0"
     float_text(1.0e21) #=> "1.0e21"
 """
 def float_text(x)
-  to_s(x)
+  if integer?(x)
+    "#{x}.0"
+  else
+    to_s(x)
+  end
 end
 
 # ── types ──────────────────────────────────────────────────────────────────
@@ -3136,6 +3142,8 @@ test "literals are typed on purpose and identifiers are quoted only when they mu
   assert render_expr(lit(1.0), :duckdb) == "1.0::DOUBLE"
   assert render_expr(lit(1.0), :core) == "CAST(1.0 AS DOUBLE PRECISION)"
   assert render_expr(lit(-0.5), :duckdb) == "-0.5::DOUBLE"
+  assert render_expr(double(3), :duckdb) == "3.0::DOUBLE"
+  assert render_expr(double(3), :core) == "CAST(3.0 AS DOUBLE PRECISION)"
   assert render_expr(lit("it's"), :core) == "'it''s'"
   assert render_expr(lit(true), :core) == "TRUE"
   assert render_expr(lit(nil), :core) == "NULL"

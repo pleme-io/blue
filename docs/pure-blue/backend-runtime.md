@@ -191,7 +191,11 @@ the repo root and were read on 2026-11-17.
   `blue ast`, compiled by hashiru through `gen/native-row.b` in `:run` mode (C3's bluec path),
   run, and held to the interpreter's output and exit with the same `difference` the chuuzou
   check uses. `native/checks/x64.refused` names each program hashiru refuses and only shrinks:
-  a refusal with no row is red, and so is a row for a program that compiles. On rio: 11
+  a refusal with no row is red, and so is a row for a program that compiles. Since 2026-11-25
+  each row also holds the refusal's reason (`kind: message`, as gen/native-row.b writes it), a
+  moved reason is red until `blue run native/checks/corpus.b record` writes the ledger again, a
+  compile that exits other than 3 is a crash, never a refusal, and a run is held to the
+  interpreter's exact exit status. On rio: 11
   programs, 4 compiled and agreeing (fault, fib, loop, mutual), 7 refused (arith and hex: no
   reference-counted code for `not` and `count`; lists and sums: kiban's `reclaim`; nested:
   kiban's `mmio_write`; records and shapes: records). fault agrees through the overflow fault

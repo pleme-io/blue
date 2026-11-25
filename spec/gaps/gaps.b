@@ -246,6 +246,14 @@ gap(
 gap(
   "G32",
   :open,
+  "tatara-lisp-eval 0.4.26's `Display` walks a map in hash order, so a map it writes, through the Lisp printers or as the exit text of a crash whose error holds the map, has more than one text",
+  opened("2026-11-25"),
+  owner("docs/ROADMAP.md, placement parity")
+)
+
+gap(
+  "G33",
+  :open,
   "one authority vocabulary: a service's access effects and the runtime's capabilities are two enums spelled two ways",
   opened("2026-11-07"),
   owner("docs/HORIZON.md H11"),
@@ -253,7 +261,7 @@ gap(
 )
 
 gap(
-  "G33",
+  "G34",
   :open,
   "pure by default: a run, a hosted load and an embedder with no declaration reach the host",
   opened("2026-11-07"),
@@ -262,7 +270,7 @@ gap(
 )
 
 gap(
-  "G34",
+  "G35",
   :open,
   "authority per bidama at run time: one hold covers the whole interpreter",
   opened("2026-11-07"),
@@ -271,7 +279,7 @@ gap(
 )
 
 gap(
-  "G35",
+  "G36",
   :open,
   "authority as a value: no grant, attenuation or revocation per call",
   opened("2026-11-07"),
@@ -280,7 +288,7 @@ gap(
 )
 
 gap(
-  "G36",
+  "G37",
   :open,
   "every placement derived from `access`: most placements run with a boundary written by hand, or none",
   opened("2026-11-07"),
@@ -289,7 +297,7 @@ gap(
 )
 
 gap(
-  "G37",
+  "G38",
   :open,
   "parity of authority: each placement keeps its own effect table, and nothing proves they agree",
   opened("2026-11-07"),

@@ -2,9 +2,10 @@ use("deeta", %i[read stringify write])
 
 def agrees(text)
   want = json_parse(text) rescue :refused
-  if want == :refused
-    "skipped"
-  elsif (read(text) rescue :refused) != want
+  got = read(text) rescue :refused
+  if want == :refused and got == :refused
+    "both refuse"
+  elsif to_s([got]) != to_s([want])
     "read differs"
   elsif stringify(want) != json_stringify(want)
     "stringify differs"

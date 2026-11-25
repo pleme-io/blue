@@ -2353,9 +2353,13 @@ def hex4(cs)
 end
 
 @doc """
-json_number: A number read from its characters: a Float with a fraction or exponent, else an Int.
+json_number: A number read from its characters, as json_parse reads it: a
+Float with a fraction or exponent or past what an Int holds, else an Int; a
+number no Float holds, or text that is no number, raises :json.
 
     json_number(chars("12,"), [])[0] #=> 12
+    json_number(chars("9223372036854775808"), [])[0] #=> 9223372036854775808.0
+    (json_number(chars("1e400"), []) rescue :refused) #=> :refused
 """
 def json_number(cs, acc)
   if not empty?(cs) and member?(first(cs), chars("-+0123456789.eE"))
@@ -2366,14 +2370,22 @@ def json_number(cs, acc)
       raise(:json, "deeta::read: expected a value")
     end
     floating = any?((c) -> member?(c, %w[. e E]), acc)
-    [
-      if floating
-        to_float(text)
-      else
-        to_int(text)
-      end,
-      cs
-    ]
+    whole = if floating
+      nil
+    else
+      to_int(text)
+    end
+    n = if whole.nil?
+      to_float(text)
+    else
+      whole
+    end
+    if n.nil?
+      raise(:json, "deeta::read: #{text} is not a number")
+    elsif n - n != 0
+      raise(:json, "deeta::read: #{text} is out of range")
+    end
+    [n, cs]
   end
 end
 
@@ -2397,6 +2409,19 @@ test "read gives the values json_parse gives, on every JSON shape", {
   assert (read("{") rescue :refused) == :refused
   assert (read("[1, 2") rescue :refused) == :refused
   assert (read("[1] x") rescue :refused) == :refused
+end
+
+test "read gives a Float past i64 and refuses a number no Float holds", {
+  kind: :unit
+}
+  assert float?(read("9223372036854775808"))
+  assert float?(read("-9223372036854775809"))
+  assert integer?(read("9223372036854775807"))
+  assert to_s(read("[18446744073709551616]")) ==
+    to_s(json_parse("[18446744073709551616]"))
+  assert (read("1e400") rescue :refused) == :refused
+  assert (read("[1, -1e400]") rescue :refused) == :refused
+  assert (read("[1, 2-]") rescue :refused) == :refused
 end
 
 test "each step of read takes what it reads and gives back the rest", {

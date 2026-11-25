@@ -149,11 +149,12 @@ def kind_of(v)
 end
 
 @doc """
-same_kind?: whether a value may stand where a plain record holds its default, judged by fits?, the judge of a knob's value: a value of the default's kind, a whole number where the default is a float, and never NaN. The record door asks it of its file and of its environment.
+same_kind?: whether a value may stand where a plain record holds its default, judged by fits?, the judge of a knob's value: a value of the default's kind (a list where the default is a list), a whole number where the default is a float, and never NaN. The record door asks it of its file and of its environment.
 
     same_kind?(1.5, 2) #=> true
     same_kind?(1, "1") #=> false
     same_kind?(1.5, to_float("nan")) #=> false
+    same_kind?(%w[a], %w[b c]) #=> true
 """
 def same_kind?(default, v)
   fits?(kind_of(default), v)
@@ -623,7 +624,7 @@ def annotation_table()
 end
 
 @doc """
-fits?: whether a value is of a knob type; a whole number fits a float, and NaN, which no bound can judge, fits no knob.
+fits?: whether a value is of a knob type, or of the kind kind_of names for a plain record's default (same_kind?); a whole number fits a float, and NaN, which no bound can judge, fits no knob and no setting.
 
     fits?(:float, 2) #=> true
     fits?(:int, "2") #=> false
@@ -3864,6 +3865,9 @@ test "the words under one name per setting and one question per layer answer for
   assert scalar(:int, "0o17") == 15
   assert scalar(:bool, "maybe").nil?
   assert held(:float, 2) == 2.0
+  assert same_kind?(1.5, 2)
+  assert not same_kind?(1.5, to_float("nan"))
+  assert same_kind?(["a"], [])
   assert float?(knob(2, {type: :float})[:default])
 end
 

@@ -83,7 +83,7 @@ generate("kernel-matrix", ".github/workflows/kernel-matrix.yml", "gen/kernel-mat
 # a workflow no generate row renders, beside the hand-written ones it holds.
 generate("ci", ".github/workflows/ci.yml", "gen/ci.b", ["Bluefile.lock"])
 generate("auto-release", ".github/workflows/auto-release.yml", "gen/auto-release.b")
-check("workflows", "gen/ci.b", [".github/workflows", "Bluefile.lock"], {stage: :push})
+check("workflows", "gen/ci.b", [".github/workflows", "Bluefile.lock", "gen/proof.b"], {stage: :push})
 generate("node-nix", "nix/node-fixture/configuration.nix", "nix/node-fixture/node.b")
 generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/toriyose/danpen/fixtures/schema/kensa.graphql"])
 generate("settings", "docs/SETTINGS.md", "gen/core-models.b", ["bidamas"])

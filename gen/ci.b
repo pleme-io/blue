@@ -16,6 +16,10 @@ use("deeta", %i[parse yaml])
 
 use("retsu", %i[first last reject])
 
+use("shisutemu", %i[status_of stdout_of])
+
+use("tesuto", [:needs_blue])
+
 @doc """
 blue_out: The expression a step reads the built blue's store path from.
 
@@ -464,6 +468,21 @@ test "a proof step whose crate list fails on a proven commit still runs the whol
   assert ran.status == 0
   assert read_file(out) == unlines(["proven=true", "test-args=#{whole_suite}"])
   rm_rf(dir)
+end
+
+test "the proof step falls back to the whole suite gen/proof.b answers for an unproven commit"
+  needs_blue(self_exe)
+  answered = exec_capture(
+    self_exe,
+    "run",
+    "--quiet",
+    path_join(getenv("GEN_ROOT", "."), "gen/proof.b"),
+    "--",
+    "--test-args",
+    "false"
+  )
+  assert status_of(answered) == 0
+  assert stdout_of(answered) == whole_suite
 end
 
 test "every workflow is rendered by a generate row or held as hand debt, and paid debt leaves the list"

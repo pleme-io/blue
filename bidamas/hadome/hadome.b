@@ -9,9 +9,9 @@ no longer measured leaves, and a rise or a new row needs a typed receipt,
 `<kind>: <why>` with a kind of receipt_kinds, kept in the file as a
 `# receipt:` line beside every earlier one.
 
-Today gen/purity.b and gen/mutation-census.b write their ledgers through record,
-and bench takes its receipt grammar. The rest still write their own files:
-gen/heni-gate.b, eval/census.b, `blue census --reuse`,
+Counted on 2026-11-25: gen/purity.b and gen/mutation-census.b wrote their
+ledgers through record, and bench took its receipt grammar. These still wrote
+their own files: gen/heni-gate.b, eval/census.b, `blue census --reuse`,
 `blue verbs check --record`, bench's baselines, the conformance ledgers
 (spec/native.baseline, gen/ir-rows.baseline, spec/leaks.baseline) and
 native/checks/x64.refused.

@@ -55,9 +55,45 @@ send(c, :bad)
 receive()
 ";
 
+const MAP_KILL: &str = "\
+def worker()
+  receive()
+end
+sup = supervisor(:one_for_one, [worker], 0)
+c = nth(0, children(sup))
+m = monitor(sup)
+exit(c, {a: 1, b: 2, c: 3, d: 4, e: 5})
+receive()
+";
+
 fn trace_round_trip(t: &Trace) -> Trace {
     let text = serde_json::to_string(&t.to_json()).expect("serialize");
     Trace::parse(&text).expect("parse")
+}
+
+fn first_traces_of_fresh_runs(program: &str) -> Vec<Trace> {
+    (0..8)
+        .map(|_| {
+            let (mut root, node) = node(100);
+            let _ = show(&mut root, program);
+            node.traces().into_iter().next().expect("a kept trace")
+        })
+        .collect()
+}
+
+fn assert_one_exit_text_in_key_order(traces: &[Trace]) {
+    let names: std::collections::BTreeSet<String> = traces.iter().map(Trace::crash_hash).collect();
+    let texts: std::collections::BTreeSet<String> = traces
+        .iter()
+        .map(|t| trace_round_trip(t).reason_text)
+        .collect();
+    assert_eq!(texts.len(), 1, "one exit text: {texts:#?}");
+    assert_eq!(names.len(), 1, "one crash name: {names:#?}");
+    let text = texts.into_iter().next().unwrap_or_default();
+    assert!(
+        text.contains("{:a 1, :b 2, :c 3, :d 4, :e 5}"),
+        "the map's pairs follow map_entries' key order: {text}"
+    );
 }
 
 #[test]
@@ -336,27 +372,26 @@ fn a_map_has_one_trace_text_however_it_was_built() {
 #[test]
 #[ignore = "G32: a crash's exit text is tatara-lisp-eval's Display, which walks a map in hash order in 0.4.26; the mark comes off with the bump to tatara-lisp 6011c03 (docs/ROADMAP.md, placement parity)"]
 fn a_crash_whose_error_holds_a_map_has_one_name_and_reproduces() {
-    let mut texts = std::collections::BTreeSet::new();
-    let mut names = std::collections::BTreeSet::new();
-    let mut reproduced = Vec::new();
-    for _ in 0..8 {
-        let (mut root, node) = node(100);
-        let _ = show(&mut root, MAP_CRASH);
-        let kept = &node.traces()[0];
-        names.insert(kept.crash_hash());
-        let trace = trace_round_trip(kept);
-        texts.insert(trace.reason_text.clone());
-        reproduced.push(replay(&trace, blue_lang_runtime::interpreter_hostless()).reproduced);
-    }
-    assert_eq!(texts.len(), 1, "one exit text: {texts:#?}");
-    assert_eq!(names.len(), 1, "one crash name: {names:#?}");
+    let traces = first_traces_of_fresh_runs(MAP_CRASH);
+    assert_one_exit_text_in_key_order(&traces);
+    let reproduced: Vec<bool> = traces
+        .iter()
+        .map(|t| {
+            replay(
+                &trace_round_trip(t),
+                blue_lang_runtime::interpreter_hostless(),
+            )
+            .reproduced
+        })
+        .collect();
     assert!(
         reproduced.iter().all(|r| *r),
         "every replay reproduces: {reproduced:?}"
     );
-    let text = texts.into_iter().next().unwrap_or_default();
-    assert!(
-        text.contains("{:a 1, :b 2, :c 3, :d 4, :e 5}"),
-        "the map's pairs follow map_entries' key order: {text}"
-    );
+}
+
+#[test]
+#[ignore = "G32: a killed process's exit text is tatara-lisp-eval's Display of its exit reason, which walks a map in hash order in 0.4.26; the mark comes off with the bump to tatara-lisp 6011c03 (docs/ROADMAP.md, placement parity)"]
+fn a_process_killed_with_a_map_has_one_exit_text_and_one_name() {
+    assert_one_exit_text_in_key_order(&first_traces_of_fresh_runs(MAP_KILL));
 }

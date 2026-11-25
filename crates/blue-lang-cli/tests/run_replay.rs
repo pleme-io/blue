@@ -69,6 +69,16 @@ const MAPPED: &str = "def main()
 end
 ";
 
+const RAISED_MAP: &str = "def main()
+  raise({a: 1, b: 2, c: 3, d: 4, e: 5})
+end
+";
+
+const EXITED_WITH_A_MAP: &str = "def main()
+  exit(self, {a: 1, b: 2, c: 3, d: 4, e: 5})
+end
+";
+
 struct Recorded {
     receipt: PathBuf,
     record: PathBuf,
@@ -76,21 +86,24 @@ struct Recorded {
 }
 
 fn record(dir: &Path, program: &str, args: &[&str]) -> Recorded {
+    record_into(dir, &dir.join("receipts"), program, args, 0)
+}
+
+fn record_into(dir: &Path, into: &Path, program: &str, args: &[&str], code: i32) -> Recorded {
     let file = dir.join("p.b");
     std::fs::write(&file, program).expect("program");
-    let into = dir.join("receipts");
     let o = blue()
         .arg("run")
         .arg("--receipts")
-        .arg(&into)
+        .arg(into)
         .arg("--record")
         .arg(&file)
         .arg("--")
         .args(args)
         .output()
         .expect("blue run");
-    assert!(o.status.success(), "{}", text(&o));
-    let runs: Vec<PathBuf> = std::fs::read_dir(&into)
+    assert_eq!(o.status.code(), Some(code), "{}", text(&o));
+    let runs: Vec<PathBuf> = std::fs::read_dir(into)
         .expect("receipts")
         .map(|e| e.expect("entry").path())
         .filter(|p| p.to_string_lossy().ends_with(".run.json"))
@@ -290,4 +303,32 @@ fn a_run_that_tapes_a_map_reproduces_on_every_replay() {
         assert!(shown.contains(&format!("replayed: {original}")), "{shown}");
     }
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+#[ignore = "G32: the fault that ends a run quotes a value through tatara-lisp-eval's Display, which walks a map in hash order in 0.4.26, and that text is the run receipt's exit text; the mark comes off with the bump to tatara-lisp 6011c03 (docs/ROADMAP.md, placement parity)"]
+fn a_run_that_ends_on_a_fault_quoting_a_map_has_one_name_and_reproduces() {
+    for (n, program) in [RAISED_MAP, EXITED_WITH_A_MAP].into_iter().enumerate() {
+        let dir = scratch(&format!("quoted-{n}"));
+        let runs: Vec<Recorded> = (0..4)
+            .map(|i| record_into(&dir, &dir.join(format!("receipts-{i}")), program, &[], 1))
+            .collect();
+        let names: std::collections::BTreeSet<String> =
+            runs.iter().map(|r| named(&r.receipt)).collect();
+        assert_eq!(names.len(), 1, "one receipt name: {names:#?}");
+        let receipt = json(&runs[0].receipt);
+        let exit = receipt["exit"]["text"].as_str().unwrap_or_default();
+        assert!(
+            exit.contains("{:a 1, :b 2, :c 3, :d 4, :e 5}"),
+            "the map's pairs follow map_entries' key order: {exit}"
+        );
+        let original = named(&runs[0].receipt);
+        for _ in 0..8 {
+            let o = replay(&runs[0].receipt);
+            let shown = text(&o);
+            assert!(o.status.success(), "{shown}");
+            assert!(shown.contains(&format!("replayed: {original}")), "{shown}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

@@ -278,15 +278,16 @@ the same columns, when its gate lands. This document does not land them.
 `to_int("12x")` is `nil`; built-in `first([])` raises. B0047 fixes the nil
 test spelling only. The design and the rule are `docs/ABSENCE.md`.
 
-**Row 2, must-use.** blue raises errors, so the `Result` that Rust drops does
-not exist as a value. Two must-use bugs remain. A catch-all that ignores its
+**Row 2, must-use.** A fault raises, and a refusal is a value: a kyohi result
+([`ABSENCE.md`](ABSENCE.md) §0), so a result nobody reads is the `Result`
+that Rust's must-use guards against. Two must-use bugs remain. A catch-all that ignores its
 error is B0038 (`crates/blue-lang-check/src/form_rules.rs:212`). A call to a
 word that only returns a value, written as a statement, is dead: blue values
 do not change, so `assoc(m, :a, 1)` alone on a line does nothing. B0053
 (`form_rules.rs:283`, registry `rules.rs:1082`) refuses it for 23 first-order
 words. `map`, `filter` and `reduce` are excluded: their function may write.
-Census at landing: 0 hits in 355 `.b` files, so no ratchet. A refusal list
-from `kyohi::check` that nobody reads is the next case.
+Census at landing: 0 hits in 355 `.b` files, so no ratchet. A kyohi result,
+or a refusal list from `kyohi::check`, that nobody reads is the next case.
 
 **Row 3, exhaustive match.** `case v when 1 … end` with no matching arm is
 `nil` (measured). `match` (tatara) has no blue spelling. The gate needs a

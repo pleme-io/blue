@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: "no undeclared nil: how blue makes absence a declared, checked state"
+summary: "no undeclared nil, and the one error model: absence, refusal and fault, each in its own channel"
 ---
 
 # ABSENCE — no undeclared nil
@@ -16,13 +16,47 @@ Operator intent (2026-10-24): *"we should have common patterns like Option or
 Result, in bluelang."* Rust has no null; it has `Option`. blue should carry no
 absence that nothing declares.
 
+## 0. The one error model
+
+A call that cannot answer with its value answers in one of three channels.
+This section is where they are stated; STDLIB §2.3 and §2.4, CANONICAL-FORMS,
+SAFETY row 2, the glossary and the agent guide point here (ROADMAP ruling
+R20, U9).
+
+| Channel | What it says | The value | Read with | State |
+|---|---|---|---|---|
+| absence | there is nothing to answer, and that is data | an option: `umu::some(v)` or `umu::none` | `umu::fold`, `value_or`, `expect`, `map`, `and_then`, or `?` in a `def` body | the bidama is built; a lookup (`get`, `find`, `nth`, `json_get`, …) answers nil until P3 moves it to an option (section 7) |
+| refusal | a check said no, for a reason a caller branches on | a kyohi result: `kyohi::ok(v)` or `kyohi::refused(r)`, the declared `union result = yes(value) \| no(refusal)` | `?` in a `def` body, a `case` over `yes` and `no` (B0081), `kyohi::ok?`; every finding at once with `kyohi::check` | built: spec rows `refusals.result_union` and `refusals.kyohi_results` |
+| fault | the call could not do what it says | a raise: `raise(:kind, "why", {data: d, cause: e})`, its kind one of kyohi's ledger | `rescue :kind as e` where it can be handled | built; that a bare `rescue` does not swallow a bug is the open row `errors.catch_does_not_swallow_bugs` |
+
+One word crosses each seam: `umu::ok_or` (option to result), `umu::to_option`
+(result to option), `umu::expect` (option to raise, `:not_found`), and
+`umu::from_nil` and `umu::to_nil` at the seam with code that still reads nil
+(section 3).
+
+nil keeps two meanings and no more: the unit, what a call made for its effect
+answers (`write_stdout` and, on a sound subject, `kyohi::enforce`), and JSON
+`null` inside a parsed document. Absence moves to `umu::none` (P3), and a
+failure is a raise or a refusal, never a nil. `x rescue nil` turns a fault
+into a nil that reads as absence or as the unit, so `json_parse(text) rescue
+nil` answers one nil for a `null` document and for text that is not JSON; a
+caller that must tell them apart rescues the error itself.
+
+A default for an absence is `umu::value_or(o, d)`, the one `_or` word, with
+`ok_or` its bridge to a result; no raising verb grows a default-giving `_or`
+twin. The `_or` words that exist (`deeta::get_or`, `shisutemu::read_or`,
+`gitto::out_or`, `koutei::input_or`, the builtin `json_get_or`) are legacy,
+and they retire at P3, when `get` answers an option, so callers are rewritten
+once.
+
 ## 1. Destination
 
 At the end, blue has no bare nil at runtime. A value that can be missing is an
 option, `umu::some(v)` or `umu::none`, and its type says so. A builtin that
 today answers nil answers an option. A program that reads a possibly-missing
-value without testing it does not check. nil survives only as the inside of
-`none`, never as a value a program passes around.
+value without testing it does not check. nil survives only as the unit an
+effect answers and as JSON `null` inside a parsed document (section 0), never
+as a value that means absent.
 
 Three things make that real:
 
@@ -43,7 +77,7 @@ proposed again.
 | Where Option lives | A bidama, `umu` (有無, presence or absence), pure blue | A runtime type in Rust: blue grows down the ladder only for what blue cannot express, and an option is two maps. A word inside `kyohi`: kyohi is refusals; an absence is not a refusal, and Rust keeps `Option` and `Result` apart for the same reason |
 | Runtime form of `some(v)` | `{some: true, value: v}` | `[v]` / `[]`: a user list `[x]` reads as `some(x)`, and `retsu::is_empty(nil)` is true, so nil would pass for none. A keyword `:none`: a program may hold `:none` as data |
 | Runtime form of `none` | `{some: false}`, made by the nullary `umu::none` | nil itself: that is the thing being removed |
-| Why a map, and this map | It is kyohi's shape (`{ok: true, value: v}`), so the two read the same way and `ok_or`/`to_option` are a key swap. A map is a value every evaluator (walker, VM, WASM) already has, so umu needs no runtime change | A tagged record type in the runtime: no evaluator change is needed to get the semantics, and the check stage, not the runtime, is where undeclared absence is caught |
+| Why a map, and this map | It was kyohi's shape when umu was built (`{ok: true, value: v}`), so `ok_or`/`to_option` were a key swap; kyohi's result is now the declared union `yes(value) \| no(refusal)`, and umu's option becomes a union once a union arm may hold no field (ROADMAP, the union row). A map is a value every evaluator (walker, VM, WASM) already has, so umu needs no runtime change | A tagged record type in the runtime: no evaluator change is needed to get the semantics, and the check stage, not the runtime, is where undeclared absence is caught |
 | `some(nil)` | Refused (`:usage`) | Allowed, as Rust allows `Some(())`: in blue nil *is* absence, so `some(nil)` would be a some of nothing, the exact ambiguity Option exists to end |
 | `map(o, f)` when `f` answers nil | Refused (`:usage`), through `some` | Silently none: that hides an undeclared nil inside an option. A function that may answer nil is written `and_then(o, (v) -> from_nil(f(v)))` |
 | A non-option passed to umu | Refused (`:usage`) by `fold`, umu's one eliminator | Read as none: a bare nil would slip through as a valid absence |
@@ -78,9 +112,15 @@ tests).
 `.field`, `get(v, k)` or `v(...)` reads it. `get(nil, k)` raises, so every
 B0054 finding is a crash on the path where the value is missing.
 
-**B0055 undeclared-nil.** A function does not write a bare `nil`. The fix is
-`umu::none`, with its callers reading the option, or `umu::from_nil(v)` at the
-seam with older code.
+**B0055 undeclared-nil.** A function whose exits answer values answers nil
+from none of them: not a written `nil`, an `if` or `when` with no `else`, a
+`case` with no matching arm and no `else`, a bare `return`, or `x rescue nil`.
+A function every exit of which answers nil or raises answers the unit
+(section 0) and is not judged, as `kyohi::enforce` is; `kyohi::raised`, which
+answers a kind or nil, is judged.
+The fix is `umu::none`, with its callers reading the option, or
+`umu::from_nil(v)` at the seam with older code. B0035 drops an empty `else`,
+and this rule still sees the nil that `if` answers.
 
 Neither has a machine fix. Wrapping a value with `from_nil` changes its type,
 so every reader downstream changes with it; `blue check` names the fix in its
@@ -142,7 +182,9 @@ itself answers an option.
 | `space_of(value)` | no space | option |
 | `nats_next_message`, `http_next_request` | nothing came in time | option |
 | `some(f, xs)` | nothing accepted (nil, not false) | `any?`, a Bool |
-| `when(c, ...)`, an `if` with no `else` | the test is false | B0055 does not see these (no `nil` is written); a later rule |
+| `when(c, ...)`, an `if` with no `else` | the test is false | B0055 reads it as a written nil, in a function whose other exits answer values (section 4) |
+| a `case` with no matching arm and no `else` | no arm matches | as the row above |
+| a bare `return` | always (spec row `returns.bare_is_nil`) | as the row above |
 | `json_parse`, `json_read` | JSON `null` | data, not absence: a parsed document keeps nil until `deeta` reads it as an option |
 
 No builtin is migrated. A builtin's answer is a runtime change: Rust, its

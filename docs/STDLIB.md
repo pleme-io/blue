@@ -31,6 +31,10 @@ first: verbs are plain English words, never abbreviations.
 
 ## 0. The design in one screen
 
+The program below is the design, and it does not run today: `shisutemu::capture`,
+`fairu::join` and `fairu::write` do not exist, and `deeta::read` parses JSON text where
+§4.5 reads a path (the [Ledger](#ledger) says what is built).
+
 ```ruby
 use("deeta")
 use("fairu")
@@ -54,7 +58,9 @@ end
   kind or a GitHub path.
 - **Arguments:** the subject comes first and options come last, as one record with defaults.
   **Returns:** records, never association lists. **Errors:** the verb raises a typed kind, and the
-  call site decides with `rescue`. There are no `_or` or `_or_nil` variants.
+  call site decides with `rescue`. There are no `_or` or `_or_nil` variants. *(Superseded
+  2026-11-12, when kyohi's result union and `?` on umu's option were built: absence, refusal and
+  fault each have their channel, and `umu::value_or` is the one default word; ABSENCE.md §0.)*
 
 ## 1. Survey: what the best standard libraries get right
 
@@ -73,7 +79,7 @@ blue adopts.
 | HTTP client | Deno/Bun built-in `fetch`, Python `requests`, Go `net/http` | one request call; status is data; JSON bodies are first class | `tsuushin::request` plus the store verbs over REST (`get`, `list` with pagination, `create`, `update`) |
 | CLI parsing | Rust `clap` derive, Python `argparse`, Ruby `OptionParser`, Go `flag` | one declaration yields parsing, defaults, types and `--help` | `hikisuu::parse(args, spec)` with the type taken from each default; help is rendered from the spec |
 | Logging | Go `slog`, Rust `tracing`, Python `logging` | levels as calls, structured fields, one handler choice | `rogu::info("msg", {k: v})`: JSON lines on stderr, text on a terminal |
-| Errors | Rust `anyhow`/`thiserror`, Ruby `raise`/`rescue`/`ensure`, Elixir `!` functions | typed kinds, context added on the way up, one place to recover | the new `raise`/`rescue` model, a closed ledger of kinds (§4.9), no parallel non-raising APIs |
+| Errors | Rust `anyhow`/`thiserror`, Ruby `raise`/`rescue`/`ensure`, Elixir `!` functions | typed kinds, context added on the way up, one place to recover | the new `raise`/`rescue` model, a closed ledger of kinds (§4.9), no parallel non-raising APIs (superseded 2026-11-12: a refusal is a kyohi result and an absence a umu option, ABSENCE.md §0) |
 | Collections | Elixir `Enum`, Ruby `Enumerable`, Python `itertools`/`functools`, Nushell structured pipelines | subject-first data, so a pipeline reads left to right; one name per operation | the Enum vocabulary, subject-first (decision D2), records in and records out |
 | Concurrency | Go `errgroup` + `context`, Elixir `Task.async_stream(max_concurrency:)`, Python `asyncio.gather` | bounded parallel map; first failure cancels the rest | `heikou::map(xs, f, {limit: 8})`, `heikou::all(fs)`, `heikou::retry(f, policy)`, with `timeout:` on every effectful verb |
 | Hashing and encoding | Python `hashlib`/`base64`, Go `crypto/sha256` + `encoding/hex` | the algorithm is an argument | `shomei::hash(data, :sha256)`, `deeta::encode(bytes, :base64)` |
@@ -127,8 +133,9 @@ exception: they are the prelude and are written bare.
 
 - **Records**, read as `r.field`. A verb's return shape never depends on its options. A verb that
   would need two shapes is two verbs (`run` returns a result record, `capture` returns text).
-- `nil` means "absent", and only lookups (`get`, `find`, `which`) return it. Every other verb that
-  has nothing to return returns `nil` to show that it ran for its effect.
+- A lookup (`get`, `find`, `which`) answers `nil` for absent until ABSENCE's P3 moves it to an
+  option, and a verb that ran for its effect answers `nil`, the unit. Those are nil's meanings,
+  with JSON `null` in a parsed document ([ABSENCE.md](ABSENCE.md) §0).
 - Lists are **complete** (`list` follows every page) and **sorted** wherever the source has no
   order of its own (`walk`, `glob` and `list` in every space). The trap of a bare `walk_dir` ("in no
   fixed order: sort before comparing") disappears.
@@ -140,6 +147,9 @@ exception: they are the prelude and are written bare.
    (`e.data.result` for a failed command).
 2. **Recover at the call site**, with `expr rescue default` or `rescue :kind as e`. There are no
    `read_or`, `get_or`, `_or_nil` or `try_` variants, and the rule in §8 refuses new ones.
+   *(Superseded 2026-11-12: a refusal a caller branches on is a kyohi result and an absence a umu
+   option, read with `?`; `umu::value_or` is the one default word, the `_or` words that exist are
+   legacy until ABSENCE's P3, and the §8 rule is not built. ABSENCE.md §0 holds the model.)*
 3. **The exceptions are by verb, not by space.** A lookup (`get`, `find`, `which`) answers nil for
    absence, because absence is data. A predicate (`exists?`, `has?`, `succeeds?`) never raises for the
    condition it tests. `delete` treats an absent subject as already done. `need` is the raising
@@ -558,6 +568,9 @@ which returns every finding as a list (empty when sound); `kyohi::enforce(subjec
 raising form and throws a single error carrying the list (`kind: :first` takes the first finding's kind). **Absorbs:** `refusal`, `refuse` → `enforce`, `ok`,
 `refused`, `ok?`, `value`, `refusal_of` (the result-wrapper half is retired, since rescue does that
 job) and the per-package refusal families (kueri 16, nisshi 12, raifusaikuru 12, kinji 8, …).
+*(The result half is superseded 2026-11-12: kyohi keeps it as the declared
+`union result = yes(value) | no(refusal)`, built by `ok` and `refused` and read with `?`;
+ABSENCE.md §0.)*
 
 ### 4.10 hikisuu (引数), command-line arguments, *new*
 
@@ -1032,7 +1045,7 @@ One row for each space of §4, and one for each part of the design that is not a
 | jisho, maps and records (§4.6) | ✅ built | `bidamas/jisho`, 12 tests. |
 | jikan, instants and durations (§4.7) | ❌ not built | No `jikan` bidama. `bidamas/hizuke` holds the pure calendar, with 37 tests. |
 | moji, text (§4.8) | ⏳ in progress | `bidamas/moji`, 54 tests. No regular expression word exists. |
-| kyohi, error kinds (§4.9) | ✅ built | `bidamas/kyohi`, 13 tests. |
+| kyohi, error kinds (§4.9) | ⏳ in progress | `bidamas/kyohi`, 13 tests: the ledger of kinds, `check`, `enforce` and the declared result union that §4.9's absorbs clause had retired (superseded, ABSENCE.md §0). Not built: §5.4's rule that every `raise` in a space package names a ledger kind. |
 | hikisuu, command-line arguments (§4.10) | ✅ built | `bidamas/hikisuu`, 13 tests. |
 | rogu, logging (§4.11) | ✅ built | `bidamas/mitoshi/rogu`, 21 tests. |
 | heikou, concurrency, timeouts and retry (§4.12) | ⏳ in progress | No `heikou` bidama. Retry is `bidamas/saishikou` (4 tests). Processes are in `blue-lang-proc`. [ASYNC.md](ASYNC.md) holds the plan. |

@@ -193,7 +193,8 @@ Before you name a function, look for its verb: the graph rows in
 `docs/verbs/contracts.tsv`. A verb that exists is called as `space::verb` with that
 contract. A verb that is only a row is the work to do: build it to its contract. A
 meaning with no row gets a row first (TSV, then `blue verbs import`), named in plain
-English as `read`, `put`, `need` (raises) or `get` (nil), never a `_or` variant.
+English as `read`, `put`, `need` (raises) or `get` (nil), never a `_or` twin of a
+raising verb; a default for an absence is `umu::value_or`.
 The plan and the waves are `docs/VERB-ROADMAP.md`.
 
 ### The traps that cost the most
@@ -230,7 +231,10 @@ expression, and conformance runs the row on every evaluator.
   `e.kind`, `e.message`, `e.data`, `e.cause`, `e.trace`. A catch-all that
   ignores the error is written `rescue _` (B0038). Retry a flaky step with
   `saishikou::retrying({times: 3, wait_ms: 500}, fn() fetch(url) end)`.
-  Return refusals as data (`kyohi`) where a caller must branch on several.
+  A failure travels in one of three channels: an absence (a umu option,
+  where a lookup still answers nil), a refusal a caller branches on (a kyohi
+  result, `kyohi::ok(v)` or `kyohi::refused(r)`, read with `?`) and a fault
+  (a raise). [`docs/ABSENCE.md`](ABSENCE.md) §0 states the model.
 - **A named structure is `record point(x, y)`,** at a file's top level:
   `point(1, 2)` or `point({x: 1, y: 2})` constructs one, `point?(v)` tells it
   from any other map, `p.x` reads a field and `point(**p, x: 3)` is an updated

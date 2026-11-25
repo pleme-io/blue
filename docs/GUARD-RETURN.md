@@ -70,8 +70,10 @@ x = f(y)?        try-subject = f(y)
                  x = blue-try-value(try-subject)
 ```
 
-A refusal is a kyohi result whose `:ok` is `false`; one whose `:ok` is `true`
-gives its `:value`; any other value raises :usage. The same placement rule
+`?` reads a kyohi result (the declared union `yes(value) | no(refusal)`, or
+the legacy map whose `:ok` is `true` or `false`) or a umu option: a refusal
+or a none returns at once; `yes(v)`, `{ok: true, value: v}` and `some(v)`
+give `v`; any other value raises :usage ([`ABSENCE.md`](ABSENCE.md) §0). The same placement rule
 holds: a `?` in an argument, a lambda or at the top level is a parse error.
 Rows: `spec/rows/refusals.b`; tests: `crates/blue-lang-runtime/tests/refusals.rs`.
 

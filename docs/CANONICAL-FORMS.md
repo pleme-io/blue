@@ -145,7 +145,7 @@ and the refusals. `blue explain CODE` prints each row.
 | `do`/braces blocks, `;` | one form already | refused by the parser with the canonical spelling named |
 | `return` | a guard `return` only | the parser lowers a guard `return` to `if`/`else` and refuses any other place (B0080, [`GUARD-RETURN.md`](GUARD-RETURN.md)) |
 | a typed `raise :kind, "m"` keyword form | `raise(…)` call | blue has no paren-less calls; one call grammar |
-| Result values and a `?` operator | `?` on a kyohi refusal | exceptions stay the one error model; `kyohi` holds refusals as data, and `x = f(y)?` returns a refusal through a guard `return` ([`GUARD-RETURN.md`](GUARD-RETURN.md)) |
+| Result values and a `?` operator | `?` on a kyohi result or a umu option | a fault stays a raise; a refusal is a kyohi result and an absence a umu option, and `x = f(y)?` returns a refusal or a none through a guard `return` ([`ABSENCE.md`](ABSENCE.md) §0, [`GUARD-RETURN.md`](GUARD-RETURN.md)) |
 | retry as syntax (`retry`) | a bidama, `saishikou` | a bounded helper says its bound; a keyword hides a loop |
 | a warning for rescuing a kind nothing raises | not built | no analysis can know which kinds a call raises |
 | `test "n" satisfies: …` without braces, or `@satisfies` above a test | the map after a comma | a call takes no bare entries without `**`, and an attribute is a second form to read for one test; the map is the literal the house already passes settings in |

@@ -414,7 +414,7 @@ A query is tatara-lisp data. Several clauses are their conjunction:
 |---|---|
 | `(match PATTERN)` | a form of its resolved tree matches `PATTERN`; each matching form is a hit, with what the pattern bound |
 | `(reaches CAP)` | it names a primitive of host capability `CAP` (`process`, `filesystem`, `environment`, `clock`, `network`; `host` for any), directly or through the definitions it references |
-| `(annotated)`, `(unannotated)` | it is, or is not, a typed definition |
+| `(annotated)`, `(unannotated)` | it is, or is not, a `def` whose signature carries a type; a record or a union is never annotated, even when its fields carry types |
 | `(calls NAME)` | a reference in it resolves to `NAME`: `retsu/first` or `retsu::first` for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
 | `(package NAME)` | it is defined in bidama `NAME` |
 | `(longer-than N)` | its tree has more than `N` forms |
@@ -440,7 +440,7 @@ own `(name params…)` is not a call and is not searched.
 | `file`, `line`, `column` | where the matching form starts, or the definition when no pattern placed the hit |
 | `definition` | the definition's name as written |
 | `key` | its runtime key: `retsu/first`, `%root/f` |
-| `kind` | `function`, `macro` or `value` |
+| `kind` | `function`, `macro`, `value`, `record` or `union` |
 | `bindings` | each name the pattern bound, and its value as tatara-lisp text |
 | `reach` | each host capability the definition reaches, and one chain to it: the definitions it goes through, then the primitive |
 

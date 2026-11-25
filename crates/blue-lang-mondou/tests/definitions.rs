@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use blue_lang_mondou::{CompletionKind, Engine, Query, Tier};
 use blue_lang_runtime::uses::Loader;
+use blue_lang_syntax::parse::one_of;
+use blue_lang_syntax::scope::DefinitionKind;
 
 const KATACHI: &str = "@doc \"\"\"\nA point.\n\"\"\"\nrecord point(x, y)\n\nunion shape = circle(r) | square(s)\n\ntwice = (n) -> n * 2\n\nlimit = 3\n";
 
@@ -66,8 +68,62 @@ fn blue_query_reads_a_union_written_whole_as_its_lowered_forms() {
         Query::parse("(kind thing)")
             .map(|_| ())
             .map_err(|e| e.to_string()),
-        Err("`(kind thing)`: is function, macro, value, record, union".to_string())
+        Err("`(kind thing)`: is `function`, `macro`, `value`, `record` or `union`".to_string())
     );
+}
+
+#[test]
+fn a_union_written_whole_answers_in_source_order() {
+    let engine = engine(KATACHI);
+    assert_eq!(
+        names(&engine, "(longer-than 0)"),
+        ["point", "shape", "circle", "square", "twice", "limit"]
+    );
+    let q = Query::parse("(longer-than 0)").expect("parses");
+    let placed: Vec<(usize, usize)> = engine
+        .query("e", &q)
+        .expect("runs")
+        .iter()
+        .map(|h| (h.line, h.column))
+        .collect();
+    let mut sorted = placed.clone();
+    sorted.sort_unstable();
+    assert_eq!(placed, sorted);
+}
+
+#[test]
+fn only_a_def_whose_signature_carries_a_type_is_annotated() {
+    let engine = engine(
+        "record place(x: Int, y: Int)\n\nunion shape = circle(r: Int) | square(s: Int)\n\ndef grow(n: Int) -> Int\n  n + 1\nend\n\ndef same(n)\n  n\nend\n",
+    );
+    assert_eq!(names(&engine, "(annotated)"), ["grow"]);
+    assert_eq!(
+        names(&engine, "(unannotated)"),
+        ["place", "shape", "circle", "square", "same"]
+    );
+}
+
+#[test]
+fn the_query_doc_names_every_kind() {
+    let doc = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../gen/diagnostics.md"),
+    )
+    .expect("gen/diagnostics.md");
+    let section: Vec<&str> = doc
+        .lines()
+        .skip_while(|l| *l != "## `blue query`")
+        .skip(1)
+        .take_while(|l| !l.starts_with("## "))
+        .collect();
+    let words: Vec<&str> = DefinitionKind::ALL.iter().map(|k| k.word()).collect();
+    let kinds = one_of(&words);
+    for row in ["| `(kind K)` |", "| `kind` |"] {
+        let line = section
+            .iter()
+            .find(|l| l.starts_with(row))
+            .unwrap_or_else(|| panic!("the `blue query` section has no row {row}"));
+        assert!(line.contains(&kinds), "{line}\n  does not name {kinds}");
+    }
 }
 
 #[test]

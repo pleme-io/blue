@@ -3788,7 +3788,8 @@ impl Parser {
 
 /// `` `a` ``, `` `a` or `b` ``, `` `a`, `b` or `c` `` — a list of keywords as
 /// a sentence says it.
-fn one_of(words: &[&str]) -> String {
+#[must_use]
+pub fn one_of(words: &[&str]) -> String {
     let quoted: Vec<String> = words.iter().map(|w| format!("`{w}`")).collect();
     match quoted.split_last() {
         None => String::new(),

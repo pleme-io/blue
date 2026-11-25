@@ -8,7 +8,7 @@
 //! |---|---|
 //! | `(match PATTERN)` | a form of its resolved tree matches `PATTERN`; each matching form is a hit, with what the pattern bound |
 //! | `(reaches CAP)` | it names a primitive of host capability `CAP` (`process`, `filesystem`, `environment`, `clock`, `network`; `host` for any), directly or through the definitions it references |
-//! | `(annotated)`, `(unannotated)` | it is, or is not, a typed definition (`define-typed`) |
+//! | `(annotated)`, `(unannotated)` | it is, or is not, a `def` whose signature carries a type (`define-typed`); a record or a union is never annotated, even when its fields carry types |
 //! | `(calls NAME)` | a reference in it resolves to NAME: `retsu/first` (or `retsu::first`) for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
 //! | `(package NAME)` | it is defined in bidama NAME |
 //! | `(longer-than N)` | its tree has more than N forms |
@@ -332,7 +332,7 @@ impl Query {
                     .ok_or_else(|| {
                         let words: Vec<&str> =
                             DefinitionKind::ALL.iter().map(|k| k.word()).collect();
-                        bad(&format!("is {}", words.join(", ")))
+                        bad(&format!("is {}", blue_lang_syntax::parse::one_of(&words)))
                     })?,
             ),
             other => {
@@ -582,11 +582,12 @@ impl Analysis {
             } else {
                 (Vec::new(), Vec::new())
             };
-            let pairs: Vec<(&Spanned, &Spanned)> = if written.is_empty() {
+            let mut pairs: Vec<(&Spanned, &Spanned)> = if written.is_empty() {
                 vec![(form, &tree[i])]
             } else {
                 written.iter().zip(&resolved).collect()
             };
+            pairs.sort_by_key(|(written, _)| written.span.start);
             for (form, resolved) in pairs {
                 let Some(defined) = blue_lang_syntax::scope::definition(form) else {
                     continue;

@@ -669,6 +669,48 @@ fn each_static_coverage_gap_is_discharged_by_the_test_that_closes_it() {
     assert_eq!(kagi_with(&on_and_off, Code::B0096), Vec::<Code>::new());
 }
 
+#[test]
+fn an_untargeted_definition_is_placed_at_its_name_whatever_it_defines() {
+    let src = format!(
+        "{COVERED_HEAD}@doc \"\"\"\npoint is a place.\n\n    point(1, 2).x #=> 1\n\"\"\"\nrecord point(x, y)\n\n@doc \"\"\"\nshape is a circle or a square.\n\n    circle(1).r #=> 1\n\"\"\"\nunion shape = circle(r) | square(s)\n\n@doc \"\"\"\nboth gives its argument back.\n\n    both(1) #=> 1\n\"\"\"\ndefmacro both(x)\n  quote\n    unquote(x)\n  end\nend\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n"
+    );
+    let surface = FullSurface::new();
+    let path = surface.0.join("kagi.b");
+    let checked = check_entry(
+        Entry {
+            path: Some(&path),
+            text: &src,
+        },
+        &Imports(&[], None, Some("kagi"), None),
+        None,
+        Checking::WithTests,
+    )
+    .expect("checks");
+    let mut placed: Vec<usize> = checked
+        .outcome
+        .diagnostics
+        .iter()
+        .chain(&checked.outcome.census)
+        .filter(|d| d.code == Code::B0090)
+        .map(|d| d.span.start)
+        .collect();
+    placed.sort_unstable();
+    let name = |written: &str| {
+        src.find(written).expect(written) + written.rfind(' ').map_or(0, |space| space + 1)
+    };
+    assert_eq!(
+        placed,
+        [
+            name("record point"),
+            name("union shape"),
+            name("= circle"),
+            name("| square"),
+            name("defmacro both"),
+            name("def kagi"),
+        ]
+    );
+}
+
 fn fake_codes(body: &str, imports: &'static [(&'static str, &'static str)]) -> Vec<Code> {
     let src: &'static str = Box::leak(format!("{COVERED_HEAD}{body}").into_boxed_str());
     codes_as(src, imports, None, Some("kagi"), None)

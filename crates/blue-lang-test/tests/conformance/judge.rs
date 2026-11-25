@@ -87,7 +87,7 @@ fn subject_stage(expect: &Expect) -> Stage {
     }
 }
 
-fn stop(obs: &Obs) -> Option<Stage> {
+fn stop(row: &Row, obs: &Obs) -> Option<Stage> {
     match obs {
         Obs::Failed { stage, .. } => Some(*stage),
         Obs::Codes(codes)
@@ -97,12 +97,15 @@ fn stop(obs: &Obs) -> Option<Stage> {
         {
             Some(Stage::Parse)
         }
+        Obs::Shift { .. } if blue_lang_runtime::pipeline::syntax_diagnostic(&row.src).is_some() => {
+            Some(Stage::Parse)
+        }
         _ => None,
     }
 }
 
 fn missed(row: &Row, p: &Pending, obs: &Obs) -> Verdict {
-    match (&p.misses, stop(obs)) {
+    match (&p.misses, stop(row, obs)) {
         (Some(miss), _) if meets(miss, obs).is_ok() => Verdict::Pending(p.gap.clone()),
         (Some(miss), _) => Verdict::Fail(format!(
             "pending({:?}) names its miss as {}, but the row now misses with {obs}: the miss moved — re-record the mark or remove it",
@@ -125,6 +128,7 @@ fn as_expectation(obs: &Obs) -> String {
     match obs {
         Obs::Failed { stage, message } => format!("fails(:{}, {message:?})", stage.name()),
         Obs::Codes(codes) => format!("diagnoses({codes:?})"),
+        Obs::Shift { rung, holding } => format!("shifts({rung:?}, {holding:?})"),
         other => other.to_string(),
     }
 }

@@ -110,8 +110,8 @@ impl Ev {
 )]
 pub enum Stage {
     Parse,
-    Check,
     Import,
+    Check,
     Eval,
 }
 
@@ -126,7 +126,7 @@ impl Stage {
     }
 
     fn parse(name: &str) -> Option<Stage> {
-        [Stage::Parse, Stage::Check, Stage::Import, Stage::Eval]
+        [Stage::Parse, Stage::Import, Stage::Check, Stage::Eval]
             .into_iter()
             .find(|s| s.name() == name)
     }

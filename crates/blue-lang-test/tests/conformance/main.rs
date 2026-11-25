@@ -223,7 +223,7 @@ fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
 /// runner judges it as such.
 fn controls(env: &mut Env) -> (usize, Vec<String>) {
     let mut failures = Vec::new();
-    let mut judged = 11;
+    let mut judged = 19;
 
     let mut wasmtime = std::process::Command::new("wasmtime");
     eval::cache_beside(&mut wasmtime, &env.scratch);
@@ -328,18 +328,92 @@ fn controls(env: &mut Env) -> (usize, Vec<String>) {
         }
     }
 
-    let early_codes = control(
-        "control.pending-diagnoses-stops-early",
-        unparsable,
-        Expect::Diagnoses(vec!["B0001".into()]),
+    let absent = "use(\"conformance_control_absent\")\n\n1 + 1\n";
+    let before_check = control(
+        "control.pending-import-stops-before-check",
+        absent,
+        Expect::Fails(rows::Stage::Check, "B0001".into()),
         vec![mark(None)],
     );
-    let out = run_row(env, &early_codes, usize::MAX - 7);
-    if !out.verdicts[&Ev::Static].is_fail() {
-        failures.push(format!(
-            "control: a pending diagnoses row whose program does not parse was not failed by static ({:?})",
-            out.verdicts[&Ev::Static]
-        ));
+    let out = run_row(env, &before_check, usize::MAX - 8);
+    for ev in [Ev::Walker, Ev::Vm, Ev::Memo] {
+        if !out.verdicts[&ev].is_fail() {
+            failures.push(format!(
+                "control: a pending check row whose import fails was not failed by {} ({:?}): imports resolve before the check",
+                ev.name(),
+                out.verdicts[&ev]
+            ));
+        }
+    }
+
+    let after_import = control(
+        "control.pending-check-stops-after-import",
+        "1 + conformance_control_unbound\n",
+        Expect::Fails(rows::Stage::Import, "no bidama named".into()),
+        vec![mark(None)],
+    );
+    let out = run_row(env, &after_import, usize::MAX - 9);
+    for ev in [Ev::Walker, Ev::Vm, Ev::Memo] {
+        if !matches!(out.verdicts[&ev], Verdict::Pending(_)) {
+            failures.push(format!(
+                "control: a pending import row whose imports resolve and whose check fails was not reported pending by {} ({:?}): the check comes after the imports",
+                ev.name(),
+                out.verdicts[&ev]
+            ));
+        }
+    }
+
+    for (i, (id, src, expect, names)) in [
+        (
+            "control.pending-diagnoses-stops-early",
+            unparsable,
+            Expect::Diagnoses(vec!["B0001".into()]),
+            "diagnoses([\"B0006\"])",
+        ),
+        (
+            "control.pending-diagnoses-import-stops-early",
+            absent,
+            Expect::Diagnoses(vec!["B0001".into()]),
+            "fails(:import, ",
+        ),
+        (
+            "control.pending-formats-stops-early",
+            unparsable,
+            Expect::Formats("1\n".into()),
+            "fails(:parse, ",
+        ),
+        (
+            "control.pending-fixes-stops-early",
+            unparsable,
+            Expect::Fixes("1\n".into()),
+            "fails(:parse, ",
+        ),
+        (
+            "control.pending-shifts-stops-early",
+            unparsable,
+            Expect::Shifts("checked".into(), Vec::new()),
+            "shifts(\"none\", [])",
+        ),
+        (
+            "control.pending-facts-stops-early",
+            unparsable,
+            Expect::Facts(vec!["f: last_use x".into()]),
+            "fails(:parse, ",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let row = control(id, src, expect, vec![mark(None)]);
+        let out = run_row(env, &row, usize::MAX - 10 - i);
+        let hint = format!("name the miss: pending(\"G0\", {names}");
+        match &out.verdicts[&Ev::Static] {
+            Verdict::Fail(why) if why.contains(&hint) => {}
+            other => failures.push(format!(
+                "control: {id}: a pending {} row whose program stops before the check was not failed by static naming its miss as `{names}…` ({other:?})",
+                row.expect.kind()
+            )),
+        }
     }
 
     let named = control(
@@ -377,6 +451,29 @@ fn controls(env: &mut Env) -> (usize, Vec<String>) {
                 out.verdicts[&ev]
             ));
         }
+    }
+
+    let scoped = control(
+        "control.pending-scoped-miss-moved",
+        "use(\"retsu\", [:size])\n\nsize([1, 2])\n",
+        Expect::Value("2".into()),
+        vec![rows::Pending {
+            on: Some(Ev::Wasm),
+            ..mark(Some(Expect::Value("7".into())))
+        }],
+    );
+    let out = run_row(env, &scoped, usize::MAX - 16);
+    if judge::agrees(&out.obs[&Ev::Walker], &out.obs[&Ev::Wasm]) {
+        failures.push(format!(
+            "control: control.pending-scoped-miss-moved no longer disagrees with the walker on wasm ({}), so it cannot reach the scoped mark's excuse: give it a program wasm reads differently",
+            out.obs[&Ev::Wasm]
+        ));
+    }
+    if !out.verdicts[&Ev::Wasm].is_fail() {
+        failures.push(format!(
+            "control: a wasm-scoped pending row whose miss moved was not failed by wasm ({:?}): a scoped mark excuses a disagreement only when the evaluator meets the row",
+            out.verdicts[&Ev::Wasm]
+        ));
     }
 
     let flaky = control(

@@ -159,8 +159,10 @@ with "the gap may be closed — remove the mark", so a fixed gap turns the run
 red until someone deletes the mark and the row becomes an ordinary one.
 
 - A mark scoped to one evaluator (`pending("G18", "vm")`) also excuses that
-  evaluator's disagreement with stage 0, and flips only once it both meets
-  the row and agrees.
+  evaluator's disagreement with stage 0, but only while the evaluator meets
+  the row. It flips only once the evaluator both meets the row and agrees.
+  A cell that misses the row gets no excuse: its mark judges it, as the next
+  list says.
 - When stage 0 is pending and another evaluator already meets the row (the
   VM bounds recursion depth, G6), the difference is listed under
   "divergences while pending" rather than failed.
@@ -174,16 +176,34 @@ A mark must fail for its own gap, so the miss is part of the mark:
   way fails with "the miss moved", so a gap that half-closes, or a row broken
   by something else, turns the run red.
 - A mark that names no miss may not stop before the behaviour its row
-  states. A cell fails when it stops at an earlier stage than the one its
-  expectation is judged at: `:eval` for a value, an output or a leak; the
-  stage that `fails` names; `:check` for diagnostics, formatting, fixes, a
-  rung or facts. On the diagnostics door, `B0006` is a stop at parse. A row
-  whose program does not parse can never flip, whatever its gap does, so it
-  fails until the row is fixed or its mark names the miss.
+  states. The stages come in the order the pipeline runs them: `:parse`,
+  `:import`, `:check`, `:eval`. Imports resolve before the check. A cell
+  fails when it stops at an earlier stage than the one its expectation is
+  judged at: `:eval` for a value, an output or a leak; the stage that
+  `fails` names; `:check` for diagnostics, formatting, fixes, a rung or
+  facts. On the diagnostics door, `B0006` is a stop at parse. A rung reading
+  of a program that does not parse is `none` (`shift.unparseable`), and that
+  reading is a stop at parse too. A row whose program does not parse can
+  never flip, whatever its gap does, so it fails until the row is fixed or
+  its mark names the miss.
+- The ABI cannot tell where a program stopped, so this stop rule does not
+  reach a `wasm` cell. A named miss does.
 
-The runner's negative controls check this every run: a wrong value must fail
-on every evaluator, a pending row that passes must fail, a pending row that
-misses must report pending, a pending row whose program does not parse must
-fail on the evaluators and on the diagnostics door, the same row must report
-pending once its mark names the parse miss, a pending row whose miss moved
-must fail, and two different messages must not agree.
+The runner's negative controls check this every run:
+
+- A wrong value fails on every evaluator.
+- A pending row that passes fails, and a pending row that misses reports
+  pending.
+- A pending row whose program does not parse fails on the walker, the VM
+  and the memo column.
+- A pending row that expects a stop at `:check` fails when its import
+  fails. A pending row that expects a stop at `:import` reports pending when
+  its imports resolve and its check fails.
+- On the static door, a pending row of each kind (diagnostics, formatting,
+  fixes, a rung, facts) fails when its program does not parse, and the
+  failure names the miss as a mark the row can carry. A pending diagnostics
+  row also fails when its import fails.
+- A row reports pending when its mark names the miss, and fails when the
+  miss moved. A mark scoped to one evaluator fails there too when the miss
+  moved.
+- Two different messages do not agree.

@@ -531,13 +531,13 @@ pub fn project(obs: &Obs) -> Option<Abi> {
 
 pub fn statics(row: &Row, roots: &[PathBuf]) -> Obs {
     match &row.expect {
-        Expect::Diagnoses(_) => Obs::Codes(static_codes(
+        Expect::Diagnoses(_) => static_codes(
             &row.src,
             roots,
             row.frontend.as_deref(),
             row.bidama.as_deref(),
             row.role.as_deref(),
-        )),
+        ),
         Expect::Formats(_) => match blue_lang_pkg::canonical::format_with(
             &blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
             Path::new(ROW_FILE),
@@ -671,9 +671,9 @@ fn static_codes(
     frontend: Option<&str>,
     bidama: Option<&str>,
     role: Option<&str>,
-) -> Vec<String> {
+) -> Obs {
     if let Some(d) = blue_lang_runtime::pipeline::syntax_diagnostic(src) {
-        return vec![d.code.as_str().to_owned()];
+        return Obs::Codes(vec![d.code.as_str().to_owned()]);
     }
     let loader = View {
         inner: blue_lang_pkg::load_path::LoadPath::new(roots.to_vec()),
@@ -686,15 +686,16 @@ fn static_codes(
         text: src,
     };
     match check_entry(entry, &loader as &dyn Loader, None, Checking::WithTests) {
-        Ok(c) => c
-            .outcome
-            .diagnostics
-            .iter()
-            .chain(&c.outcome.census)
-            .chain(&blue_lang_runtime::pipeline::form_diagnostics(src))
-            .map(|d| d.code.as_str().to_owned())
-            .collect(),
-        Err(e) => vec![format!("<{e}>")],
+        Ok(c) => Obs::Codes(
+            c.outcome
+                .diagnostics
+                .iter()
+                .chain(&c.outcome.census)
+                .chain(&blue_lang_runtime::pipeline::form_diagnostics(src))
+                .map(|d| d.code.as_str().to_owned())
+                .collect(),
+        ),
+        Err(e) => failed(&e),
     }
 }
 
@@ -712,12 +713,7 @@ fn static_fixed(src: &str, roots: &[PathBuf]) -> Obs {
         };
         let checked = match check_entry(entry, &loader as &dyn Loader, None, Checking::WithTests) {
             Ok(c) => c,
-            Err(e) => {
-                return Obs::Failed {
-                    stage: Stage::Check,
-                    message: e.to_string(),
-                }
-            }
+            Err(e) => return failed(&e),
         };
         let (fixed, applied) = blue_lang_check::fixes::apply_fixes(
             checked

@@ -839,6 +839,12 @@ mod tests {
     }
 
     #[test]
+    fn a_rescue_that_reads_no_field_stays_pure() {
+        let src = "def caught(x)\n  1 / x\nrescue e\n  e\nend\n";
+        assert!(pure(src, "caught"), "{:?}", reaches(src)["caught"]);
+    }
+
+    #[test]
     fn a_host_capability_an_effect_or_a_fresh_name_is_volatile_and_so_is_every_caller() {
         let src = "def stamp()\n  now_ms()\nend\n\ndef caller()\n  stamp() + 1\nend\n\ndef shout(x)\n  print(x)\n  x\nend\n\ndef fresh()\n  gensym()\nend\n\ndef args()\n  argv()\nend\n\ndef clean(x)\n  x + 1\nend\n";
         let r = reaches(src);

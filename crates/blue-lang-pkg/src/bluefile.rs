@@ -627,7 +627,7 @@ pub enum Malformed {
 /// the point rather than tidying: a vocabulary spelled out here was a set of
 /// strings only this function could interpret, so nothing else could ask what a
 /// frame grants. `Capability::ManifestDeclaration` still means exactly
-/// `package`/`needs`/`posture`, `Capability::CoreForms` still means the nine
+/// `package`/`needs`/`posture`, `Capability::CoreForms` still means the
 /// control-flow heads, and `Capability::Operators` is still *read from*
 /// `blue_lang_syntax::INFIX` rather than copied out of it — the repo's rule that
 /// `INFIX` is one table and both directions read it, now one level up.

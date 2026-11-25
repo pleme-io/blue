@@ -137,3 +137,184 @@ row(
   covers("okite:D0014"),
   pending("G16", "wasm")
 )
+
+row(
+  "errors.kind.native_fn",
+  join_lines(
+    ["begin", "  first([])", "rescue :native_fn as e", "  e.kind", "end"]
+  ),
+  value(":native_fn")
+)
+
+row(
+  "errors.kind.type_mismatch",
+  join_lines(
+    [
+      "def at(m)",
+      "  m[:k]",
+      "end",
+      "",
+      "begin",
+      "  at(nil)",
+      "rescue :type_mismatch as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":type_mismatch")
+)
+
+row(
+  "errors.kind.division_by_zero",
+  join_lines(
+    [
+      "def div(a, b)",
+      "  a / b",
+      "end",
+      "",
+      "begin",
+      "  div(1, 0)",
+      "rescue :division_by_zero as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":division_by_zero")
+)
+
+row(
+  "errors.kind.integer_overflow",
+  join_lines(
+    [
+      "begin",
+      "  9_223_372_036_854_775_807 + 1",
+      "rescue :integer_overflow as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":integer_overflow")
+)
+
+row(
+  "errors.kind.arity_mismatch",
+  join_lines(
+    [
+      "fs = [fn(a) a end]",
+      "begin",
+      "  apply(fs[0], [1, 2])",
+      "rescue :arity_mismatch as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":arity_mismatch")
+)
+
+row(
+  "errors.kind.not_callable",
+  join_lines(
+    [
+      "vs = [5]",
+      "begin",
+      "  apply(vs[0], [1])",
+      "rescue :not_callable as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":not_callable")
+)
+
+row(
+  "errors.kind.unbound_symbol",
+  join_lines(
+    [
+      "begin",
+      "  eval(read_forms(\"nope\")[0])",
+      "rescue :unbound_symbol as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":unbound_symbol")
+)
+
+row(
+  "errors.kind.depth_exceeded",
+  join_lines(
+    [
+      "def deep(n)",
+      "  1 + deep(n + 1)",
+      "end",
+      "",
+      "begin",
+      "  deep(0)",
+      "rescue :depth_exceeded as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":depth_exceeded"),
+  isolate()
+)
+
+row(
+  "errors.kind.catch_all_reads_snake_case",
+  join_lines(
+    [
+      "def div(a, b)",
+      "  a / b",
+      "end",
+      "",
+      "begin",
+      "  div(1, 0)",
+      "rescue e",
+      "  [e.kind, to_s(e)]",
+      "end"
+    ]
+  ),
+  value("[:division_by_zero, \"division_by_zero: division by zero\"]")
+)
+
+row(
+  "errors.kind.unmatched_is_raised_in_snake_case",
+  join_lines(
+    [
+      "def div(a, b)",
+      "  a / b",
+      "end",
+      "",
+      "begin",
+      "  div(1, 0)",
+      "rescue :timeout",
+      "  1",
+      "end"
+    ]
+  ),
+  fails(:eval, "division_by_zero: division by zero")
+)
+
+row(
+  "errors.kind.caught_list_fault_names_no_lisp_word",
+  join_lines(["begin", "  first([])", "rescue e", "  e.message", "end"]),
+  value("\"the list is too short\"")
+)
+
+row(
+  "errors.rescue.kebab_kind_is_read_in_snake_case",
+  join_lines(
+    [
+      "def div(a, b)",
+      "  a / b",
+      "end",
+      "",
+      "begin",
+      "  div(1, 0)",
+      "rescue :division-by-zero as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":division_by_zero")
+)

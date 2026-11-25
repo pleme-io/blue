@@ -46,7 +46,9 @@
 //! for. **No node in an erased tree needs a synthetic span**, so nothing is
 //! lost and nothing is fabricated.
 
-use blue_lang_syntax::{LOWERED_OPTIONAL_ARG, LOWERED_OPTIONAL_ARITY, OPTIONAL_MARKER};
+use blue_lang_syntax::{
+    LOWERED_CAUGHT, LOWERED_OPTIONAL_ARG, LOWERED_OPTIONAL_ARITY, OPTIONAL_MARKER,
+};
 use tatara_lisp::{Atom, Sexp, Spanned, SpannedForm};
 
 const REST_NAME: &str = "%rest";
@@ -226,12 +228,57 @@ fn erase_types_in(s: &Spanned) -> Spanned {
                 ]),
             )
         }
-        SpannedForm::List(items) => Spanned::new(
+        SpannedForm::List(items) => bind_caught(Spanned::new(
             s.span,
             SpannedForm::List(items.iter().map(erase_form).collect()),
-        ),
+        )),
         _ => s.clone(),
     }
+}
+
+fn bind_caught(s: Spanned) -> Spanned {
+    let SpannedForm::List(items) = &s.form else {
+        return s;
+    };
+    if items.len() < 3 || items[0].as_symbol() != Some("try") {
+        return s;
+    }
+    let Some(clause) = items.last() else {
+        return s;
+    };
+    let Some([catch, binding, handler @ ..]) = clause.as_list() else {
+        return s;
+    };
+    if catch.as_symbol() != Some("catch") || handler.is_empty() {
+        return s;
+    }
+    let Some([binder]) = binding.as_list() else {
+        return s;
+    };
+    if binder.as_symbol().is_none_or(|name| name == "_") {
+        return s;
+    }
+    let caught = call(binder, LOWERED_CAUGHT, vec![binder.clone()]);
+    let rebinding = Spanned::new(
+        binder.span,
+        SpannedForm::List(vec![Spanned::new(
+            binder.span,
+            SpannedForm::List(vec![binder.clone(), caught]),
+        )]),
+    );
+    let mut body = vec![sym(catch, "let"), rebinding];
+    body.extend(handler.iter().cloned());
+    let rebound = Spanned::new(
+        clause.span,
+        SpannedForm::List(vec![
+            catch.clone(),
+            binding.clone(),
+            Spanned::new(clause.span, SpannedForm::List(body)),
+        ]),
+    );
+    let mut out = items[..items.len() - 1].to_vec();
+    out.push(rebound);
+    Spanned::new(s.span, SpannedForm::List(out))
 }
 
 fn is_define_typed(items: &[Spanned]) -> bool {
@@ -299,6 +346,26 @@ mod tests {
             out.contains("blue-optional-arity \"inner\" %rest 1 1"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn a_caught_error_is_bound_in_blue_words() {
+        assert_eq!(
+            erased("begin\n  1 / 0\nrescue e\n  e\nend"),
+            "(try (/ 1 0) (catch (e) (let ((e (blue-caught e))) e)))"
+        );
+        let by_kind = erased("begin\n  1 / 0\nrescue :division_by_zero as e\n  e\nend");
+        assert!(
+            by_kind.contains(
+                "(catch (rescued-error) (let ((rescued-error (blue-caught rescued-error))) (cond ((blue-rescues? rescued-error :division_by_zero)"
+            ),
+            "{by_kind}"
+        );
+    }
+
+    #[test]
+    fn an_error_nothing_reads_is_not_bound() {
+        assert_eq!(erased("(1 / 0) rescue 0"), "(try (/ 1 0) (catch (_) 0))");
     }
 
     #[test]
@@ -421,6 +488,7 @@ mod tests {
             "def f(x)\n  x\nend\nf(1)",
             "def f(a, b?, c?)\n  [a, b, c]\nend",
             "def g(a: Int, b?: Int) -> Int\n  a\nend",
+            "def h(x)\n  1 / x\nrescue :division_by_zero as e\n  e.kind\nrescue e\n  e\nend",
         ] {
             let mut seen = 0;
             for form in &erase_types(&tree(src)) {

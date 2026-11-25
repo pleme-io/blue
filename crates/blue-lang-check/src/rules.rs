@@ -865,7 +865,7 @@ listed import or a local shadows the readable name, the rewrite writes
         slug: "error-spelling",
         severity: Error,
         fix: Machine,
-        law: "an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))`",
+        law: "an error is raised with `raise` and caught with `rescue` by its snake_case kind: never `throw(error(…))`, `try(…, catch(…))` or `rescue :type-mismatch`",
         witness: "throw(error(:k, \"m\"))\n",
         explanation: "\
 `raise(:not_found, \"no repo #{name}\")` builds and raises in one step;
@@ -888,7 +888,13 @@ binds loosest of all. A block catches by kind and binds the error:
 
 A `def` body takes the same clauses without `begin`, which is how blue writes
 a block that is a whole body. `try(x, catch(e(), h))` is read as that block,
-and as `x rescue h` when it discards the error.",
+and as `x rescue h` when it discards the error.
+
+A kind is a keyword in snake case. The runtime's own faults are
+`:type_mismatch`, `:division_by_zero`, `:integer_overflow`,
+`:arity_mismatch`, `:not_callable`, `:unbound_symbol`, `:depth_exceeded`
+and `:native_fn`. `rescue :type-mismatch`, the hyphenated spelling the
+runtime once printed, is read as `rescue :type_mismatch`.",
     }
     B0038 {
         slug: "swallowed-error",

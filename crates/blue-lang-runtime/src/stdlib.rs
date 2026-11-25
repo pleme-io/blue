@@ -1013,7 +1013,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         "error_message",
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
-            Value::Error(e) => Ok(Value::Str(e.message.clone())),
+            Value::Error(e) => Ok(Value::Str(crate::errors::message_of(e))),
             other => Err(EvalError::type_mismatch("an error", other.type_name(), s)),
         },
     );
@@ -1022,7 +1022,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         "error_kind",
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
-            Value::Error(e) => Ok(Value::Keyword(e.tag.clone())),
+            Value::Error(e) => Ok(Value::Keyword(crate::errors::kind_of(e))),
             other => Err(EvalError::type_mismatch("an error", other.type_name(), s)),
         },
     );

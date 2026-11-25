@@ -169,7 +169,16 @@ enum Names {
 }
 
 const CORE_FORM_NAMES: &[&str] = &[
-    "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
+    "define",
+    "defmacro",
+    "lambda",
+    "let",
+    "begin",
+    "if",
+    "cond",
+    "else",
+    "not",
+    blue_lang_syntax::LOWERED_CAUGHT,
 ];
 const COLLECTION_NAMES: &[&str] = &["list", blue_lang_syntax::LOWERED_MAP];
 const INTERPOLATION_NAMES: &[&str] = &[

@@ -32,16 +32,27 @@ pub fn describe(e: &EvalError, forms: &[Spanned]) -> String {
         EvalError::TypeMismatch { got, at, .. } if is_function_kind(got) => {
             with_hint(e.short_message(), bare_function_hint(forms, *at))
         }
-        EvalError::TypeMismatch { at, .. }
-        | EvalError::NotCallable { at, .. }
-        | EvalError::NativeFn { at, .. } => {
+        EvalError::NativeFn { name, reason, at } => {
+            match crate::errors::native_words(name, reason) {
+                Some(words) => callee_at(forms, *at).map_or_else(
+                    || words.to_string(),
+                    |w| format!("{}: {words}", spelled(&w)),
+                ),
+                None => with_hint(e.short_message(), called_bare_hint(forms, *at)),
+            }
+        }
+        EvalError::TypeMismatch { at, .. } | EvalError::NotCallable { at, .. } => {
             with_hint(e.short_message(), called_bare_hint(forms, *at))
         }
         EvalError::User {
             value: tatara_lisp_eval::Value::Error(err),
             ..
         } => {
-            let mut lines = vec![format!("{}: {}", err.tag, err.message)];
+            let mut lines = vec![format!(
+                "{}: {}",
+                crate::errors::kind_word(&err.tag),
+                crate::errors::message_of(err)
+            )];
             let cause = crate::errors::error_cause(err);
             lines.extend(
                 crate::errors::chain(&cause)
@@ -200,6 +211,30 @@ mod tests {
             err.to_string(),
             "runtime error: <anonymous>:5:1: `add` expects 2 arguments, got 3"
         );
+    }
+
+    #[test]
+    fn an_empty_list_fault_names_the_word_the_program_called() {
+        let err = crate::pipeline::run("first([])\n").expect_err("an empty list");
+        assert_eq!(
+            err.to_string(),
+            "runtime error: <anonymous>:1:1: first: the list is too short"
+        );
+    }
+
+    #[test]
+    fn an_uncaught_error_prints_its_kind_in_snake_case() {
+        use std::sync::Arc;
+        use tatara_lisp_eval::value::ErrorObj;
+        let e = EvalError::User {
+            value: tatara_lisp_eval::Value::Error(Arc::new(ErrorObj {
+                tag: Arc::from("type-mismatch"),
+                message: Arc::from("in native `car`: car of empty list"),
+                data: Vec::new(),
+            })),
+            at: Span::synthetic(),
+        };
+        assert_eq!(describe(&e, &[]), "type_mismatch: the list is too short");
     }
 
     #[test]

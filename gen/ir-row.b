@@ -8,7 +8,7 @@ exit_for: the exit status for an error that ends the IR run: 3 (the row is refus
     exit_for(:type_mismatch) #=> 5
 """
 def exit_for(kind)
-  if kind == :ir_refused or to_s(kind) == "depth-exceeded"
+  if kind == :ir_refused or kind == :depth_exceeded
     3
   else
     5
@@ -40,7 +40,7 @@ end
 
 test "a refusal and a recursion past the depth budget exit 3, anything else 5"
   assert exit_for(:ir_refused) == 3
-  assert exit_for(read_forms(":depth-exceeded")[0]) == 3
+  assert exit_for(:depth_exceeded) == 3
   assert exit_for(:type_mismatch) == 5
 end
 

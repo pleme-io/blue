@@ -392,6 +392,36 @@ row(
 )
 
 row(
+  "canon.B0037.kebab_kind",
+  join_lines(["begin", "  first([])", "rescue :native-fn", "  0", "end"]),
+  diagnoses(["B0037"])
+)
+
+row(
+  "canon.B0037.kebab_kind.writes",
+  join_lines(
+    [
+      "begin",
+      "  1 / 0",
+      "rescue :division-by-zero, :type-mismatch as e",
+      "  e",
+      "end"
+    ]
+  ),
+  formats(
+    unlines(
+      [
+        "begin",
+        "  1 / 0",
+        "rescue :division_by_zero, :type_mismatch as e",
+        "  e",
+        "end"
+      ]
+    )
+  )
+)
+
+row(
   "canon.B0038",
   join_lines(["begin", "  1", "rescue e", "  nil", "end"]),
   diagnoses(["B0038"]),

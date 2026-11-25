@@ -104,7 +104,7 @@
         type = types.ints.between 1 10000000;
         description = ''
           Nested (non-tail) calls a program may have alive at once. Past it the
-          call is refused with a catchable `depth-exceeded` error naming the
+          call is refused with a catchable `:depth_exceeded` error naming the
           function. Tail calls do not count.
         '';
       };
@@ -117,7 +117,7 @@
         type = types.nullOr types.ints.positive;
         description = ''
           Evaluation steps a run may take, or null for unbounded. Past it the
-          run ends in a `fuel-exhausted` error naming the function; a `try`
+          run ends in a `:fuel_exhausted` error naming the function; a `try`
           observes it but cannot spend past it. A long simulation raises it.
         '';
       };

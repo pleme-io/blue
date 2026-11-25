@@ -680,8 +680,8 @@ pub fn set_node_clock(clock: ClockKind) {
 ///
 /// Each is a BOUND in the sense `blue-lang-cli`'s `config` module admits: a
 /// terminating program under bounds above its cost returns the same value, and
-/// one that exceeds either is refused with a catchable `depth-exceeded` or
-/// `fuel-exhausted` error naming the limit and the function — never a process
+/// one that exceeds either is refused with a catchable `:depth_exceeded` or
+/// `:fuel_exhausted` error naming the limit and the function — never a process
 /// abort, which is what exceeding the host stack was before tatara-lisp-eval
 /// 0.3.63. The walker and the VM run under the same bounds and refuse with the
 /// same message. The two memory bounds refuse with a fatal `memory-exhausted`

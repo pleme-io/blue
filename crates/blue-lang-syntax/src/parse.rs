@@ -621,6 +621,8 @@ pub const LOWERED_ATTEMPTED: &str = "blue-attempted";
 
 pub const LOWERED_FAILED: &str = "blue-failed";
 
+pub const LOWERED_CAUGHT: &str = "blue-caught";
+
 pub const LOWERED_HEADS: &[&str] = &[
     "list",
     "concat",
@@ -3307,6 +3309,35 @@ impl Parser {
         Ok(Spanned::new(self.span_since(head.start), tree.form))
     }
 
+    fn rescued_kind(&mut self, written: String, at: Span) -> Spanned {
+        let mut kind = written;
+        let mut end = at.end;
+        loop {
+            let dash = self.peek_span();
+            let joined = matches!(self.peek(), TokenKind::Op(o) if o == "-")
+                && dash.start == end
+                && self.toks.get(self.pos + 1).is_some_and(|t| {
+                    matches!(t.kind, TokenKind::Ident(_)) && t.span.start == dash.end
+                });
+            if !joined {
+                break;
+            }
+            self.bump();
+            let word_span = self.peek_span();
+            if let TokenKind::Ident(word) = self.bump() {
+                kind.push('_');
+                kind.push_str(&word);
+                end = word_span.end;
+            }
+        }
+        let span = Span::new(at.start, end);
+        if end != at.end {
+            let written = self.text(span).to_string();
+            self.note(Spelling::KebabKind, span, &written, &format!(":{kind}"));
+        }
+        atom_at(span, Atom::Keyword(kind))
+    }
+
     fn rescue_tail(&mut self, head: Span, body: Spanned) -> Result<Spanned, Fail> {
         let mut clauses: Vec<Spanned> = Vec::new();
         let mut catch_all: Option<(Spanned, Spanned, Span)> = None;
@@ -3325,7 +3356,7 @@ impl Parser {
                     loop {
                         let k_span = self.peek_span();
                         match self.bump() {
-                            TokenKind::Sym(k) => kinds.push(atom_at(k_span, Atom::Keyword(k))),
+                            TokenKind::Sym(k) => kinds.push(self.rescued_kind(k, k_span)),
                             other => {
                                 return Err(fail(
                                     format!("expected an error kind such as `:not_found`, found {other}"),
@@ -4196,6 +4227,43 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn a_kebab_kind_after_rescue_is_read_in_snake_case() {
+        let src = "begin\n  1\nrescue :type-mismatch, :native-fn as e\n  e\nend\n";
+        let lowered = parse_program(src).expect("parses")[0].to_string();
+        assert!(
+            lowered.contains("(blue-rescues? rescued-error :type_mismatch :native_fn)"),
+            "{lowered}"
+        );
+        let kebab: Vec<(String, String)> = spelling_notes(src)
+            .expect("parses")
+            .into_iter()
+            .filter(|n| n.spelling == Spelling::KebabKind)
+            .map(|n| (n.written, n.canonical))
+            .collect();
+        assert_eq!(
+            kebab,
+            [
+                (":type-mismatch".to_string(), ":type_mismatch".to_string()),
+                (":native-fn".to_string(), ":native_fn".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn only_a_minus_touching_both_words_joins_a_kind() {
+        let src = "begin\n  1\nrescue :type - mismatch\n  2\nend\n";
+        let lowered = parse_program(src).expect("parses")[0].to_string();
+        assert!(
+            lowered.contains("(blue-rescues? rescued-error :type)"),
+            "{lowered}"
+        );
+        assert!(spelling_notes(src)
+            .expect("parses")
+            .iter()
+            .all(|n| n.spelling != Spelling::KebabKind));
     }
 
     /// `a = f x` — Ruby's command call — parsed as `a = f` and then `x`.

@@ -130,7 +130,7 @@ pub struct BlueConfig {
     ///
     /// Read by every subcommand that evaluates, via
     /// `blue_lang_runtime::set_execution_bounds`. Past it the call is refused
-    /// with a catchable `depth-exceeded` error naming the function; before
+    /// with a catchable `:depth_exceeded` error naming the function; before
     /// tatara-lisp-eval 0.3.63 the same recursion **aborted the process** at
     /// 4-6k frames, where no `try` could see it. The evaluator now grows its
     /// stack on demand, so the bound is this number and not the thread's
@@ -139,7 +139,7 @@ pub struct BlueConfig {
 
     /// Evaluation steps a run may take; `null` (`nil` in `blue.b`) lifts it.
     ///
-    /// Set, a loop with no exit ends in a `fuel-exhausted` error naming the
+    /// Set, a loop with no exit ends in a `:fuel_exhausted` error naming the
     /// function instead of running until killed; a `try` observes that error
     /// but cannot spend past it. Unbounded by default, because long runs are
     /// behaviour blue has always had: a host running untrusted code sets it.

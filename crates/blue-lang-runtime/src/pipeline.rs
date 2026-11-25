@@ -2737,7 +2737,7 @@ pub fn spelling_code(spelling: blue_lang_syntax::Spelling) -> blue_lang_check::C
         Spelling::TrailingComma => Code::B0032,
         Spelling::NegatedComparison => Code::B0034,
         Spelling::ElseNil => Code::B0035,
-        Spelling::TryCatch => Code::B0037,
+        Spelling::TryCatch | Spelling::KebabKind => Code::B0037,
         Spelling::Apply => Code::B0042,
         Spelling::MapPun => Code::B0046,
         Spelling::NilTest => Code::B0047,

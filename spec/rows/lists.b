@@ -65,7 +65,7 @@ row(
 row(
   "lists.car.empty",
   join_lines(["# waive B0036: the row covers this name itself", "car([])"]),
-  fails(:eval, "car of empty list")
+  fails(:eval, "car: the list is too short")
 )
 
 row(
@@ -96,7 +96,12 @@ row("lists.drop", "drop(1, [1, 2, 3])", value("[2, 3]"), covers("builtin:drop"))
 
 row("lists.drop.all", "drop(1, [1])", value("[]"))
 row("lists.first", "first([7, 8])", value("7"), covers("builtin:first"))
-row("lists.first.empty", "first([])", fails(:eval, "car of empty list"))
+
+row(
+  "lists.first.empty",
+  "first([])",
+  fails(:eval, "first: the list is too short")
+)
 
 row(
   "lists.flatten",
@@ -141,6 +146,7 @@ row(
 )
 
 row("lists.last", "last([1, 2, 3])", value("3"), covers("builtin:last"))
+row("lists.last.empty", "last([])", fails(:eval, "the list is too short"))
 row("lists.length", "length([1, 2])", value("2"), covers("builtin:length"))
 row("lists.list", "list(1, 2)", value("[1, 2]"), covers("builtin:list"))
 
@@ -194,6 +200,7 @@ row(
 )
 
 row("lists.rest", "rest([1])", value("[]"), covers("builtin:rest"))
+row("lists.rest.empty", "rest([])", fails(:eval, "the list is too short"))
 
 row(
   "lists.reverse",
@@ -203,6 +210,12 @@ row(
 )
 
 row("lists.second", "second([1, 2])", value("2"), covers("builtin:second"))
+
+row(
+  "lists.second.too_short",
+  "second([1])",
+  fails(:eval, "the list is too short")
+)
 
 row(
   "lists.sort_keyed",

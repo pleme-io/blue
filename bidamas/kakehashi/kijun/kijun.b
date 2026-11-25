@@ -3362,6 +3362,11 @@ test "kijun's command line is rendered from its settings: help names every flag,
   assert contains?(parse_args(%w[--explain tree])[:text], "tree")
 end
 
+test "an empty --baseline is the standard's own baseline, as an absent one is"
+  assert parse_args(["check", "--baseline", ""])[:baseline].nil?
+  assert parse_args(["check", "--baseline", ""])[:error].nil?
+end
+
 test "kijun's settings and frame: four flags, each set only on the command line, and three commands"
   assert settei::defaults_of(settings) ==
     {root: ".", baseline: nil, json: false, tree: false}

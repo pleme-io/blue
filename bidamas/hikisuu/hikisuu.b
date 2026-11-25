@@ -942,6 +942,8 @@ test "a bad spec is refused as bad_option, naming the flag"
       :bad_option,
       "unknown option colour; this verb takes default, about, min, kind, value, read"
     ]
+  assert bad({name: "x", flags: {a: {default: 1, read: 5}}}) ==
+    [:bad_option, "flag --a takes read: as a function"]
   assert bad({name: "x", positional: [{name: "p"}]}) ==
     [:bad_option, "a positional needs name: as a symbol"]
   assert bad(

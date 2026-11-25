@@ -122,7 +122,7 @@ def layer_text(p, read)
     (w) -> w != nil,
     [
       if member?(:file, read)
-        "`~/.config/#{p[:app]}/#{p[:app]}.yaml` (or the file `#{prefix}CONFIG` names)"
+        "`~/.config/#{p[:app]}/#{p[:app]}.yaml` (or the file `#{settei::locator(p[:app], :config)}` names)"
       end,
       if member?(:env, read) and p[:door] == :settled
         "the environment"

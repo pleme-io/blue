@@ -137,16 +137,22 @@ end
 
 @doc """
 direct_check_of: What a direct land builds before it pushes to main, from
-BLUE_LAND_DIRECT: `:project`, the project's pre-merge checks, unless the setting
-is `prepush-only`, which leaves only the pre-push gates. Any other value is
-refused, and land stops on it.
+BLUE_LAND_DIRECT. By default (`pre-merge`) it is `:pre_merge`, every check CI
+builds for a land: each attribute of the flake's `checks.<system>`, which leaves
+out only the post-merge tier. `project` is `:project`, the Bluefile rows'
+aggregate `checks.<system>.project` alone, which leaves the flake's own checks
+to CI after main moves. `prepush-only` is `:off`, the pre-push gates alone. Any
+other value is refused, and land stops on it.
 
-    direct_check_of(nil) #=> :project
+    direct_check_of(nil) #=> :pre_merge
+    direct_check_of("project") #=> :project
     direct_check_of("prepush-only") #=> :off
     direct_check_of("sometimes") #=> {refused: "sometimes"}
 """
 def direct_check_of(v)
-  if v.nil? or v == "" or v == "project"
+  if v.nil? or v == "" or v == "pre-merge"
+    :pre_merge
+  elsif v == "project"
     :project
   elsif v == "prepush-only"
     :off
@@ -158,73 +164,124 @@ end
 @doc """
 direct_steps: What a direct land runs after each rebase and before its push, from
 what it builds (direct_check_of) and whether it regenerates (`--no-regen` turns
-that off): first `:regen`, the lock and every generated file the rebase left
-stale, committed as a queued land commits them, then `:check`, the project's
-pre-merge checks, so the checks judge the tree the push carries. With the checks
-off (`prepush-only`) it runs neither, the old path: the pre-push gate regenerates
+that off). First comes `:regen`: the lock and every generated file the rebase
+left stale, committed as a queued land commits them. Then comes the build of the
+checks, so they judge the tree the push carries. With the checks off
+(`prepush-only`) it runs neither, the old path: the pre-push gate regenerates
 and the land commits what it wrote.
 
-    direct_steps(:project, true) #=> [:regen, :check]
-    direct_steps(:project, false) #=> [:check]
+    direct_steps(:pre_merge, true) #=> [:regen, :pre_merge]
+    direct_steps(:project, false) #=> [:project]
     direct_steps(:off, true) #=> []
 """
 def direct_steps(check, regen)
-  if check != :project
+  if check == :off
     []
   elsif regen
-    %i[regen check]
+    [:regen, check]
   else
-    [:check]
+    [check]
   end
 end
 
 @doc """
-project_check_words: The build of a flake's pre-merge checks on `system`:
-`checks.<system>.project`, every Bluefile check row but the post-merge tier, the
-one aggregate a queued land's CI builds. Nix builds a row the change leaves as
-it was from its cache.
+land_system_of: The system a direct land builds its checks for, from
+BLUE_LAND_SYSTEM: the system it names, else x86_64-linux, the system CI judges
+a land on. A machine of another system builds them through its remote builder.
 
-    project_check_words("x86_64-linux") #=> ["nix", "build", "--no-link", ".#checks.x86_64-linux.project"]
+    land_system_of(nil) #=> "x86_64-linux"
+    land_system_of("") #=> "x86_64-linux"
+    land_system_of("aarch64-darwin") #=> "aarch64-darwin"
 """
-def project_check_words(system)
-  ["nix", "build", "--no-link", ".#checks.#{system}.project"]
+def land_system_of(v)
+  if v.nil? or v == ""
+    "x86_64-linux"
+  else
+    v
+  end
 end
 
 @doc """
-land_system: The system a direct land builds the project's checks for:
-BLUE_LAND_SYSTEM when set, as x86_64-linux through a builder, else this
-machine's own.
+check_names_words: The evaluation that lists the flake's checks on `system`.
+CI lists them the same way to deal them into its flake-check shards.
+
+    check_names_words("x86_64-linux") #=> ["nix", "eval", "--json", ".#checks.x86_64-linux", "--apply", "builtins.attrNames"]
 """
-def land_system()
-  given = getenv("BLUE_LAND_SYSTEM")
-  if given != nil and given != ""
-    given
+def check_names_words(system)
+  [
+    "nix",
+    "eval",
+    "--json",
+    ".#checks.#{system}",
+    "--apply",
+    "builtins.attrNames"
+  ]
+end
+
+@doc """
+check_targets: The flake attributes a direct land builds for `check` on
+`system`. For `:project` it is the one aggregate `checks.<system>.project`. For
+`:pre_merge` it is each of `names`, the flake's checks as check_names_words
+lists them. A check whose inputs did not change is a store or cache hit, but
+every check reads the blue package, so a change that rebuilds blue builds every
+check again.
+
+    check_targets(:project, "x86_64-linux", []) #=> [".#checks.x86_64-linux.project"]
+    check_targets(:pre_merge, "x86_64-linux", ["blue-fmt", "project"]) #=> [".#checks.x86_64-linux.blue-fmt", ".#checks.x86_64-linux.project"]
+"""
+def check_targets(check, system, names)
+  chosen = if check == :project
+    ["project"]
   else
-    trim(
-      stdout_of(
-        exec_capture(
-          "nix",
-          "eval",
-          "--impure",
-          "--raw",
-          "--expr",
-          "builtins.currentSystem"
-        )
+    names
+  end
+  map((n) -> ".#checks.#{system}.#{n}", chosen)
+end
+
+@doc """
+check_names: The names of the flake's checks on `system`, read as CI reads them.
+A land that cannot list them, or lists none, stops with exit 1 and names
+BLUE_LAND_SYSTEM, since a build of no check judges nothing.
+"""
+def check_names(system, held)
+  listed = exec_capture(*check_names_words(system))
+  names = if status_of(listed) == 0
+    json_parse(stdout_of(listed)) rescue nil
+  end
+  if names.nil? or names == []
+    tell(
+      join_lines(
+        [
+          "the flake lists no checks on #{system}, so a direct land cannot judge this tree; set BLUE_LAND_SYSTEM to a system the flake checks, or land past the checks with BLUE_LAND_DIRECT=prepush-only",
+          stderr_of(listed)
+        ]
       )
     )
+    direct_exit(held, 1)
   end
+  names
 end
 
 @doc """
-check_project: Build the project's pre-merge checks on the rebased tree, so a red
-`:ci` row stops a direct land before main moves, as it stops a queued land's
+check_before_push: Build `check` (direct_check_of) on the rebased tree, so a
+red check stops a direct land before main moves, as it stops a queued land's
 CI.
 """
-def check_project(held)
-  words = project_check_words(land_system)
-  say("building #{join(words, " ")} before main moves")
-  if exec_check(*words) != 0
-    tell("the project's pre-merge checks are red, so main stays where it is; fix the red row, or land past it with BLUE_LAND_DIRECT=prepush-only")
+def check_before_push(check, held)
+  system = land_system_of(getenv("BLUE_LAND_SYSTEM"))
+  names = if check == :pre_merge
+    check_names(system, held)
+  else
+    []
+  end
+  targets = check_targets(check, system, names)
+  say(
+    "building #{count(targets)} of .#checks.#{system}'s attributes before main moves"
+  )
+  if exec_check("nix", "build", "--no-link", *targets) != 0
+    tell(
+      "the pre-merge checks are red on #{system}, so main stays where it is; fix the red check, or land past the checks with BLUE_LAND_DIRECT=prepush-only; BLUE_LAND_SYSTEM names the system they build for"
+    )
     direct_exit(held, 1)
   end
 end
@@ -232,7 +289,8 @@ end
 @doc """
 direct_step: Run one step of direct_steps, and end the land with exit 1 when it
 fails: `:regen` refreshes the lock and every generated file and commits them
-(regen_failure), `:check` builds the project's pre-merge checks (check_project).
+(regen_failure), and `:pre_merge` or `:project` builds those checks
+(check_before_push).
 """
 def direct_step(step, held)
   if step == :regen
@@ -242,15 +300,15 @@ def direct_step(step, held)
       direct_exit(held, 1)
     end
   else
-    check_project(held)
+    check_before_push(step, held)
   end
 end
 
 @doc """
 direct_land: Land HEAD on main directly, for while another agent pushes main
 directly and the queue's turns keep being reset: rebase onto main, run `steps`
-(direct_steps: commit the regeneration the rebase needs, then build the project's
-pre-merge checks), push through the pre-push gates, and on a failure do what
+(direct_steps: commit the regeneration the rebase needs, then build the checks
+direct_check_of names), push through the pre-push gates, and on a failure do what
 direct_next says, up to `tries` times. `held` is the machine's land lock
 (take_machine), let go at every end. Land reads no stdin; start it with stdin
 closed (`git land --direct < /dev/null`) when it runs in the background, as a
@@ -3248,7 +3306,7 @@ def main()
     check = direct_check_of(getenv("BLUE_LAND_DIRECT"))
     if map?(check)
       tell(
-        "BLUE_LAND_DIRECT is \"#{check[:refused]}\"; it takes project or prepush-only"
+        "BLUE_LAND_DIRECT is \"#{check[:refused]}\"; it takes pre-merge, project or prepush-only"
       )
       exit_with(2)
     end
@@ -4193,25 +4251,44 @@ test "--proven pushes the land only after gen/proof.b --prove succeeds"
   rm_rf(root)
 end
 
-test "a direct land builds the project's pre-merge checks before main moves: prepush-only turns that off, and any other setting is refused"
-  assert direct_check_of(nil) == :project
+test "a direct land builds every check CI builds, on CI's system, before main moves: project builds the Bluefile aggregate alone, prepush-only turns the build off, and any other setting is refused"
+  assert direct_check_of(nil) == :pre_merge
+  assert direct_check_of("pre-merge") == :pre_merge
   assert direct_check_of("project") == :project
   assert direct_check_of("prepush-only") == :off
   assert direct_check_of("prepush") == {refused: "prepush"}
-  assert project_check_words("aarch64-darwin") ==
-    ["nix", "build", "--no-link", ".#checks.aarch64-darwin.project"]
-  assert direct_steps(direct_check_of(nil), true) == %i[regen check]
+  assert land_system_of(nil) == "x86_64-linux"
+  assert land_system_of("aarch64-darwin") == "aarch64-darwin"
+  assert check_names_words("aarch64-darwin") ==
+    [
+      "nix",
+      "eval",
+      "--json",
+      ".#checks.aarch64-darwin",
+      "--apply",
+      "builtins.attrNames"
+    ]
+  assert check_targets(:pre_merge, "aarch64-darwin", %w[conformance project]) ==
+    [".#checks.aarch64-darwin.conformance", ".#checks.aarch64-darwin.project"]
+  assert check_targets(:project, "aarch64-darwin", %w[conformance project]) ==
+    [".#checks.aarch64-darwin.project"]
+  assert direct_steps(direct_check_of(nil), true) == %i[regen pre_merge]
+  assert direct_steps(direct_check_of("project"), false) == [:project]
   assert direct_steps(direct_check_of("prepush-only"), true) == []
 end
 
-def fake_nix_with(root, judge)
+def fake_nix_listing(root, listing, judge)
   bin = path_join(root, "bin")
   mkdir_p(bin)
   script(
     path_join(bin, "nix"),
     unlines(
       append(
-        ["#!/bin/sh", "echo \"$*\" >> #{path_join(root, "nix.log")}"],
+        [
+          "#!/bin/sh",
+          "echo \"$*\" >> #{path_join(root, "nix.log")}",
+          "if [ \"$1\" = eval ]; then #{listing}; fi"
+        ],
         judge
       )
     )
@@ -4221,6 +4298,10 @@ def fake_nix_with(root, judge)
     "BLUE_LAND_SYSTEM=test-system",
     "BLUE_LAND_SINGLE_FLIGHT=off"
   ]
+end
+
+def fake_nix_with(root, judge)
+  fake_nix_listing(root, "echo '[\"blue-fmt\",\"project\"]'; exit 0", judge)
 end
 
 def fake_nix(root, code)
@@ -4237,10 +4318,6 @@ test "a red pre-merge check stops a direct land and main stays where it is; a gr
   assert status_of(red) == 1
   assert contains?(stderr_of(red), "pre-merge checks are red")
   assert as_tester(work, %w[ls-remote origin refs/heads/main]) == main_was
-  assert contains?(
-    read_file(path_join(root, "nix.log")),
-    "build --no-link .#checks.test-system.project"
-  )
   off = land_with(
     append(fake_nix(root, 1), ["BLUE_LAND_DIRECT=prepush-only"]),
     root,
@@ -4248,7 +4325,10 @@ test "a red pre-merge check stops a direct land and main stays where it is; a gr
   )
   assert status_of(off) == 0
   assert moji::lines(read_file(path_join(root, "nix.log"))) ==
-    ["build --no-link .#checks.test-system.project"]
+    [
+      "eval --json .#checks.test-system --apply builtins.attrNames",
+      "build --no-link .#checks.test-system.blue-fmt .#checks.test-system.project"
+    ]
   head = as_tester(work, %w[rev-parse HEAD])
   assert contains?(as_tester(work, %w[ls-remote origin refs/heads/main]), head)
   committed(work, [%w[second.txt second]], "a second topic file")
@@ -4264,6 +4344,51 @@ test "a red pre-merge check stops a direct land and main stays where it is; a gr
     ["--direct"]
   )
   assert status_of(refused) == 2
+  rm_rf(root)
+end
+
+test "a direct land that cannot list the flake's checks, or lists none, stops before main moves, and project builds the Bluefile aggregate alone"
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  main_was = as_tester(work, %w[ls-remote origin refs/heads/main])
+  blind = land_with(
+    fake_nix_listing(
+      root,
+      "echo 'no attribute checks.test-system' >&2; exit 1",
+      ["exit 0"]
+    ),
+    root,
+    ["--direct"]
+  )
+  assert status_of(blind) == 1
+  assert contains?(stderr_of(blind), "no attribute checks.test-system")
+  assert contains?(stderr_of(blind), "BLUE_LAND_SYSTEM")
+  none = land_with(
+    fake_nix_listing(root, "echo '[]'; exit 0", ["exit 0"]),
+    root,
+    ["--direct"]
+  )
+  assert status_of(none) == 1
+  assert contains?(stderr_of(none), "lists no checks on test-system")
+  assert as_tester(work, %w[ls-remote origin refs/heads/main]) == main_was
+  aggregate = land_with(
+    append(fake_nix(root, 0), ["BLUE_LAND_DIRECT=project"]),
+    root,
+    ["--direct"]
+  )
+  assert status_of(aggregate) == 0
+  assert moji::lines(read_file(path_join(root, "nix.log"))) ==
+    [
+      "eval --json .#checks.test-system --apply builtins.attrNames",
+      "eval --json .#checks.test-system --apply builtins.attrNames",
+      "build --no-link .#checks.test-system.project"
+    ]
+  assert contains?(
+    as_tester(work, %w[ls-remote origin refs/heads/main]),
+    as_tester(work, %w[rev-parse HEAD])
+  )
   rm_rf(root)
 end
 
@@ -4285,7 +4410,10 @@ test "a direct land commits the regeneration its rebase needs before the pre-mer
   assert as_tester(work, %w[ls-remote origin refs/heads/main]) == main_was
   fresh = land_with(stale_is_red, root, ["--direct"])
   assert status_of(fresh) == 0
-  built = moji::lines(read_file(log))
+  built = filter(
+    (l) -> not starts_with?(l, "eval "),
+    moji::lines(read_file(log))
+  )
   assert count(built) == 4
   assert built[1] == "topic"
   assert starts_with?(built[3], "regen after rebasing onto ")

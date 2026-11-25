@@ -105,9 +105,11 @@ gap(
 
 gap(
   "G13",
-  :open,
-  "no destructuring, rest parameters or keyword arguments; rest parameters, `**` arguments and `case` patterns have landed since, and no closing has been measured",
-  opened("2026-09-29")
+  :closed,
+  "no destructuring, rest parameters or keyword arguments: rest parameters and `**` arguments landed first, and `case` patterns with a destructuring binding closed it (spec/rows/patterns.b)",
+  opened("2026-09-29"),
+  closed("2026-11-08"),
+  owner("docs/HORIZON.md H1")
 )
 
 gap(

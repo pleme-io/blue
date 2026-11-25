@@ -62,8 +62,8 @@
   {
     "name": "a renamed knob's old environment name is not read",
     "file": "settei.b",
-    "find": "map((old) -> env_name(app, split(old, \".\")), r[:knob][:renamed])",
-    "replace": "[]"
+    "find": "map((n) -> env_name(app, first(n)), name_rows(r))",
+    "replace": "map((n) -> env_name(app, first(n)), [first(name_rows(r))])"
   },
   {
     "name": "a required knob is optional",

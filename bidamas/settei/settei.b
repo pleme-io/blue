@@ -847,36 +847,32 @@ model_clashes: why a model's names do not each name one setting: each environmen
     model_clashes(knob_rows({"port" => knob(1, {computed: (_c) -> 1}), port: knob(2, {computed: (_c) -> 2})}, [])) #=> ["two settings named port are both read from <APP>_PORT", "two settings named port share the key port"]
 """
 def model_clashes(rows)
-  env_read = flat_map(
-    rows,
-    fn(r)
-      key = dotted_key(r[:path])
-      append(
-        [[env_suffix(r[:path]), key]],
-        map(
-          fn(old)
-            [env_suffix(split(old, ".")), "#{key} (renamed from #{old})"]
-          end,
-          r[:knob][:renamed]
-        )
-      )
-    end
-  )
+  as_env = (n) -> [env_suffix(first(n)), second(n)]
+  as_key = (n) -> [dotted_key(first(n)), second(n)]
   keyed = append(
-    map((r) -> [dotted_key(r[:path]), dotted_key(r[:path])], rows),
-    flat_map(
-      rows,
-      fn(r)
-        map(
-          (old) -> [old, "#{dotted_key(r[:path])} (renamed from #{old})"],
-          r[:knob][:renamed]
-        )
-      end
-    )
+    map((r) -> as_key(first(name_rows(r))), rows),
+    flat_map(rows, (r) -> map(as_key, rest(name_rows(r))))
   )
   append(
-    env_clashes("<APP>_", env_read),
+    env_clashes("<APP>_", flat_map(rows, (r) -> map(as_env, name_rows(r)))),
     coincidences(keyed, (n) -> "share the key #{n}")
+  )
+end
+
+@doc """
+name_rows: a row for each name a knob row is read by, its path and who it is in a refusal: the knob's own path and dotted key, then each name it was renamed from, split at its dots, in order. The environment layer reads a name as its env_suffix, and the file reads it as its dotted_key.
+
+    name_rows({path: [:wait, :seconds], knob: knob(0, {renamed: ["wait_s"]})}) #=> [[[:wait, :seconds], "wait.seconds"], [["wait_s"], "wait.seconds (renamed from wait_s)"]]
+    name_rows({path: [:a], knob: knob(0)}) #=> [[[:a], "a"]]
+"""
+def name_rows(r)
+  key = dotted_key(r[:path])
+  append(
+    [[r[:path], key]],
+    map(
+      (old) -> [split(old, "."), "#{key} (renamed from #{old})"],
+      r[:knob][:renamed]
+    )
   )
 end
 
@@ -1388,10 +1384,7 @@ env_names: the environment names that set a knob: its own, then each name it was
     env_names("app", {path: [:wait, :seconds], knob: knob(0, {renamed: %w[wait_s pause]})}) #=> %w[APP_WAIT__SECONDS APP_WAIT_S APP_PAUSE]
 """
 def env_names(app, r)
-  append(
-    [env_name(app, map(to_s, r[:path]))],
-    map((old) -> env_name(app, split(old, ".")), r[:knob][:renamed])
-  )
+  map((n) -> env_name(app, first(n)), name_rows(r))
 end
 
 @doc """
@@ -3850,6 +3843,8 @@ test "the words under one name per setting and one question per layer answer for
   assert not by_env?(knob(1, {set_by: [:flag]}))
   assert env_names("app", {path: [:w], knob: knob(0, {renamed: ["w_s"]})}) ==
     %w[APP_W APP_W_S]
+  assert name_rows({path: [:w], knob: knob(0, {renamed: ["w_s"]})}) ==
+    [[[:w], "w"], [["w_s"], "w (renamed from w_s)"]]
   assert set_by_text(knob(0, {computed: (_c) -> 1})) == "computed"
   assert set_by_text(knob(0)) == "file, env, flag"
   assert env_suffix(%i[net port]) == "NET__PORT"

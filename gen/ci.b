@@ -36,6 +36,17 @@ def held()
 end
 
 @doc """
+whole_suite: The `cargo test` arguments of the whole suite, as `gen/proof.b
+--test-args` answers for an unproven commit: what CI runs whenever the proof
+step cannot say which crates are left.
+
+    whole_suite #=> "--workspace --no-fail-fast"
+"""
+def whole_suite()
+  "--workspace --no-fail-fast"
+end
+
+@doc """
 on_land: A job condition that also asks the run to be a push to a land ref,
 unless the repository variable `name` is off.
 
@@ -131,7 +142,8 @@ def blue_job()
           [
             "proven=\"$(#{blue_out}/bin/blue run --quiet gen/proof.b -- --verify HEAD)\"",
             "echo \"proven=$proven\" >> \"$GITHUB_OUTPUT\"",
-            "echo \"test-args=$(#{blue_out}/bin/blue run --quiet gen/proof.b -- --test-args \"$proven\")\" >> \"$GITHUB_OUTPUT\""
+            "args=\"$(#{blue_out}/bin/blue run --quiet gen/proof.b -- --test-args \"$proven\")\" || args=\"#{whole_suite}\"",
+            "echo \"test-args=$args\" >> \"$GITHUB_OUTPUT\""
           ]
         )
       },
@@ -163,10 +175,11 @@ end
 check_job: substrate's cargo-ci flow: `nix flake check` in shards, and `cargo
 test` over what the suite proof does not cover: the whole suite on an unproven
 commit, and on a proven one the crates the proof leaves out
-(`gen/proof.b --test-args`). A proof step that answers nothing runs the whole
-suite. It grants `actions: read`, because substrate's `runner-resolve.yml`,
-which cargo-ci calls, asks for it, and GitHub refuses to start a run whose
-caller grants less.
+(`gen/proof.b --test-args`). A proof step that answers nothing, or whose
+crate list fails, runs the whole suite (whole_suite). It grants
+`actions: read`, because substrate's `runner-resolve.yml`, which cargo-ci
+calls, asks for it, and GitHub refuses to start a run whose caller grants
+less.
 
     check_job["uses"] #=> "pleme-io/substrate/.github/workflows/cargo-ci.yml@main"
     check_job["permissions"]["actions"] #=> "read"
@@ -178,7 +191,7 @@ def check_job()
     "uses" => "pleme-io/substrate/.github/workflows/cargo-ci.yml@main",
     "permissions" => {"contents" => "read", "actions" => "read"},
     "with" => {
-      "test-args" => "${{ needs.blue.outputs.test-args || '--workspace --no-fail-fast' }}",
+      "test-args" => "${{ needs.blue.outputs.test-args || '#{whole_suite}' }}",
       "runner" => "${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}",
       "test-runner" => "ubuntu-latest",
       "cargo-test" => "${{ needs.blue.outputs.proven != 'true' || needs.blue.outputs.test-args != '' }}",
@@ -422,6 +435,35 @@ test "a proven commit still runs cargo test over the crates its proof leaves out
     "${{ needs.blue.outputs.test-args || '--workspace --no-fail-fast' }}"
   assert with["cargo-test"] ==
     "${{ needs.blue.outputs.proven != 'true' || needs.blue.outputs.test-args != '' }}"
+end
+
+test "a proof step whose crate list fails on a proven commit still runs the whole suite, never none"
+  dir = temp_dir("proof-step")
+  mkdir_p(path_join(dir, "bin"))
+  fake = path_join(dir, "bin/blue")
+  write_file(
+    fake,
+    unlines(
+      ["#!/bin/sh", "case \"$*\" in *--verify*) echo true ;; *) exit 1 ;; esac"]
+    )
+  )
+  exec_capture("chmod", "+x", fake)
+  step = retsu::find_first((s) -> s["id"] == "proof", blue_job["steps"])
+  out = path_join(dir, "outputs")
+  ran = exec_capture(
+    "env",
+    "GITHUB_OUTPUT=#{out}",
+    "bash",
+    "--noprofile",
+    "--norc",
+    "-eo",
+    "pipefail",
+    "-c",
+    replace(step["run"], blue_out, dir)
+  )
+  assert ran.status == 0
+  assert read_file(out) == unlines(["proven=true", "test-args=#{whole_suite}"])
+  rm_rf(dir)
 end
 
 test "every workflow is rendered by a generate row or held as hand debt, and paid debt leaves the list"

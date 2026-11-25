@@ -758,24 +758,14 @@ def row_value(expect)
 end
 
 @doc """
-walker_mark: The first pending or flaky mark of a spec row that holds on the walker, the reference evaluator: a mark that names no evaluator holds on every one. nil when the row has none, so main holds what the row states.
-
-    walker_mark({marks: [{mark: "pending", gap: "G16", on: "wasm"}, {mark: "pending", gap: "G17", on: nil}]})[:gap] #=> "G17"
-    walker_mark({marks: [{mark: "flaky", gap: "G24", on: "component"}]}) #=> nil
-"""
-def walker_mark(row)
-  find_first((m) -> m[:on].nil? or m[:on] == "walker", row[:marks] or [])
-end
-
-@doc """
-fact_failure: Why a stated result fails the spec rows, or nil when a row agrees: no row runs the expression, only a row pending or flaky on the walker runs it (its expectation is a destination main does not hold yet), or each row main holds expects another result.
+fact_failure: Why a stated result fails the spec rows, or nil when a row agrees: no row runs the expression, only a row that waits on a gap runs it (a pending or flaky mark that holds on the walker, so its expectation is a destination main does not hold yet), or each row main holds expects another result.
 
     fact_failure("a.md:3", "7 / 2", [:is, "3.5"], [{id: "d", src: "7 / 2", expect: "value(\"3.5\")"}]) #=> nil
-    fact_failure("a.md:1", "f(1)", [:is, "2"], [{id: "p", src: "f(1)", expect: "value(\"2\")", marks: [{mark: "pending", gap: "G17", on: nil}]}]) #=> "a.md:1: `f(1)` is 2 states the destination of spec row p, which is pending on gap G17 (spec/gaps/gaps.b): main does not hold it yet"
+    fact_failure("a.md:1", "f(1)", [:is, "2"], [{id: "p", src: "f(1)", expect: "value(\"2\")", waits_on: {mark: "pending", gap: "G17"}}]) #=> "a.md:1: `f(1)` is 2 states the destination of spec row p, which is pending on gap G17 (spec/gaps/gaps.b): main does not hold it yet"
 """
 def fact_failure(where, code, claim, rows)
   mine = filter((r) -> r[:src] == code, rows)
-  held = filter((r) -> walker_mark(r).nil?, mine)
+  held = filter((r) -> r[:waits_on].nil?, mine)
   raises = first(claim) == :raises
   stated = if raises
     "raises"
@@ -795,15 +785,15 @@ def fact_failure(where, code, claim, rows)
   if mine == []
     "#{where}: `#{code}` #{stated} states a runtime fact no spec row runs; add a row whose program is `#{code}` (spec/README.md)"
   elsif held == []
-    mark = walker_mark(first(mine))
-    "#{where}: `#{code}` #{stated} states the destination of spec row #{first(mine)[:id]}, which is #{mark[:mark]} on gap #{mark[:gap]} (spec/gaps/gaps.b): main does not hold it yet"
+    waits = first(mine)[:waits_on]
+    "#{where}: `#{code}` #{stated} states the destination of spec row #{first(mine)[:id]}, which is #{waits[:mark]} on gap #{waits[:gap]} (spec/gaps/gaps.b): main does not hold it yet"
   elsif not agrees
     "#{where}: `#{code}` #{stated}, but spec row #{first(held)[:id]} expects #{first(held)[:expect]}"
   end
 end
 
 @doc """
-fact_failures: Why each runtime fact the pages and reference lines state over the `known` builtins fails the spec rows, a row being {id:, src:, expect:, marks:}.
+fact_failures: Why each runtime fact the pages and reference lines state over the `known` builtins fails the spec rows, a row being {id:, src:, expect:, waits_on:}.
 
     fact_failures([["a.md", "`list?(nil)` is true"]], [], [{id: "l", src: "list?(nil)", expect: "value(\"false\")"}], ["list?"]) #=> ["a.md:1: `list?(nil)` is true, but spec row l expects value(\"false\")"]
 """
@@ -837,7 +827,7 @@ def blue_says(args)
 end
 
 @doc """
-spec_rows: Every conformance row, as {id:, src:, expect:, marks:}, from `blue doc --rows`, which reads spec/rows/ and each row's program as the conformance runner does; each mark is {mark:, gap:, on:}, a `pending` or `flaky` option and the evaluator it names, nil for every one.
+spec_rows: Every conformance row, as {id:, src:, expect:, waits_on:}, from `blue doc --rows`, which reads spec/rows/ and each row's program as the conformance runner does; `waits_on` is {mark:, gap:}, the `pending` or `flaky` mark that holds on the walker, or nil when main holds what the row states.
 
     length(spec_rows) > 400 #=> true
 """
@@ -850,15 +840,10 @@ def spec_rows()
           "`blue doc --rows` gives row #{r["id"]} no marks, and a row whose marks are unread would pass as one main holds"
         )
       end
-      {
-        id: r["id"],
-        src: r["src"],
-        expect: r["expect"],
-        marks: map(
-          (m) -> {mark: m["mark"], gap: m["gap"], on: m["on"]},
-          r["marks"]
-        )
-      }
+      waits = if r["waits_on"] != nil
+        {mark: r["waits_on"]["mark"], gap: r["waits_on"]["gap"]}
+      end
+      {id: r["id"], src: r["src"], expect: r["expect"], waits_on: waits}
     end,
     json_read(blue_says(%w[doc --rows]))
   )
@@ -944,14 +929,9 @@ test "a fact no row runs, a fact its row contradicts and a fact only a row pendi
       id: "lazy.take",
       src: "take(2, cycle([1, 2]))",
       expect: "value(\"[1, 2]\")",
-      marks: [{mark: "pending", gap: "G17", on: nil}]
+      waits_on: {mark: "pending", gap: "G17"}
     },
-    {
-      id: "numbers.abs",
-      src: "abs(-3)",
-      expect: "value(\"3\")",
-      marks: [{mark: "pending", gap: "G16", on: "wasm"}]
-    }
+    {id: "numbers.abs", src: "abs(-3)", expect: "value(\"3\")", waits_on: nil}
   ]
   page = join_lines(
     [

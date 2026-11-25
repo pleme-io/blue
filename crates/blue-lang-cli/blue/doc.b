@@ -65,23 +65,16 @@ def builtins()
 end
 
 @doc """
-held?: Whether main holds what a conformance row states: no `pending` or `flaky` mark of the row holds on the walker, the reference evaluator, and a mark that names no evaluator holds on every one.
+rows_for: Every conformance row that covers the builtin `name` and whose expectation main holds, as `blue doc --rows` gives it: a row that waits on a gap states a destination, so it is never an example.
 
-    held?(json_parse("{\"marks\": [{\"mark\": \"pending\", \"gap\": \"G16\", \"on\": \"wasm\"}]}")) #=> true
-    held?(json_parse("{\"marks\": [{\"mark\": \"pending\", \"gap\": \"G12\", \"on\": null}]}")) #=> false
+    length(rows_for("length")) > 0 #=> true
 """
-def held?(row)
-  not any?(
-    (m) -> json_get(m, :on).nil? or json_get(m, :on) == "walker",
-    json_get(row, :marks) or []
-  )
-end
-
-# [id, program, expectation] for every conformance row covering the builtin
-# whose expectation main holds.
 def rows_for(name)
   filter(
-    (r) -> member?("builtin:#{name}", json_get(r, :covers)) and held?(r),
+    fn(r)
+      member?("builtin:#{name}", json_get(r, :covers)) and
+        json_get(r, :waits_on).nil?
+    end,
     json_parse(captured(%w[doc --rows]))
   )
 end

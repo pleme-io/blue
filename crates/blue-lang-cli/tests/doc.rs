@@ -68,23 +68,32 @@ fn the_rows_door_reads_every_program_the_conformance_runner_reads() {
         "{deep}"
     );
     assert!(rows.len() > 1000, "only {} rows", rows.len());
-    let marks: Vec<&serde_json::Value> = rows
-        .iter()
-        .flat_map(|r| {
-            r["marks"]
-                .as_array()
-                .unwrap_or_else(|| panic!("row {} carries no marks: {r}", r["id"]))
-        })
-        .collect();
-    assert!(!marks.is_empty(), "no row carries a mark");
-    for m in marks {
-        assert!(
-            ["pending", "flaky"].contains(&m["mark"].as_str().unwrap_or_default())
-                && m["gap"].as_str().is_some_and(|g| g.starts_with('G'))
-                && (m["on"].is_null() || m["on"].is_string()),
-            "{m}"
+    let mut marked = 0;
+    for r in &rows {
+        let marks = r["marks"]
+            .as_array()
+            .unwrap_or_else(|| panic!("row {} carries no marks: {r}", r["id"]));
+        for m in marks {
+            assert!(
+                ["pending", "flaky"].contains(&m["mark"].as_str().unwrap_or_default())
+                    && m["gap"].as_str().is_some_and(|g| g.starts_with('G'))
+                    && (m["on"].is_null() || m["on"].is_string()),
+                "{m}"
+            );
+        }
+        marked += marks.len();
+        let on_walker = marks
+            .iter()
+            .find(|m| m["on"].is_null() || m["on"] == "walker")
+            .unwrap_or(&serde_json::Value::Null);
+        assert_eq!(
+            r.get("waits_on"),
+            Some(on_walker),
+            "row {}: waits_on is the first mark that holds on the walker",
+            r["id"]
         );
     }
+    assert!(marked > 0, "no row carries a mark");
 }
 
 #[test]
@@ -111,11 +120,7 @@ fn a_builtin_takes_its_example_only_from_a_row_main_holds() {
     let o = doc(&["--rows"]);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&o.stdout).expect("a JSON array");
-    let unheld = |r: &serde_json::Value| {
-        r["marks"]
-            .as_array()
-            .is_some_and(|ms| ms.iter().any(|m| m["on"].is_null() || m["on"] == "walker"))
-    };
+    let unheld = |r: &serde_json::Value| !r["waits_on"].is_null();
     let names: std::collections::BTreeSet<String> = rows
         .iter()
         .filter(|r| unheld(r))

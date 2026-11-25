@@ -7,11 +7,14 @@
 //! `BLUE_PATH`; what it documents is the distribution `BLUE_PATH` names.
 //!
 //! `blue doc --rows` prints the conformance rows compiled in by `build.rs`
-//! (`spec/rows/*.b`) as one JSON array of `{id, src, expect, covers, marks}`:
-//! a builtin's example is the row that specifies it, and `marks` holds each
-//! `pending` and `flaky` mark as `{mark, gap, on}`, `on` null when the mark
-//! holds on every evaluator. Rows are parsed, never evaluated, exactly as the
-//! conformance runner reads them.
+//! (`spec/rows/*.b`) as one JSON array of
+//! `{id, src, expect, covers, marks, waits_on}`: a builtin's example is the
+//! row that specifies it, `marks` holds each `pending` and `flaky` mark as
+//! `{mark, gap, on}`, `on` null when the mark holds on every evaluator, and
+//! `waits_on` is the first mark that holds on the walker, the reference
+//! evaluator: null when main holds what the row states, else the row states a
+//! destination its gap has not reached. Rows are parsed, never evaluated,
+//! exactly as the conformance runner reads them.
 
 use blue_lang_syntax::{Atom, Sexp};
 
@@ -27,9 +30,10 @@ struct RowJson {
     expect: String,
     covers: Vec<String>,
     marks: Vec<MarkJson>,
+    waits_on: Option<MarkJson>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize)]
 struct MarkJson {
     mark: String,
     gap: String,
@@ -95,6 +99,7 @@ pub fn rows_json() -> serde_json::Result<String> {
                 })
                 .flatten()
                 .collect();
+            let marks: Vec<MarkJson> = options.iter().filter_map(mark).collect();
             let row = RowJson {
                 id,
                 src,
@@ -102,7 +107,11 @@ pub fn rows_json() -> serde_json::Result<String> {
                     .trim_end()
                     .to_string(),
                 covers,
-                marks: options.iter().filter_map(mark).collect(),
+                waits_on: marks
+                    .iter()
+                    .find(|m| m.on.as_deref().is_none_or(|on| on == "walker"))
+                    .cloned(),
+                marks,
             };
             out.push(row);
         }

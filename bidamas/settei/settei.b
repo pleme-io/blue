@@ -14,6 +14,7 @@ use("kousei")
 use("kyohi", %i[enforce exit_status refusal])
 use("moji", %i[env_key pad_right])
 use("retsu", %i[first flat_map index_of rest size take_while])
+use("tesuto", [:needs_blue])
 
 legacy_names("0.1.1", [["coerce_as", "settei::scalar", ""]])
 
@@ -4077,40 +4078,39 @@ end
 test "a start the enforce posture stops warns its notices first, as an audited start does", {
   kind: :integration
 }
-  if self_exe != nil
-    prog = path_join(temp_dir("settei-enforce"), "start.b")
-    write_program(
-      prog,
-      unlines(
-        [
-          "use(\"settei\")",
-          "",
-          "def main()",
-          "  m = {old: settei::knob(1, {deprecated: \"use port\"}), port: settei::knob(80)}",
-          "  mode = if argv[0] == \"enforce\"",
-          "    :enforce",
-          "  else",
-          "    :audit",
-          "  end",
-          "  settei::settled(\"settei-enforce-probe\", m, {mode:})",
-          "  write_stdout(\"ran\")",
-          "end"
-        ]
-      )
+  needs_blue(self_exe)
+  prog = path_join(temp_dir("settei-enforce"), "start.b")
+  write_program(
+    prog,
+    unlines(
+      [
+        "use(\"settei\")",
+        "",
+        "def main()",
+        "  m = {old: settei::knob(1, {deprecated: \"use port\"}), port: settei::knob(80)}",
+        "  mode = if argv[0] == \"enforce\"",
+        "    :enforce",
+        "  else",
+        "    :audit",
+        "  end",
+        "  settei::settled(\"settei-enforce-probe\", m, {mode:})",
+        "  write_stdout(\"ran\")",
+        "end"
+      ]
     )
-    env = [%w[SETTEI_ENFORCE_PROBE_OLD 2], %w[SETTEI_ENFORCE_PROBE_PORT eighty]]
-    run = (mode) -> exec_with_env(env, self_exe, "run", "--quiet", prog, mode)
-    stop = run("enforce")
-    audit = run("audit")
-    notice = "settei-enforce-probe: old is deprecated: use port"
-    assert stop.status != 0
-    assert stop.stdout == ""
-    assert contains?(stop.stderr, notice)
-    assert contains?(stop.stderr, "got eighty from SETTEI_ENFORCE_PROBE_PORT")
-    assert audit.status == 0
-    assert audit.stdout == "ran"
-    assert contains?(audit.stderr, notice)
-  end
+  )
+  env = [%w[SETTEI_ENFORCE_PROBE_OLD 2], %w[SETTEI_ENFORCE_PROBE_PORT eighty]]
+  run = (mode) -> exec_with_env(env, self_exe, "run", "--quiet", prog, mode)
+  stop = run("enforce")
+  audit = run("audit")
+  notice = "settei-enforce-probe: old is deprecated: use port"
+  assert stop.status != 0
+  assert stop.stdout == ""
+  assert contains?(stop.stderr, notice)
+  assert contains?(stop.stderr, "got eighty from SETTEI_ENFORCE_PROBE_PORT")
+  assert audit.status == 0
+  assert audit.stdout == "ran"
+  assert contains?(audit.stderr, notice)
 end
 
 test "a plain record of defaults finds its config file's keys as text, as a model does"

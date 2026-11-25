@@ -171,6 +171,7 @@ replacement (`docs/COMPOUNDING.md`).
 | `koubou/zumen` | `opt_lines` | `shuugou::as_set` | 0.1.2 |
 | `okite` | `law_relative_path_is_the_same_definition` | `okite::law_one_use_reaches_every_level_below` | 0.1.1 |
 | `okite` | `law_listed_and_second_names` | `okite::law_listed_name_is_bare` | 0.1.1 |
+| `settei` | `coerce_as` | `settei::scalar` | 0.1.1 |
 
 ## The ledger
 

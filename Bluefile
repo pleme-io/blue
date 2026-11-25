@@ -111,6 +111,7 @@ receipt("docs", %i[nist_sa_5 nist_sa_11])
 # (docs/DIAGNOSTICS.md, "Project rules"). The check runs the rules' tests.
 rule("R0001", "rules/conventions.b", "nil_predicate")
 rule("R0002", "rules/conventions.b", "index_nil")
+rule("R0003", "rules/conventions.b", "silent_skip")
 check("project-rules", "rules/conventions.b", {stage: :push})
 check("kernel-run", "kernel/run.b", {stage: :ci})
 check("kernel-new", "gen/kernel-new.b", {stage: :ci})

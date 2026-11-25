@@ -15,6 +15,7 @@ use(
 
 use("kyohi", [:why])
 use("retsu", [:flat_map])
+use("tesuto", [:needs_blue])
 
 def project_root()
   getenv("GEN_ROOT", ".")
@@ -50,18 +51,17 @@ test "every hon block of every page names a fact hon renders, and every include 
 end
 
 test "every block of every tutorial and how-to runs as the page shows it"
-  if self_exe != nil
-    runnable = filter(runnable_page?, project_at(project_root)[:pages])
-    found = flat_map(
-      runnable,
-      (p) -> run_blocks(self_exe, temp_dir("docs-blocks"), p)
-    )
-    if found != []
-      write_stderr(unlines(found))
-    end
-    assert length(runnable) >= 19
-    assert found == []
+  needs_blue(self_exe)
+  runnable = filter(runnable_page?, project_at(project_root)[:pages])
+  found = flat_map(
+    runnable,
+    (p) -> run_blocks(self_exe, temp_dir("docs-blocks"), p)
+  )
+  if found != []
+    write_stderr(unlines(found))
   end
+  assert length(runnable) >= 19
+  assert found == []
 end
 
 test "no page and no generated file links where a reader cannot follow"

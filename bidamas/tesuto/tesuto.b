@@ -38,6 +38,20 @@ def skip_for(why)
   end
 end
 
+@doc """
+needs_blue: end this test as skipped when `exe`, the running blue's path (`self_exe`), is nil: an embedded host, as cargo's harness is, has no blue CLI to spawn. A test that spawns blue begins with `needs_blue(self_exe)`, never `if self_exe != nil`, which passes with no assertion.
+
+    needs_blue("/bin/blue") #=> nil
+    (needs_blue(nil) rescue :skipped) #=> :skipped
+"""
+def needs_blue(exe)
+  skip_for(
+    if exe.nil?
+      "an embedded host has no blue CLI to spawn"
+    end
+  )
+end
+
 def snapshot_path(opts)
   name = opts[:name]
   if not string?(name) or name == "" or contains?(name, "/")
@@ -708,6 +722,17 @@ def coverage_report(r, baseline, home)
     ]
   end
   join(append(lines, hint), line_break)
+end
+
+test "needs_blue skips only a test no blue CLI runs, and says why"
+  assert needs_blue("/bin/blue").nil?
+  assert raises?(:test_skipped, () -> needs_blue(nil))
+  why = begin
+    needs_blue(nil)
+  rescue e
+    e.message
+  end
+  assert why == "an embedded host has no blue CLI to spawn"
 end
 
 test "raises? is true for the kind raised and false for no error"

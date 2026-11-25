@@ -154,7 +154,10 @@ which formats it (B0064).
 
 A test that cannot run here says why with `tesuto::skip_for(why)`. `blue test`
 prints `SKIP name: why` and counts it apart from a pass; `BLUE_TEST_SKIP=refuse`
-makes each skip a failure, for a host where every test must run.
+makes each skip a failure, for a host where every test must run. A test that
+spawns blue opens with `tesuto::needs_blue(self_exe)`: an embedded host has no
+blue CLI, and the guard `if self_exe != nil … end` passed there with no
+assertion (blue's project rule R0003 rewrites it).
 
 ### One way to write each thing
 

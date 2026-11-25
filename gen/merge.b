@@ -2,6 +2,7 @@ use("hon", [:generated_files])
 use("mokuroku", [:tsv_lines])
 use("retsu", %i[first last])
 use("shisutemu", %i[status_of stderr_of stdout_of])
+use("tesuto", [:needs_blue])
 
 @doc """
 picked: The commit a line of a rebase's `done` file picks, or nil for a line
@@ -328,76 +329,71 @@ def two_branches(attributed)
 end
 
 test "the same two branches conflict on the generated file without the driver"
-  if self_exe != nil
-    dir = two_branches(false)
-    must(dir, %w[checkout -q one])
-    assert status_of(in_repo(dir, %w[merge -q --no-edit two])) != 0
-    assert contains?(read_file(path_join(dir, "made.txt")), "<<<<<<<")
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = two_branches(false)
+  must(dir, %w[checkout -q one])
+  assert status_of(in_repo(dir, %w[merge -q --no-edit two])) != 0
+  assert contains?(read_file(path_join(dir, "made.txt")), "<<<<<<<")
+  rm_rf(dir)
 end
 
 test "a merge regenerates the generated file from the merged tree"
-  if self_exe != nil
-    dir = two_branches(true)
-    must(dir, %w[checkout -q one])
-    merged = in_repo(dir, %w[merge -q --no-edit two])
-    assert status_of(merged) == 0
-    assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = two_branches(true)
+  must(dir, %w[checkout -q one])
+  merged = in_repo(dir, %w[merge -q --no-edit two])
+  assert status_of(merged) == 0
+  assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
+  rm_rf(dir)
 end
 
 test "a rebase regenerates the generated file at the commit it replays"
-  if self_exe != nil
-    dir = two_branches(true)
-    must(dir, %w[checkout -q two])
-    rebased = in_repo(dir, %w[rebase -q one])
-    assert status_of(rebased) == 0
-    assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = two_branches(true)
+  must(dir, %w[checkout -q two])
+  rebased = in_repo(dir, %w[rebase -q one])
+  assert status_of(rebased) == 0
+  assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
+  rm_rf(dir)
 end
 
 test "a cherry-pick regenerates the generated file from its label's commit"
-  if self_exe != nil
-    dir = two_branches(true)
-    must(dir, %w[checkout -q one])
-    picked_up = in_repo(dir, %w[cherry-pick two])
-    assert status_of(picked_up) == 0
-    assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = two_branches(true)
+  must(dir, %w[checkout -q one])
+  picked_up = in_repo(dir, %w[cherry-pick two])
+  assert status_of(picked_up) == 0
+  assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
+  rm_rf(dir)
 end
 
 test "BLUE_MERGE_PICK=off and a driver with no label both merge a cherry-pick as text and say so"
-  if self_exe != nil
-    dir = two_branches(true)
-    must(
-      dir,
-      [
-        "config",
-        "merge.blue-generated.driver",
-        "env BLUE_MERGE_PICK=off #{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P %Y"
-      ]
-    )
-    must(dir, %w[checkout -q one])
-    picked_again = in_repo(dir, %w[cherry-pick two])
-    assert status_of(picked_again) != 0
-    assert contains?(stderr_of(picked_again), "merged as text")
-    must(dir, %w[cherry-pick --abort])
-    must(
-      dir,
-      [
-        "config",
-        "merge.blue-generated.driver",
-        "#{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P"
-      ]
-    )
-    picked_last = in_repo(dir, %w[cherry-pick two])
-    assert status_of(picked_last) != 0
-    assert contains?(stderr_of(picked_last), "merged as text")
-    assert contains?(read_file(path_join(dir, "made.txt")), "<<<<<<<")
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = two_branches(true)
+  must(
+    dir,
+    [
+      "config",
+      "merge.blue-generated.driver",
+      "env BLUE_MERGE_PICK=off #{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P %Y"
+    ]
+  )
+  must(dir, %w[checkout -q one])
+  picked_again = in_repo(dir, %w[cherry-pick two])
+  assert status_of(picked_again) != 0
+  assert contains?(stderr_of(picked_again), "merged as text")
+  must(dir, %w[cherry-pick --abort])
+  must(
+    dir,
+    [
+      "config",
+      "merge.blue-generated.driver",
+      "#{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P"
+    ]
+  )
+  picked_last = in_repo(dir, %w[cherry-pick two])
+  assert status_of(picked_last) != 0
+  assert contains?(stderr_of(picked_last), "merged as text")
+  assert contains?(read_file(path_join(dir, "made.txt")), "<<<<<<<")
+  rm_rf(dir)
 end

@@ -1,6 +1,5 @@
 use("gitto", [:changed_generated])
 use("jisho", %i[from_entries merge])
-
 use("moji", %i[glob_match? take_chars])
 
 use("retsu", %i[all_but_last enumerate first flat_map last reject rest])
@@ -9,6 +8,8 @@ use(
   "shisutemu",
   %i[blue_exe duration_text show_step status_of stderr_of stdout_of]
 )
+
+use("tesuto", [:needs_blue])
 
 @doc """
 gate_table: Every gate the pre-push hook knows, as data. A gate has an id, a
@@ -1832,36 +1833,35 @@ def source_fixture_tree()
 end
 
 test "the locks gate judges a source fixture's package with the roots its project sources, green when fresh and red when its lock is stale"
-  if self_exe != nil
-    tree = source_fixture_tree
-    bin = dir_of(self_exe)
-    dirs = %w[nix/source-fixture nix/source-fixture/bidamas/kakeru]
-    kakeru = path_join(tree, "nix/source-fixture/bidamas/kakeru")
-    unrooted = exec_with_env(
-      [["BLUE_PATH", ""]],
-      "#{bin}/blue",
-      "bluefile",
-      "--confirm",
-      path_join(kakeru, "Bluefile")
+  needs_blue(self_exe)
+  tree = source_fixture_tree
+  bin = dir_of(self_exe)
+  dirs = %w[nix/source-fixture nix/source-fixture/bidamas/kakeru]
+  kakeru = path_join(tree, "nix/source-fixture/bidamas/kakeru")
+  unrooted = exec_with_env(
+    [["BLUE_PATH", ""]],
+    "#{bin}/blue",
+    "bluefile",
+    "--confirm",
+    path_join(kakeru, "Bluefile")
+  )
+  assert first(verdict(unrooted)) == :red
+  assert confirm_locks(bin, tree, dirs, dirs) == [:green, ""]
+  write_program(
+    path_join(kakeru, "kakeru.b"),
+    unlines(
+      [
+        "use(\"fixture\", [:double])",
+        "",
+        "def quadruple(n)",
+        "  double(double(n))",
+        "end"
+      ]
     )
-    assert first(verdict(unrooted)) == :red
-    assert confirm_locks(bin, tree, dirs, dirs) == [:green, ""]
-    write_program(
-      path_join(kakeru, "kakeru.b"),
-      unlines(
-        [
-          "use(\"fixture\", [:double])",
-          "",
-          "def quadruple(n)",
-          "  double(double(n))",
-          "end"
-        ]
-      )
-    )
-    stale = confirm_locks(bin, tree, dirs, dirs)
-    assert first(stale) == :red
-    assert contains?(last(stale), "kakeru")
-    assert contains?(last(stale), "stale")
-    assert contains?(last(stale), "needs")
-  end
+  )
+  stale = confirm_locks(bin, tree, dirs, dirs)
+  assert first(stale) == :red
+  assert contains?(last(stale), "kakeru")
+  assert contains?(last(stale), "stale")
+  assert contains?(last(stale), "needs")
 end

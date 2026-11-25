@@ -15,6 +15,7 @@ vector_endpoint or VECTOR_ENDPOINT), on unless observe sets logs: :off.
 use("jisho", [:merge])
 use("retsu", %i[first is_empty size])
 use("shisutemu", %i[status_of stderr_of stdout_of])
+use("tesuto", [:needs_blue])
 
 def levels()
   %i[debug info warn error]
@@ -335,45 +336,28 @@ test "a line at an unknown level is refused before anything is written"
 end
 
 test "stderr gets one JSON line per call and stdout gets nothing"
-  if self_exe != nil
-    cap = probe(
-      [%w[BLUE_LOG debug]],
-      "mitoshi::rogu::info(\"pinned\", {rev: \"abc\", n: 2})"
-    )
-    assert status_of(cap) == 0
-    assert stdout_of(cap) == ""
-    rows = written(cap)
-    assert size(rows) == 1
-    row = first(rows)
-    assert row["level"] == "info"
-    assert row["message"] == "pinned"
-    assert row["rev"] == "abc"
-    assert row["n"] == 2
-    assert is_empty(row["at"]) == false
-  end
+  needs_blue(self_exe)
+  cap = probe(
+    [%w[BLUE_LOG debug]],
+    "mitoshi::rogu::info(\"pinned\", {rev: \"abc\", n: 2})"
+  )
+  assert status_of(cap) == 0
+  assert stdout_of(cap) == ""
+  rows = written(cap)
+  assert size(rows) == 1
+  row = first(rows)
+  assert row["level"] == "info"
+  assert row["message"] == "pinned"
+  assert row["rev"] == "abc"
+  assert row["n"] == 2
+  assert is_empty(row["at"]) == false
 end
 
 test "each verb writes its own level when everything is on"
-  if self_exe != nil
-    cap = probe(
-      [%w[BLUE_LOG debug]],
-      join_lines(
-        [
-          "mitoshi::rogu::debug(\"a\", {})",
-          "mitoshi::rogu::info(\"b\", {})",
-          "mitoshi::rogu::warn(\"c\", {})",
-          "mitoshi::rogu::error(\"d\", {})"
-        ]
-      )
-    )
-    assert map((r) -> r["level"], written(cap)) == %w[debug info warn error]
-    assert map((r) -> r["message"], written(cap)) == %w[a b c d]
-  end
-end
-
-test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
-  if self_exe != nil
-    body = join_lines(
+  needs_blue(self_exe)
+  cap = probe(
+    [%w[BLUE_LOG debug]],
+    join_lines(
       [
         "mitoshi::rogu::debug(\"a\", {})",
         "mitoshi::rogu::info(\"b\", {})",
@@ -381,62 +365,72 @@ test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
         "mitoshi::rogu::error(\"d\", {})"
       ]
     )
-    warn_run = probe([%w[BLUE_LOG warn]], body)
-    assert map((r) -> r["level"], written(warn_run)) == %w[warn error]
-    error_run = probe([%w[BLUE_LOG error]], body)
-    assert map((r) -> r["level"], written(error_run)) == ["error"]
-  end
+  )
+  assert map((r) -> r["level"], written(cap)) == %w[debug info warn error]
+  assert map((r) -> r["message"], written(cap)) == %w[a b c d]
+end
+
+test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
+  needs_blue(self_exe)
+  body = join_lines(
+    [
+      "mitoshi::rogu::debug(\"a\", {})",
+      "mitoshi::rogu::info(\"b\", {})",
+      "mitoshi::rogu::warn(\"c\", {})",
+      "mitoshi::rogu::error(\"d\", {})"
+    ]
+  )
+  warn_run = probe([%w[BLUE_LOG warn]], body)
+  assert map((r) -> r["level"], written(warn_run)) == %w[warn error]
+  error_run = probe([%w[BLUE_LOG error]], body)
+  assert map((r) -> r["level"], written(error_run)) == ["error"]
 end
 
 test "with BLUE_LOG unset or empty the default is info"
-  if self_exe != nil
-    body = join_lines(
-      ["mitoshi::rogu::debug(\"a\", {})", "mitoshi::rogu::info(\"b\", {})"]
-    )
-    cap = probe([["BLUE_LOG", ""]], body)
-    assert map((r) -> r["message"], written(cap)) == ["b"]
-  end
+  needs_blue(self_exe)
+  body = join_lines(
+    ["mitoshi::rogu::debug(\"a\", {})", "mitoshi::rogu::info(\"b\", {})"]
+  )
+  cap = probe([["BLUE_LOG", ""]], body)
+  assert map((r) -> r["message"], written(cap)) == ["b"]
 end
 
 test "a call under a bad BLUE_LOG fails loudly and writes no line"
-  if self_exe != nil
-    cap = probe([%w[BLUE_LOG verbose]], "mitoshi::rogu::info(\"x\", {})")
-    assert status_of(cap) != 0
-    assert contains?(stderr_of(cap), "BLUE_LOG is verbose") == true
-    assert contains?(stderr_of(cap), "\"level\"") == false
-  end
+  needs_blue(self_exe)
+  cap = probe([%w[BLUE_LOG verbose]], "mitoshi::rogu::info(\"x\", {})")
+  assert status_of(cap) != 0
+  assert contains?(stderr_of(cap), "BLUE_LOG is verbose") == true
+  assert contains?(stderr_of(cap), "\"level\"") == false
 end
 
 test "enabled? in a child follows BLUE_LOG"
-  if self_exe != nil
-    body = "write_stdout(to_s([mitoshi::rogu::enabled?(:debug), mitoshi::rogu::enabled?(:info), mitoshi::rogu::enabled?(:warn), mitoshi::rogu::enabled?(:error)]))"
-    assert stdout_of(probe([%w[BLUE_LOG debug]], body)) ==
-      "[true, true, true, true]"
-    assert stdout_of(probe([%w[BLUE_LOG warn]], body)) ==
-      "[false, false, true, true]"
-    assert stdout_of(probe([["BLUE_LOG", ""]], body)) ==
-      "[false, true, true, true]"
-  end
+  needs_blue(self_exe)
+  body = "write_stdout(to_s([mitoshi::rogu::enabled?(:debug), mitoshi::rogu::enabled?(:info), mitoshi::rogu::enabled?(:warn), mitoshi::rogu::enabled?(:error)]))"
+  assert stdout_of(probe([%w[BLUE_LOG debug]], body)) ==
+    "[true, true, true, true]"
+  assert stdout_of(probe([%w[BLUE_LOG warn]], body)) ==
+    "[false, false, true, true]"
+  assert stdout_of(probe([["BLUE_LOG", ""]], body)) ==
+    "[false, true, true, true]"
 end
 
 test "with carries base fields on every line, and a call's own fields win"
-  if self_exe != nil
-    body = join_lines(
-      [
-        "l = mitoshi::rogu::with({svc: \"api\", n: 1})",
-        "get(l, :info)(\"up\", {n: 2, extra: true})",
-        "get(l, :debug)(\"hidden\", {})",
-        "get(l, :error)(\"down\", nil)"
-      ]
-    )
-    rows = written(probe([%w[BLUE_LOG info]], body))
-    assert map((r) -> r["message"], rows) == %w[up down]
-    assert first(rows)["svc"] == "api"
-    assert first(rows)["n"] == 2
-    assert first(rows)["extra"] == true
-    assert rows[1]["svc"] == "api"
-    assert rows[1]["n"] == 1
-  end
+  needs_blue(self_exe)
+  body = join_lines(
+    [
+      "l = mitoshi::rogu::with({svc: \"api\", n: 1})",
+      "get(l, :info)(\"up\", {n: 2, extra: true})",
+      "get(l, :debug)(\"hidden\", {})",
+      "get(l, :error)(\"down\", nil)"
+    ]
+  )
+  rows = written(probe([%w[BLUE_LOG info]], body))
+  assert map((r) -> r["message"], rows) == %w[up down]
+  assert first(rows)["svc"] == "api"
+  assert first(rows)["n"] == 2
+  assert first(rows)["extra"] == true
+  assert rows[1]["svc"] == "api"
+  assert rows[1]["n"] == 1
 end
 
 test "with carries fields in-process too: the logger's enabled follows the level"

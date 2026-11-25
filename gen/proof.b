@@ -1,6 +1,7 @@
 use("gitto", %i[as_tester ask])
 use("retsu", [:first])
 use("shisutemu", %i[status_of stderr_of stdout_of])
+use("tesuto", [:needs_blue])
 
 @doc """
 notes_ref: The git notes ref a suite proof lives under, one note per commit.
@@ -281,38 +282,37 @@ def verify_in(work)
 end
 
 test "--verify reads the note origin holds for the commit, and a commit with none is not proven"
-  if self_exe != nil
-    root = path_join(temp_dir("proof"), "proof")
-    work = path_join(root, "work")
-    mkdir_p(work)
-    write_file(path_join(work, "flake.lock"), "{}")
-    write_file(path_join(work, "Cargo.lock"), "")
-    as_tester(root, %w[init -q --bare -b main origin.git])
-    as_tester(work, %w[init -q -b main])
-    as_tester(work, %w[add -A])
-    as_tester(work, %w[commit -q -m base])
-    as_tester(work, ["remote", "add", "origin", path_join(root, "origin.git")])
-    as_tester(work, %w[push -q origin main])
-    unproven = verify_in(work)
-    assert stdout_of(unproven) == "false"
-    assert contains?(stderr_of(unproven), "no refs/notes/blue-suite")
-    note = json_stringify(
-      note_for(
-        as_tester(work, %w[rev-parse HEAD^{tree}]),
-        as_tester(work, %w[rev-parse HEAD:flake.lock]),
-        as_tester(work, %w[rev-parse HEAD:Cargo.lock]),
-        1,
-        "r",
-        "a"
-      )
+  needs_blue(self_exe)
+  root = path_join(temp_dir("proof"), "proof")
+  work = path_join(root, "work")
+  mkdir_p(work)
+  write_file(path_join(work, "flake.lock"), "{}")
+  write_file(path_join(work, "Cargo.lock"), "")
+  as_tester(root, %w[init -q --bare -b main origin.git])
+  as_tester(work, %w[init -q -b main])
+  as_tester(work, %w[add -A])
+  as_tester(work, %w[commit -q -m base])
+  as_tester(work, ["remote", "add", "origin", path_join(root, "origin.git")])
+  as_tester(work, %w[push -q origin main])
+  unproven = verify_in(work)
+  assert stdout_of(unproven) == "false"
+  assert contains?(stderr_of(unproven), "no refs/notes/blue-suite")
+  note = json_stringify(
+    note_for(
+      as_tester(work, %w[rev-parse HEAD^{tree}]),
+      as_tester(work, %w[rev-parse HEAD:flake.lock]),
+      as_tester(work, %w[rev-parse HEAD:Cargo.lock]),
+      1,
+      "r",
+      "a"
     )
-    as_tester(work, ["notes", "--ref=blue-suite", "add", "-m", note, "HEAD"])
-    as_tester(work, %w[push -q origin refs/notes/blue-suite])
-    as_tester(work, %w[update-ref -d refs/notes/blue-suite])
-    assert stdout_of(verify_in(work)) == "true"
-    write_file(path_join(work, "Cargo.lock"), "changed")
-    as_tester(work, %w[commit -q -am moved])
-    assert stdout_of(verify_in(work)) == "false"
-    rm_rf(root)
-  end
+  )
+  as_tester(work, ["notes", "--ref=blue-suite", "add", "-m", note, "HEAD"])
+  as_tester(work, %w[push -q origin refs/notes/blue-suite])
+  as_tester(work, %w[update-ref -d refs/notes/blue-suite])
+  assert stdout_of(verify_in(work)) == "true"
+  write_file(path_join(work, "Cargo.lock"), "changed")
+  as_tester(work, %w[commit -q -am moved])
+  assert stdout_of(verify_in(work)) == "false"
+  rm_rf(root)
 end

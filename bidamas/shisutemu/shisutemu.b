@@ -53,6 +53,7 @@ use("kyohi", [:raised])
 use("moji", %i[checked is_alpha is_blank lines take_chars])
 use("retsu", %i[first is_empty last rest size])
 use("settei")
+use("tesuto", [:needs_blue])
 
 # ── process captures ───────────────────────────────────────────────
 
@@ -590,35 +591,34 @@ test "blue_exe is the running blue, and BLUE_SPAWN_FROM_PATH=1 makes it PATH's"
   if not settei::read("blue_spawn", spawn_defaults)["from_path"]
     assert blue_exe == blue_from(false, self_exe)
   end
-  if self_exe != nil
-    dir = path_join(temp_dir("shisutemu"), "shisutemu")
-    mkdir_p(dir)
-    prog = path_join(dir, "probe.b")
-    write_program(
-      prog,
-      unlines(["use(\"shisutemu\")", "write_stdout(shisutemu::blue_exe)"])
-    )
-    own = exec_with_env([], self_exe, "run", "--quiet", prog)
-    path = exec_with_env(
-      [%w[BLUE_SPAWN_FROM_PATH 1]],
-      self_exe,
-      "run",
-      "--quiet",
-      prog
-    )
-    bad = exec_with_env(
-      [%w[BLUE_SPAWN_FROM_PATH maybe]],
-      self_exe,
-      "run",
-      "--quiet",
-      prog
-    )
-    rm_rf(dir)
-    assert stdout_of(own) == self_exe
-    assert stdout_of(path) == "blue"
-    assert status_of(bad) != 0
-    assert contains?(stderr_of(bad), "BLUE_SPAWN_FROM_PATH")
-  end
+  needs_blue(self_exe)
+  dir = path_join(temp_dir("shisutemu"), "shisutemu")
+  mkdir_p(dir)
+  prog = path_join(dir, "probe.b")
+  write_program(
+    prog,
+    unlines(["use(\"shisutemu\")", "write_stdout(shisutemu::blue_exe)"])
+  )
+  own = exec_with_env([], self_exe, "run", "--quiet", prog)
+  path = exec_with_env(
+    [%w[BLUE_SPAWN_FROM_PATH 1]],
+    self_exe,
+    "run",
+    "--quiet",
+    prog
+  )
+  bad = exec_with_env(
+    [%w[BLUE_SPAWN_FROM_PATH maybe]],
+    self_exe,
+    "run",
+    "--quiet",
+    prog
+  )
+  rm_rf(dir)
+  assert stdout_of(own) == self_exe
+  assert stdout_of(path) == "blue"
+  assert status_of(bad) != 0
+  assert contains?(stderr_of(bad), "BLUE_SPAWN_FROM_PATH")
 end
 
 test "capture accessors read the process alist"
@@ -776,26 +776,25 @@ test "show refuses an unknown option, and a theme belongs to gamen"
 end
 
 test "show writes stdout by default and stderr on request, each to its own stream"
-  if self_exe != nil
-    dir = path_join(temp_dir("shisutemu"), "shisutemu")
-    mkdir_p(dir)
-    prog = path_join(dir, "probe.b")
-    write_program(
-      prog,
-      unlines(
-        [
-          "use(\"shisutemu\")",
-          "shisutemu::show(\"out\", {color: false})",
-          "shisutemu::show(\"err\", {to: :stderr, newline: false})"
-        ]
-      )
+  needs_blue(self_exe)
+  dir = path_join(temp_dir("shisutemu"), "shisutemu")
+  mkdir_p(dir)
+  prog = path_join(dir, "probe.b")
+  write_program(
+    prog,
+    unlines(
+      [
+        "use(\"shisutemu\")",
+        "shisutemu::show(\"out\", {color: false})",
+        "shisutemu::show(\"err\", {to: :stderr, newline: false})"
+      ]
     )
-    cap = exec_with_env([], self_exe, "run", "--quiet", prog)
-    rm_rf(dir)
-    assert status_of(cap) == 0
-    assert stdout_of(cap) == unlines(["out"])
-    assert stderr_of(cap) == "err"
-  end
+  )
+  cap = exec_with_env([], self_exe, "run", "--quiet", prog)
+  rm_rf(dir)
+  assert status_of(cap) == 0
+  assert stdout_of(cap) == unlines(["out"])
+  assert stderr_of(cap) == "err"
 end
 
 test "duration_text: tenths under a minute, minutes and padded seconds above"

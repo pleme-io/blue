@@ -21,7 +21,7 @@ use("kyohi", [:refusal])
 use("moji", [:checked])
 use("ran")
 use("retsu", %i[find_first first is_empty push size])
-use("tesuto", [:raises?])
+use("tesuto", %i[needs_blue raises?])
 use("toriyose/danpen")
 
 @doc """
@@ -1783,13 +1783,12 @@ test "an SSR page with nested fragments renders from one request"
 end
 
 test "the SSR request crosses a real socket to a separate server"
-  if self_exe != nil
-    dir = hanabi_double(json_stringify(response))
-    port = waited(path_join(dir, "port"), 400)
-    out = ssr("http://127.0.0.1:#{port}/graphql", {})
-    assert first(out) == page_html
-    assert persisted?(json_read(waited(path_join(dir, "seen.json"), 400)))
-    assert waited(path_join(dir, "more"), 400) == "false"
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = hanabi_double(json_stringify(response))
+  port = waited(path_join(dir, "port"), 400)
+  out = ssr("http://127.0.0.1:#{port}/graphql", {})
+  assert first(out) == page_html
+  assert persisted?(json_read(waited(path_join(dir, "seen.json"), 400)))
+  assert waited(path_join(dir, "more"), 400) == "false"
+  rm_rf(dir)
 end

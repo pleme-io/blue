@@ -48,6 +48,7 @@ use("retsu", %i[count_where enumerate is_empty last])
 use("settei")
 
 use("shisutemu", %i[read_or status_of])
+use("tesuto", [:needs_blue])
 
 legacy_names("0.1.1", "hn")
 
@@ -570,9 +571,8 @@ end
 # Embedded in another host (cargo's harness), self_exe() is nil and the test
 # above covers the refusal instead: spawning the host would re-run it.
 test "a run end to end: a caught mutation, a survivor, a refusal"
-  if self_exe != nil
-    end_to_end
-  end
+  needs_blue(self_exe)
+  end_to_end
 end
 
 def end_to_end()

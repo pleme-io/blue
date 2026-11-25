@@ -63,6 +63,7 @@ use(
 )
 
 use("shisutemu", %i[status_of stderr_of stdout_of])
+use("tesuto", [:needs_blue])
 
 @doc """
 page_kinds: The four Diátaxis kinds, in the order a book shows them.
@@ -2458,58 +2459,57 @@ test "the book numbers its chapters, links its contents and its code names"
 end
 
 test "every block of a page runs, and a wrong output or a failing command is named"
-  if self_exe != nil
-    good = page_of(
-      "docs/t.md",
-      join_lines(
-        [
-          "---",
-          "kind: tutorial",
-          "---",
-          "```blue file=hello.b",
-          "write_stdout(unlines([\"hi\"]))",
-          "```",
-          "```console",
-          "$ mkdir sub",
-          "$ cd sub",
-          "$ blue ../hello.b",
-          "hi",
-          "```",
-          "```blue",
-          "test \"one\"",
-          "  assert 1 + 1 == 2",
-          "end",
-          "```",
-          "```console fails",
-          "$ blue missing.b",
-          "missing.b",
-          "```",
-          "```console host",
-          "$ nix profile install github:pleme-io/blue",
-          "```"
-        ]
-      )
+  needs_blue(self_exe)
+  good = page_of(
+    "docs/t.md",
+    join_lines(
+      [
+        "---",
+        "kind: tutorial",
+        "---",
+        "```blue file=hello.b",
+        "write_stdout(unlines([\"hi\"]))",
+        "```",
+        "```console",
+        "$ mkdir sub",
+        "$ cd sub",
+        "$ blue ../hello.b",
+        "hi",
+        "```",
+        "```blue",
+        "test \"one\"",
+        "  assert 1 + 1 == 2",
+        "end",
+        "```",
+        "```console fails",
+        "$ blue missing.b",
+        "missing.b",
+        "```",
+        "```console host",
+        "$ nix profile install github:pleme-io/blue",
+        "```"
+      ]
     )
-    assert run_blocks(self_exe, temp_dir("hon-good"), good) == []
-    bad = page_of(
-      "docs/b.md",
-      join_lines(
-        [
-          "```console",
-          "$ blue eval 1",
-          "2",
-          "```",
-          "```blue",
-          "raise(:no, \"no\")",
-          "```"
-        ]
-      )
+  )
+  assert run_blocks(self_exe, temp_dir("hon-good"), good) == []
+  bad = page_of(
+    "docs/b.md",
+    join_lines(
+      [
+        "```console",
+        "$ blue eval 1",
+        "2",
+        "```",
+        "```blue",
+        "raise(:no, \"no\")",
+        "```"
+      ]
     )
-    found = run_blocks(self_exe, temp_dir("hon-bad"), bad)
-    assert length(found) == 2
-    assert contains?(first(found), "docs/b.md: `blue eval 1` printed [\"1\"]")
-    assert contains?(last(found), "blue block 1 failed")
-  end
+  )
+  found = run_blocks(self_exe, temp_dir("hon-bad"), bad)
+  assert length(found) == 2
+  assert contains?(first(found), "docs/b.md: `blue eval 1` printed [\"1\"]")
+  assert contains?(last(found), "blue block 1 failed")
 end
 
 test "a code span that calls a known name links to it, and a package name links to its catalogue entry"

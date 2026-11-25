@@ -12,7 +12,8 @@
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
       "settei": "^0.1.0",
-      "shisutemu": "^0.1.0"
+      "shisutemu": "^0.1.0",
+      "tesuto": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

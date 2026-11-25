@@ -4,6 +4,7 @@ use("kazu", [:min])
 use("moji", %i[after_first before_first take_chars])
 use("retsu", %i[find_first first reject])
 use("shisutemu", %i[status_of stderr_of stdout_of])
+use("tesuto", [:needs_blue])
 
 @doc """
 land_ref: The branch a landing pushes to. CI runs the suite the scope selects on
@@ -3974,127 +3975,116 @@ def landed(root, name)
 end
 
 test "a land behind main whose one conflict is a generated file rebases, regenerates and pushes"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(
-      work,
-      [%w[notes/bee bee], ["made.txt", unlines(%w[base bee])]],
-      "topic"
-    )
-    main_moves(root, [%w[notes/ant ant], ["made.txt", unlines(%w[base ant])]])
-    r = land_in(root, [])
-    assert status_of(r) == 0
-    as_tester(work, %w[fetch -q origin])
-    assert landed(root, "made.txt") == join(%w[base ant bee], line_break)
-    assert as_tester(
-      work,
-      %w[log -1 --format=%s refs/remotes/origin/land/topic]
-    ) == "topic"
-    as_tester(work, %w[merge-base --is-ancestor origin/main origin/land/topic])
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(
+    work,
+    [%w[notes/bee bee], ["made.txt", unlines(%w[base bee])]],
+    "topic"
+  )
+  main_moves(root, [%w[notes/ant ant], ["made.txt", unlines(%w[base ant])]])
+  r = land_in(root, [])
+  assert status_of(r) == 0
+  as_tester(work, %w[fetch -q origin])
+  assert landed(root, "made.txt") == join(%w[base ant bee], line_break)
+  assert as_tester(
+    work,
+    %w[log -1 --format=%s refs/remotes/origin/land/topic]
+  ) == "topic"
+  as_tester(work, %w[merge-base --is-ancestor origin/main origin/land/topic])
+  rm_rf(root)
 end
 
 test "a rebase that merges clean but leaves a generated file stale commits the regeneration"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    main_moves(root, [%w[notes/ant ant]])
-    r = land_in(root, [])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "regenerated and committed")
-    as_tester(work, %w[fetch -q origin])
-    assert landed(root, "made.txt") == join(%w[base ant], line_break)
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  main_moves(root, [%w[notes/ant ant]])
+  r = land_in(root, [])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "regenerated and committed")
+  as_tester(work, %w[fetch -q origin])
+  assert landed(root, "made.txt") == join(%w[base ant], line_break)
+  rm_rf(root)
 end
 
 test "--no-regen leaves that stale file as the rebase left it"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    main_moves(root, [%w[notes/ant ant]])
-    assert status_of(land_in(root, ["--no-regen"])) == 0
-    as_tester(work, %w[fetch -q origin])
-    assert landed(root, "made.txt") == "base"
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  main_moves(root, [%w[notes/ant ant]])
+  assert status_of(land_in(root, ["--no-regen"])) == 0
+  as_tester(work, %w[fetch -q origin])
+  assert landed(root, "made.txt") == "base"
+  rm_rf(root)
 end
 
 test "a conflict in a source stops the land, names the path and leaves HEAD as it was"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [["source.txt", unlines(["topic"])]], "topic")
-    before = as_tester(work, %w[rev-parse HEAD])
-    main_moves(root, [["source.txt", unlines(["main"])]])
-    r = land_in(root, [])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "source.txt")
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [["source.txt", unlines(["topic"])]], "topic")
+  before = as_tester(work, %w[rev-parse HEAD])
+  main_moves(root, [["source.txt", unlines(["main"])]])
+  r = land_in(root, [])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "source.txt")
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  rm_rf(root)
 end
 
 test "a rebase that fails with no conflict says git's words, as a clone with no identity does in the sandbox"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    before = as_tester(work, %w[rev-parse HEAD])
-    main_moves(root, [%w[notes/ant ant]])
-    as_tester(work, %w[config --unset user.name])
-    as_tester(work, %w[config --unset user.email])
-    as_tester(work, %w[config user.useConfigOnly true])
-    r = land_with(
-      %w[GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1],
-      root,
-      []
-    )
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "git rebase failed with no conflict")
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  before = as_tester(work, %w[rev-parse HEAD])
+  main_moves(root, [%w[notes/ant ant]])
+  as_tester(work, %w[config --unset user.name])
+  as_tester(work, %w[config --unset user.email])
+  as_tester(work, %w[config user.useConfigOnly true])
+  r = land_with(%w[GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1], root, [])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "git rebase failed with no conflict")
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  rm_rf(root)
 end
 
 test "--proven pushes the land only after gen/proof.b --prove succeeds"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    refused = land_in(root, ["--proven"])
-    assert status_of(refused) == 1
-    assert contains?(stderr_of(refused), "no proof of HEAD's tree")
-    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
-    committed(
-      work,
-      [["gen/proof.b", "write_file(\"#{root}/proved\", join(argv, \" \"))"]],
-      "proof"
-    )
-    assert status_of(land_in(root, ["--proven"])) == 0
-    assert read_file(path_join(root, "proved")) == "--prove"
-    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  refused = land_in(root, ["--proven"])
+  assert status_of(refused) == 1
+  assert contains?(stderr_of(refused), "no proof of HEAD's tree")
+  assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+  committed(
+    work,
+    [["gen/proof.b", "write_file(\"#{root}/proved\", join(argv, \" \"))"]],
+    "proof"
+  )
+  assert status_of(land_in(root, ["--proven"])) == 0
+  assert read_file(path_join(root, "proved")) == "--prove"
+  assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
+  rm_rf(root)
 end
 
 test "--requeue=0 refuses a land behind main, as land did before it rebased"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    before = as_tester(work, %w[rev-parse HEAD])
-    main_moves(root, [%w[notes/ant ant]])
-    r = land_in(root, ["--requeue=0"])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "--requeue=0")
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  before = as_tester(work, %w[rev-parse HEAD])
+  main_moves(root, [%w[notes/ant ant]])
+  r = land_in(root, ["--requeue=0"])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "--requeue=0")
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  rm_rf(root)
 end
 
 def locking_git(root, held)
@@ -4138,42 +4128,37 @@ def land_locked(root, held)
 end
 
 test "a fetch that meets a ref lock another worktree holds waits it out and lands, as the speed and runtime agents' lands of 2026-11-10 did not"
-  if self_exe != nil
-    root = landing_fixture
-    r = land_locked(root, false)
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "another git holds a ref lock")
-    work = path_join(root, "work")
-    assert as_tester(work, %w[show HEAD:notes/ant]) == "ant"
-    assert contains?(
-      as_tester(work, %w[ls-remote origin refs/heads/land/topic]),
-      as_tester(work, %w[rev-parse HEAD])
-    )
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  r = land_locked(root, false)
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "another git holds a ref lock")
+  work = path_join(root, "work")
+  assert as_tester(work, %w[show HEAD:notes/ant]) == "ant"
+  assert contains?(
+    as_tester(work, %w[ls-remote origin refs/heads/land/topic]),
+    as_tester(work, %w[rev-parse HEAD])
+  )
+  rm_rf(root)
 end
 
 test "a ref lock that outlasts the tries, or any other fetch failure, ends the land with git's words"
-  if self_exe != nil
-    root = landing_fixture
-    held = land_locked(root, true)
-    assert status_of(held) == 1
-    assert contains?(stderr_of(held), "git fetch origin main failed")
-    assert contains?(stderr_of(held), "lock")
-    rm_rf(root)
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    as_tester(
-      work,
-      ["remote", "set-url", "origin", path_join(root, "gone.git")]
-    )
-    gone = land_in(root, [])
-    assert status_of(gone) == 1
-    assert contains?(stderr_of(gone), "git fetch origin main failed")
-    assert not contains?(stderr_of(gone), "another git holds a ref lock")
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  held = land_locked(root, true)
+  assert status_of(held) == 1
+  assert contains?(stderr_of(held), "git fetch origin main failed")
+  assert contains?(stderr_of(held), "lock")
+  rm_rf(root)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  as_tester(work, ["remote", "set-url", "origin", path_join(root, "gone.git")])
+  gone = land_in(root, [])
+  assert status_of(gone) == 1
+  assert contains?(stderr_of(gone), "git fetch origin main failed")
+  assert not contains?(stderr_of(gone), "another git holds a ref lock")
+  rm_rf(root)
 end
 
 def fast_forward(sha, root)
@@ -4225,40 +4210,39 @@ def fake_gh(root)
 end
 
 test "--watch yields to an older land that took the same turn, then lands and follows its run"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    as_tester(
-      work,
-      %w[push -q origin HEAD:refs/heads/land-queue/20000101000000/topic]
-    )
-    bin = fake_gh(root)
-    r = exec_capture(
-      "env",
-      "-u",
-      "GEN_ROOT",
-      "-C",
-      work,
-      "PATH=#{bin}:#{getenv("PATH")}",
-      self_exe,
-      "run",
-      "--quiet",
-      path_join(getenv("GEN_ROOT", cwd), "gen/land.b"),
-      "--",
-      "--watch"
-    )
-    assert status_of(r) == 0
-    calls = read_file(path_join(root, "gh.log"))
-    assert contains?(calls, "run cancel 100")
-    assert contains?(calls, "run view 100 --json status,conclusion")
-    assert contains?(stderr_of(r), "land/older took the same turn")
-    assert as_tester(
-      work,
-      %w[ls-remote origin refs/heads/land-queue/* refs/heads/land-beat/*]
-    ) == ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  as_tester(
+    work,
+    %w[push -q origin HEAD:refs/heads/land-queue/20000101000000/topic]
+  )
+  bin = fake_gh(root)
+  r = exec_capture(
+    "env",
+    "-u",
+    "GEN_ROOT",
+    "-C",
+    work,
+    "PATH=#{bin}:#{getenv("PATH")}",
+    self_exe,
+    "run",
+    "--quiet",
+    path_join(getenv("GEN_ROOT", cwd), "gen/land.b"),
+    "--",
+    "--watch"
+  )
+  assert status_of(r) == 0
+  calls = read_file(path_join(root, "gh.log"))
+  assert contains?(calls, "run cancel 100")
+  assert contains?(calls, "run view 100 --json status,conclusion")
+  assert contains?(stderr_of(r), "land/older took the same turn")
+  assert as_tester(
+    work,
+    %w[ls-remote origin refs/heads/land-queue/* refs/heads/land-beat/*]
+  ) == ""
+  rm_rf(root)
 end
 
 def fake_runs_gh(root, lands, releases)
@@ -4304,67 +4288,65 @@ def turn_in(root, bin)
 end
 
 test "--turn holds a land alone on the main it fast-forwards, and refuses one behind an older land or a main it was not built on"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    free = fake_runs_gh(root, "[]", "[]")
-    held = turn_in(root, free)
-    assert status_of(held) == 0
-    assert stdout_of(held) == "true"
-    older = fake_runs_gh(
-      root,
-      "[{\"databaseId\":50,\"headBranch\":\"land/older\",\"status\":\"in_progress\"},{\"databaseId\":150,\"headBranch\":\"land/younger\",\"status\":\"queued\"}]",
-      "[]"
-    )
-    behind = turn_in(root, older)
-    assert status_of(behind) == 0
-    assert stdout_of(behind) == "false"
-    assert contains?(stderr_of(behind), "land/older (run 50) is older")
-    main_moves(root, [["Cargo.toml", "[workspace]"]])
-    as_tester(work, %w[checkout -q main])
-    as_tester(
-      work,
-      ["commit", "-q", "--amend", "-m", "release: workspace v0.0.2"]
-    )
-    as_tester(work, %w[push -q --force origin main])
-    as_tester(work, %w[checkout -q topic])
-    absorbed = turn_in(root, fake_runs_gh(root, "[]", "[]"))
-    assert stdout_of(absorbed) == "true"
-    main_moves(root, [%w[notes/ant ant]])
-    stale = turn_in(root, fake_runs_gh(root, "[]", "[]"))
-    assert stdout_of(stale) == "false"
-    assert contains?(stderr_of(stale), "main gained 2 commit(s)")
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  free = fake_runs_gh(root, "[]", "[]")
+  held = turn_in(root, free)
+  assert status_of(held) == 0
+  assert stdout_of(held) == "true"
+  older = fake_runs_gh(
+    root,
+    "[{\"databaseId\":50,\"headBranch\":\"land/older\",\"status\":\"in_progress\"},{\"databaseId\":150,\"headBranch\":\"land/younger\",\"status\":\"queued\"}]",
+    "[]"
+  )
+  behind = turn_in(root, older)
+  assert status_of(behind) == 0
+  assert stdout_of(behind) == "false"
+  assert contains?(stderr_of(behind), "land/older (run 50) is older")
+  main_moves(root, [["Cargo.toml", "[workspace]"]])
+  as_tester(work, %w[checkout -q main])
+  as_tester(
+    work,
+    ["commit", "-q", "--amend", "-m", "release: workspace v0.0.2"]
+  )
+  as_tester(work, %w[push -q --force origin main])
+  as_tester(work, %w[checkout -q topic])
+  absorbed = turn_in(root, fake_runs_gh(root, "[]", "[]"))
+  assert stdout_of(absorbed) == "true"
+  main_moves(root, [%w[notes/ant ant]])
+  stale = turn_in(root, fake_runs_gh(root, "[]", "[]"))
+  assert stdout_of(stale) == "false"
+  assert contains?(stderr_of(stale), "main gained 2 commit(s)")
+  rm_rf(root)
 end
 
 test "a land again of the same HEAD clears its ref and pushes, so a run cancelled for an older land or refused at the turn is followed by a new run, not by itself"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    script(
-      path_join(root, "origin.git/hooks/post-receive"),
-      unlines(["#!/bin/sh", "cat >> #{root}/received"])
-    )
-    as_tester(
-      path_join(root, "origin.git"),
-      ["config", "core.hooksPath", path_join(root, "origin.git/hooks")]
-    )
-    assert status_of(land_in(root, [])) == 0
-    again = land_in(root, [])
-    assert status_of(again) == 0
-    assert contains?(stderr_of(again), "deleting it first")
-    sha = as_tester(work, %w[rev-parse HEAD])
-    pushed = filter(
-      (l) -> contains?(l, "#{sha} refs/heads/land/topic"),
-      moji::lines(read_file(path_join(root, "received")))
-    )
-    assert count(pushed) == 2
-    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  script(
+    path_join(root, "origin.git/hooks/post-receive"),
+    unlines(["#!/bin/sh", "cat >> #{root}/received"])
+  )
+  as_tester(
+    path_join(root, "origin.git"),
+    ["config", "core.hooksPath", path_join(root, "origin.git/hooks")]
+  )
+  assert status_of(land_in(root, [])) == 0
+  again = land_in(root, [])
+  assert status_of(again) == 0
+  assert contains?(stderr_of(again), "deleting it first")
+  sha = as_tester(work, %w[rev-parse HEAD])
+  pushed = filter(
+    (l) -> contains?(l, "#{sha} refs/heads/land/topic"),
+    moji::lines(read_file(path_join(root, "received")))
+  )
+  assert count(pushed) == 2
+  assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
+  rm_rf(root)
 end
 
 def manifest(top, bottom)
@@ -4473,120 +4455,112 @@ def on_path(bin)
 end
 
 test "a land whose rebase stops only on Cargo.gen.lock settles it commit by commit: main's side, gen build ., cargo metadata --locked, as five refusals of 2026-11-10 were settled by hand"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    locks_on_main(root)
-    committed(work, cargo_files(["base"], ["bee"]), "bee")
-    committed(work, cargo_files(["base"], %w[bee cat]), "cat")
-    main_moves(root, cargo_files(%w[ant base], []))
-    r = land_with(on_path(fake_locks(root)), root, [])
-    assert status_of(r) == 0
-    as_tester(work, %w[fetch -q origin])
-    assert as_tester(
-      work,
-      %w[
-        log
-        --format=%s
-        refs/remotes/origin/main..refs/remotes/origin/land/topic
-      ]
-    ) == join(%w[cat bee], line_break)
-    assert landed(root, "Cargo.gen.lock") == "gen lock ant base bee cat"
-    assert as_tester(
-      work,
-      %w[show refs/remotes/origin/land/topic~1:Cargo.gen.lock]
-    ) == "gen lock ant base bee"
-    assert landed(root, "Cargo.lock") ==
-      join(%w[lock ant base bee cat], line_break)
-    assert calls_of(root, "gen") == ["build .", "build ."]
-    assert calls_of(root, "cargo") ==
-      [
-        "metadata --format-version 1 --locked",
-        "metadata --format-version 1 --locked"
-      ]
-    assert contains?(stderr_of(r), "settled Cargo.gen.lock")
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  locks_on_main(root)
+  committed(work, cargo_files(["base"], ["bee"]), "bee")
+  committed(work, cargo_files(["base"], %w[bee cat]), "cat")
+  main_moves(root, cargo_files(%w[ant base], []))
+  r = land_with(on_path(fake_locks(root)), root, [])
+  assert status_of(r) == 0
+  as_tester(work, %w[fetch -q origin])
+  assert as_tester(
+    work,
+    %w[log --format=%s refs/remotes/origin/main..refs/remotes/origin/land/topic]
+  ) == join(%w[cat bee], line_break)
+  assert landed(root, "Cargo.gen.lock") == "gen lock ant base bee cat"
+  assert as_tester(
+    work,
+    %w[show refs/remotes/origin/land/topic~1:Cargo.gen.lock]
+  ) == "gen lock ant base bee"
+  assert landed(root, "Cargo.lock") ==
+    join(%w[lock ant base bee cat], line_break)
+  assert calls_of(root, "gen") == ["build .", "build ."]
+  assert calls_of(root, "cargo") ==
+    [
+      "metadata --format-version 1 --locked",
+      "metadata --format-version 1 --locked"
+    ]
+  assert contains?(stderr_of(r), "settled Cargo.gen.lock")
+  rm_rf(root)
 end
 
 test "a rebase that stops on both locks takes main's Cargo.lock and lets cargo add the branch's crates back before gen build"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    locks_on_main(root)
-    committed(work, cargo_files(["base"], ["bee"]), "bee")
-    main_moves(root, cargo_files(%w[base bat], []))
-    r = land_with(on_path(fake_locks(root)), root, [])
-    assert status_of(r) == 0
-    as_tester(work, %w[fetch -q origin])
-    assert landed(root, "Cargo.lock") == join(%w[lock base bat bee], line_break)
-    assert landed(root, "Cargo.gen.lock") == "gen lock base bat bee"
-    assert calls_of(root, "cargo") ==
-      ["metadata --format-version 1", "metadata --format-version 1 --locked"]
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  locks_on_main(root)
+  committed(work, cargo_files(["base"], ["bee"]), "bee")
+  main_moves(root, cargo_files(%w[base bat], []))
+  r = land_with(on_path(fake_locks(root)), root, [])
+  assert status_of(r) == 0
+  as_tester(work, %w[fetch -q origin])
+  assert landed(root, "Cargo.lock") == join(%w[lock base bat bee], line_break)
+  assert landed(root, "Cargo.gen.lock") == "gen lock base bat bee"
+  assert calls_of(root, "cargo") ==
+    ["metadata --format-version 1", "metadata --format-version 1 --locked"]
+  rm_rf(root)
 end
 
 test "a lock that does not check after settling, and --no-regen, stop the land with the old refusal and leave HEAD as it was"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    locks_on_main(root)
-    committed(work, cargo_files(["base"], ["bee"]), "bee")
-    before = as_tester(work, %w[rev-parse HEAD])
-    main_moves(root, cargo_files(%w[ant base], []))
-    path = on_path(fake_locks(root))
-    write_file(path_join(root, "cargo-refuses"), "")
-    refused = land_with(path, root, [])
-    assert status_of(refused) == 1
-    assert contains?(
-      stderr_of(refused),
-      "cargo metadata --format-version 1 --locked"
-    )
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    assert as_tester(work, %w[status --porcelain --untracked-files=no]) == ""
-    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
-    rm_rf(path_join(root, "cargo-refuses"))
-    kept = land_with(path, root, ["--no-regen"])
-    assert status_of(kept) == 1
-    assert contains?(
-      stderr_of(kept),
-      "Cargo.gen.lock conflict beyond what regenerating can settle"
-    )
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  locks_on_main(root)
+  committed(work, cargo_files(["base"], ["bee"]), "bee")
+  before = as_tester(work, %w[rev-parse HEAD])
+  main_moves(root, cargo_files(%w[ant base], []))
+  path = on_path(fake_locks(root))
+  write_file(path_join(root, "cargo-refuses"), "")
+  refused = land_with(path, root, [])
+  assert status_of(refused) == 1
+  assert contains?(
+    stderr_of(refused),
+    "cargo metadata --format-version 1 --locked"
+  )
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  assert as_tester(work, %w[status --porcelain --untracked-files=no]) == ""
+  assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+  rm_rf(path_join(root, "cargo-refuses"))
+  kept = land_with(path, root, ["--no-regen"])
+  assert status_of(kept) == 1
+  assert contains?(
+    stderr_of(kept),
+    "Cargo.gen.lock conflict beyond what regenerating can settle"
+  )
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  rm_rf(root)
 end
 
 test "a lock conflict beside a source conflict in one commit stops the land, names the source and settles nothing"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    locks_on_main(root)
-    committed(
-      work,
-      retsu::concat_lists(
-        cargo_files(["base"], ["bee"]),
-        [["source.txt", unlines(["topic"])]]
-      ),
-      "bee"
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  locks_on_main(root)
+  committed(
+    work,
+    retsu::concat_lists(
+      cargo_files(["base"], ["bee"]),
+      [["source.txt", unlines(["topic"])]]
+    ),
+    "bee"
+  )
+  before = as_tester(work, %w[rev-parse HEAD])
+  main_moves(
+    root,
+    retsu::concat_lists(
+      cargo_files(%w[ant base], []),
+      [["source.txt", unlines(["main"])]]
     )
-    before = as_tester(work, %w[rev-parse HEAD])
-    main_moves(
-      root,
-      retsu::concat_lists(
-        cargo_files(%w[ant base], []),
-        [["source.txt", unlines(["main"])]]
-      )
-    )
-    r = land_with(on_path(fake_locks(root)), root, [])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "source.txt")
-    assert contains?(stderr_of(r), "beyond what regenerating can settle")
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    assert calls_of(root, "cargo") == []
-    rm_rf(root)
-  end
+  )
+  r = land_with(on_path(fake_locks(root)), root, [])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "source.txt")
+  assert contains?(stderr_of(r), "beyond what regenerating can settle")
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  assert calls_of(root, "cargo") == []
+  rm_rf(root)
 end
 
 test "a green batch lands whole in one run, and a red one is halved until the land that breaks it is alone and blamed, as LANDING L1 asks"
@@ -4777,157 +4751,150 @@ def remote_message(work, name)
 end
 
 test "the land at the front of the queue tests the land queued behind it with it as one tree, and a green run lands both and tells the other its verdict"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    lead = ticket_name(recently(120), "land/topic")
-    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
-    member = queued(root, "member", [%w[member.txt member]], recently(60))
-    r = watched(root, batch_gh(root, []), [])
-    assert status_of(r) == 0
-    assert contains?(
-      stderr_of(r),
-      "1 land(s) queued behind this one: land/member"
-    )
-    as_tester(work, %w[fetch -q origin])
-    assert as_tester(
-      work,
-      %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
-    ) == join(%w[member topic], line_break)
-    assert count(branch_calls(root)) == 1
-    assert starts_with?(
-      remote_message(work, verdict_name(member)),
-      "land verdict: landed"
-    )
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{lead}"]) == ""
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{member}"]) !=
-      ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  lead = ticket_name(recently(120), "land/topic")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+  member = queued(root, "member", [%w[member.txt member]], recently(60))
+  r = watched(root, batch_gh(root, []), [])
+  assert status_of(r) == 0
+  assert contains?(
+    stderr_of(r),
+    "1 land(s) queued behind this one: land/member"
+  )
+  as_tester(work, %w[fetch -q origin])
+  assert as_tester(
+    work,
+    %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
+  ) == join(%w[member topic], line_break)
+  assert count(branch_calls(root)) == 1
+  assert starts_with?(
+    remote_message(work, verdict_name(member)),
+    "land verdict: landed"
+  )
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{lead}"]) == ""
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{member}"]) != ""
+  rm_rf(root)
 end
 
 test "a batch is composed in a fresh worktree of its own commit, so a file the leading land's worktree holds untracked never reaches the batch's regeneration, while --compose-in-place keeps the old path, where it does and the queued land is blamed for it"
-  if self_exe != nil
-    batch_made = fn(flags)
-      root = landing_fixture
-      work = path_join(root, "work")
-      committed(work, [%w[other.txt other]], "topic")
-      lead = ticket_name(recently(120), "land/topic")
-      as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
-      queued(root, "member", [%w[member.txt member]], recently(60))
-      write_file(path_join(work, "notes/ant"), "ant")
-      r = watched(root, batch_gh(root, []), flags)
-      as_tester(work, %w[fetch -q origin])
-      made = trim(
-        stdout_of(
-          exec_capture(
-            "git",
-            "-C",
-            work,
-            "show",
-            "refs/remotes/origin/land/batch-topic:made.txt"
-          )
+  needs_blue(self_exe)
+  batch_made = fn(flags)
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    lead = ticket_name(recently(120), "land/topic")
+    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+    queued(root, "member", [%w[member.txt member]], recently(60))
+    write_file(path_join(work, "notes/ant"), "ant")
+    r = watched(root, batch_gh(root, []), flags)
+    as_tester(work, %w[fetch -q origin])
+    made = trim(
+      stdout_of(
+        exec_capture(
+          "git",
+          "-C",
+          work,
+          "show",
+          "refs/remotes/origin/land/batch-topic:made.txt"
         )
       )
-      seen = {
-        status: status_of(r),
-        said: stderr_of(r),
-        made:,
-        kept: path_exists(path_join(work, "notes/ant")),
-        home: as_tester(work, %w[symbolic-ref -q --short HEAD]),
-        trees: count(
-          filter(
-            (l) -> starts_with?(l, "worktree "),
-            moji::lines(as_tester(work, %w[worktree list --porcelain]))
-          )
+    )
+    seen = {
+      status: status_of(r),
+      said: stderr_of(r),
+      made:,
+      kept: path_exists(path_join(work, "notes/ant")),
+      home: as_tester(work, %w[symbolic-ref -q --short HEAD]),
+      trees: count(
+        filter(
+          (l) -> starts_with?(l, "worktree "),
+          moji::lines(as_tester(work, %w[worktree list --porcelain]))
         )
-      }
-      rm_rf(root)
-      seen
-    end
-    fresh = batch_made([])
-    assert fresh[:status] == 0
-    assert fresh[:made] == "base"
-    assert fresh[:kept]
-    assert fresh[:home] == "topic"
-    assert fresh[:trees] == 1
-    assert not contains?(fresh[:said], "blamed")
-    here = batch_made(["--compose-in-place"])
-    assert contains?(here[:said], "land/member is blamed")
-    assert contains?(here[:said], "notes/ant")
-    assert here[:made] == ""
-    assert here[:kept]
-    assert here[:home] == "topic"
+      )
+    }
+    rm_rf(root)
+    seen
   end
+  fresh = batch_made([])
+  assert fresh[:status] == 0
+  assert fresh[:made] == "base"
+  assert fresh[:kept]
+  assert fresh[:home] == "topic"
+  assert fresh[:trees] == 1
+  assert not contains?(fresh[:said], "blamed")
+  here = batch_made(["--compose-in-place"])
+  assert contains?(here[:said], "land/member is blamed")
+  assert contains?(here[:said], "notes/ant")
+  assert here[:made] == ""
+  assert here[:kept]
+  assert here[:home] == "topic"
 end
 
 test "a red batch is halved: the leader lands alone and the land that breaks it is blamed without a run of its own, and --no-batch takes no one"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    lead = ticket_name(recently(120), "land/topic")
-    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
-    member = queued(root, "member", [%w[breaks.txt red]], recently(60))
-    bin = batch_gh(root, [])
-    r = watched(root, bin, [])
-    assert status_of(r) == 0
-    assert count(branch_calls(root)) == 2
-    as_tester(work, %w[fetch -q origin])
-    assert as_tester(
-      work,
-      %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
-    ) == "topic"
-    said = remote_message(work, verdict_name(member))
-    assert starts_with?(said, "land verdict: red")
-    assert contains?(said, "is red at ci / check / cargo-test")
-    rm_rf(root)
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    lead = ticket_name(recently(120), "land/topic")
-    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
-    member = queued(root, "member", [%w[member.txt member]], recently(60))
-    alone = watched(root, batch_gh(root, []), ["--no-batch"])
-    assert status_of(alone) == 0
-    assert map(
-      (l) -> contains?(l, "--branch land/topic"),
-      branch_calls(root)
-    ) == [true]
-    assert as_tester(
-      work,
-      ["ls-remote", "origin", "refs/heads/#{verdict_name(member)}"]
-    ) == ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  lead = ticket_name(recently(120), "land/topic")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+  member = queued(root, "member", [%w[breaks.txt red]], recently(60))
+  bin = batch_gh(root, [])
+  r = watched(root, bin, [])
+  assert status_of(r) == 0
+  assert count(branch_calls(root)) == 2
+  as_tester(work, %w[fetch -q origin])
+  assert as_tester(
+    work,
+    %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
+  ) == "topic"
+  said = remote_message(work, verdict_name(member))
+  assert starts_with?(said, "land verdict: red")
+  assert contains?(said, "is red at ci / check / cargo-test")
+  rm_rf(root)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  lead = ticket_name(recently(120), "land/topic")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+  member = queued(root, "member", [%w[member.txt member]], recently(60))
+  alone = watched(root, batch_gh(root, []), ["--no-batch"])
+  assert status_of(alone) == 0
+  assert map((l) -> contains?(l, "--branch land/topic"), branch_calls(root)) ==
+    [true]
+  assert as_tester(
+    work,
+    ["ls-remote", "origin", "refs/heads/#{verdict_name(member)}"]
+  ) == ""
+  rm_rf(root)
 end
 
 test "a queued land whose batch blamed it ends its watch with the reason and leaves the queue, and never pushes a land of its own"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    head = as_tester(work, %w[rev-parse HEAD])
-    mine = ticket_name(recently(60), "land/topic")
-    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{mine}"])
-    writes = [
-      "  if not path_exists(\"#{root}/verdict-written\")",
-      "    write_file(\"#{root}/verdict-written\", \"\")",
-      "    sha = trim(stdout_of(exec_capture(\"git\", \"-C\", \"#{work}\", \"commit-tree\", \"#{head}^{tree}\", \"-p\", \"#{head}\", \"-m\", \"land verdict: red\", \"-m\", \"run 7 is red at ci / check / cargo-test\")))",
-      "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", concat(sha, \":refs/heads/#{verdict_name(mine)}\"))",
-      "  end"
-    ]
-    r = watched(root, batch_gh(root, writes), [])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "run 7 is red at ci / check / cargo-test")
-    assert as_tester(
-      work,
-      %w[ls-remote origin refs/heads/land-queue/* refs/heads/land-verdict/*]
-    ) == ""
-    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  head = as_tester(work, %w[rev-parse HEAD])
+  mine = ticket_name(recently(60), "land/topic")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{mine}"])
+  writes = [
+    "  if not path_exists(\"#{root}/verdict-written\")",
+    "    write_file(\"#{root}/verdict-written\", \"\")",
+    "    sha = trim(stdout_of(exec_capture(\"git\", \"-C\", \"#{work}\", \"commit-tree\", \"#{head}^{tree}\", \"-p\", \"#{head}\", \"-m\", \"land verdict: red\", \"-m\", \"run 7 is red at ci / check / cargo-test\")))",
+    "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", concat(sha, \":refs/heads/#{verdict_name(mine)}\"))",
+    "  end"
+  ]
+  r = watched(root, batch_gh(root, writes), [])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "run 7 is red at ci / check / cargo-test")
+  assert as_tester(
+    work,
+    %w[ls-remote origin refs/heads/land-queue/* refs/heads/land-verdict/*]
+  ) == ""
+  assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+  rm_rf(root)
 end
 
 test "land.yml starts every workflow a push to main starts, since its fast-forward pushes with a token that starts none, as post-merge started no run on any land after 110d3b86 (run 43017445507) until 43072181560 was dispatched by hand"
@@ -4963,31 +4930,28 @@ test "land.yml refuses a batch at a step of its own while BLUE_LAND_BATCH is off
 end
 
 test "the turn refuses a batch while BLUE_LAND_BATCH is off and holds the same land when it is not a batch"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    free = fake_runs_gh(root, "[]", "[]")
-    turn = fn(ref)
-      exec_capture(
-        "env",
-        "-u",
-        "GEN_ROOT",
-        "-C",
-        work,
-        "PATH=#{free}:#{getenv("PATH")}",
-        "BLUE_LAND_BATCH=off",
-        *flatten_args(
-          ["--turn", "100", ref, as_tester(work, %w[rev-parse HEAD])]
-        )
-      )
-    end
-    off = turn("land/batch-topic")
-    assert stdout_of(off) == "false"
-    assert contains?(stderr_of(off), "batching is off")
-    assert stdout_of(turn("land/topic")) == "true"
-    rm_rf(root)
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  free = fake_runs_gh(root, "[]", "[]")
+  turn = fn(ref)
+    exec_capture(
+      "env",
+      "-u",
+      "GEN_ROOT",
+      "-C",
+      work,
+      "PATH=#{free}:#{getenv("PATH")}",
+      "BLUE_LAND_BATCH=off",
+      *flatten_args(["--turn", "100", ref, as_tester(work, %w[rev-parse HEAD])])
+    )
   end
+  off = turn("land/batch-topic")
+  assert stdout_of(off) == "false"
+  assert contains?(stderr_of(off), "batching is off")
+  assert stdout_of(turn("land/topic")) == "true"
+  rm_rf(root)
 end
 
 def lead_topic(root, files)
@@ -5026,151 +4990,144 @@ def alone_mark(work, ticket)
 end
 
 test "a batch is named after the first land it holds, so the back half of a red batch whose leader broke it runs on its own name, never on the leader's, as land/batch-service/component-bidamas' run 43028336649 of 2026-11-11 did"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    lead_topic(root, [%w[breaks.txt red]])
-    member = queued(root, "member", [%w[member.txt member]], recently(60))
-    r = watched(root, batch_gh(root, []), [])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "blamed")
-    assert pushed_refs(root) ==
-      %w[land/batch-topic land/batch-topic land/batch-member]
-    assert between(work, "land/batch-topic") == "topic"
-    assert between(work, "land/batch-member") == "member"
-    assert starts_with?(
-      remote_message(work, verdict_name(member)),
-      "land verdict: landed"
-    )
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  lead_topic(root, [%w[breaks.txt red]])
+  member = queued(root, "member", [%w[member.txt member]], recently(60))
+  r = watched(root, batch_gh(root, []), [])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "blamed")
+  assert pushed_refs(root) ==
+    %w[land/batch-topic land/batch-topic land/batch-member]
+  assert between(work, "land/batch-topic") == "topic"
+  assert between(work, "land/batch-member") == "member"
+  assert starts_with?(
+    remote_message(work, verdict_name(member)),
+    "land verdict: landed"
+  )
+  rm_rf(root)
 end
 
 test "a leader whose HEAD another git moved off its commits is not claimed by the batch: the batch runs on its member's name, and the leader, landed alone, exits 1 naming the commit main lacks"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    lead_topic(root, [%w[other.txt other]])
-    member = queued(root, "member", [%w[member.txt member]], recently(60))
-    moves = [
-      "  if not path_exists(\"#{root}/detached\")",
-      "    write_file(\"#{root}/detached\", \"\")",
-      "    exec_check(\"git\", \"-C\", \"#{work}\", \"checkout\", \"-q\", \"--detach\", \"origin/main\")",
-      "  end"
-    ]
-    r = watched(root, batch_gh(root, moves), ["topic"])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "the batch tree does not hold land/topic")
-    assert contains?(
-      stderr_of(r),
-      "this land holds topic, but its worktree is now on a detached HEAD"
-    )
-    assert as_tester(work, %w[ls-remote origin refs/heads/land/batch-topic]) ==
-      ""
-    assert between(work, "land/batch-member") == "member"
-    assert starts_with?(
-      remote_message(work, verdict_name(member)),
-      "land verdict: landed"
-    )
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  lead_topic(root, [%w[other.txt other]])
+  member = queued(root, "member", [%w[member.txt member]], recently(60))
+  moves = [
+    "  if not path_exists(\"#{root}/detached\")",
+    "    write_file(\"#{root}/detached\", \"\")",
+    "    exec_check(\"git\", \"-C\", \"#{work}\", \"checkout\", \"-q\", \"--detach\", \"origin/main\")",
+    "  end"
+  ]
+  r = watched(root, batch_gh(root, moves), ["topic"])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "the batch tree does not hold land/topic")
+  assert contains?(
+    stderr_of(r),
+    "this land holds topic, but its worktree is now on a detached HEAD"
+  )
+  assert as_tester(work, %w[ls-remote origin refs/heads/land/batch-topic]) == ""
+  assert between(work, "land/batch-member") == "member"
+  assert starts_with?(
+    remote_message(work, verdict_name(member)),
+    "land verdict: landed"
+  )
+  rm_rf(root)
 end
 
 test "a member the batch tree does not hold is told so beside its ticket, keeps its ticket and gets no verdict, and the batch lands without it"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    lines = (ls) -> unlines(ls)
-    main_moves(root, [["lines.txt", lines(%w[a b c d e f g h])]])
-    as_tester(work, %w[reset -q --hard main])
-    lead_topic(root, [["lines.txt", lines(%w[a B c d e f g H])]])
-    member = queued(
-      root,
-      "member",
-      [["lines.txt", lines(%w[a B c d e f g h])]],
-      recently(60)
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  lines = (ls) -> unlines(ls)
+  main_moves(root, [["lines.txt", lines(%w[a b c d e f g h])]])
+  as_tester(work, %w[reset -q --hard main])
+  lead_topic(root, [["lines.txt", lines(%w[a B c d e f g H])]])
+  member = queued(
+    root,
+    "member",
+    [["lines.txt", lines(%w[a B c d e f g h])]],
+    recently(60)
+  )
+  r = watched(root, batch_gh(root, []), [])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "land/member is not in the batch")
+  assert alone_mark(work, member) != ""
+  assert alone_mark(work, member) == "" or
+    contains?(
+      remote_message(work, "land-alone/#{after_first(member, "/")}"),
+      "lacks 1 of its commits"
     )
-    r = watched(root, batch_gh(root, []), [])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "land/member is not in the batch")
-    assert alone_mark(work, member) != ""
-    assert alone_mark(work, member) == "" or
-      contains?(
-        remote_message(work, "land-alone/#{after_first(member, "/")}"),
-        "lacks 1 of its commits"
-      )
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{member}"]) !=
-      ""
-    assert as_tester(
-      work,
-      ["ls-remote", "origin", "refs/heads/#{verdict_name(member)}"]
-    ) == ""
-    assert between(work, "land/batch-topic") == "topic"
-    rm_rf(root)
-  end
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{member}"]) != ""
+  assert as_tester(
+    work,
+    ["ls-remote", "origin", "refs/heads/#{verdict_name(member)}"]
+  ) == ""
+  assert between(work, "land/batch-topic") == "topic"
+  rm_rf(root)
 end
 
 test "a queued land told it is not in a batch keeps its place and lands alone next, taking no land queued behind it"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    head = as_tester(work, %w[rev-parse HEAD])
-    mine = ticket_name(recently(60), "land/topic")
-    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{mine}"])
-    queued(root, "later", [%w[later.txt later]], recently(30))
-    told = "land-alone/#{after_first(mine, "/")}"
-    writes = [
-      "  if not path_exists(\"#{root}/told\")",
-      "    write_file(\"#{root}/told\", \"\")",
-      "    sha = trim(stdout_of(exec_capture(\"git\", \"-C\", \"#{work}\", \"commit-tree\", \"#{head}^{tree}\", \"-p\", \"#{head}\", \"-m\", \"batch 9 lacks 1 of its commits\")))",
-      "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", concat(sha, \":refs/heads/#{told}\"))",
-      "  end"
-    ]
-    r = watched(root, batch_gh(root, writes), [])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "batch 9 lacks 1 of its commits")
-    assert contains?(stderr_of(r), "lands alone next")
-    assert pushed_refs(root) == ["land/topic"]
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{told}"]) == ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  head = as_tester(work, %w[rev-parse HEAD])
+  mine = ticket_name(recently(60), "land/topic")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{mine}"])
+  queued(root, "later", [%w[later.txt later]], recently(30))
+  told = "land-alone/#{after_first(mine, "/")}"
+  writes = [
+    "  if not path_exists(\"#{root}/told\")",
+    "    write_file(\"#{root}/told\", \"\")",
+    "    sha = trim(stdout_of(exec_capture(\"git\", \"-C\", \"#{work}\", \"commit-tree\", \"#{head}^{tree}\", \"-p\", \"#{head}\", \"-m\", \"batch 9 lacks 1 of its commits\")))",
+    "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", concat(sha, \":refs/heads/#{told}\"))",
+    "  end"
+  ]
+  r = watched(root, batch_gh(root, writes), [])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "batch 9 lacks 1 of its commits")
+  assert contains?(stderr_of(r), "lands alone next")
+  assert pushed_refs(root) == ["land/topic"]
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{told}"]) == ""
+  rm_rf(root)
 end
 
 test "a stale index lock in the land's own worktree stops the land before it rebases, naming the exact path, and another worktree's lock is neither read nor removed"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    before = as_tester(work, %w[rev-parse HEAD])
-    main_moves(root, [%w[notes/ant ant]])
-    as_tester(
-      work,
-      ["worktree", "add", "-q", "--detach", path_join(root, "beside"), "main"]
-    )
-    theirs = as_tester(
-      path_join(root, "beside"),
-      %w[rev-parse --path-format=absolute --git-path index.lock]
-    )
-    lock = as_tester(
-      work,
-      %w[rev-parse --path-format=absolute --git-path index.lock]
-    )
-    write_file(theirs, "")
-    write_file(lock, "")
-    exec_capture("touch", "-t", "2001010000", lock)
-    exec_capture("touch", "-t", "2001010000", theirs)
-    r = land_in(root, [])
-    assert status_of(r) == 1
-    assert contains?(stderr_of(r), "#{lock} is older than this land")
-    assert contains?(stderr_of(r), "rm #{lock}")
-    assert path_exists(lock)
-    assert as_tester(work, %w[rev-parse HEAD]) == before
-    rm_rf(lock)
-    assert status_of(land_in(root, [])) == 0
-    assert path_exists(theirs)
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  before = as_tester(work, %w[rev-parse HEAD])
+  main_moves(root, [%w[notes/ant ant]])
+  as_tester(
+    work,
+    ["worktree", "add", "-q", "--detach", path_join(root, "beside"), "main"]
+  )
+  theirs = as_tester(
+    path_join(root, "beside"),
+    %w[rev-parse --path-format=absolute --git-path index.lock]
+  )
+  lock = as_tester(
+    work,
+    %w[rev-parse --path-format=absolute --git-path index.lock]
+  )
+  write_file(theirs, "")
+  write_file(lock, "")
+  exec_capture("touch", "-t", "2001010000", lock)
+  exec_capture("touch", "-t", "2001010000", theirs)
+  r = land_in(root, [])
+  assert status_of(r) == 1
+  assert contains?(stderr_of(r), "#{lock} is older than this land")
+  assert contains?(stderr_of(r), "rm #{lock}")
+  assert path_exists(lock)
+  assert as_tester(work, %w[rev-parse HEAD]) == before
+  rm_rf(lock)
+  assert status_of(land_in(root, [])) == 0
+  assert path_exists(theirs)
+  rm_rf(root)
 end
 
 def land_state(root, slug)
@@ -5191,87 +5148,81 @@ def lands_of(root)
 end
 
 test "two lands of two branches keep two logs, each holding only its own land, as three lands of 2026-11-11 overwrote one shared land.log"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    assert status_of(land_in(root, [])) == 0
-    as_tester(work, %w[checkout -q -b second main])
-    committed(work, [%w[second.txt second]], "second")
-    assert status_of(land_in(root, [])) == 0
-    one = path_join(land_state(root, "topic"), "land.log")
-    two = path_join(land_state(root, "second"), "land.log")
-    assert path_exists(one)
-    assert path_exists(two)
-    assert contains?(read_file(one), "is on land/topic")
-    assert not contains?(read_file(one), "land/second")
-    assert contains?(read_file(two), "is on land/second")
-    assert not contains?(read_file(two), "land/topic")
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  assert status_of(land_in(root, [])) == 0
+  as_tester(work, %w[checkout -q -b second main])
+  committed(work, [%w[second.txt second]], "second")
+  assert status_of(land_in(root, [])) == 0
+  one = path_join(land_state(root, "topic"), "land.log")
+  two = path_join(land_state(root, "second"), "land.log")
+  assert path_exists(one)
+  assert path_exists(two)
+  assert contains?(read_file(one), "is on land/topic")
+  assert not contains?(read_file(one), "land/second")
+  assert contains?(read_file(two), "is on land/second")
+  assert not contains?(read_file(two), "land/topic")
+  rm_rf(root)
 end
 
 test "a land whose run is red ends saying where, on the terminal, in its log and in its exit record, as a land of 2026-11-12 exited 1 with no word"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[breaks.txt red]], "topic")
-    r = quick(root, batch_gh(root, []), ["--no-batch"])
-    assert status_of(r) == 1
-    said = "run 100 is red at ci / check / cargo-test; fix it and land again"
-    assert contains?(stderr_of(r), said)
-    dir = land_state(root, "topic")
-    assert contains?(read_file(log_of(dir)), said)
-    assert exit_of(read_file(path_join(dir, "exit"))) == {code: 1, why: said}
-    assert not path_exists(held_dir(dir))
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[breaks.txt red]], "topic")
+  r = quick(root, batch_gh(root, []), ["--no-batch"])
+  assert status_of(r) == 1
+  said = "run 100 is red at ci / check / cargo-test; fix it and land again"
+  assert contains?(stderr_of(r), said)
+  dir = land_state(root, "topic")
+  assert contains?(read_file(log_of(dir)), said)
+  assert exit_of(read_file(path_join(dir, "exit"))) == {code: 1, why: said}
+  assert not path_exists(held_dir(dir))
+  rm_rf(root)
 end
 
 test "a ticket whose land stopped beating and has no live run is reaped by the next land, which says so, as a stale land-queue ticket stayed behind on 2026-11-12"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    stale = ticket_name(recently(7200), "land/gone")
-    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{stale}"])
-    r = quick(root, batch_gh(root, []), ["--no-batch"])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "reaped the stale ticket #{stale}")
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{stale}"]) == ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  stale = ticket_name(recently(7200), "land/gone")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{stale}"])
+  r = quick(root, batch_gh(root, []), ["--no-batch"])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "reaped the stale ticket #{stale}")
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{stale}"]) == ""
+  rm_rf(root)
 end
 
 test "a verdict whose ticket is gone is reaped by the next land, which says so, and a verdict beside its ticket stays, as six verdicts stayed behind on 2026-11-11 and 2026-11-12"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    at = recently(7200)
-    orphan = verdict_name(ticket_name(at, "land/gone"))
-    waiting = ticket_name(at, "land/kept")
-    beside = verdict_name(waiting)
-    as_tester(
-      work,
-      [
-        "push",
-        "-q",
-        "origin",
-        "HEAD:refs/heads/#{orphan}",
-        "HEAD:refs/heads/#{beside}",
-        "HEAD:refs/heads/#{waiting}"
-      ]
-    )
-    r = quick(root, batch_gh(root, []), ["--no-batch"])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "reaped the stale verdict #{orphan}")
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{orphan}"]) ==
-      ""
-    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{beside}"]) !=
-      ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  at = recently(7200)
+  orphan = verdict_name(ticket_name(at, "land/gone"))
+  waiting = ticket_name(at, "land/kept")
+  beside = verdict_name(waiting)
+  as_tester(
+    work,
+    [
+      "push",
+      "-q",
+      "origin",
+      "HEAD:refs/heads/#{orphan}",
+      "HEAD:refs/heads/#{beside}",
+      "HEAD:refs/heads/#{waiting}"
+    ]
+  )
+  r = quick(root, batch_gh(root, []), ["--no-batch"])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "reaped the stale verdict #{orphan}")
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{orphan}"]) == ""
+  assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{beside}"]) != ""
+  rm_rf(root)
 end
 
 test "a ticket that beats, or whose land's batch runs, is not reaped"
@@ -5292,51 +5243,49 @@ test "a ticket that beats, or whose land's batch runs, is not reaped"
 end
 
 test "a second --watch of a branch whose land runs attaches to it: it pushes nothing, cancels nothing, and ends with the first land's code and reason; a land without --watch refuses, as re-entered lands of 2026-11-12 re-pushed batch-h7/speed for two hours"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    dir = land_state(root, "topic")
-    mkdir_p(held_dir(dir))
-    pid = trim(
-      stdout_of(exec_capture("sh", "-c", "sleep 8 >/dev/null 2>&1 & echo $!"))
-    )
-    write_file(path_join(held_dir(dir), "pid"), unlines([pid, to_s(now_ms)]))
-    write_file(log_of(dir), unlines(["land: following run 77"]))
-    write_file(
-      path_join(dir, "exit"),
-      exit_text(0, "landed: run 77 is green and main holds land/topic")
-    )
-    bin = batch_gh(root, [])
-    plain = land_in(root, [])
-    assert status_of(plain) == 2
-    assert contains?(stderr_of(plain), "runs as pid #{pid}")
-    r = quick(root, bin, [])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "already runs as pid #{pid}")
-    assert contains?(stderr_of(r), "land: following run 77")
-    assert contains?(stderr_of(r), "landed: run 77 is green")
-    assert not path_exists(path_join(root, "gh.log"))
-    assert lands_of(root) == ""
-    assert as_tester(work, %w[ls-remote origin refs/heads/land-queue/*]) == ""
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  dir = land_state(root, "topic")
+  mkdir_p(held_dir(dir))
+  pid = trim(
+    stdout_of(exec_capture("sh", "-c", "sleep 8 >/dev/null 2>&1 & echo $!"))
+  )
+  write_file(path_join(held_dir(dir), "pid"), unlines([pid, to_s(now_ms)]))
+  write_file(log_of(dir), unlines(["land: following run 77"]))
+  write_file(
+    path_join(dir, "exit"),
+    exit_text(0, "landed: run 77 is green and main holds land/topic")
+  )
+  bin = batch_gh(root, [])
+  plain = land_in(root, [])
+  assert status_of(plain) == 2
+  assert contains?(stderr_of(plain), "runs as pid #{pid}")
+  r = quick(root, bin, [])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "already runs as pid #{pid}")
+  assert contains?(stderr_of(r), "land: following run 77")
+  assert contains?(stderr_of(r), "landed: run 77 is green")
+  assert not path_exists(path_join(root, "gh.log"))
+  assert lands_of(root) == ""
+  assert as_tester(work, %w[ls-remote origin refs/heads/land-queue/*]) == ""
+  rm_rf(root)
 end
 
 test "a lock whose land no longer runs is taken over and the land goes on"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    dir = land_state(root, "topic")
-    mkdir_p(held_dir(dir))
-    write_file(path_join(held_dir(dir), "pid"), unlines(%w[999999 1]))
-    r = quick(root, batch_gh(root, []), ["--no-batch"])
-    assert status_of(r) == 0
-    assert contains?(stderr_of(r), "took over the lock")
-    assert not path_exists(held_dir(dir))
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  dir = land_state(root, "topic")
+  mkdir_p(held_dir(dir))
+  write_file(path_join(held_dir(dir), "pid"), unlines(%w[999999 1]))
+  r = quick(root, batch_gh(root, []), ["--no-batch"])
+  assert status_of(r) == 0
+  assert contains?(stderr_of(r), "took over the lock")
+  assert not path_exists(held_dir(dir))
+  rm_rf(root)
 end
 
 def machine_fixture(pid)
@@ -5414,49 +5363,48 @@ test "single flight is on unless set off, and a misspelt setting is refused"
 end
 
 test "two lands that join while a batch runs leave its run untouched, wait without pushing, and form the next batch together"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    as_tester(work, %w[checkout -q -b member main])
-    committed(work, [%w[member.txt member]], "member")
-    sha = as_tester(work, %w[rev-parse HEAD])
-    as_tester(work, %w[checkout -q topic])
-    later = ticket_name(stamp(rfc3339_of_ms(now_ms + 120_000)), "land/member")
-    running = [
-      "  lists = count(filter((l) -> contains?(l, \"land.yml --limit\"), split(prior, line_break)))",
-      "  if lists == 1",
-      "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", \"#{sha}:refs/heads/#{later}\")",
-      "  end",
-      "  if lists < 3",
-      "    write_stdout(\"[{\\\"databaseId\\\":77,\\\"headBranch\\\":\\\"land/batch-lead\\\",\\\"status\\\":\\\"in_progress\\\",\\\"createdAt\\\":\\\"2026-01-01T00:00:00Z\\\"}]\")",
-      "    exit_with(0)",
-      "  end"
-    ]
-    r = quick(root, batch_gh(root, running), [])
-    assert status_of(r) == 0
-    calls = read_file(path_join(root, "gh.log"))
-    assert not contains?(calls, "cancel")
-    assert count(branch_calls(root)) == 1
-    order = moji::lines(calls)
-    first_push = first(
-      filter((i) -> contains?(order[i], "--branch"), range(count(order)))
-    )
-    lists_before = count(
-      filter((l) -> contains?(l, "land.yml --limit"), take(first_push, order))
-    )
-    assert lists_before > 3
-    as_tester(work, %w[fetch -q origin])
-    assert as_tester(
-      work,
-      %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
-    ) == join(%w[member topic], line_break)
-    assert starts_with?(
-      remote_message(work, verdict_name(later)),
-      "land verdict: landed"
-    )
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  as_tester(work, %w[checkout -q -b member main])
+  committed(work, [%w[member.txt member]], "member")
+  sha = as_tester(work, %w[rev-parse HEAD])
+  as_tester(work, %w[checkout -q topic])
+  later = ticket_name(stamp(rfc3339_of_ms(now_ms + 120_000)), "land/member")
+  running = [
+    "  lists = count(filter((l) -> contains?(l, \"land.yml --limit\"), split(prior, line_break)))",
+    "  if lists == 1",
+    "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", \"#{sha}:refs/heads/#{later}\")",
+    "  end",
+    "  if lists < 3",
+    "    write_stdout(\"[{\\\"databaseId\\\":77,\\\"headBranch\\\":\\\"land/batch-lead\\\",\\\"status\\\":\\\"in_progress\\\",\\\"createdAt\\\":\\\"2026-01-01T00:00:00Z\\\"}]\")",
+    "    exit_with(0)",
+    "  end"
+  ]
+  r = quick(root, batch_gh(root, running), [])
+  assert status_of(r) == 0
+  calls = read_file(path_join(root, "gh.log"))
+  assert not contains?(calls, "cancel")
+  assert count(branch_calls(root)) == 1
+  order = moji::lines(calls)
+  first_push = first(
+    filter((i) -> contains?(order[i], "--branch"), range(count(order)))
+  )
+  lists_before = count(
+    filter((l) -> contains?(l, "land.yml --limit"), take(first_push, order))
+  )
+  assert lists_before > 3
+  as_tester(work, %w[fetch -q origin])
+  assert as_tester(
+    work,
+    %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
+  ) == join(%w[member topic], line_break)
+  assert starts_with?(
+    remote_message(work, verdict_name(later)),
+    "land verdict: landed"
+  )
+  rm_rf(root)
 end
 
 test "land.yml cancels a running land only when BLUE_LAND_CANCEL_IN_PROGRESS is on, so a second push to a batch's ref waits for the run instead of killing it"
@@ -5470,22 +5418,18 @@ test "land.yml cancels a running land only when BLUE_LAND_CANCEL_IN_PROGRESS is 
 end
 
 test "a push the remote never answers ends at its deadline with a typed error naming the step, as the push to a land ref that hung for 1 h 27 min on 2026-11-15 did not"
-  if self_exe != nil
-    root = landing_fixture
-    work = path_join(root, "work")
-    committed(work, [%w[other.txt other]], "topic")
-    as_tester(
-      work,
-      %w[config remote.origin.pushurl ssh://never.invalid/blue.git]
-    )
-    as_tester(work, ["config", "core.sshCommand", "sleep 90;:"])
-    t0 = now_ms
-    r = land_with(["BLUE_LAND_PUSH_SECONDS=3"], root, [])
-    took = now_ms - t0
-    assert took < 60000
-    assert status_of(r) == 75
-    assert contains?(stderr_of(r), "deadline: git push")
-    assert contains?(stderr_of(r), "BLUE_LAND_PUSH_SECONDS")
-    rm_rf(root)
-  end
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  as_tester(work, %w[config remote.origin.pushurl ssh://never.invalid/blue.git])
+  as_tester(work, ["config", "core.sshCommand", "sleep 90;:"])
+  t0 = now_ms
+  r = land_with(["BLUE_LAND_PUSH_SECONDS=3"], root, [])
+  took = now_ms - t0
+  assert took < 60000
+  assert status_of(r) == 75
+  assert contains?(stderr_of(r), "deadline: git push")
+  assert contains?(stderr_of(r), "BLUE_LAND_PUSH_SECONDS")
+  rm_rf(root)
 end

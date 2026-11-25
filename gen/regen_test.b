@@ -1,4 +1,5 @@
 use("shisutemu", %i[read_or status_of stderr_of])
+use("tesuto", [:needs_blue])
 
 def regen_program()
   root = getenv("GEN_ROOT", cwd)
@@ -166,67 +167,61 @@ def rooted_fixture()
 end
 
 test "a blue a generator starts resolves the project's packages, as nix's generate does"
-  if self_exe != nil
-    dir = rooted_fixture
-    cap = regen_in(dir, [])
-    assert status_of(cap) == 0
-    assert read_or(path_join(dir, "made.txt"), nil) == "1"
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = rooted_fixture
+  cap = regen_in(dir, [])
+  assert status_of(cap) == 0
+  assert read_or(path_join(dir, "made.txt"), nil) == "1"
+  rm_rf(dir)
 end
 
 test "regen spawns the blue running it, not a blue first on PATH"
-  if self_exe != nil
-    dir = generating_fixture
-    cap = regen_in(dir, [fake_first(dir)])
-    assert not path_exists(path_join(dir, "fake-ran"))
-    assert status_of(cap) == 0
-    assert read_or(path_join(dir, "made.txt"), nil) == "made"
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = generating_fixture
+  cap = regen_in(dir, [fake_first(dir)])
+  assert not path_exists(path_join(dir, "fake-ran"))
+  assert status_of(cap) == 0
+  assert read_or(path_join(dir, "made.txt"), nil) == "made"
+  rm_rf(dir)
 end
 
 test "BLUE_SPAWN_FROM_PATH=1 spawns the blue on PATH"
-  if self_exe != nil
-    dir = generating_fixture
-    cap = regen_in(dir, [fake_first(dir), %w[BLUE_SPAWN_FROM_PATH 1]])
-    assert status_of(cap) != 0
-    assert path_exists(path_join(dir, "fake-ran"))
-    assert not path_exists(path_join(dir, "made.txt"))
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = generating_fixture
+  cap = regen_in(dir, [fake_first(dir), %w[BLUE_SPAWN_FROM_PATH 1]])
+  assert status_of(cap) != 0
+  assert path_exists(path_join(dir, "fake-ran"))
+  assert not path_exists(path_join(dir, "made.txt"))
+  rm_rf(dir)
 end
 
 test "regen refuses a package git does not track, and names its files"
-  if self_exe != nil
-    dir = fixture
-    cap = regen_in(dir, [])
-    assert status_of(cap) != 0
-    assert contains?(stderr_of(cap), "bidamas/zed/zed.b")
-    assert contains?(stderr_of(cap), "notes/n.txt")
-    assert not path_exists(path_join(dir, "bidamas/CATALOG.md"))
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = fixture
+  cap = regen_in(dir, [])
+  assert status_of(cap) != 0
+  assert contains?(stderr_of(cap), "bidamas/zed/zed.b")
+  assert contains?(stderr_of(cap), "notes/n.txt")
+  assert not path_exists(path_join(dir, "bidamas/CATALOG.md"))
+  rm_rf(dir)
 end
 
 test "regen renders once the package is tracked"
-  if self_exe != nil
-    dir = fixture
-    git(dir, %w[add bidamas notes])
-    cap = regen_in(dir, [])
-    assert status_of(cap) == 0
-    assert contains?(read_file(path_join(dir, "bidamas/CATALOG.md")), "zed")
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = fixture
+  git(dir, %w[add bidamas notes])
+  cap = regen_in(dir, [])
+  assert status_of(cap) == 0
+  assert contains?(read_file(path_join(dir, "bidamas/CATALOG.md")), "zed")
+  rm_rf(dir)
 end
 
 test "allow renders without the refusal, and an unknown setting is refused"
-  if self_exe != nil
-    dir = fixture
-    assert status_of(regen_in(dir, [%w[BLUE_REGEN_UNTRACKED allow]])) == 0
-    bad = regen_in(dir, [%w[BLUE_REGEN_UNTRACKED maybe]])
-    assert status_of(bad) != 0
-    assert contains?(stderr_of(bad), "BLUE_REGEN_UNTRACKED")
-    rm_rf(dir)
-  end
+  needs_blue(self_exe)
+  dir = fixture
+  assert status_of(regen_in(dir, [%w[BLUE_REGEN_UNTRACKED allow]])) == 0
+  bad = regen_in(dir, [%w[BLUE_REGEN_UNTRACKED maybe]])
+  assert status_of(bad) != 0
+  assert contains?(stderr_of(bad), "BLUE_REGEN_UNTRACKED")
+  rm_rf(dir)
 end

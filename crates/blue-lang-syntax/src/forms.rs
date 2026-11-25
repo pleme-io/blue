@@ -183,7 +183,7 @@ pub const FORMS: &[Form] = &[
     Form {
         example: "risky(x) rescue fallback",
         lowers_to: "(try (risky x) (catch (_) fallback))",
-        doc: "The value of risky(x), or fallback when it raises. It binds loosest of all, level with |>, and the two read left to right: `raise(:k, \"m\") rescue -1 |> abs()` is 1, the pipe taking the rescued value.",
+        doc: "The value of risky(x), or fallback when it raises. It binds loosest of all, level with |>, and the two read left to right: `-2 rescue 0 |> abs()` is 2: the pipe takes the value of the whole rescue.",
     },
     Form {
         example: "begin\n  risky(x)\nrescue :timeout as e\n  wait(e)\nend",

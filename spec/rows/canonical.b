@@ -533,11 +533,7 @@ row(
   covers("keyword:rescue")
 )
 
-row(
-  "errors.rescue.level_with_pipe",
-  "raise(:k, \"m\") rescue -1 |> abs()",
-  value("1")
-)
+row("errors.rescue.level_with_pipe", "-2 rescue 0 |> abs()", value("2"))
 
 row(
   "errors.rescue.kind",

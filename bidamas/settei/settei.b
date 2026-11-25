@@ -1729,7 +1729,7 @@ def line(app, model, frame, args, doc, lookup)
 end
 
 @doc """
-settled: the settings of a program with a core model and no command line of its own (a service, a library tool): the discovered config file and the environment settled per key, the config returned. opts[:mode] is the posture a refusal takes, shisei's two words: :audit, the default, warns each refusal on stderr and runs with the value kept; :enforce stops the start with one error naming every refusal (stopped), for a program that must not run on a broken setting, as a service must not (docs/SERVICE-ARCHITECTURE.md §10). Notices are warned in both.
+settled: the settings of a program with a core model and no command line of its own (a service, a library tool): the discovered config file and the environment settled per key, the config returned. opts[:mode] is the posture a refusal takes, shisei's two words: :audit, the default, warns each refusal on stderr and runs with the value kept; :enforce stops the start with one error naming every refusal (stopped), for a program that must not run on a broken setting, as a service must not (docs/SERVICE-ARCHITECTURE.md §10). Notices are warned in both, before an enforced start stops.
 
     procedure?(settled) #=> true
 """
@@ -1742,12 +1742,16 @@ def settled(app, model, opts?)
     file_doc(path, file_format(app, nil))
   end
   s = settle(app, model, doc, (name) -> getenv(name), {})
-  if mode == :enforce
-    stopped(s)
+  said = if mode == :enforce
+    s[:notices]
+  else
+    append(map((f) -> f[:why], s[:refusals]), s[:notices])
   end
-  said = append(map((f) -> f[:why], s[:refusals]), s[:notices])
   if said != []
     write_stderr(unlines(map((w) -> "#{app}: #{w}", said)))
+  end
+  if mode == :enforce
+    stopped(s)
   end
   s[:config]
 end
@@ -4031,6 +4035,45 @@ test "one engine settles one model under both postures: audit keeps every good k
     () -> settled("settei-test-none", required, {mode: :loud})
   ) == :bad_option
   assert refusal_mode(nil) == :audit
+end
+
+test "a start the enforce posture stops warns its notices first, as an audited start does", {
+  kind: :integration
+}
+  if self_exe != nil
+    prog = path_join(temp_dir("settei-enforce"), "start.b")
+    write_program(
+      prog,
+      unlines(
+        [
+          "use(\"settei\")",
+          "",
+          "def main()",
+          "  m = {old: settei::knob(1, {deprecated: \"use port\"}), port: settei::knob(80)}",
+          "  mode = if argv[0] == \"enforce\"",
+          "    :enforce",
+          "  else",
+          "    :audit",
+          "  end",
+          "  settei::settled(\"settei-enforce-probe\", m, {mode:})",
+          "  write_stdout(\"ran\")",
+          "end"
+        ]
+      )
+    )
+    env = [%w[SETTEI_ENFORCE_PROBE_OLD 2], %w[SETTEI_ENFORCE_PROBE_PORT eighty]]
+    run = (mode) -> exec_with_env(env, self_exe, "run", "--quiet", prog, mode)
+    stop = run("enforce")
+    audit = run("audit")
+    notice = "settei-enforce-probe: old is deprecated: use port"
+    assert stop.status != 0
+    assert stop.stdout == ""
+    assert contains?(stop.stderr, notice)
+    assert contains?(stop.stderr, "got eighty from SETTEI_ENFORCE_PROBE_PORT")
+    assert audit.status == 0
+    assert audit.stdout == "ran"
+    assert contains?(audit.stderr, notice)
+  end
 end
 
 test "a plain record of defaults finds its config file's keys as text, as a model does"

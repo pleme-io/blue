@@ -26,7 +26,7 @@
   {
     "name": "a layer outside set_by still sets the knob",
     "file": "settei.b",
-    "find": "elsif not member?(layer, k[:set_by])",
+    "find": "elsif not settable_by?(k, layer)",
     "replace": "elsif false"
   },
   {
@@ -38,7 +38,7 @@
   {
     "name": "every knob gets a flag",
     "file": "settei.b",
-    "find": "def by_flag?(k)\n  member?(:flag, k[:set_by])",
+    "find": "def by_flag?(k)\n  settable_by?(k, :flag)",
     "replace": "def by_flag?(k)\n  true"
   },
   {
@@ -62,7 +62,7 @@
   {
     "name": "a renamed knob's old environment name is not read",
     "file": "settei.b",
-    "find": "map((old) -> env_name(app, split(old, \".\")), k[:renamed])",
+    "find": "map((old) -> env_name(app, split(old, \".\")), r[:knob][:renamed])",
     "replace": "[]"
   },
   {

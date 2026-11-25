@@ -156,6 +156,29 @@ def direct_check_of(v)
 end
 
 @doc """
+direct_steps: What a direct land runs after each rebase and before its push, from
+what it builds (direct_check_of) and whether it regenerates (`--no-regen` turns
+that off): first `:regen`, the lock and every generated file the rebase left
+stale, committed as a queued land commits them, then `:check`, the project's
+pre-merge checks, so the checks judge the tree the push carries. With the checks
+off (`prepush-only`) it runs neither, the old path: the pre-push gate regenerates
+and the land commits what it wrote.
+
+    direct_steps(:project, true) #=> [:regen, :check]
+    direct_steps(:project, false) #=> [:check]
+    direct_steps(:off, true) #=> []
+"""
+def direct_steps(check, regen)
+  if check != :project
+    []
+  elsif regen
+    %i[regen check]
+  else
+    [:check]
+  end
+end
+
+@doc """
 project_check_words: The build of a flake's pre-merge checks on `system`:
 `checks.<system>.project`, every Bluefile check row but the post-merge tier, the
 one aggregate a queued land's CI builds. Nix builds a row the change leaves as
@@ -195,30 +218,45 @@ end
 @doc """
 check_project: Build the project's pre-merge checks on the rebased tree, so a red
 `:ci` row stops a direct land before main moves, as it stops a queued land's
-CI; nothing when the check is off.
+CI.
 """
-def check_project(check, held)
-  if check == :project
-    words = project_check_words(land_system)
-    say("building #{join(words, " ")} before main moves")
-    if exec_check(*words) != 0
-      tell("the project's pre-merge checks are red, so main stays where it is; fix the red row, or land past it with BLUE_LAND_DIRECT=prepush-only")
+def check_project(held)
+  words = project_check_words(land_system)
+  say("building #{join(words, " ")} before main moves")
+  if exec_check(*words) != 0
+    tell("the project's pre-merge checks are red, so main stays where it is; fix the red row, or land past it with BLUE_LAND_DIRECT=prepush-only")
+    direct_exit(held, 1)
+  end
+end
+
+@doc """
+direct_step: Run one step of direct_steps, and end the land with exit 1 when it
+fails: `:regen` refreshes the lock and every generated file and commits them
+(regen_failure), `:check` builds the project's pre-merge checks (check_project).
+"""
+def direct_step(step, held)
+  if step == :regen
+    failed = regen_failure(".")
+    if not failed.nil?
+      tell(failed)
       direct_exit(held, 1)
     end
+  else
+    check_project(held)
   end
 end
 
 @doc """
 direct_land: Land HEAD on main directly, for while another agent pushes main
-directly and the queue's turns keep being reset: rebase onto main, build the
-project's pre-merge checks (check_project, unless `check` is off), push through
-the pre-push gates, and on a failure do what direct_next says, up to `tries`
-times. `held` is the machine's land lock (take_machine), let go at every end.
-Land reads no stdin; start it with stdin closed (`git land --direct < /dev/null`)
-when it runs in the background, as a land started with `&` and stdin open died
-on 2026-11-20.
+directly and the queue's turns keep being reset: rebase onto main, run `steps`
+(direct_steps: commit the regeneration the rebase needs, then build the project's
+pre-merge checks), push through the pre-push gates, and on a failure do what
+direct_next says, up to `tries` times. `held` is the machine's land lock
+(take_machine), let go at every end. Land reads no stdin; start it with stdin
+closed (`git land --direct < /dev/null`) when it runs in the background, as a
+land started with `&` and stdin open died on 2026-11-20.
 """
-def direct_land(tries, held, check)
+def direct_land(tries, held, steps)
   if tries == 0
     tell("main kept moving under the push; land again")
     direct_exit(held, 1)
@@ -230,7 +268,7 @@ def direct_land(tries, held, check)
     tell("the rebase onto main conflicts; resolve it, then land again")
     direct_exit(held, 1)
   end
-  check_project(check, held)
+  map((s) -> direct_step(s, held), steps)
   pushed = git_at(".", %w[push origin HEAD:main])
   if status_of(pushed) == 0
     say("on main: #{trim(ask(%w[rev-parse --short HEAD]))}")
@@ -249,7 +287,7 @@ def direct_land(tries, held, check)
   else
     say("main moved first; rebasing and pushing again")
   end
-  direct_land(tries - 1, held, check)
+  direct_land(tries - 1, held, steps)
 end
 
 @doc """
@@ -3214,7 +3252,7 @@ def main()
       )
       exit_with(2)
     end
-    direct_land(8, take_machine, check)
+    direct_land(8, take_machine, direct_steps(check, a[:regen]))
   end
   left = requeue_of(argv)
   minutes = count_flag(argv, "--queue-minutes=", 240)
@@ -4162,19 +4200,20 @@ test "a direct land builds the project's pre-merge checks before main moves: pre
   assert direct_check_of("prepush") == {refused: "prepush"}
   assert project_check_words("aarch64-darwin") ==
     ["nix", "build", "--no-link", ".#checks.aarch64-darwin.project"]
+  assert direct_steps(direct_check_of(nil), true) == %i[regen check]
+  assert direct_steps(direct_check_of("prepush-only"), true) == []
 end
 
-def fake_nix(root, code)
+def fake_nix_with(root, judge)
   bin = path_join(root, "bin")
   mkdir_p(bin)
   script(
     path_join(bin, "nix"),
     unlines(
-      [
-        "#!/bin/sh",
-        "echo \"$*\" >> #{path_join(root, "nix.log")}",
-        "exit #{to_s(code)}"
-      ]
+      append(
+        ["#!/bin/sh", "echo \"$*\" >> #{path_join(root, "nix.log")}"],
+        judge
+      )
     )
   )
   [
@@ -4182,6 +4221,10 @@ def fake_nix(root, code)
     "BLUE_LAND_SYSTEM=test-system",
     "BLUE_LAND_SINGLE_FLIGHT=off"
   ]
+end
+
+def fake_nix(root, code)
+  fake_nix_with(root, ["exit #{to_s(code)}"])
 end
 
 test "a red pre-merge check stops a direct land and main stays where it is; a green one lands, and prepush-only lands past a red one"
@@ -4221,6 +4264,38 @@ test "a red pre-merge check stops a direct land and main stays where it is; a gr
     ["--direct"]
   )
   assert status_of(refused) == 2
+  rm_rf(root)
+end
+
+test "a direct land commits the regeneration its rebase needs before the pre-merge checks build, so they judge the tree it pushes; --no-regen leaves the stale file to the red check"
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  main_moves(root, [%w[notes/ant ant]])
+  log = path_join(root, "nix.log")
+  stale_is_red = fake_nix_with(
+    root,
+    ["git log -1 --format=%s >> #{log}", "grep -qx ant made.txt"]
+  )
+  main_was = as_tester(work, %w[ls-remote origin refs/heads/main])
+  kept = land_with(stale_is_red, root, %w[--direct --no-regen])
+  assert status_of(kept) == 1
+  assert contains?(stderr_of(kept), "pre-merge checks are red")
+  assert as_tester(work, %w[ls-remote origin refs/heads/main]) == main_was
+  fresh = land_with(stale_is_red, root, ["--direct"])
+  assert status_of(fresh) == 0
+  built = moji::lines(read_file(log))
+  assert count(built) == 4
+  assert built[1] == "topic"
+  assert starts_with?(built[3], "regen after rebasing onto ")
+  assert contains?(
+    as_tester(work, %w[ls-remote origin refs/heads/main]),
+    as_tester(work, %w[rev-parse HEAD])
+  )
+  as_tester(work, %w[fetch -q origin])
+  assert as_tester(work, %w[show origin/main:made.txt]) ==
+    join(%w[base ant], line_break)
   rm_rf(root)
 end
 

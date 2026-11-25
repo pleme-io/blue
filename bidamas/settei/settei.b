@@ -228,7 +228,7 @@ def file_tier(defaults, doc, path)
           append(second(acc), second(inner))
         ]
       elsif same_kind?(d, v)
-        [assoc(first(acc), key, v), second(acc)]
+        [assoc(first(acc), key, held(kind_of(d), v)), second(acc)]
       else
         [
           first(acc),
@@ -4046,6 +4046,13 @@ test "a plain record of defaults finds its config file's keys as text, as a mode
   assert kyohi::raised(
     () -> resolve("app", {port: 1}, deeta::parse("prot: 2", :yaml), no_env)
   ) == :unknown_key
+end
+
+test "a float setting of a plain record holds a Float whatever layer sets it, as a float knob does"
+  assert float?(resolve("a", {"r" => 1.5}, {"r" => 2}, no_env)["r"])
+  assert float?(resolve("a", {r: 1.5}, deeta::parse("r: 2", :yaml), no_env).r)
+  assert float?(resolve("a", {"r" => 1.5}, nil, env_of({"A_R" => "2"}))["r"])
+  assert integer?(resolve("a", {"n" => 1}, {"n" => 2}, no_env)["n"])
 end
 
 test "an empty text default is refused at the knob, and a setting unset until a layer sets it is a knob with no default"

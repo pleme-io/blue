@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2e6fe816e4330fcd118d8500d8d621b6406a2d66ef5692839902505c447830b5",
+  "bluefile_b3": "b3:dcba06e529823ee494724fa146090ace3e0f0d42c029b68f25c6b6d606ff8d7a",
   "manifest": {
     "schema": 1,
     "name": "hashiru",
@@ -9,6 +9,7 @@
       "kaaneru": "^0.1.0",
       "kikaigo": "^0.1.0",
       "kuzushi": "^0.1.0",
+      "kyohi": "^0.1.0",
       "retsu": "^0.1.0",
       "shisutemu": "^0.1.0"
     },

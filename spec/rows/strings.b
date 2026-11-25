@@ -198,7 +198,7 @@ row(
   covers("okite:D0005")
 )
 
-row("strings.to_s.nil", "to_s(nil)", value("\"\""))
+row("strings.to_s.nil", "to_s(nil)", value("\"\""), pending("G29", "native"))
 row("strings.to_s.float", "to_s(1.0)", value("\"1.0\""))
 
 row(

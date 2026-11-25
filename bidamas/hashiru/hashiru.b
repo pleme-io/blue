@@ -15,6 +15,7 @@ use(
     anf
     closure_convert
     head_is?
+    literal_of
     mark_tail
     perceus_program
     returns_var?
@@ -22,6 +23,8 @@ use(
     whole_in
   ]
 )
+
+use("kyohi")
 
 use(
   "retsu",
@@ -853,34 +856,70 @@ RT_DROP = append(
 )
 
 @doc """
-tagged_atom: the instructions that put an atom's runtime value in a register: an integer n as 2n + 1, false and nil as 0, true as 2, a name from its slot.
+tagged_atom: the instructions that put an atom's runtime value in a register, the atom decoded by kuzushi's literal_of: an integer n as 2n + 1, nil as 0, true as 2, false as FALSE, a name from its slot. A literal with no tagged word yet (a Float, an Int outside TAGGED_INTS) is refused with :unsupported, naming it.
 
     tagged_atom([], 20, "rax") #=> [{op: "mov", dst: "rax", imm: 41}]
+    tagged_atom([], read_forms("()")[0], "rax") #=> [{op: "mov", dst: "rax", imm: 0}]
 """
 def tagged_atom(slots, a, r)
-  if keyword?(a)
-    [{op: "lea_label", dst: r, label: kw_label(a)}]
-  elsif string?(a)
-    [{op: "lea_label", dst: r, label: str_label(a)}]
-  elsif symbol?(a) and to_s(a) == "nil"
-    [{op: "mov", dst: r, imm: 0}]
-  elsif symbol?(a) and to_s(a) == "false"
-    [{op: "mov", dst: r, imm: FALSE}]
-  elsif symbol?(a) and to_s(a) == "true"
+  v = literal_of(a)
+  if keyword?(v)
+    [{op: "lea_label", dst: r, label: kw_label(v)}]
+  elsif string?(v)
+    [{op: "lea_label", dst: r, label: str_label(v)}]
+  elsif symbol?(v)
+    [{op: "load", dst: r, disp: slot(slots, to_s(v))}]
+  elsif v == true
     [{op: "mov", dst: r, imm: 2}]
-  elsif symbol?(a)
-    [{op: "load", dst: r, disp: slot(slots, to_s(a))}]
-  elsif a == true
-    [{op: "mov", dst: r, imm: 2}]
-  elsif a == false
+  elsif v == false
     [{op: "mov", dst: r, imm: FALSE}]
-  elsif a.nil?
+  elsif v.nil?
     [{op: "mov", dst: r, imm: 0}]
-  elsif 2 * a + 1 > 2_147_483_647 or 2 * a + 1 < -2_147_483_648
-    [{op: "movabs", dst: r, imm: 2 * a + 1}]
+  elsif not integer?(v)
+    raise(
+      :unsupported,
+      "hashiru: no native code for the literal #{to_s(v)} yet"
+    )
+  elsif v < TAGGED_INTS[0] or v > TAGGED_INTS[1]
+    raise(
+      :unsupported,
+      "hashiru: no native code yet for #{to_s(v)}, an Int outside the tagged range"
+    )
+  elsif 2 * v + 1 > 2_147_483_647 or 2 * v + 1 < -2_147_483_648
+    [{op: "movabs", dst: r, imm: 2 * v + 1}]
   else
-    [{op: "mov", dst: r, imm: 2 * a + 1}]
+    [{op: "mov", dst: r, imm: 2 * v + 1}]
   end
+end
+
+@doc """
+TAGGED_INTS: the least and the greatest Int a tagged word (2n + 1 in 64 bits) holds, -2^62 and 2^62 - 1; a literal outside them has no native word yet.
+
+    TAGGED_INTS #=> [-4611686018427387904, 4611686018427387903]
+"""
+TAGGED_INTS = [-4_611_686_018_427_387_904, 4_611_686_018_427_387_903]
+
+test "every literal blue ast writes is a tagged word or a refusal by name"
+  assert tagged_atom([], read_forms("()")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: 0}]
+  assert tagged_atom([], read_forms("nil")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: 0}]
+  assert tagged_atom([], read_forms("#t")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: 2}]
+  assert tagged_atom([], read_forms("#f")[0], "rax") ==
+    [{op: "mov", dst: "rax", imm: FALSE}]
+  assert tagged_atom([], TAGGED_INTS[1], "rax") ==
+    [{op: "movabs", dst: "rax", imm: 9_223_372_036_854_775_807}]
+  assert tagged_atom([], TAGGED_INTS[0], "rax") ==
+    [{op: "movabs", dst: "rax", imm: -9_223_372_036_854_775_807}]
+  assert kyohi::raised(() -> tagged_atom([], 2.5, "rax")) == :unsupported
+  assert kyohi::raised(() -> tagged_atom([], TAGGED_INTS[1] + 1, "rax")) ==
+    :unsupported
+  assert kyohi::raised(() -> tagged_atom([], TAGGED_INTS[0] - 1, "rax")) ==
+    :unsupported
+  assert kyohi::raised(
+    () -> tagged_atom([], read_forms("(quote (1 2))")[0], "rax")
+  ) == :unsupported
 end
 
 @doc """
@@ -8086,7 +8125,7 @@ SHOW_MAP = append(
 )
 
 @doc """
-RT_SHOW: a value written to standard output as blue writes its literal (to_s inside a list), the value in rdi borrowed: a number in decimal, nil, true, a string quoted with SHOW_ESCAPES, a keyword as :name, a list as [a, b] with each element shown in turn, an error as <error> and a function as <fn>. Natively false and the empty list are nil, so each shows as nil.
+RT_SHOW: a value written to standard output as blue writes its literal (to_s inside a list), the value in rdi borrowed: a number in decimal, nil, true, false (FALSE), the empty list (EMPTY) as [], a string quoted with SHOW_ESCAPES, a keyword as :name, a list as [a, b] with each element shown in turn, a map as SHOW_MAP writes it, an error as <error> and a function as <fn>.
 
     RT_SHOW[0] #=> {op: "label", name: "rt_show"}
 """

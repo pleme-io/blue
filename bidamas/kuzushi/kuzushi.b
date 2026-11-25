@@ -66,13 +66,14 @@ def wrap(binds, term)
 end
 
 @doc """
-norm: a form as [binds, atom, next], where binds are [name, rhs] rows in evaluation order, atom stands for the form's value, and next is the fresh-name counter after it.
+norm: a form as [binds, atom, next], where binds are [name, rhs] rows in evaluation order, atom stands for the form's value (a leaf decoded by literal_of, so `()` is nil), and next is the fresh-name counter after it.
 
     norm(read_forms("7")[0], 0) #=> [[], 7, 0]
+    norm(read_forms("()")[0], 0) #=> [[], nil, 0]
 """
 def norm(form, n)
   if atom?(form)
-    [[], form, n]
+    [[], literal_of(form), n]
   elsif head_is?(form, "quote")
     [[], form, n]
   elsif head_is?(form, "if")
@@ -238,20 +239,55 @@ def lookup(env, name)
 end
 
 @doc """
-value_of: the value an atom stands for: a name looks up, a quote unwraps, the empty form `()` (how the resolved tree writes nil) is nil, a literal is itself.
+literal_of: the value a leaf of a lowered tree stands for when its spelling is a literal's: the empty form `()` (how `blue ast` writes nil) and the symbol `nil` are nil, the symbols `true` and `false` are the booleans, and any other leaf is itself, so a name stays a symbol. The IR front decodes every leaf here once (norm), so a backend reads values, never spellings.
+
+    literal_of(read_forms("()")[0]) #=> nil
+    literal_of(read_forms("true")[0]) #=> true
+    symbol?(literal_of(read_forms("x")[0])) #=> true
+"""
+def literal_of(atom)
+  if list?(atom) and length(atom) == 0
+    nil
+  elsif symbol?(atom) and to_s(atom) == "nil"
+    nil
+  elsif symbol?(atom) and to_s(atom) == "true"
+    true
+  elsif symbol?(atom) and to_s(atom) == "false"
+    false
+  else
+    atom
+  end
+end
+
+test "every spelling of nil, true and false decodes to its value, and nothing else moves"
+  assert literal_of(read_forms("()")[0]).nil?
+  assert literal_of(read_forms("nil")[0]).nil?
+  assert literal_of(read_forms("#t")[0]) == true
+  assert literal_of(read_forms("#f")[0]) == false
+  assert literal_of(read_forms("true")[0]) == true
+  assert literal_of(read_forms("false")[0]) == false
+  assert literal_of(read_forms("(list)")[0]) == read_forms("(list)")[0]
+  assert literal_of(read_forms("(quote ())")[0]) == read_forms("(quote ())")[0]
+  assert literal_of(read_forms("nil?")[0]) == read_forms("nil?")[0]
+  assert literal_of(7) == 7
+  assert literal_of(:k) == :k
+  assert literal_of("()") == "()"
+end
+
+@doc """
+value_of: the value an atom stands for: a literal's spelling is its value (literal_of), a name looks up, a quote unwraps, anything else is itself.
 
     value_of(read_forms("(quote 9)")[0], []) #=> 9
     value_of(read_forms("()")[0], []) #=> nil
 """
 def value_of(atom, env)
-  if symbol?(atom)
-    lookup(env, to_s(atom))
-  elsif head_is?(atom, "quote")
-    atom[1]
-  elsif list?(atom) and length(atom) == 0
-    nil
+  v = literal_of(atom)
+  if symbol?(v)
+    lookup(env, to_s(v))
+  elsif head_is?(v, "quote")
+    v[1]
   else
-    atom
+    v
   end
 end
 

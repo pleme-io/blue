@@ -17,12 +17,15 @@
 //! bound function's arity are each a red build. A new primitive therefore
 //! arrives with its line or does not arrive.
 //!
-//! **Its results cannot drift either.** A line that states what a call gives,
-//! `f(x) is v` or `f(x) raises`, states a runtime fact, and the markdown-laws
-//! check (`gen/markdown-laws.b`) holds it to the spec row whose program is
-//! that call, which conformance runs on every evaluator: a fact with no row,
-//! or one its row contradicts, is red. Where a builtin is partial or
-//! surprising the line says so, because that is what an author needs from it.
+//! **A result stated in one shape is held to a row.** A call of builtins and
+//! literals followed by `is`, `gives`, `answers` or `returns` and a literal
+//! (`round(2.5) is 3`), or by `raises`, states a runtime fact, and the
+//! markdown-laws check (`gen/markdown-laws.b`) holds it to the spec row whose
+//! program is that call, which conformance runs on every evaluator: a fact
+//! with no row, or one its row contradicts, is red. A result stated any other
+//! way (an arrow, a value that is not a literal) is not read, and can drift.
+//! Where a builtin is partial or surprising the line says so, because that is
+//! what an author needs from it.
 //!
 //! # Signatures
 //!

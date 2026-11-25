@@ -1,17 +1,3 @@
-# The gap ledger: one row per G id, the only place a G id is allocated. A
-# pending or flaky mark in spec/rows/ and a rule of blue_lang_runtime::door::TABLE
-# name an open gap of this ledger, and the conformance runner refuses a mark
-# whose gap has no row, a mark on a closed gap, and an id with two rows.
-#
-# gap(ID, STATE, WHAT IS MISSING, opened(DATE), OPTION...): STATE is :open or
-# :closed; closed(DATE) dates a closing, owner(DOC) names where the gap's
-# design lives, and was(ID) names an id the gap was once cited by. A row with
-# no owner is its own record: G1 to G16 are the first pass of the architecture
-# gap audit (2026-09-29), G17 to G19 the evaluator differential that opened
-# this suite. A G id in another document's own table (ARIKA G1 to G9, GPU G1
-# to G4, VERB-ROADMAP G1 to G10, …) is that document's goal label, cited with
-# its document's name.
-
 gap(
   "G1",
   :open,

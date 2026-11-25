@@ -1,6 +1,6 @@
 # Maps: the literal, value equality, exact keys (okite D0009), and the map
-# built-ins. A map's keys cannot be listed from blue today (G1); those rows
-# state the destination.
+# built-ins. map_entries walks a map in key order; the words keys and values
+# are unbound (G1, the kebab wall), and their rows state the destination.
 
 row(
   "maps.literal",

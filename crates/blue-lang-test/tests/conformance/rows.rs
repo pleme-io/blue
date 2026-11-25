@@ -179,7 +179,7 @@ impl Expect {
     }
 }
 
-/// `pending("G5")` or `pending("G16", "wasm")`: the row states the DESTINATION
+/// `pending("G12")` or `pending("G16", "wasm")`: the row states the DESTINATION
 /// behaviour, which the named gap has not reached yet — on every evaluator, or
 /// on one.
 #[derive(Clone, Debug)]
@@ -444,7 +444,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                     }
                 };
                 let gap = str_of(gap)
-                    .ok_or_else(|| label("pending(\"G5\"): the gap is a string".into()))?
+                    .ok_or_else(|| label("pending(\"G12\"): the gap is a string".into()))?
                     .to_owned();
                 let misses = misses
                     .map(|m| {

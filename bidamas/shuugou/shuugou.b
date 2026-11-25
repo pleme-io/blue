@@ -197,8 +197,8 @@ end
 @doc """
 group_by: Returns [key, members] PAIRS rather than a map, in first-seen key order.
 
-A pair list, because blue's map literal has no reachable key-enumeration
-builtin — so a map return would be a value a caller could not walk. The pairs
+A pair list, because a map walks in its own key order (`map_entries` sorts
+by key), and the groups keep the order their keys were first seen in. The pairs
 are ordinary lists, which every function in the distribution already handles.
 Key order is first-seen, not sorted: the keys need no ordering relation, so
 sorting them would demand one the caller may not have.

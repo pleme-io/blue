@@ -274,7 +274,7 @@ the same columns, when its gate lands. This document does not land them.
 
 ## 5. Row notes (measurements)
 
-**Row 1, null.** `nth(5, [1, 2])` is `nil`, `get({a: 1}, :z)` is `nil`,
+**Row 1, null.** `nth(5, [1])` is `nil`, `get({a: 1}, :z)` is `nil`,
 `to_int("12x")` is `nil`; built-in `first([])` raises. B0047 fixes the nil
 test spelling only. The design and the rule are `docs/ABSENCE.md`.
 

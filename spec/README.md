@@ -165,8 +165,11 @@ naming where its design lives and `was(ID)` an id it was once cited by. The
 runner refuses a malformed row, an id with two rows, a mark or a
 `door::TABLE` rule naming a gap the ledger does not hold, and one naming a
 closed gap (`cargo test -p blue-lang-test --test gap_ledger` runs the same
-check alone). A G id in another document's own table (ARIKA G1 to G9, GPU G1
-to G4, …) is that document's goal label and is cited with its name.
+check alone). A row with no owner is its own record: G1 to G16 are the first
+pass of the architecture gap audit (2026-09-29), G17 to G19 the evaluator
+differential that opened this suite. A G id in another document's own table
+(ARIKA G1 to G9, GPU G1 to G4, …) is that document's goal label and is cited
+with its name.
 
 ## Pending: how a closed gap flips visibly
 

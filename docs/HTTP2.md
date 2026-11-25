@@ -46,7 +46,7 @@ rustls today carries C or assembly.
 |---|---|---|
 | Sockets | `crates/blue-lang-runtime/src/net.rs:1`–`:28`: NATS, HTTP/1.1, Postgres over std TCP, each call blocking with a timeout; `net/serve.rs:176` sets one listener non-blocking | until 2026-11-09, no socket handle a program reads or writes and no wait over many sockets; the `tcp_*` words and `net_wait` now exist (`net/stream.rs`) |
 | Capability | `net.rs:5`: names granted only through `Capability::Network`; host names come from `sys` (`crates/blue-lang-runtime/Cargo.toml:47`), off in the wasm build | a per-socket grant |
-| TLS | `https://` and TLS-only NATS are refused by name. rustls is in `Cargo.lock` only as a dependency of other crates; no blue word uses it | all of it |
+| TLS | until 2026-11-15, `https://` was refused by name; now `http_request` over `https://` and the RESP client's `tls` target go through one rustls seam with the Mozilla roots (`crates/blue-lang-runtime/src/net/tls.rs`), and a TLS-only NATS server is still refused by name | `tls_*` words, ALPN `h2`, TLS for NATS |
 | Processes | `crates/blue-lang-proc/src/lib.rs:373` `Supervisor`; the root is not preempted, and a blocking host call blocks the node | a socket that feeds a mailbox |
 | Bytes | a byte is an Int in a list; `crypto.rs:198` `message_bytes` reads a string or a byte list | until this change, no text to bytes and back (now `text_bytes`, `bytes_text`, `stdlib.rs:570`, `:584`) |
 | Bits | `bidamas/shinsuu`: `bit_at`, `shift_left`, `shift_right`, by arithmetic; blue has no bitwise operator | native bit operators |
@@ -55,8 +55,9 @@ rustls today carries C or assembly.
 | Rust HTTP/2 in the fleet | kensa: `axum 0.8`, `tonic 0.12` behind the `grpc` feature (`kensa/Cargo.toml:28`, `:80`), `hyper 1.9.0`, `h2 0.4.20`, `rustls 0.23.46` in `kensa/Cargo.lock`; tend: `hyper 1.12.0` (server, http1), `h2 0.4.20`, `rustls 0.23.46` | a blue service on any of them |
 
 Summary: blue can make one blocking request at a time. It cannot hold two
-connections open and serve whichever speaks first, it has no TLS, and the
-fleet's HTTP/2 is hyper and h2, reachable only from Rust-led services.
+connections open and serve whichever speaks first, it speaks TLS only inside
+`http_request` and the RESP client, with no ALPN, and the fleet's HTTP/2 is
+hyper and h2, reachable only from Rust-led services.
 
 ## 3. Research
 

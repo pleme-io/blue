@@ -154,7 +154,8 @@ the repo root and were read on 2026-11-17.
   `cond` and `let` (a `case` lowers to `let` over `cond` with `equal?` tests), `quote`, and
   calls to globals and builtins. So: a `rescue` is `(try body (catch (e) handler))`; a map
   literal is `hash-map`; indexing a map is `get`; `case` is `(let ((case-subject k)) (cond ...))`.
-  B1's source language is exactly these forms, and `henkan` (B0) declares it.
+  B1's source language is exactly these forms. `henkan` (B0) is to declare it, and does
+  not yet: kuzushi needs no henkan, and refuses a head outside the core by hand.
 
 ### B2 — the x86-64 encoder
 

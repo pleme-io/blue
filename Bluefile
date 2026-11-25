@@ -103,7 +103,7 @@ check("prepush", "gen/prepush.b", ["Bluefile.lock", "nix/source-fixture", "nix/p
 check("catalog-quality", "gen/quality.b", ["bidamas"], {stage: :ci})
 check("release", "gen/release.b", {stage: :push})
 check("docs", "gen/docs.b", ["docs", "Bluefile.lock", "gen/obligation-debt.tsv", "nix/node-fixture", "AGENTS.md", "CLAUDE.md", "README.md", "llms.txt", "llms-full.txt", ".gitattributes", ".github", "bidamas", "crates", "tree-sitter-blue"], {stage: :ci})
-check("markdown-laws", "gen/markdown-laws.b", ["Bluefile.lock", "docs", "AGENTS.md", "Bluefile", "llms.txt", "bidamas", "crates", "examples", "rules", "spec"], {stage: :ci})
+check("markdown-laws", "gen/markdown-laws.b", ["Bluefile.lock", "docs", "AGENTS.md", "Bluefile", "llms.txt", "bench", "bidamas", "crates", "eval", "examples", "gen", "kernel", "nix", "rules", "spec", "tree-sitter-blue"], {stage: :ci})
 receipt("docs", %i[nist_sa_5 nist_sa_11])
 
 # The repository's own check rules, written in blue: `blue check` runs each

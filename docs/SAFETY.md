@@ -430,7 +430,7 @@ refuses a whole-program provider for a capability `allow` also grants, but
 from `network`, so a frame may hold one channel without the other and without
 TCP: `comm-flash` (`flash_open`, `flash_put`, `flash_next`, `flash_stats`,
 `flash_close`) and `comm-scavenger` (the seven `tide_` words), over one UDP
-socket (`crates/blue-lang-runtime/src/wire.rs`). A Bluefile and `--allow`
+socket (`crates/blue-lang-runtime/src/wire/mod.rs`). A Bluefile and `--allow`
 name them `comm_flash` and `comm_scavenger` (`Capability::host_named` reads
 the label or its snake case). The host border enforces the framing (0x02
 Flash, 0x01 Tide with an 8-byte send stamp), the 1280-byte MTU (a frame past
@@ -447,7 +447,7 @@ hears nothing; `blue lock` refuses
 
 **The Flash rate is the host's (2026-10-30).** Each wire's Flash send path
 holds a token bucket with the rate and burst ibuki's bucket models
-(`crates/blue-lang-runtime/src/wire.rs`, `Bucket`): `flash_bytes_per_second`
+(`crates/blue-lang-runtime/src/wire/mod.rs`, `Bucket`): `flash_bytes_per_second`
 bytes a second and one second's worth at once, a typed bound in `BlueConfig`
 (a BOUND, never a preference; default 16384, `wire::DEFAULT_FLASH_RATE`). It
 reads the frame's clock: a whole-program clock provider when the hold has one

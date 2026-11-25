@@ -1025,10 +1025,10 @@ One row for each space of §4, and one for each part of the design that is not a
 | Master verb dispatch (§3.7) | ✅ built | `spec/rows/dispatch.b`. |
 | The verb graph and its check (§5) | ✅ built | `bidamas/mokuroku/graph/`, `blue verbs check`, `docs/verbs/H/DESIGN.md`. |
 | fairu, files and paths (§4.1) | ⏳ in progress | `bidamas/fairu` has path words with 9 tests. Temporary directories, atomic write, `info`, copy and watch do not exist. |
-| shisutemu, processes (§4.2) | ✅ built | `bidamas/shisutemu`, 11 tests. |
+| shisutemu, processes (§4.2) | ⏳ in progress | `bidamas/shisutemu`, 11 tests, holds the process captures (`run_capture`, `status_of`, `stdout_of`, `read_or`) and the terminal words. None of §4.2's verbs exists: `run`, `capture`, `succeeds?`, `stream`, `pipe`, `spawn`, `wait`, `stop`, `which`, `become`, `info`, `exit`. |
 | kankyou, the environment (§4.3) | ❌ not built | No `kankyou` bidama. `getenv` is a builtin. |
 | settei, typed configuration (§4.4) | ✅ built | `bidamas/settei`, 16 tests. |
-| deeta, data formats (§4.5) | ✅ built | `bidamas/deeta`, 27 tests. `deeta::parse(text, :yaml)` reads YAML (`spec/rows/yaml.b`). |
+| deeta, data formats (§4.5) | ⏳ in progress | `bidamas/deeta`, 27 tests. `deeta::parse(text, format)` reads `:json`, `:yaml` (`spec/rows/yaml.b`), `:xml` and `:nix`; `:toml`, `:csv`, `:lines` and `:lisp` raise, and no `render` exists. `deeta::read(text)` parses JSON text, where §4.5's `read(path)` reads a file. |
 | jisho, maps and records (§4.6) | ✅ built | `bidamas/jisho`, 12 tests. |
 | jikan, instants and durations (§4.7) | ❌ not built | No `jikan` bidama. `bidamas/hizuke` holds the pure calendar, with 37 tests. |
 | moji, text (§4.8) | ⏳ in progress | `bidamas/moji`, 54 tests. No regular expression word exists. |
@@ -1036,7 +1036,7 @@ One row for each space of §4, and one for each part of the design that is not a
 | hikisuu, command-line arguments (§4.10) | ✅ built | `bidamas/hikisuu`, 13 tests. |
 | rogu, logging (§4.11) | ✅ built | `bidamas/mitoshi/rogu`, 21 tests. |
 | heikou, concurrency, timeouts and retry (§4.12) | ⏳ in progress | No `heikou` bidama. Retry is `bidamas/saishikou` (4 tests). Processes are in `blue-lang-proc`. [ASYNC.md](ASYNC.md) holds the plan. |
-| tsuushin, the HTTP client (§4.13) | ⏳ in progress | `bidamas/eigyou/tsuushin`, 11 tests. It speaks plain `http://` only. TLS does not exist. |
+| tsuushin, the HTTP client (§4.13) | ⏳ in progress | `bidamas/eigyou/tsuushin`, 11 tests, holds the URL words (`parse`, `render`, `join`). The client's verbs do not exist; the builtin `http_request` speaks `http://` and, over TLS, `https://` (`crates/blue-lang-runtime/src/net/tls.rs`). |
 | shomei, hashing and signatures (§4.14) | ✅ built | `bidamas/shomei`, 33 tests. |
 | Testing, owned by the runner (§4.15) | ✅ built | `bidamas/tesuto`, 18 tests. |
 | hyouka, nix (§4.16) | ✅ built | `bidamas/kakehashi/hyouka`, 7 tests. |

@@ -52,6 +52,24 @@ fn a_builtin_has_its_signature_doc_tier_and_spec_row_example() {
     );
 }
 
+#[test]
+fn the_rows_door_reads_every_program_the_conformance_runner_reads() {
+    let o = doc(&["--rows"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let rows: Vec<serde_json::Value> = serde_json::from_slice(&o.stdout).expect("a JSON array");
+    let deep = rows
+        .iter()
+        .find(|r| r["id"] == "fn.deep_recursion")
+        .unwrap_or_else(|| panic!("no fn.deep_recursion among {} rows", rows.len()));
+    assert!(
+        deep["src"]
+            .as_str()
+            .is_some_and(|s| s.contains("def depth(n)") && s.ends_with("depth(100000)")),
+        "{deep}"
+    );
+    assert!(rows.len() > 1000, "only {} rows", rows.len());
+}
+
 /// A bidama's definition: qualified signature, the comment above it, and
 /// the first of its package's tests that calls it.
 ///

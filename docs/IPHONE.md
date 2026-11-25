@@ -56,9 +56,12 @@ The app shell is `asobi/crates/asobi-smoke` (UIApplication, scene delegate,
 Blue today: `blue-lang-host` embeds the interpreter in Rust with `#[host]`
 blocks; `blue-lang-runtime` is pure Rust. Both build for `aarch64-apple-ios`
 and `aarch64-apple-ios-sim` with no source change (I0, section 8).
-`blue-lang-wasm` has no import table. Blue has no ahead-of-time compiler (the
-bytecode VM exists and is off for `blue run`). `crates/blue-lang-ios` is the
-shell (I1, section 8).
+`blue-lang-wasm` has no import table. `blue run` takes the bytecode VM where
+the conformance columns agree on every construct a program uses (`--door
+auto`, [COMMANDS.md](COMMANDS.md)), and blue's native backends (chuuzou to
+Rust, hashiru to x86-64, [PURE-BLUE.md](PURE-BLUE.md)) have no
+`aarch64-apple-ios` target. `crates/blue-lang-ios` is the shell (I1,
+section 8).
 
 ## 3. Decisions
 
@@ -126,7 +129,7 @@ replays a session frame by frame (the H4 replay rule).
 | I3 | CI: a public workflow on hosted macOS for the framework; a self-hosted macOS runner pool for product repos | a pushed change runs the golden loop in CI |
 | I4 | the engine surface as bidamas: touch gestures, text, sprites and atlases, save, rollback simulation (reuses the P2P netcode) | an example game in blue plays on the simulator |
 | I5 | device deploy and TestFlight | the app runs on a phone; a TestFlight build uploads (W3) |
-| I6 | speed: the VM, then ahead-of-time blue (H7) | a frame fits the 120 Hz budget on a phone |
+| I6 | speed: the VM door on the phone build, then an aarch64 native backend (H7) | a frame fits the 120 Hz budget on a phone |
 
 ## 7. Open questions
 

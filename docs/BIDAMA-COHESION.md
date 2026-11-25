@@ -154,7 +154,7 @@ package only; a B0015 reorder parted a waiver from its `use`, after which
 
 ### After the trees
 
-Section 3 is done. Four words of section 2 are not written (see the Ledger). The arnes copies
+Section 3 is in progress, and four words of section 2 are not written (see the Ledger). The arnes copies
 `wariate::bump` (home `toriyose::danpen::deeper`, now `kansuu::maybe`) and
 `yushutsu::column` (home `suugaku::gyouretsu::col`) move to a foundation word.
 
@@ -167,7 +167,7 @@ Section 3 is done. Four words of section 2 are not written (see the Ledger). The
 | section 2 merges | ⏳ in progress | Written: `kansuu::maybe`, `apply_when`, `juxt_with`; `retsu::if_empty`; `junjo::sort_with`, `insert_with`; `jisho::get_any`; `ongaku::chord_from_root`. Not written: `retsu::fold`, `retsu::find_where`, `retsu::span_end`, `kansuu::lift2`. |
 | section 3 layering | ⏳ in progress | `kyuuji` no longer needs `tesuto`; `kyohi` holds `raised`. `tsuushin` still needs `kyuuji` (`bidamas/eigyou/tsuushin/tsuushin.b`). |
 | trees 1 to 10 | ✅ built | Each root exists under `bidamas/`, with its `legacy_packages` rows; tree 10 is `bidamas/kaaneru/{bpf,btf,erufu}`. |
-| exact copies | ⏳ in progress | `reuse.baseline` records 4 copies, one each in `examples/05_errors.b`, `gen/prepush.b`, `gen/retired.b` and `spec/docs.b`. The census holds them and refuses a new one (`blue census --reuse`). |
+| exact copies | ⏳ in progress | `reuse.baseline` records the copies the census allows; it holds them and refuses a new one (`blue census --reuse`), so the count is the census's, not this page's. |
 | near duplicates | ⏳ in progress | `NEAR_SHAPE_DEFINITIONS = 24` (11 groups) in `crates/blue-lang-pkg/tests/distribution.rs`, down from 252. The arnes copies `wariate::bump` and `yushutsu::column` still wait for a foundation word. |
 | C0: the newline-escape ban | ✅ built | B0065 (`docs/DIAGNOSTICS.md`). |
 | CLI arguments | ✅ built | `bidamas/hikisuu`. 14 bidamas parsed `"--flag"` by hand at the 2026-10-27 measure (C5). |

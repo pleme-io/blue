@@ -31,7 +31,7 @@ or the other.
 
 ## Do not compute this list, however much you want to
 
-Twenty-three literal `needs` lines are exactly the shape that invites
+A literal `needs` line per package is exactly the shape that invites
 `map(fn(d) needs(d, "^0.1") end, siblings())` — and a Bluefile is blue code,
 so that would *work*. It would also silently halve the package: `mk-bidama.nix`
 reads the dependency graph by splitting the manifest text on `needs("`, so a

@@ -32,9 +32,14 @@ fn text(s: &Sexp) -> Option<String> {
     }
 }
 
+fn program(s: &Sexp) -> Option<String> {
+    blue_lang_syntax::constant_text(s)
+}
+
 /// Every compiled-in row, as one JSON array. A form that is not a `row(…)` call
-/// with a string id and program is skipped: the conformance runner is the
-/// gate that refuses one, by name.
+/// with a string id and a program the runner reads as text (a string, or
+/// `join_lines` of strings) is skipped: the conformance runner is the gate
+/// that refuses one, by name.
 ///
 /// # Errors
 ///
@@ -53,7 +58,7 @@ pub fn rows_json() -> serde_json::Result<String> {
             if head.as_symbol() != Some("row") {
                 continue;
             }
-            let (Some(id), Some(src)) = (text(id), text(src)) else {
+            let (Some(id), Some(src)) = (text(id), program(src)) else {
                 continue;
             };
             let covers = options

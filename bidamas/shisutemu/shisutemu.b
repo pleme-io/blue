@@ -28,10 +28,10 @@ the exact string a human's eye is used to from the Rust original.
 
 # What is deliberately absent
 
-**No error handling, because blue has none.** There is no `rescue`; a
-fallible call is guarded *before* it is made (`read_or` checks `is_file?`
-first) or documented as raising (`json_parse` on garbage still raises — see
-`deeta`). The one un-guardable race, a file vanishing between the check and
+**Guards, not rescues.** blue raises and rescues errors, but these words
+answer instead: a fallible call is guarded *before* it is made (`read_or`
+checks `is_file?` first) or documented as raising (`json_parse` on garbage
+still raises — see `deeta`). The one un-guardable race, a file vanishing between the check and
 the read, is noted on `read_or` rather than pretended away.
 
 **Output is the terminal's, and colour is a theme's.** `show` writes a node

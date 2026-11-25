@@ -41,8 +41,9 @@ names, and raising is their contract: a doc that will not parse is a bug in
 the producer, and fabricating a default here would turn that bug into a
 plausible answer.
 
-**No error handling, because blue has none.** `json_get` raises only on a
-non-document, and `is_doc` is checked before every call, so the raising path
+**Guards, not rescues.** blue raises and rescues errors, but these accessors
+guard instead: `json_get` raises only on a non-document, and `is_doc` is
+checked before every call, so the raising path
 is unreachable from the document accessors — the guards are what remove it.
 `get_or`, the Map reader, is `get` with a default and raises where `get` does.
 

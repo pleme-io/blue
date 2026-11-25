@@ -160,7 +160,7 @@ The [Ledger](#ledger) holds the state of each milestone.
 What was built, and the decisions it took:
 
 - **The spec is blue, and lowers.** The ladder (blue, then tatara-lisp, then
-  Rust) put the spec in blue as data, the way `gen/kigou.b` authors kigou's
+  Rust) put the spec in blue as data, the way `crates/blue-lang-syntax/gen/kigou.b` authors kigou's
   tables: `kiwari::blue()` is the grammar, built with a vocabulary that mirrors
   tree-sitter's (`seq`, `choice`, `field`, `prec_left`, …). Each rule also
   carries how its node LOWERS to blue's tree, as a template

@@ -156,7 +156,8 @@ process with a private environment, a crash ends only that process, and a
 supervisor restarts it under a policy. The pieces exist: `blue-lang-proc`'s
 supervisor (one-for-one, one-for-all, rest-for-one, simple-one-for-one, max
 restarts; per-process VM isolation) and the `saishikou` bidama, which holds
-the restart policy as data. The gap is the wiring: no service runs its handlers
+a retry policy as data (`{times, wait_ms, on}`), not a restart policy. The
+gap is the wiring: no service runs its handlers
 under `blue-lang-proc` yet, and the supervisor has no restart window and no
 backoff (`SERVICE-ARCHITECTURE.md`, Supervision row).
 

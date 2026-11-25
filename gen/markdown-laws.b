@@ -1,6 +1,6 @@
 use("bunsho", %i[extract inlines law_failures parse walk])
 use("hon", %i[doc_pages path_in])
-use("moji", %i[after_first before_first drop_chars text_of])
+use("moji", %i[after_first before_first drop_chars made_of text_of])
 use("retsu", %i[find_first first flat_map last push])
 
 LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
@@ -444,11 +444,11 @@ def claims_in(nodes)
 end
 
 @doc """
-page_claims: The results a Markdown page states, as [line, expression, claim], read from every paragraph, heading and table cell; code blocks state none.
+inline_runs: Every run of inline nodes a Markdown page holds, as [line, nodes]: each paragraph's and heading's, and each table cell's under its table's first line; a code block holds none.
 
-    page_claims(join_lines(["# A", "", "`7 / 2` is 3.5."])) #=> [[3, "7 / 2", [:is, "3.5"]]]
+    length(inline_runs(join_lines(["# A", "", "b", "", "| c | d |", "|---|---|"]))) #=> 4
 """
-def page_claims(text)
+def inline_runs(text)
   flat_map(
     filter(
       (n) -> member?(n[:kind], %i[heading paragraph table]),
@@ -460,14 +460,227 @@ def page_claims(text)
       else
         block[:at][0]
       end
-      runs = if block[:kind] == :table
-        filter((n) -> n[:kind] == :table_cell, walk(block))
+      if block[:kind] == :table
+        map(
+          (c) -> [line, walk(c)],
+          filter((n) -> n[:kind] == :table_cell, walk(block))
+        )
       else
-        [block]
+        [[line, walk(block)]]
       end
+    end
+  )
+end
+
+@doc """
+page_claims: The results a Markdown page states, as [line, expression, claim], read from every run of inline nodes it holds.
+
+    page_claims(join_lines(["# A", "", "`7 / 2` is 3.5."])) #=> [[3, "7 / 2", [:is, "3.5"]]]
+"""
+def page_claims(text)
+  flat_map(
+    inline_runs(text),
+    (r) -> map((c) -> [first(r), first(c), last(c)], claims_in(last(r)))
+  )
+end
+
+REPO_TOPS = %w[
+  bench
+  bidamas
+  crates
+  docs
+  eval
+  examples
+  gen
+  kernel
+  native
+  nix
+  rules
+  spec
+  tree-sitter-blue
+]
+
+@doc """
+row_state: The state a status table's row claims: :not when its text holds ❌, since a row not built may name the file that will make it, :claimed when it holds ✅ or ⏳, and nil when it holds none.
+
+    row_state("tls ⏳ in progress crates/x.rs") #=> :claimed
+"""
+def row_state(text)
+  if contains?(text, "❌")
+    :not
+  elsif contains?(text, "✅") or contains?(text, "⏳")
+    :claimed
+  end
+end
+
+@doc """
+cited_path: The repository path a code span cites, its `:line` and `#anchor` dropped, when its first segment is a top-level directory of the repository; nil for any other span.
+
+    cited_path("crates/blue-lang-check/src/form_rules.rs:212") #=> "crates/blue-lang-check/src/form_rules.rs"
+"""
+def cited_path(code)
+  bare = before_first(before_first(code, "#"), ":")
+  if contains?(bare, "/") and
+      member?(before_first(bare, "/"), REPO_TOPS) and
+      not any?((c) -> contains?(bare, c), [" ", "*", "{", "<", "…", "$", "("])
+    bare
+  end
+end
+
+@doc """
+status_rows: The rows of every table of a Markdown page, as [line, state, code spans]: the source line, the state row_state reads from the row's text, and its code spans in order.
+
+    status_rows(join_lines(["| a | b |", "|---|---|", "| `x/y` | ✅ |"])) #=> [[1, nil, []], [3, :claimed, ["x/y"]]]
+"""
+def status_rows(text)
+  flat_map(
+    filter((n) -> n[:kind] == :table, walk(parse(text))),
+    fn(t)
+      start = t[:at][0]
+      rows = filter((n) -> n[:kind] == :table_row, walk(t))
+      map(
+        fn(i)
+          nodes = filter(
+            (n) -> member?(n[:kind], %i[text inline_code]),
+            walk(rows[i])
+          )
+          line = if i == 0
+            start
+          else
+            start + i + 1
+          end
+          [
+            line,
+            row_state(join(map((n) -> n[:text], nodes), " ")),
+            map((n) -> n[:text], built_codes(nodes))
+          ]
+        end,
+        range(length(rows))
+      )
+    end
+  )
+end
+
+@doc """
+built_codes: The code spans of a row's text and code nodes that come before its first `not built`: what the row cites as made, not what its `Not built:` clause names as still to make.
+
+    built_codes(inlines("`a/b`; Not built: `c/d`", 1)) #=> [{kind: :inline_code, text: "a/b"}]
+"""
+def built_codes(nodes)
+  stop = find_first(
+    fn(i)
+      nodes[i][:kind] == :text and
+        contains?(downcase(nodes[i][:text]), "not built")
+    end,
+    range(length(nodes))
+  )
+  filter((n) -> n[:kind] == :inline_code, take(stop or length(nodes), nodes))
+end
+
+@doc """
+claimed_paths: The repository paths the ✅ and ⏳ rows of the pages' status tables cite, as [where, path], a page being [path, text].
+
+    claimed_paths([["d.md", join_lines(["| a | b |", "|---|---|", "| ✅ | `docs/x.md` |", "| ❌ | `docs/y.md` |"])]]) #=> [["d.md:3", "docs/x.md"]]
+"""
+def claimed_paths(pages)
+  flat_map(
+    pages,
+    fn(p)
       flat_map(
-        runs,
-        (r) -> map((c) -> [line, first(c), last(c)], claims_in(walk(r)))
+        filter((r) -> r[1] == :claimed, status_rows(last(p))),
+        fn(r)
+          map(
+            (path) -> ["#{first(p)}:#{to_s(r[0])}", path],
+            filter((c) -> c != nil, map(cited_path, r[2]))
+          )
+        end
+      )
+    end
+  )
+end
+
+@doc """
+evidence_failures: Why each repository path a ✅ or ⏳ row cites fails: it leads into a directory this check does not read (`inputs`), or it reaches no file under `at`.
+
+    evidence_failures(".", ["docs"], [["d.md", join_lines(["| a |", "|---|", "| ⏳ `gen/x.b` |"])]]) #=> ["d.md:3: `gen/x.b` leads into `gen`, which this check does not read; list `gen` in the inputs of check(\"markdown-laws\", …)"]
+"""
+def evidence_failures(at, inputs, pages)
+  flat_map(
+    claimed_paths(pages),
+    fn(c)
+      where = first(c)
+      path = last(c)
+      top = before_first(path, "/")
+      if not member?(top, inputs)
+        [
+          "#{where}: `#{path}` leads into `#{top}`, which this check does not read; list `#{top}` in the inputs of check(\"markdown-laws\", …)"
+        ]
+      elsif not path_exists(path_join(at, path))
+        ["#{where}: `#{path}` is cited by a ✅ or ⏳ row and reaches no file"]
+      else
+        []
+      end
+    end
+  )
+end
+
+@doc """
+row_id?: Whether a code span has a spec row id's shape: lower-case words joined by dots.
+
+    row_id?("fn.deep_recursion.catchable") #=> true
+"""
+def row_id?(text)
+  contains?(text, ".") and
+    made_of(text, "abcdefghijklmnopqrstuvwxyz0123456789_.?!") and
+    not starts_with?(text, ".") and
+    not ends_with?(text, ".")
+end
+
+@doc """
+citation?: Whether the code span at `i` of a run of inline nodes cites a spec row: a row id after `row ` or `rows `, or one that continues such a list after `, `, ` and ` or `, and `.
+
+    citation?(inlines("spec rows `a.b` and `c.d`", 1), 3) #=> true
+"""
+def citation?(nodes, i)
+  n = nodes[i]
+  before = nodes[i - 1]
+  if n.nil? or
+      before.nil? or
+      n[:kind] != :inline_code or
+      before[:kind] != :text or
+      not row_id?(n[:text])
+    false
+  else
+    t = downcase(replace(before[:text], line_break, " "))
+    ends_with?(" #{t}", " row ") or
+      ends_with?(" #{t}", " rows ") or
+      member?(t, [", ", " and ", ", and "]) and citation?(nodes, i - 2)
+  end
+end
+
+@doc """
+citation_failures: Each spec row a page cites that spec/rows/ does not hold, a page being [path, text] and `ids` every row id.
+
+    citation_failures([["d.md", "Rows `a.b` and `c.d`."]], ["a.b"]) #=> ["d.md:1: spec row `c.d` is cited, and spec/rows/ holds no row with that id"]
+"""
+def citation_failures(pages, ids)
+  flat_map(
+    pages,
+    fn(p)
+      flat_map(
+        inline_runs(last(p)),
+        fn(r)
+          nodes = last(r)
+          map(
+            fn(i)
+              "#{first(p)}:#{to_s(first(r))}: spec row `#{nodes[i][:text]}` is cited, and spec/rows/ holds no row with that id"
+            end,
+            filter(
+              (i) -> citation?(nodes, i) and not member?(nodes[i][:text], ids),
+              range(length(nodes))
+            )
+          )
+        end
       )
     end
   )
@@ -708,6 +921,50 @@ test "a name the expression reads is free unless it is a builtin's call, a keywo
   assert call_claims("throw(error(k, m)) is written raise(k, m)") == []
   assert claim_after(" is ", "\"000fff\"") == [:is, "\"000fff\""]
   assert row_value("fails(:eval, \"got nil\")").nil?
+end
+
+test "every path a ✅ or ⏳ row cites reaches a file, and every spec row a page cites exists"
+  pages = fact_pages(root)
+  ids = map((r) -> r[:id], spec_rows)
+  found = append(
+    evidence_failures(root, declared_inputs(root), pages),
+    citation_failures(pages, ids)
+  )
+  if found != []
+    write_stderr(unlines(found))
+  end
+  assert length(claimed_paths(pages)) >= 150
+  assert member?("fn.deep_recursion", ids)
+  assert found == []
+end
+
+test "a cited path that reaches nothing or leads where the check does not read, and a cited row that does not exist, are refused; a ❌ row and good citations pass"
+  dir = path_join(temp_dir("evidence"), "evidence")
+  mkdir_p(path_join(dir, "docs"))
+  write_file(path_join(dir, "docs/b.md"), "# B")
+  text = join_lines(
+    [
+      "| Item | State | What makes it true |",
+      "|---|---|---|",
+      "| a | ✅ built | `docs/b.md` and `docs/gone.md:12` |",
+      "| c | ⏳ in progress | `gen/x.b` |",
+      "| d | ❌ not built | `docs/later.md` |",
+      "",
+      "Spec rows `x.y` and `p.q` hold it; `r.s` is a field."
+    ]
+  )
+  pages = [["docs/a.md", text]]
+  found = append(
+    evidence_failures(dir, ["docs"], pages),
+    citation_failures(pages, ["x.y"])
+  )
+  rm_rf(dir)
+  assert found ==
+    [
+      "docs/a.md:3: `docs/gone.md` is cited by a ✅ or ⏳ row and reaches no file",
+      "docs/a.md:4: `gen/x.b` leads into `gen`, which this check does not read; list `gen` in the inputs of check(\"markdown-laws\", …)",
+      "docs/a.md:7: spec row `p.q` is cited, and spec/rows/ holds no row with that id"
+    ]
 end
 
 test "both Markdown laws hold on every page under docs/"

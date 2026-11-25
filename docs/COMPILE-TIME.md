@@ -67,9 +67,12 @@ to dissolve.
 - **Concurrency** is share-nothing processes (SAFETY row 10), plus tatara
   channels and fibers (`chan`, `go`) whose run and put/take words have no blue
   spelling.
-- **A bytecode VM exists** but is off for `blue run`. It lifts every callback
-  back to a tree-walker closure, looks globals up by name, and keeps captures
-  in `Arc<Mutex<Value>>` cells (`PERFORMANCE.md` §2.2).
+- **A bytecode VM** is `blue run`'s default door where the conformance
+  columns agree on every construct the program uses (`--door auto`,
+  `crates/blue-lang-runtime/src/door.rs`); the tree-walker runs the rest. It
+  lifts every callback back to a tree-walker closure, looks globals up by
+  name, and keeps captures in `Arc<Mutex<Value>>` cells (`PERFORMANCE.md`
+  §2.2).
 
 ## 3. Rust's compile-time benefits
 
@@ -230,14 +233,15 @@ and a row in `docs/PERFORMANCE.md` or `docs/DIAGNOSTICS.md`.
 | phase 1: static arity (R2) | ✅ built | B0072 (`crates/blue-lang-check/src/contracts.rs`, its test asserts three B0072 findings). |
 | phase 2: slot resolver and interned symbols (R1, L1, L4) | ❌ not built | The work is in tatara-lisp-eval. The runtime looks each name up by hash (`docs/PERFORMANCE.md` 3.2). |
 | phase 3: lock-free frames and upvalues (L2, L3) | ❌ not built | The work is in tatara-lisp-eval. |
-| phase 4: VM-native callbacks; the VM on for `blue run` (L5) | ❌ not built | `blue run` does not use the VM (`docs/PERFORMANCE.md` 3.3). |
+| phase 4: VM-native callbacks; the VM on for `blue run` (L5) | ⏳ in progress | The VM is `blue run`'s door where the conformance columns agree (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`); its callbacks are still lifted to tree-walker closures (`docs/PERFORMANCE.md` 3.3). |
 | phase 5: resolved-program cache by content hash (R15) | ⏳ in progress | A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`). No measurement shows one resolution per run (`docs/PERFORMANCE.md` 3.5). |
 | phase 6: coroutines (`coroutine`, `resume`, `yield`) (L6) | ❌ not built | No such word in `crates/`. |
 | phase 7: `record` (R4) | ✅ built | B0079; `spec/rows/records.b`. |
 | phase 7: `case` destructuring and totality over a union (R6) | ✅ built | B0081; `spec/rows/unions.b`, `spec/rows/patterns.b`. |
 | phase 7: `enum` and `protocol` (R5, R7) | ❌ not built | The parser has neither. |
 | phase 8: local inference and type variables (R3, R8) | ⏳ in progress | Local inference inside a typed definition: spec rows `check.infer.literal`, `check.infer.parameter`, `check.infer.builtin_result` (`spec/rows/check.b`). Type variables in signatures do not exist. |
-| phase 9: hygienic `defmacro` (R9), const folding (R10), dead-code rules (R11) | ❌ not built | A macro uses `gensym` by hand. No fold and no rule for code after `raise` exist. |
+| phase 9: const folding (R10) | ✅ built | The fold computes a pure definition's literal calls once, before the run (`crates/blue-lang-runtime/src/fold.rs`, PERFORMANCE R4; `crates/blue-lang-cli/tests/fold.rs`). |
+| phase 9: hygienic `defmacro` (R9), dead-code rules (R11) | ❌ not built | A macro uses `gensym` by hand. No rule for code after `raise` exists. |
 | phase 10: host derive for bidamas (L7) | ❌ not built | Glue for each Rust library is written by hand. |
 | R12 `#[deprecated]` | ✅ built | `legacy_names` with B0021 and B0022. |
 | R16 doc tests | ✅ built | B0056 to B0060 (`crates/blue-lang-check/src/doc_rules.rs`); `blue test` runs each `#=>` line. |

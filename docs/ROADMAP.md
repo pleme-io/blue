@@ -55,6 +55,7 @@ when its first phase starts.
 | **operators** ([`OPERATORS.md`](OPERATORS.md)) | ❌ not built | No `??` and no `?.` in `spec/rows/`. Next step O1: measure `m.k` against `get`. |
 | **kernel** ([`KERNEL.md`](KERNEL.md)) | ⏳ in progress | Built: `bidamas/kaaneru` with `bpf`, `btf` and `erufu`. The kernel-agent chart is in `examples/kernel-agent/deploy/kernel-agent/chart` and is not deployed. Not built: a `.ko` module and H20 admission. |
 | **bidama cohesion** ([`BIDAMA-COHESION.md`](BIDAMA-COHESION.md)) | ⏳ in progress | The trees landed (`bidamas/kaaneru/bpf`, `btf`, `erufu`). `bidamas/kurasuta` exists with the typed kinds only, and its reads are not built. No `himitsu`, `habu` or `joujuu` bidama exists. Done when `blue census --reuse` reads 0. |
+| **cohesion**: one model per domain, so each meaning has one spelling, one tree, one runtime shape and one word ([`COHESION.md`](COHESION.md)) | ⏳ in progress | The plan puts 273 confirmed audit findings into 76 units in four waves (2026-11-25). Its wave tables hold each unit's state: a unit goes ⏳ when its first commit lands and ✅ when its lock is green on main. A ruling a unit makes is a row in § Rulings, from R14. Next step: wave 0, whose 14 units depend on nothing. Done when every unit row is ✅. The **bidama cohesion** track above is apart: it merges duplicate shapes across the bidamas. |
 
 ## The arika track
 

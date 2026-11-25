@@ -246,7 +246,7 @@ gap(
 gap(
   "G32",
   :open,
-  "tatara-lisp-eval 0.4.26's `Display` walks a map in hash order, so a map it writes, through the Lisp printers or as the exit text of a crash whose error holds the map, has more than one text",
+  "tatara-lisp-eval 0.4.26's `Display` walks a map in hash order, so a map it writes has more than one text: through the Lisp printers, as a process's exit text (a crash whose error holds the map, or a map exit reason), and in the message of the fault that ends a run",
   opened("2026-11-25"),
   owner("docs/ROADMAP.md, placement parity")
 )

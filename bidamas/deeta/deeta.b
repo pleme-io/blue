@@ -2528,15 +2528,19 @@ end
 
 @doc """
 json_key: A map key as the object key json_write gives it: nil as null, a name
-as itself, a float as Rust prints it, anything else as its text.
+as itself, a finite float as Rust's Display writes it (plain digits, never an
+exponent, a whole value with no point), anything else as its text.
 
     json_key(nil) #=> "null"
+    json_key(1.5) #=> "1.5"
+    json_key(1.0e21) #=> "1000000000000000000000"
 """
 def json_key(k)
   if k.nil?
     "null"
-  elsif float?(k) and ends_with?(to_s(k), ".0")
-    join(reverse(drop(2, reverse(chars(to_s(k))))), "")
+  elsif float?(k) and k - k == 0.0
+    dec = decimal_parts(k)
+    "#{dec.sign}#{display_text(dec.digits, dec.point)}"
   else
     to_s(k)
   end
@@ -2590,34 +2594,47 @@ def float_text(x)
   if x - x != 0.0
     "null"
   else
-    parts = split(to_s(x), "e")
-    shift = if count(parts) == 2
-      to_int(second(parts))
-    else
-      0
-    end
-    t = chars(first(parts))
-    neg = first(t) == "-"
-    body = if neg
-      rest(t)
-    else
-      t
-    end
-    whole = take(count_leading((c) -> c != ".", body), body)
-    all = filter((c) -> c != ".", body)
-    lead = count_leading((c) -> c == "0", all)
-    digits = drop_zeros(reverse(drop(lead, all)))
-    sign = if neg
-      "-"
-    else
-      ""
-    end
-    if digits == []
-      "#{sign}0.0"
-    else
-      "#{sign}#{ryu_text(digits, count(whole) - lead + shift)}"
-    end
+    dec = decimal_parts(x)
+    "#{dec.sign}#{ryu_text(dec.digits, dec.point)}"
   end
+end
+
+@doc """
+decimal_parts: A finite float as its sign, its significant digits given last
+first, and the place of its decimal point counted from its first significant
+digit, read from to_s's shortest digits; a zero has no digits.
+
+    decimal_parts(-1.5) #=> {sign: "-", digits: ["5", "1"], point: 1}
+    decimal_parts(0.001) #=> {sign: "", digits: ["1"], point: -2}
+    decimal_parts(1.0e21).point #=> 22
+"""
+def decimal_parts(x)
+  parts = split(to_s(x), "e")
+  shift = if count(parts) == 2
+    to_int(second(parts))
+  else
+    0
+  end
+  t = chars(first(parts))
+  neg = first(t) == "-"
+  body = if neg
+    rest(t)
+  else
+    t
+  end
+  whole = take(count_leading((c) -> c != ".", body), body)
+  all = filter((c) -> c != ".", body)
+  lead = count_leading((c) -> c == "0", all)
+  sign = if neg
+    "-"
+  else
+    ""
+  end
+  {
+    sign:,
+    digits: drop_zeros(reverse(drop(lead, all))),
+    point: count(whole) - lead + shift
+  }
 end
 
 @doc """
@@ -2657,15 +2674,18 @@ end
 
 @doc """
 ryu_text: Significant digits, given last first, laid out with the decimal point
-point places after the first digit's place, the way ryu does.
+point places after the first digit's place, the way ryu does; no digits is 0.0.
 
     ryu_text(chars("21"), 3) #=> "120.0"
+    ryu_text([], 0) #=> "0.0"
 """
 def ryu_text(last_first, point)
   d = reverse(last_first)
   n = count(d)
   text = join(d, "")
-  if point >= n and point <= 16
+  if d == []
+    "0.0"
+  elsif point >= n and point <= 16
     "#{text}#{zero_text(point - n)}.0"
   elsif point > 0 and point <= 16
     "#{join(take(point, d), "")}.#{join(drop(point, d), "")}"
@@ -2687,9 +2707,35 @@ def ryu_text(last_first, point)
   end
 end
 
+@doc """
+display_text: Significant digits, given last first, laid out with the decimal
+point point places after the first digit's place, the way Rust's Display writes
+a float: never an exponent, a whole value with no point, and no digits as 0.
+
+    display_text(chars("51"), 1) #=> "1.5"
+    display_text(chars("1"), 22) #=> "1000000000000000000000"
+    display_text(chars("1"), -7) #=> "0.00000001"
+    display_text([], 0) #=> "0"
+"""
+def display_text(last_first, point)
+  d = reverse(last_first)
+  n = count(d)
+  text = join(d, "")
+  if d == []
+    "0"
+  elsif point >= n
+    "#{text}#{zero_text(point - n)}"
+  elsif point > 0
+    "#{join(take(point, d), "")}.#{join(drop(point, d), "")}"
+  else
+    "0.#{zero_text(-point)}#{text}"
+  end
+end
+
 test "write and stringify give the text json_write and json_stringify give", {
   kind: :unit
 }
+  negative_zero = -1.0 * 0.0
   samples = [
     nil,
     true,
@@ -2726,7 +2772,16 @@ test "write and stringify give the text json_write and json_stringify give", {
     [["a", 1, 2]],
     {b: 1, a: {"z" => nil, "y" => [true, 1.5, -0.25]}},
     {"x" => [["b", 1]], y: {z: [[:q, 1]]}},
-    {1 => 2, nil => 3, true => 4, 1.5 => 5, "a" => 0}
+    {1 => 2, nil => 3, true => 4, 1.5 => 5, "a" => 0},
+    {
+      1.0e21 => 1,
+      1.0e-8 => 2,
+      1.5e300 => 3,
+      10000000000000000.0 => 4,
+      2.5e-300 => 5,
+      negative_zero => 6,
+      0.0 => 7
+    }
   ]
   assert filter((v) -> write(v) != json_write(v), samples) == []
   assert filter((v) -> stringify(v) != json_stringify(v), samples) == []
@@ -2739,12 +2794,19 @@ test "each step of write gives its own part of the text", {kind: :unit}
   assert object_text([["b", 1], ["a", 2]], true) == "{\"a\":2,\"b\":1}"
   assert json_key(true) == "true"
   assert json_key(1.0) == "1"
+  assert json_key(1.0e21) == "1000000000000000000000"
+  assert json_key(1.0e-8) == "0.00000001"
+  assert json_key(-1.0 * 0.0) == "-0"
   assert quoted("x") == "\"x\""
   assert escape_char(line_break) == "\\n"
   assert escape_char("\u{1}") == "\\u0001"
   assert float_text(0.0000003) == "3e-7"
+  assert decimal_parts(0.0).digits == []
+  assert decimal_parts(-1.0 * 0.0).sign == "-"
+  assert decimal_parts(2.5e-300).point == -299
   assert drop_zeros(chars("0012")) == %w[1 2]
   assert ryu_text(chars("1"), 21) == "1e+20"
+  assert display_text(chars("52"), -299) == "0.#{zero_text(299)}25"
   assert count_leading((c) -> c == "0", chars("0a")) == 1
   assert zero_text(0) == ""
 end

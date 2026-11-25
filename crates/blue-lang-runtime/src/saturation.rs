@@ -1,12 +1,14 @@
 //! blue's rewrites as rules over one e-graph: S3 of docs/ENGINES.md.
 //!
-//! Fusion becomes three form rules, one for each stage word: each hands the
-//! tree its pattern matched to [`crate::fuse::fuse`], so which chains fuse,
-//! and the purity that decides it, stay fusion's own. A fused tree keeps the
-//! unfused chain as its fallback, and in the graph that fallback is the class
-//! the fused tree joins, so a fused tree goes in as an opaque leaf
-//! (`%fused:N`) whose tree a side table holds: the price reads the fused body
-//! from the table, and [`cheapest`] puts the tree back after extraction.
+//! Fusion becomes three form rules, one for each stage word: over a stage
+//! call they offer the tree the program's fusion plan gives that call
+//! ([`crate::fuse::Plan`]), so which chains fuse, and the purity and scope
+//! that decide it, stay fusion's own, read from the whole program. A fused
+//! tree keeps the unfused chain as its fallback, and in the graph that
+//! fallback is the class the fused tree joins, so a fused tree goes in as an
+//! opaque leaf (`%fused:N`) whose tree a side table holds: the price reads
+//! the fused body from the table, and [`cheapest`] puts the tree back after
+//! extraction.
 //!
 //! The price is [`crate::cost`]'s, node by node, as extraction needs: a word
 //! the table prices costs its call and its elements, a function written in
@@ -19,7 +21,9 @@ use std::sync::{Arc, Mutex};
 use blue_lang_saturate::{form_rule, Limits, Rule};
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
 
+use crate::check_cache::{CheckCache, Pass};
 use crate::cost::{self, Table};
+use crate::def_hash::DefHash;
 
 const FUSED: &str = "%fused:";
 
@@ -60,10 +64,12 @@ fn leaf(name: &str) -> Spanned {
     )
 }
 
-/// The rules over a program whose definitions are `defined` (the lowered
-/// program fusion reads purity from): one fusion rule per stage word.
+/// The rules over the stage call `written`, whose tree the program's fusion
+/// plan gives as `fused`: one fusion rule per stage word, each offering that
+/// tree for that call and for nothing else.
 #[must_use]
-pub fn rules(defined: &Arc<Vec<Spanned>>, held: &Held) -> Vec<Rule> {
+pub fn rules(written: &Spanned, fused: &Spanned, held: &Held) -> Vec<Rule> {
+    let offer = Arc::new((written.to_sexp().to_string(), fused.clone()));
     [
         ("fuse-map", "(map ?f ?xs)"),
         ("fuse-filter", "(filter ?p ?xs)"),
@@ -71,19 +77,18 @@ pub fn rules(defined: &Arc<Vec<Spanned>>, held: &Held) -> Vec<Rule> {
     ]
     .into_iter()
     .filter_map(|(name, pattern)| {
-        let defined = Arc::clone(defined);
+        let offer = Arc::clone(&offer);
         let held = held.clone();
         form_rule(name, pattern, move |form: &Spanned| {
             let matched = form.to_sexp().to_string();
-            if let Some(n) = held.seen(&matched) {
-                return Some(leaf(&format!("{FUSED}{n}")));
-            }
-            let fused = crate::fuse::fuse(vec![form.clone()], &defined);
-            if fused.chains.is_empty() {
+            if matched != offer.0 {
                 return None;
             }
-            let tree = fused.forms.into_iter().next()?;
-            Some(leaf(&format!("{FUSED}{}", held.keep(matched, tree))))
+            let n = match held.seen(&matched) {
+                Some(n) => n,
+                None => held.keep(matched, offer.1.clone()),
+            };
+            Some(leaf(&format!("{FUSED}{n}")))
         })
         .ok()
     })
@@ -139,25 +144,22 @@ fn expand(form: Spanned, held: &Held) -> Spanned {
     }
 }
 
-/// The cheapest form the rules prove equal to `form`, under `table` with
-/// lists of 1000 elements, and its price before and after; `form` itself
-/// when nothing is cheaper.
+/// The cheapest form the rules prove equal to the stage call `written`,
+/// whose fused tree is `fused`, under `table` with lists of 1000 elements,
+/// and its price before and after; `written` itself when nothing is cheaper.
 #[must_use]
 pub fn cheapest(
-    form: &Spanned,
-    defined: &Arc<Vec<Spanned>>,
+    written: &Spanned,
+    fused: &Spanned,
     table: &Table,
     limits: Limits,
 ) -> (Spanned, f64, f64) {
     let held = Held::default();
-    let rules = rules(defined, &held);
+    let rules = rules(written, fused, &held);
     let (out, before, after) =
-        blue_lang_saturate::cheapest(form, &rules, limits, node_price(table, 1000.0, &held));
+        blue_lang_saturate::cheapest(written, &rules, limits, node_price(table, 1000.0, &held));
     (expand(out, &held), before, after)
 }
-
-/// The words a stage call is headed by: what R19 saturates.
-const STAGE_WORDS: [&str; 3] = ["map", "filter", "reduce"];
 
 /// Whether rule R19 runs: a measured cost table is installed
 /// ([`cost::installed`]), `BLUE_SATURATE=off` is not set, and no command
@@ -167,143 +169,63 @@ pub fn enabled() -> bool {
     cost::installed().is_some() && !crate::fuse::held_off() && !crate::kitei::switched_off("R19")
 }
 
-/// What rule R19 did to a program: the forms, and the chains it fused.
-pub struct Saturated {
-    pub forms: Vec<Spanned>,
-    pub chains: Vec<String>,
-}
-
-/// Rule R19 (S4 of docs/ENGINES.md): each outermost call headed by a stage
-/// word that no local binds is saturated within the default limits and
-/// replaced by the cheapest form under `table`, the written one on a tie.
-/// Only that call is rebuilt, so the rest of the definition keeps its
-/// positions, and a fused call is fusion's own tree, with fusion's. The
-/// choice is kept in the check cache by the call's text and recalled after,
-/// so a call is saturated once per build: a fused one is fused again, which
-/// is cheap, a kept one is left.
+/// Rule R19 (S4 of docs/ENGINES.md): each outermost stage call in which the
+/// program's fusion plan ([`crate::fuse::Plan`]) fuses a chain is saturated
+/// within the default limits, and becomes the plan's tree for it when that
+/// is cheaper under `table`, the written call on a tie. A call the plan
+/// leaves alone is left alone, so R19 takes only what fusion takes, and
+/// every other form keeps its positions. The choice is kept in the check
+/// cache by the call's text, in the bucket of the hash of the definition it
+/// is in (the top-level form's digest outside one), and recalled after: a
+/// recalled `fused` takes the plan's tree again, so a stale choice can cost a
+/// speedup and never an answer.
 #[must_use]
-pub fn program(erased: Vec<Spanned>, defined: &[Spanned], table: &Table) -> Saturated {
-    let defined = Arc::new(defined.to_vec());
+pub fn program(erased: Vec<Spanned>, defined: &[Spanned], table: &Table) -> crate::fuse::Fused {
     let cache = crate::check_cache::installed();
-    let mut chains = Vec::new();
-    let forms = erased
-        .iter()
-        .map(|f| {
-            let mut walk = Walk {
-                defined: &defined,
-                table,
-                cache: cache.as_ref(),
-                bound: Vec::new(),
-                chains: &mut chains,
-            };
-            walk.form(f)
+    let fused = {
+        let plan = crate::fuse::Plan::of(&erased, defined);
+        (!plan.is_empty()).then(|| {
+            plan.fuse(Some(&mut |top, written, fused| {
+                let memory = cache.as_ref().map(|c| {
+                    let bucket = plan.hashes().at(top).map_or_else(
+                        || DefHash(crate::check_cache::tree_digest(&erased[top])),
+                        |d| d.hash,
+                    );
+                    (c, bucket)
+                });
+                decided(memory, table, written, fused)
+            }))
         })
-        .collect();
+    };
     if let Some(cache) = &cache {
         cache.flush();
     }
-    Saturated { forms, chains }
+    fused.unwrap_or_else(|| crate::fuse::Fused::written(erased))
 }
 
-struct Walk<'a, 'c> {
-    defined: &'a Arc<Vec<Spanned>>,
-    table: &'a Table,
-    cache: Option<&'a crate::check_cache::CheckCache<'c>>,
-    bound: Vec<String>,
-    chains: &'a mut Vec<String>,
-}
-
-impl Walk<'_, '_> {
-    fn form(&mut self, form: &Spanned) -> Spanned {
-        let Some(items) = form.as_list() else {
-            return form.clone();
-        };
-        let head = items.first().and_then(Spanned::as_symbol);
-        if let Some(word) = head {
-            if STAGE_WORDS.contains(&word) && !self.bound.iter().any(|b| b == word) {
-                return self.stage(form);
-            }
-        }
-        let depth = self.bound.len();
-        self.bound.extend(binders(form));
-        let out: Vec<Spanned> = items.iter().map(|i| self.form(i)).collect();
-        self.bound.truncate(depth);
-        Spanned::new(form.span, SpannedForm::List(out))
-    }
-
-    fn stage(&mut self, form: &Spanned) -> Spanned {
-        let text = form.to_sexp().to_string();
-        let remembered = self.cache.map(|c| {
-            let entry = c.key(crate::check_cache::Pass::Saturate, &[text.as_bytes()]);
-            let bucket = crate::def_hash::DefHash(crate::check_cache::digest(&[b"saturate"]));
-            (c, bucket, entry)
-        });
-        let fuse_it = |s: &mut Self| {
-            let fused = crate::fuse::fuse(vec![form.clone()], s.defined);
-            s.chains.extend(fused.chains);
-            fused
-                .forms
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| form.clone())
-        };
-        if let Some((cache, bucket, entry)) = &remembered {
-            if let Some(kept) = cache.get(crate::check_cache::Pass::Saturate, bucket, entry) {
-                return if kept == b"fused" {
-                    fuse_it(self)
-                } else {
-                    form.clone()
-                };
-            }
-        }
-        let (out, before, after) = cheapest(form, self.defined, self.table, Limits::default());
-        let fused = after < before;
-        if let Some((cache, bucket, entry)) = remembered {
-            let decision: &[u8] = if fused { b"fused" } else { b"kept" };
-            cache.put(&bucket, entry, decision.to_vec());
-        }
-        if fused {
-            crate::timings::count("saturated", 1);
-            fuse_it(self)
-        } else {
-            let _ = out;
-            form.clone()
+fn decided(
+    memory: Option<(&CheckCache<'_>, DefHash)>,
+    table: &Table,
+    written: &Spanned,
+    fused: &Spanned,
+) -> bool {
+    let text = written.to_sexp().to_string();
+    let memory = memory.map(|(c, bucket)| (c, bucket, c.key(Pass::Saturate, &[text.as_bytes()])));
+    if let Some((c, bucket, entry)) = &memory {
+        if let Some(kept) = c.get(Pass::Saturate, bucket, entry) {
+            return kept == b"fused";
         }
     }
-}
-
-fn binders(form: &Spanned) -> Vec<String> {
-    let Some(items) = form.as_list() else {
-        return Vec::new();
-    };
-    let names = |l: Option<&Spanned>, skip: usize| -> Vec<String> {
-        l.and_then(Spanned::as_list)
-            .map(|ps| {
-                ps.iter()
-                    .skip(skip)
-                    .filter_map(|p| p.as_symbol().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    match items.first().and_then(Spanned::as_symbol) {
-        Some("lambda") => names(items.get(1), 0),
-        Some("define") => match items.get(1) {
-            Some(t) if t.as_list().is_some() => names(Some(t), 1),
-            Some(t) => t.as_symbol().map(str::to_string).into_iter().collect(),
-            None => Vec::new(),
-        },
-        Some("let") => items
-            .get(1)
-            .and_then(Spanned::as_list)
-            .map(|bs| {
-                bs.iter()
-                    .filter_map(|b| b.as_list()?.first()?.as_symbol().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        _ => Vec::new(),
+    let (_, before, after) = cheapest(written, fused, table, Limits::default());
+    let take = after < before;
+    if let Some((c, bucket, entry)) = memory {
+        let decision: &[u8] = if take { b"fused" } else { b"kept" };
+        c.put(&bucket, entry, decision.to_vec());
     }
+    if take {
+        crate::timings::count("saturated", 1);
+    }
+    take
 }
 
 /// A table with no measured word: every node a step, an allocation a step.
@@ -336,7 +258,7 @@ mod tests {
         }
     }
 
-    fn program(src: &str) -> (Vec<Spanned>, Vec<Spanned>) {
+    fn lowered(src: &str) -> (Vec<Spanned>, Vec<Spanned>) {
         let checked = crate::pipeline::check_entry(
             crate::uses::Entry::anonymous(src),
             &crate::uses::NoLoader,
@@ -348,16 +270,19 @@ mod tests {
         (crate::erase::unfused(&lowered), lowered)
     }
 
-    fn parity(src: &str) -> (String, String) {
-        let (erased, lowered) = program(src);
-        let fused = crate::fuse::fuse(erased.clone(), &lowered);
-        let defined = Arc::new(lowered);
-        let last = erased.len() - 1;
-        let (got, _, _) = cheapest(&erased[last], &defined, &measured_like(), Limits::default());
-        (
-            fused.forms[last].to_sexp().to_string(),
-            got.to_sexp().to_string(),
-        )
+    fn shown(forms: &[Spanned]) -> Vec<String> {
+        forms.iter().map(|f| f.to_sexp().to_string()).collect()
+    }
+
+    fn asked(src: &str) -> Vec<(Spanned, Spanned)> {
+        let (erased, lowered) = lowered(src);
+        let plan = crate::fuse::Plan::of(&erased, &lowered);
+        let mut asked = Vec::new();
+        let _ = plan.fuse(Some(&mut |_, written: &Spanned, fused: &Spanned| {
+            asked.push((written.clone(), fused.clone()));
+            true
+        }));
+        asked
     }
 
     #[test]
@@ -369,21 +294,51 @@ mod tests {
             "def k(xs)\n  reduce((a, x) -> a + x, 0, map(fn(x)\n    print(x)\n    x\n  end, xs))\nend\n",
             "def m(xs)\n  length(xs)\nend\n",
         ] {
-            let (fusion, saturation) = parity(src);
+            let (erased, lowered) = lowered(src);
+            let fusion = shown(&crate::fuse::fuse(erased.clone(), &lowered).forms);
+            let saturation = shown(&program(erased, &lowered, &measured_like()).forms);
             assert_eq!(saturation, fusion, "{src}");
         }
     }
 
     #[test]
+    fn r19_fuses_only_what_fusion_fuses_whatever_the_callbacks_reach_and_wherever_they_are_defined()
+    {
+        let writes = "def first()\n  1\nend\n\ndef shout(x)\n  write_stdout(unlines([\"map #{x}\"]))\n  x * 10\nend\n\ndef check(x)\n  write_stdout(unlines([\"filter #{x}\"]))\n  x > 10\nend\n\ndef tally(xs)\n  reduce((a, x) -> a + x, 0, filter(check, map(shout, xs)))\nend\n";
+        let first = "def sq(x)\n  x * x\nend\n\ndef named(xs)\n  reduce((a, x) -> a + x, 0, filter((x) -> x > 2, map(sq, xs)))\nend\n";
+        let later = "def pad()\n  0\nend\n\ndef sq(x)\n  x * x\nend\n\ndef named(xs)\n  reduce((a, x) -> a + x, 0, filter((x) -> x > 2, map(sq, xs)))\nend\n";
+        let closes = "def area(w, h)\n  w * h\nend\n\ndef total(xs, allowed)\n  reduce((a, x) -> a + x, 0, map((x) -> x + area(3, 4), filter((x) -> member?(x, allowed), xs)))\nend\n";
+        let shadows = "def tally(log, abs, xs)\n  reduce((a, x) -> a + x, 0, filter((x) -> abs(x), map((x) -> log(x), xs)))\nend\n";
+        let declared = "def pad()\n  0\nend\n\ndef tick(x)\n  x * 3\nend\n\nvolatile(tick)\n\ndef total(xs)\n  reduce((a, x) -> a + x, 0, filter((x) -> x > 1, map(tick, xs)))\nend\n";
+        let raises = "def pad()\n  0\nend\n\ndef parse(x)\n  if x == 3\n    raise(:bad, \"three\")\n  end\n  x * 10\nend\n\ndef save(x)\n  write_stdout(unlines([\"saved #{x}\"]))\n  x\nend\n\ndef store(xs)\n  reduce((a, x) -> a + x, 0, map(save, map(parse, xs)))\nend\n";
+        for (src, chains) in [
+            (writes, &[][..]),
+            (first, &["reduce∘filter∘map"][..]),
+            (later, &["reduce∘filter∘map"][..]),
+            (closes, &["reduce∘map∘filter"][..]),
+            (shadows, &[][..]),
+            (declared, &["reduce∘filter"][..]),
+            (raises, &[][..]),
+        ] {
+            let (erased, lowered) = lowered(src);
+            let fusion = crate::fuse::fuse(erased.clone(), &lowered);
+            assert_eq!(fusion.chains, chains, "{src}");
+            let saturation = program(erased, &lowered, &measured_like());
+            assert_eq!(shown(&saturation.forms), shown(&fusion.forms), "{src}");
+        }
+    }
+
+    #[test]
     fn a_rule_that_fires_again_on_a_tree_it_has_seen_lets_the_graph_saturate() {
-        let (erased, lowered) =
-            program("def f(xs)\n  reduce((a, x) -> a + x, 0, map((x) -> x * 3, xs))\nend\n");
+        let site = asked("def f(xs)\n  reduce((a, x) -> a + x, 0, map((x) -> x * 3, xs))\nend\n");
+        let [(written, fused)] = site.as_slice() else {
+            panic!("one stage call is asked: {}", site.len());
+        };
         let held = Held::default();
-        let rules = rules(&Arc::new(lowered), &held);
-        let form = &erased[erased.len() - 1];
+        let rules = rules(written, fused, &held);
         let started = std::time::Instant::now();
         let _ = blue_lang_saturate::cheapest(
-            form,
+            written,
             &rules,
             Limits::default(),
             node_price(&measured_like(), 1000.0, &held),
@@ -398,22 +353,14 @@ mod tests {
 
     #[test]
     fn a_fused_chain_is_cheaper_and_a_lone_stage_keeps_its_price() {
-        let (erased, lowered) =
-            program("def f(xs)\n  reduce((a, x) -> a + x, 0, map((x) -> x * 3, xs))\nend\n");
-        let (_, before, after) = cheapest(
-            &erased[erased.len() - 1],
-            &Arc::new(lowered),
-            &measured_like(),
-            Limits::default(),
-        );
+        let site = asked("def f(xs)\n  reduce((a, x) -> a + x, 0, map((x) -> x * 3, xs))\nend\n");
+        let [(written, fused)] = site.as_slice() else {
+            panic!("one stage call is asked: {}", site.len());
+        };
+        let (_, before, after) = cheapest(written, fused, &measured_like(), Limits::default());
         assert!(after < before, "{after} against {before}");
-        let (erased, lowered) = program("def g(xs)\n  map((x) -> x, xs)\nend\n");
-        let (_, before, after) = cheapest(
-            &erased[erased.len() - 1],
-            &Arc::new(lowered),
-            &measured_like(),
-            Limits::default(),
-        );
+        let (_, before, after) = cheapest(written, written, &measured_like(), Limits::default());
         assert_eq!(after, before);
+        assert!(asked("def g(xs)\n  map((x) -> x, xs)\nend\n").is_empty());
     }
 }

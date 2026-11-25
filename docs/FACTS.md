@@ -640,10 +640,12 @@ Each wave lists defaults in the order their gain is known. Each default meets
   - ✅ A search over equivalent forms (rule R19): blue's rewrites are rules
     over one e-graph per stage call (`blue-lang-saturate`, over `egg`),
     saturated within a budget and extracted by a measured cost model (S1,
-    `blue cost`), the decision kept by the call and recalled; fusion is
-    its first rule, and saturation gives the tree fusion gives on every
-    chain the parity gate holds. Erasure: 0.67 ms to decide, 0.16 ms
-    recalled. [ENGINES.md](ENGINES.md) §2 has each phase and its lock.
+    `blue cost`), the decision kept with the definition the call is in and
+    recalled; fusion is its first rule, read from the program's fusion
+    plan, so R19 fuses only the chains fusion fuses and gives the tree
+    fusion gives. Erasure: 1.09 ms to decide, 0.50 ms recalled, with a full
+    cache too (debug build). [ENGINES.md](ENGINES.md) §2 has each phase and
+    its lock.
 
 ### W4: concurrency from facts
 

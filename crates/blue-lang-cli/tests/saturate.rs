@@ -3,11 +3,13 @@ use std::process::Command;
 
 const MAIN: &str = "def total(xs)\n  reduce((a, x) -> a + x, 0, filter((x) -> x % 2 == 0, map((x) -> x * 3, xs)))\nend\n\ndef main()\n  write_stdout(to_s(total(range(100))))\nend\n";
 
-fn dir() -> PathBuf {
-    let d = std::env::temp_dir().join(format!("blue-saturate-{}", std::process::id()));
+const EFFECTS: &str = "def pad()\n  0\nend\n\ndef shout(x)\n  write_stdout(unlines([\"map #{x}\"]))\n  x * 10\nend\n\ndef check(x)\n  write_stdout(unlines([\"filter #{x}\"]))\n  x > 10\nend\n\ndef tally(xs)\n  reduce((a, x) -> a + x, 0, filter(check, map(shout, xs)))\nend\n\ndef main()\n  write_stdout(to_s(tally([1, 2, 3])))\nend\n";
+
+fn dir(name: &str, main: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("blue-saturate-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).expect("dir");
-    std::fs::write(d.join("main.b"), MAIN).expect("write");
+    std::fs::write(d.join("main.b"), main).expect("write");
     d
 }
 
@@ -40,7 +42,7 @@ fn saturated(timings: &str) -> bool {
 
 #[test]
 fn rule_r19_decides_a_chain_by_the_measured_table_once_and_its_switch_hands_it_back_to_fusion() {
-    let d = dir();
+    let d = dir("decides", MAIN);
     let run = |env: &[(&str, &str)]| blue(&d, &["run", "--quiet", "--timings", "main.b"], env);
 
     let (answer, before) = run(&[]);
@@ -77,5 +79,22 @@ fn rule_r19_decides_a_chain_by_the_measured_table_once_and_its_switch_hands_it_b
         row(&switched, "fused").is_some_and(|f| f.contains("reduce∘filter∘map")),
         "fusion fuses: {switched}"
     );
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[test]
+fn rule_r19_leaves_a_chain_whose_callbacks_write_in_the_order_it_is_written() {
+    let d = dir("effects", EFFECTS);
+    let run = |env: &[(&str, &str)]| blue(&d, &["run", "--quiet", "--timings", "main.b"], env);
+    let written = "map 1\nmap 2\nmap 3\nfilter 10\nfilter 20\nfilter 30\n50";
+
+    let (before, _) = run(&[]);
+    assert_eq!(before, written);
+
+    blue(&d, &["cost", "main.b"], &[]);
+    let (measured, timings) = run(&[]);
+    assert_eq!(measured, written, "{timings}");
+    assert!(!saturated(&timings), "{timings}");
+    assert!(row(&timings, "fused").is_none(), "{timings}");
     let _ = std::fs::remove_dir_all(&d);
 }

@@ -77,20 +77,11 @@ pub fn erase_fused(forms: &[Spanned]) -> crate::fuse::Fused {
     let erased = unfused(forms);
     let mut fused = if crate::fuse::enabled() && crate::saturation::enabled() {
         let table = crate::cost::installed().cloned().unwrap_or_default();
-        let s = crate::saturation::program(erased, forms, &table);
-        crate::fuse::Fused {
-            forms: s.forms,
-            chains: s.chains,
-            sites: Vec::new(),
-        }
+        crate::saturation::program(erased, forms, &table)
     } else if crate::fuse::enabled() {
         crate::fuse::fuse(erased, forms)
     } else {
-        crate::fuse::Fused {
-            forms: erased,
-            chains: Vec::new(),
-            sites: Vec::new(),
-        }
+        crate::fuse::Fused::written(erased)
     };
     if crate::parallel::spreads() {
         fused.forms = crate::fuse::spread(std::mem::take(&mut fused.forms), forms).0;

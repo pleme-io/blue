@@ -134,59 +134,105 @@ pub struct Fused {
     pub sites: Vec<(usize, String)>,
 }
 
+impl Fused {
+    #[must_use]
+    pub fn written(forms: Vec<Spanned>) -> Self {
+        Fused {
+            forms,
+            chains: Vec::new(),
+            sites: Vec::new(),
+        }
+    }
+}
+
 /// Fuse every chain of `erased` whose callbacks only compute. `defined` is
 /// the tree `erased` was erased from, one form per form, read for the keys
 /// the program binds and, when a callback names one, their reach.
 #[must_use]
 pub fn fuse(erased: Vec<Spanned>, defined: &[Spanned]) -> Fused {
-    let globals: BTreeSet<&str> = defined
-        .iter()
-        .filter_map(crate::def_hash::defined)
-        .map(|(k, _)| k)
-        .collect();
-    let mut sites = Sites {
-        globals: &globals,
-        frames: Vec::new(),
-        found: HashMap::new(),
+    let fused = {
+        let plan = Plan::of(&erased, defined);
+        (!plan.is_empty()).then(|| plan.fuse(None))
     };
-    for form in &erased {
-        blue_lang_syntax::scope::walk_top(form, &mut sites);
-    }
-    if sites.found.is_empty() {
-        return Fused {
-            forms: erased,
-            chains: Vec::new(),
-            sites: Vec::new(),
+    fused.unwrap_or_else(|| Fused::written(erased))
+}
+
+pub type Take<'t> = &'t mut dyn FnMut(usize, &Spanned, &Spanned) -> bool;
+
+pub struct Plan<'a> {
+    erased: &'a [Spanned],
+    sites: HashMap<*const Spanned, BTreeSet<String>>,
+    purity: Purity<'a>,
+}
+
+impl<'a> Plan<'a> {
+    #[must_use]
+    pub fn of(erased: &'a [Spanned], defined: &'a [Spanned]) -> Self {
+        let keys: BTreeSet<&str> = defined
+            .iter()
+            .filter_map(crate::def_hash::defined)
+            .map(|(k, _)| k)
+            .collect();
+        let mut walk = Sites {
+            globals: &keys,
+            frames: Vec::new(),
+            found: HashMap::new(),
         };
+        for form in erased {
+            blue_lang_syntax::scope::walk_top(form, &mut walk);
+        }
+        let sites = walk.found;
+        Plan {
+            erased,
+            sites,
+            purity: Purity {
+                defined,
+                erased,
+                keys,
+                hashes: OnceLock::new(),
+                first_order: OnceLock::new(),
+            },
+        }
     }
-    let found = sites.found;
-    let mut rewriter = Rewriter {
-        sites: &found,
-        purity: Purity {
-            defined,
-            erased: &erased,
-            keys: &globals,
-            first_order: OnceLock::new(),
-        },
-        chains: Vec::new(),
-        next: 0,
-    };
-    let mut sites = Vec::new();
-    let forms = erased
-        .iter()
-        .enumerate()
-        .map(|(i, f)| {
-            let before = rewriter.chains.len();
-            let out = rewriter.form(f);
-            sites.extend(rewriter.chains[before..].iter().map(|c| (i, c.clone())));
-            out
-        })
-        .collect();
-    let chains = rewriter.chains;
-    Fused {
-        forms,
-        chains,
-        sites,
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.sites.is_empty()
+    }
+
+    #[must_use]
+    pub fn hashes(&self) -> &crate::def_hash::DefHashes {
+        self.purity.hashes()
+    }
+
+    #[must_use]
+    pub fn fuse(&self, take: Option<Take<'_>>) -> Fused {
+        let mut rewriter = Rewriter {
+            sites: &self.sites,
+            purity: &self.purity,
+            chains: Vec::new(),
+            next: 0,
+            top: 0,
+            take,
+        };
+        let mut sites = Vec::new();
+        let forms = self
+            .erased
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                rewriter.top = i;
+                let before = rewriter.chains.len();
+                let out = rewriter.form(f);
+                sites.extend(rewriter.chains[before..].iter().map(|c| (i, c.clone())));
+                out
+            })
+            .collect();
+        Fused {
+            forms,
+            chains: rewriter.chains,
+            sites,
+        }
     }
 }
 
@@ -196,50 +242,24 @@ pub fn fuse(erased: Vec<Spanned>, defined: &[Spanned]) -> Fused {
 /// stage runs keeps its order, since the stage may stop early.
 #[must_use]
 pub fn spread(erased: Vec<Spanned>, defined: &[Spanned]) -> (Vec<Spanned>, usize) {
-    let globals: BTreeSet<&str> = defined
-        .iter()
-        .filter_map(crate::def_hash::defined)
-        .map(|(k, _)| k)
-        .collect();
-    let mut sites = Sites {
-        globals: &globals,
-        frames: Vec::new(),
-        found: HashMap::new(),
-    };
-    for form in &erased {
-        blue_lang_syntax::scope::walk_top(form, &mut sites);
-    }
-    let purity = Purity {
-        defined,
-        erased: &erased,
-        keys: &globals,
-        first_order: OnceLock::new(),
-    };
+    let plan = Plan::of(&erased, defined);
     let mut spread = 0;
     let forms = erased
         .iter()
-        .map(|f| spread_in(f, &sites.found, &purity, &mut spread))
+        .map(|f| spread_in(f, &plan, &mut spread))
         .collect();
     (forms, spread)
 }
 
-fn spread_in(
-    form: &Spanned,
-    found: &HashMap<*const Spanned, BTreeSet<String>>,
-    purity: &Purity<'_>,
-    spread: &mut usize,
-) -> Spanned {
+fn spread_in(form: &Spanned, plan: &Plan<'_>, spread: &mut usize) -> Spanned {
     let SpannedForm::List(items) = &form.form else {
         return form.clone();
     };
-    let mut out: Vec<Spanned> = items
-        .iter()
-        .map(|i| spread_in(i, found, purity, spread))
-        .collect();
+    let mut out: Vec<Spanned> = items.iter().map(|i| spread_in(i, plan, spread)).collect();
     let is_map = matches!(items.as_slice(), [head, _, _] if head.as_symbol() == Some("map"));
     if is_map {
-        if let Some(locals) = found.get(&std::ptr::from_ref(form)) {
-            if purity.callback(&items[1], 1, locals) {
+        if let Some(locals) = plan.sites.get(&std::ptr::from_ref(form)) {
+            if plan.purity.callback(&items[1], 1, locals) {
                 out[0] = Spanned::new(
                     items[0].span,
                     SpannedForm::Atom(Atom::Symbol(crate::parallel::WORD.into())),
@@ -299,15 +319,21 @@ impl Scopes for Sites<'_> {
 struct Purity<'a> {
     defined: &'a [Spanned],
     erased: &'a [Spanned],
-    keys: &'a BTreeSet<&'a str>,
+    keys: BTreeSet<&'a str>,
+    hashes: OnceLock<crate::def_hash::DefHashes>,
     first_order: OnceLock<BTreeMap<String, bool>>,
 }
 
 impl Purity<'_> {
+    fn hashes(&self) -> &crate::def_hash::DefHashes {
+        self.hashes
+            .get_or_init(|| crate::def_hash::hash_program(self.defined))
+    }
+
     fn key(&self, key: &str) -> bool {
         let all = self.first_order.get_or_init(|| {
-            let hashes = crate::def_hash::hash_program(self.defined);
-            let fo = crate::reach::first_order_program(self.erased, &hashes);
+            let hashes = self.hashes();
+            let fo = crate::reach::first_order_program(self.erased, hashes);
             let mut out: BTreeMap<String, bool> = BTreeMap::new();
             for (d, ok) in hashes.defs().iter().zip(fo) {
                 let kind = self
@@ -344,7 +370,7 @@ impl Purity<'_> {
         if lambda(cb, params).is_none() {
             return false;
         }
-        crate::reach::first_order_callback(cb, locals, self.keys)
+        crate::reach::first_order_callback(cb, locals, &self.keys)
             .is_some_and(|named| named.iter().all(|k| self.key(k)))
     }
 }
@@ -366,11 +392,13 @@ struct Link<'a> {
     stage: &'static Stage,
 }
 
-struct Rewriter<'a> {
+struct Rewriter<'a, 't> {
     sites: &'a HashMap<*const Spanned, BTreeSet<String>>,
-    purity: Purity<'a>,
+    purity: &'a Purity<'a>,
     chains: Vec<String>,
     next: usize,
+    top: usize,
+    take: Option<Take<'t>>,
 }
 
 fn synthetic_symbol(name: &str) -> Spanned {
@@ -390,9 +418,21 @@ fn generated(at: Span, head: &str, rest: Vec<Spanned>) -> Spanned {
     list(at, items)
 }
 
-impl Rewriter<'_> {
+impl Rewriter<'_, '_> {
     fn form(&mut self, s: &Spanned) -> Spanned {
         if self.sites.contains_key(&std::ptr::from_ref(s)) {
+            if let Some(take) = self.take.take() {
+                let (next, before) = (self.next, self.chains.len());
+                let fused = self.form(s);
+                let taken = self.chains.len() == before || take(self.top, s, &fused);
+                self.take = Some(take);
+                if taken {
+                    return fused;
+                }
+                self.next = next;
+                self.chains.truncate(before);
+                return s.clone();
+            }
             if let Some(fused) = self.at(s) {
                 return fused;
             }

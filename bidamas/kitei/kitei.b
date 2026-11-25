@@ -202,9 +202,9 @@ def rules()
     ),
     rule(
       "R19",
-      %i[measured_costs stage_call],
-      "a call headed by map, filter or reduce that no local binds, in a binary whose cost table is measured",
-      "it is saturated over blue's rules and replaced by the cheapest form the table prices, the written one on a tie; the choice is kept by the call and recalled",
+      %i[compute_chain measured_costs],
+      "a map, filter or reduce chain of callbacks that only compute, in a binary whose cost table is measured",
+      "the outermost call it is in is saturated over blue's rules and becomes fusion's tree when the table prices that cheaper, the written call on a tie; the choice is kept under its definition's hash and recalled",
       "--timings counts each call it changed (saturated) and names each chain fused",
       "BLUE_SATURATE=off",
       :shipped,

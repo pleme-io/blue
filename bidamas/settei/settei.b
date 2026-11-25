@@ -707,9 +707,10 @@ def knob_whys(k)
 end
 
 @doc """
-knob: one setting of a core model: its default and its annotations (type, doc, min, max, choices, unit, secret, since, deprecated, set_by). The type is the default's unless type: names it; set_by lists the layers that may set it, every layer when absent. A bad annotation raises :bad_option, naming it.
+knob: one setting of a core model: its default and its annotations (type, doc, min, max, choices, unit, secret, since, deprecated, set_by). The type is the default's unless type: names it; set_by lists the layers that may set it, every layer when absent. A bad annotation raises :bad_option, naming it, and so does an empty text default: a setting unset until a layer sets it has no default, so every state of a setting lives in its knob and the table says unset.
 
     knob(6, {min: 0, unit: "hours"})[:type] #=> :int
+    knob(nil, {type: :text})[:default] #=> nil
 """
 def knob(default, ann?)
   a = ann or {}
@@ -721,6 +722,8 @@ def knob(default, ann?)
     "a knob with no default names its type"
   elsif not member?(t, knob_types)
     "a knob holds bool, int, float or text, got #{to_s(default)}"
+  elsif t == :text and default == ""
+    "an empty text default reads as a value; a setting that is unset until a layer sets it, or computed when unset, has no default: knob(nil, {type: :text})"
   end
   if table_whys != [] or shape_why != nil
     raise(
@@ -1122,7 +1125,7 @@ end
 @doc """
 shown_value: a knob's value as explain, docs and refusals print it: <secret> for a secret, unset for nil.
 
-    shown_value(knob("", {secret: true}), "t0k3n") #=> "<secret>"
+    shown_value(knob(nil, {type: :text, secret: true}), "t0k3n") #=> "<secret>"
 """
 def shown_value(k, v)
   if k[:secret]
@@ -1350,7 +1353,7 @@ end
 @doc """
 by_flag?: whether a flag may set a knob, so a flag is rendered for it.
 
-    by_flag?(knob("", {set_by: [:file]})) #=> false
+    by_flag?(knob("x", {set_by: [:file]})) #=> false
 """
 def by_flag?(k)
   settable_by?(k, :flag)
@@ -1394,7 +1397,7 @@ end
 @doc """
 flag_rows: the knobs of a model a flag may set, refusing as :bad_option two that render one flag (`net.max_conns`, `net_max.conns` and `net_max_conns` all spell --net-max-conns) or one that renders --explain or --help, the flags the line owns; a pair a flag may not set renders no flag and stays legal.
 
-    map((r) -> r[:path], flag_rows({port: knob(80), token: knob("", {set_by: [:env]})})) #=> [[:port]]
+    map((r) -> r[:path], flag_rows({port: knob(80), token: knob("t", {set_by: [:env]})})) #=> [[:port]]
 """
 def flag_rows(model)
   rows = filter((r) -> by_flag?(r[:knob]), knobs(model))
@@ -2261,7 +2264,7 @@ end
 @doc """
 redacted: a settings record with every secret replaced by <secret>, for a log line, a crash report or an MCP answer.
 
-    redacted({t: knob("", {secret: true})}, {t: "x"}) #=> {t: "<secret>"}
+    redacted({t: knob(nil, {type: :text, secret: true})}, {t: "x"}) #=> {t: "<secret>"}
 """
 def redacted(model, record)
   reduce(
@@ -2995,8 +2998,13 @@ def model_fixture()
       port: knob(8080, {min: 1, max: 65535, doc: "the port to listen on"}),
       mode: knob("fast", {choices: %w[fast safe], doc: "how to send"}),
       token: knob(
-        "",
-        {secret: true, set_by: %i[file env], doc: "the bearer token"}
+        nil,
+        {
+          type: :text,
+          secret: true,
+          set_by: %i[file env],
+          doc: "the bearer token"
+        }
       )
     },
     retries: knob(
@@ -3066,7 +3074,7 @@ test "knobs lists every knob by path, and defaults_of is the plain record settei
     {
       dry_run: false,
       min_age_hours: 6,
-      net: {port: 8080, mode: "fast", token: ""},
+      net: {port: 8080, mode: "fast", token: nil},
       retries: 3
     }
   assert knobs({}) == []
@@ -3124,7 +3132,7 @@ test "a bad value is refused for its key alone, naming the key and its range, an
   assert s[:config][:min_age_hours] == 6
   assert s[:config][:retries] == 3
   assert s[:config][:dry_run] == true
-  assert s[:config][:net][:token] == ""
+  assert s[:config][:net][:token].nil?
   assert kinds_of(s[:refusals]) ==
     %i[unknown_key wrong_type out_of_range not_settable wrong_type]
   whys = join(map((r) -> r[:why], s[:refusals]), line_break)
@@ -3196,7 +3204,7 @@ test "a line runs with every layer merged per key, a flag winning"
   assert o[:kind] == :run
   assert o[:opts][:command] == :go
   assert o[:opts][:roots] == ["/a"]
-  assert o[:opts][:net] == {port: 9000, mode: "safe", token: ""}
+  assert o[:opts][:net] == {port: 9000, mode: "safe", token: nil}
   assert o[:opts][:min_age_hours] == 2
   assert o[:opts][:dry_run] == false
   assert o[:warnings] == []
@@ -3540,7 +3548,7 @@ test "the module trio's typed groups render each grouped knob, and a top-level k
     }
   assert t[:groups]["net"]["mode"]["type"] == "enum"
   assert t[:groups]["net"]["mode"]["values"] == %w[fast safe]
-  assert t[:groups]["net"]["token"]["type"] == "str"
+  assert t[:groups]["net"]["token"]["type"] == "nullOrStr"
   assert t[:refused] ==
     [
       "dry_run: a module option needs a group",
@@ -3767,7 +3775,7 @@ test "the words under one name per setting and one question per layer answer for
   assert knob_rows({}, []) == []
   assert model_clashes([]) == []
   assert leaf_paths({"a" => {"b" => 1}}, []) == [%w[a b]]
-  assert flag_rows({t: knob("", {set_by: [:env]})}) == []
+  assert flag_rows({t: knob("t", {set_by: [:env]})}) == []
   assert scalar(:int, "0o17") == 15
   assert scalar(:bool, "maybe").nil?
   assert held(:float, 2) == 2.0
@@ -3963,6 +3971,35 @@ test "a plain record of defaults finds its config file's keys as text, as a mode
   assert kyohi::raised(
     () -> resolve("app", {port: 1}, deeta::parse("prot: 2", :yaml), no_env)
   ) == :unknown_key
+end
+
+test "an empty text default is refused at the knob, and a setting unset until a layer sets it is a knob with no default"
+  why = fn(f)
+    begin
+      f()
+      nil
+    rescue :bad_option as e
+      e.message
+    end
+  end
+  assert contains?(
+    why(() -> knob("")) or "",
+    "an empty text default reads as a value"
+  )
+  assert contains?(
+    why(() -> knob("", {secret: true, doc: "the token"})) or "",
+    "knob(nil, {type: :text})"
+  )
+  assert why(() -> knob(nil, {type: :text})).nil?
+  assert why(() -> knob("x")).nil?
+  host = knob(nil, {type: :text, doc: "the host; the machine's when unset"})
+  assert contains?(
+    table("x", {host:}),
+    "| `host` | text | `unset` | any text |"
+  )
+  assert settle("x", {host:}, nil, env_of({"X_HOST" => "ryn"}), {})[:config] ==
+    {host: "ryn"}
+  assert settle("x", {host:}, nil, no_env, {})[:config] == {host: nil}
 end
 
 test "a knob renamed twice is read by every old name, through settle and through the alias map"

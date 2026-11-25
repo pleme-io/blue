@@ -2136,11 +2136,12 @@ def settings()
       {set_by: [:flag], value_name: "PATH", doc: "the checkout to judge"}
     ),
     baseline: k(
-      "",
+      nil,
       {
+        type: :text,
         set_by: [:flag],
         value_name: "PATH",
-        doc: "the baseline file; the standard's own when empty"
+        doc: "the baseline file; the standard's own when unset"
       }
     ),
     json: k(false, {set_by: [:flag], doc: "report as one JSON record"}),
@@ -3363,6 +3364,6 @@ end
 
 test "kijun's settings and frame: four flags, each set only on the command line, and three commands"
   assert settei::defaults_of(settings) ==
-    {root: ".", baseline: "", json: false, tree: false}
+    {root: ".", baseline: nil, json: false, tree: false}
   assert map((c) -> c[:name], frame[:commands]) == %i[check baseline rules]
 end

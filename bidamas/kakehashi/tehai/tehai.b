@@ -642,8 +642,11 @@ def config_model()
       }
     ),
     "substituters_declared" => k(
-      "",
-      {doc: "the substituters file to check; empty checks none"}
+      nil,
+      {
+        type: :text,
+        doc: "the substituters file to check; none is checked when unset"
+      }
     ),
     "substituters_live" => k(
       "/var/run/tehai/substituters.conf",
@@ -1119,7 +1122,7 @@ test "the model keeps every environment name and default the daemon read by hand
     d["curl"]
   ] ==
     [
-      "",
+      nil,
       "/var/run/tehai/substituters.conf",
       "/var/run/tehai/substituters.json",
       "curl"

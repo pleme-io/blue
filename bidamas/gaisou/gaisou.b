@@ -76,9 +76,10 @@ def settings()
       }
     ),
     off: settei::knob(
-      "",
+      nil,
       {
-        doc: "relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together"
+        type: :text,
+        doc: "relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together; none when unset"
       }
     )
   }
@@ -407,10 +408,10 @@ end
 @doc """
 decide: every mined edge a source admissible for its kind shows, one row per edge with its sources, its tier, the admissible sources that hold both codes and show no edge (silent), those that lack a code (blind), and the registry's state; a kind the settings or the registry turn off is left out.
 
-    decide([], [], [], {}, {min_sources: 2, off: ""}) #=> []
+    decide([], [], [], {}, {min_sources: 2, off: nil}) #=> []
 """
 def decide(edges, kinds, decided, seen, s)
-  off = map(trim, split(s[:off], ","))
+  off = map(trim, split(s[:off] or "", ","))
   live = filter((k) -> k["enabled"] and not member?(k["kind"], off), kinds)
   admits = reduce((acc, k) -> assoc(acc, k["kind"], k["sources"]), {}, live)
   kept = filter((e) -> member?(e[:source], get(admits, e[:kind]) or []), edges)
@@ -698,7 +699,7 @@ test "the defaults are the documented thresholds"
   assert d[:min_support] == 3
   assert d[:min_confidence] == 90
   assert d[:min_sources] == 2
-  assert d[:off] == ""
+  assert d[:off].nil?
 end
 
 test "groups sorts each site's codes once"

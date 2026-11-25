@@ -344,7 +344,7 @@ def assoc_all(m, pairs)
 end
 
 @doc """
-config_model: kirikae's core model, every setting grouped by concern with its default, bounds, unit, doc and the flat environment name it had before (sentinela still passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S). An empty host, kind, history, events or narrate means the computed default.
+config_model: kirikae's core model, every setting grouped by concern with its default, bounds, unit, doc and the flat environment name it had before (sentinela still passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S). An unset host, kind, history, events or narrate means the computed default, and narrate is one of off, brief or full.
 
     settei::defaults_of(config_model)["guard"]["branch"] #=> "main"
 """
@@ -353,18 +353,28 @@ def config_model()
   {
     "flake" => k(".", {doc: "the flake to build"}),
     "host" => k(
-      "",
-      {doc: "the host to switch; the machine's short name when empty"}
+      nil,
+      {
+        type: :text,
+        doc: "the host to switch; the machine's short name when unset"
+      }
     ),
-    "kind" => k("", {doc: "nixos or darwin; read from the machine when empty"}),
+    "kind" => k(
+      nil,
+      {type: :text, doc: "nixos or darwin; read from the machine when unset"}
+    ),
     "current" => k("/run/current-system", {doc: "the running system's link"}),
     "force" => k(
       false,
       {doc: "switch even when the plan says nothing changed"}
     ),
     "narrate" => k(
-      "",
-      {doc: "how much to say: off, brief or full; computed when empty"}
+      nil,
+      {
+        type: :text,
+        choices: %w[off brief full],
+        doc: "how much to say; full for a run and brief for a plan when unset"
+      }
     ),
     "phases" => {
       "plan" => k(true, {renamed: ["plan"], doc: "plan before switching"}),
@@ -439,17 +449,19 @@ def config_model()
     },
     "records" => {
       "history" => k(
-        "",
+        nil,
         {
+          type: :text,
           renamed: ["history"],
-          doc: "the history file; the state directory's when empty"
+          doc: "the history file; the state directory's when unset"
         }
       ),
       "events" => k(
-        "",
+        nil,
         {
+          type: :text,
           renamed: ["events"],
-          doc: "the events file; the state directory's when empty"
+          doc: "the events file; the state directory's when unset"
         }
       ),
       "events_keep" => k(
@@ -510,12 +522,13 @@ def env_aliases()
 end
 
 @doc """
-or_computed: the setting, or the computed default when the setting is empty.
+or_computed: the setting, or the computed default when the setting is unset, or set to empty text by a layer that can only say text.
 
+    or_computed(nil, () -> "full") #=> "full"
     or_computed("", () -> "full") #=> "full"
 """
 def or_computed(v, computed)
-  if v == ""
+  if v.nil? or v == ""
     computed()
   else
     v
@@ -2693,6 +2706,36 @@ test "the narration level is full, brief or off and nothing else"
   ) == true
 end
 
+test "narrate is a closed set in the model: a word outside it is refused for its key alone and the computed level stands"
+  s = settei::settle(
+    "kirikae",
+    config_model,
+    nil,
+    settei::env_of(
+      {"KIRIKAE_NARRATE" => "loud", "KIRIKAE_GUARD__BRANCH" => "next"}
+    ),
+    {}
+  )
+  assert s[:config]["narrate"].nil?
+  assert s[:config]["guard"]["branch"] == "next"
+  assert map((f) -> f[:key], s[:refusals]) == ["narrate"]
+  assert contains?(
+    s[:refusals][0][:why],
+    "must be one of off, brief, full, got loud"
+  )
+  assert narrate_level(or_computed(s[:config]["narrate"], () -> "brief")) ==
+    :brief
+  brief = settei::settle(
+    "kirikae",
+    config_model,
+    nil,
+    settei::env_of({"KIRIKAE_NARRATE" => "brief"}),
+    {}
+  )
+  assert brief[:config]["narrate"] == "brief"
+  assert or_computed(nil, () -> "x") == "x"
+end
+
 test "a writer is named by its command and the rev it builds, and by its command alone without one"
   assert writer_of("/run/current-system/sw/bin/darwin-rebuild build --flake github:pleme-io/nix/b548e3a24f88a08d1c673ad27ac494293ac5cac1#ryn -L") ==
     "darwin-rebuild build at b548e3a2"
@@ -2911,11 +2954,11 @@ test "config_model renders the same defaults and environment aliases the hand-wr
   assert config_defaults ==
     {
       "flake" => ".",
-      "host" => "",
-      "kind" => "",
+      "host" => nil,
+      "kind" => nil,
       "current" => "/run/current-system",
       "force" => false,
-      "narrate" => "",
+      "narrate" => nil,
       "phases" => {"plan" => true, "verify" => true},
       "guard" => {
         "branch" => "main",
@@ -2925,7 +2968,7 @@ test "config_model renders the same defaults and environment aliases the hand-wr
       },
       "wait" => {"seconds" => 0, "poll_seconds" => 15},
       "backoff" => {"base_seconds" => 0, "cap_seconds" => 21600},
-      "records" => {"history" => "", "events" => "", "events_keep" => 1000},
+      "records" => {"history" => nil, "events" => nil, "events_keep" => 1000},
       "gitops" => {
         "follow" => false,
         "stale_after_seconds" => 300,

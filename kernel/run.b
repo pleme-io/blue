@@ -68,7 +68,13 @@ def config_model()
         300,
         {min: 1, unit: "seconds", doc: "the network suite's deadline"}
       ),
-      filter: k("", {doc: "keep only the tests whose name holds this"})
+      filter: k(
+        nil,
+        {
+          type: :text,
+          doc: "keep only the tests whose name holds this; every test when unset"
+        }
+      )
     },
     on: {
       root: k("/tmp/blue-kernel-runs", {doc: "where a host keeps its runs"}),
@@ -301,7 +307,7 @@ environment given, with the tests a filter keeps.
     member?("--filter", suite_command("x.b", 9, "blue", [], "fexit")) #=> true
 """
 def suite_command(file, seconds, blue, env, wanted)
-  keep = if wanted == ""
+  keep = if wanted.nil? or wanted == ""
     []
   else
     ["--filter", wanted]
@@ -394,10 +400,11 @@ filtered_out?: Whether a suite said it holds no test the filter keeps.
 
     filtered_out?("x.b: no test name contains \"f\"", "f") #=> true
     filtered_out?("x.b: no test name contains \"f\"", "") #=> false
+    filtered_out?("x.b: no test name contains \"f\"", nil) #=> false
     filtered_out?("boom", "f") #=> false
 """
 def filtered_out?(output, wanted)
-  wanted != "" and contains?(output, "no test name contains")
+  wanted != nil and wanted != "" and contains?(output, "no test name contains")
 end
 
 @doc """
@@ -1222,6 +1229,8 @@ end
 
 test "a suite runs bounded, at low priority, in the environment it was given"
   assert not member?("--filter", suite_command("x.b", 9, "b", [], ""))
+  assert not member?("--filter", suite_command("x.b", 9, "b", [], nil))
+  assert config_defaults[:suite][:filter].nil?
   assert member?("fexit", suite_command("x.b", 9, "b", [], "fexit"))
   c = suite_command("kernel/suite.b", 900, "/b/blue", %w[A=1 B=2], "")
   assert first(c) == "env"

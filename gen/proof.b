@@ -1,5 +1,5 @@
 use("gitto", %i[as_tester ask])
-use("retsu", [:first])
+use("retsu", %i[first flat_map])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 use("tesuto", [:needs_blue])
 
@@ -13,24 +13,45 @@ def notes_ref()
 end
 
 @doc """
+unproven: The workspace crates a local proof does not run, so CI runs them on a
+proven commit: blue-lang-wasm's engine tests need the wasm32 target and lld that
+CI's shell carries.
+
+    unproven #=> ["blue-lang-wasm"]
+"""
+def unproven()
+  ["blue-lang-wasm"]
+end
+
+@doc """
 suite_words: The command a proof stands for: the whole workspace suite but the
-wasm crate, the run the operator makes before every land.
+unproven crates, the run the operator makes before every land.
 
     first(suite_words) #=> "env"
 """
 def suite_words()
-  %w[
-    env
-    CARGO_BUILD_JOBS=8
-    nix
-    develop
-    -c
-    cargo
-    test
-    --workspace
-    --exclude
-    blue-lang-wasm
-  ]
+  append(
+    %w[env CARGO_BUILD_JOBS=8 nix develop -c cargo test --workspace],
+    flat_map(unproven, (c) -> ["--exclude", c])
+  )
+end
+
+@doc """
+test_args: The arguments CI's `cargo test` takes for a commit, from whether its
+proof holds: on a proven commit only the unproven crates, since the proof stands
+for the rest, and "" when none is left; otherwise the whole suite.
+
+    test_args("false") #=> "--workspace --no-fail-fast"
+    test_args("true") #=> "-p blue-lang-wasm --no-fail-fast"
+"""
+def test_args(proven)
+  if proven != "true"
+    "--workspace --no-fail-fast"
+  elsif unproven == []
+    ""
+  else
+    join(append(flat_map(unproven, (c) -> ["-p", c]), ["--no-fail-fast"]), " ")
+  end
 end
 
 @doc """
@@ -77,7 +98,8 @@ end
 @doc """
 proof_gap: Why a note proves nothing for a commit, or nil when it proves the
 suite ran green on that commit's tree with its locks. A missing note, one that
-is not JSON, another schema and each differing hash are each a gap.
+is not JSON, another schema, each differing hash and a command other than the
+suite this commit's CI replaces with it are each a gap.
 
     proof_gap(nil, "t", "f", "c") #=> "the commit carries no refs/notes/blue-suite note"
     proof_gap("{", "t", "f", "c") #=> "the note is not JSON"
@@ -103,6 +125,8 @@ def proof_gap(text, tree, flake, cargo)
     "the note's flake.lock is #{to_s(json_get(note, :flake_lock))}, the commit's is #{flake}"
   elsif json_get(note, :cargo_lock) != cargo
     "the note's Cargo.lock is #{to_s(json_get(note, :cargo_lock))}, the commit's is #{cargo}"
+  elsif json_get(note, :command) != suite_command
+    "the note proves `#{to_s(json_get(note, :command))}`, and the suite it stands for is `#{suite_command}`"
   end
 end
 
@@ -236,10 +260,12 @@ end
 def main()
   if count(argv) == 2 and first(argv) == "--verify"
     verify(argv_get(1))
+  elsif count(argv) == 2 and first(argv) == "--test-args"
+    write_stdout(test_args(argv_get(1)))
   elsif argv == ["--prove"]
     prove
   else
-    say("gen/proof.b --prove | --verify <rev>")
+    say("gen/proof.b --prove | --verify <rev> | --test-args <proven>")
     exit_with(2)
   end
 end
@@ -255,6 +281,33 @@ test "a proof holds only for the tree and the locks it names"
   assert proof_gap("[1]", "t", "f", "c") == "the note is no blue-suite/1 proof"
   assert proof_gap("{\"schema\":\"x\"}", "t", "f", "c") ==
     "the note is no blue-suite/1 proof"
+end
+
+test "a note whose command is not the suite it stands for proves nothing"
+  note = json_stringify(note_for("t", "f", "c", 165, "rustc 1.0", "now"))
+  assert proof_gap(note, "t", "f", "c").nil?
+  other = replace(
+    note,
+    "--exclude blue-lang-wasm",
+    "--exclude blue-lang-wasm --exclude blue-lang-test"
+  )
+  assert other != note
+  assert contains?(
+    proof_gap(other, "t", "f", "c"),
+    "the suite it stands for is"
+  )
+  bare = json_stringify(
+    {schema: "blue-suite/1", tree: "t", flake_lock: "f", cargo_lock: "c"}
+  )
+  assert contains?(proof_gap(bare, "t", "f", "c"), "the suite it stands for is")
+end
+
+test "a proven commit runs only the crates its proof does not cover, and an unproven one the whole suite"
+  assert test_args("true") == "-p blue-lang-wasm --no-fail-fast"
+  assert test_args("false") == "--workspace --no-fail-fast"
+  assert test_args("") == "--workspace --no-fail-fast"
+  assert suite_command ==
+    "CARGO_BUILD_JOBS=8 nix develop -c cargo test --workspace --exclude blue-lang-wasm"
 end
 
 test "the note names the command it proves and counts its binaries"

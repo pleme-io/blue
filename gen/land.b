@@ -136,15 +136,89 @@ def direct_next(text, dirty)
 end
 
 @doc """
-direct_land: Land HEAD on main directly, for while another agent pushes main
-directly and the queue's turns keep being reset: rebase onto main, push through the
-pre-push gates, and on a failure do what direct_next says, up to `tries` times.
-`held` is the machine's land lock (take_machine), let go at every end. Land reads
-no stdin; start it with stdin closed (`git land --direct < /dev/null`) when it
-runs in the background, as a land started with `&` and stdin open died on
-2026-11-20.
+direct_check_of: What a direct land builds before it pushes to main, from
+BLUE_LAND_DIRECT: `:project`, the project's pre-merge checks, unless the setting
+is `prepush-only`, which leaves only the pre-push gates. Any other value is
+refused, and land stops on it.
+
+    direct_check_of(nil) #=> :project
+    direct_check_of("prepush-only") #=> :off
+    direct_check_of("sometimes") #=> {refused: "sometimes"}
 """
-def direct_land(tries, held)
+def direct_check_of(v)
+  if v.nil? or v == "" or v == "project"
+    :project
+  elsif v == "prepush-only"
+    :off
+  else
+    {refused: v}
+  end
+end
+
+@doc """
+project_check_words: The build of a flake's pre-merge checks on `system`:
+`checks.<system>.project`, every Bluefile check row but the post-merge tier, the
+one aggregate a queued land's CI builds. Nix builds a row the change leaves as
+it was from its cache.
+
+    project_check_words("x86_64-linux") #=> ["nix", "build", "--no-link", ".#checks.x86_64-linux.project"]
+"""
+def project_check_words(system)
+  ["nix", "build", "--no-link", ".#checks.#{system}.project"]
+end
+
+@doc """
+land_system: The system a direct land builds the project's checks for:
+BLUE_LAND_SYSTEM when set, as x86_64-linux through a builder, else this
+machine's own.
+"""
+def land_system()
+  given = getenv("BLUE_LAND_SYSTEM")
+  if given != nil and given != ""
+    given
+  else
+    trim(
+      stdout_of(
+        exec_capture(
+          "nix",
+          "eval",
+          "--impure",
+          "--raw",
+          "--expr",
+          "builtins.currentSystem"
+        )
+      )
+    )
+  end
+end
+
+@doc """
+check_project: Build the project's pre-merge checks on the rebased tree, so a red
+`:ci` row stops a direct land before main moves, as it stops a queued land's
+CI; nothing when the check is off.
+"""
+def check_project(check, held)
+  if check == :project
+    words = project_check_words(land_system)
+    say("building #{join(words, " ")} before main moves")
+    if exec_check(*words) != 0
+      tell("the project's pre-merge checks are red, so main stays where it is; fix the red row, or land past it with BLUE_LAND_DIRECT=prepush-only")
+      direct_exit(held, 1)
+    end
+  end
+end
+
+@doc """
+direct_land: Land HEAD on main directly, for while another agent pushes main
+directly and the queue's turns keep being reset: rebase onto main, build the
+project's pre-merge checks (check_project, unless `check` is off), push through
+the pre-push gates, and on a failure do what direct_next says, up to `tries`
+times. `held` is the machine's land lock (take_machine), let go at every end.
+Land reads no stdin; start it with stdin closed (`git land --direct < /dev/null`)
+when it runs in the background, as a land started with `&` and stdin open died
+on 2026-11-20.
+"""
+def direct_land(tries, held, check)
   if tries == 0
     tell("main kept moving under the push; land again")
     direct_exit(held, 1)
@@ -156,6 +230,7 @@ def direct_land(tries, held)
     tell("the rebase onto main conflicts; resolve it, then land again")
     direct_exit(held, 1)
   end
+  check_project(check, held)
   pushed = git_at(".", %w[push origin HEAD:main])
   if status_of(pushed) == 0
     say("on main: #{trim(ask(%w[rev-parse --short HEAD]))}")
@@ -174,7 +249,7 @@ def direct_land(tries, held)
   else
     say("main moved first; rebasing and pushing again")
   end
-  direct_land(tries - 1, held)
+  direct_land(tries - 1, held, check)
 end
 
 @doc """
@@ -3132,7 +3207,14 @@ def main()
     exit_with(1)
   end
   if member?("--direct", argv)
-    direct_land(8, take_machine)
+    check = direct_check_of(getenv("BLUE_LAND_DIRECT"))
+    if map?(check)
+      tell(
+        "BLUE_LAND_DIRECT is \"#{check[:refused]}\"; it takes project or prepush-only"
+      )
+      exit_with(2)
+    end
+    direct_land(8, take_machine, check)
   end
   left = requeue_of(argv)
   minutes = count_flag(argv, "--queue-minutes=", 240)
@@ -4070,6 +4152,75 @@ test "--proven pushes the land only after gen/proof.b --prove succeeds"
   assert status_of(land_in(root, ["--proven"])) == 0
   assert read_file(path_join(root, "proved")) == "--prove"
   assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
+  rm_rf(root)
+end
+
+test "a direct land builds the project's pre-merge checks before main moves: prepush-only turns that off, and any other setting is refused"
+  assert direct_check_of(nil) == :project
+  assert direct_check_of("project") == :project
+  assert direct_check_of("prepush-only") == :off
+  assert direct_check_of("prepush") == {refused: "prepush"}
+  assert project_check_words("aarch64-darwin") ==
+    ["nix", "build", "--no-link", ".#checks.aarch64-darwin.project"]
+end
+
+def fake_nix(root, code)
+  bin = path_join(root, "bin")
+  mkdir_p(bin)
+  script(
+    path_join(bin, "nix"),
+    unlines(
+      [
+        "#!/bin/sh",
+        "echo \"$*\" >> #{path_join(root, "nix.log")}",
+        "exit #{to_s(code)}"
+      ]
+    )
+  )
+  [
+    "PATH=#{bin}:#{getenv("PATH")}",
+    "BLUE_LAND_SYSTEM=test-system",
+    "BLUE_LAND_SINGLE_FLIGHT=off"
+  ]
+end
+
+test "a red pre-merge check stops a direct land and main stays where it is; a green one lands, and prepush-only lands past a red one"
+  needs_blue(self_exe)
+  root = landing_fixture
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  main_was = as_tester(work, %w[ls-remote origin refs/heads/main])
+  red = land_with(fake_nix(root, 1), root, ["--direct"])
+  assert status_of(red) == 1
+  assert contains?(stderr_of(red), "pre-merge checks are red")
+  assert as_tester(work, %w[ls-remote origin refs/heads/main]) == main_was
+  assert contains?(
+    read_file(path_join(root, "nix.log")),
+    "build --no-link .#checks.test-system.project"
+  )
+  off = land_with(
+    append(fake_nix(root, 1), ["BLUE_LAND_DIRECT=prepush-only"]),
+    root,
+    ["--direct"]
+  )
+  assert status_of(off) == 0
+  assert moji::lines(read_file(path_join(root, "nix.log"))) ==
+    ["build --no-link .#checks.test-system.project"]
+  head = as_tester(work, %w[rev-parse HEAD])
+  assert contains?(as_tester(work, %w[ls-remote origin refs/heads/main]), head)
+  committed(work, [%w[second.txt second]], "a second topic file")
+  green = land_with(fake_nix(root, 0), root, ["--direct"])
+  assert status_of(green) == 0
+  assert contains?(
+    as_tester(work, %w[ls-remote origin refs/heads/main]),
+    as_tester(work, %w[rev-parse HEAD])
+  )
+  refused = land_with(
+    append(fake_nix(root, 0), ["BLUE_LAND_DIRECT=sometimes"]),
+    root,
+    ["--direct"]
+  )
+  assert status_of(refused) == 2
   rm_rf(root)
 end
 

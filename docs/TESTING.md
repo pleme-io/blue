@@ -412,7 +412,7 @@ check and a `project` that still names a post-merge one. A post-merge check is n
 of a pre-merge one: before moving a check, name the question it answers. The
 land's runner is the repository variable `BLUE_LAND_RUNNER` (unset: hosted).
 
-`git land --proven` runs the suite locally (`gen/proof.b --prove`) and pushes a proof under `refs/notes/blue-suite`; CI skips `cargo test` when the note names the commit's tree and locks.
+`git land --proven` runs the suite locally (`gen/proof.b --prove`) and pushes a proof under `refs/notes/blue-suite`. When the note names the commit's tree, its locks and the command the proof stands for (`gen/proof.b` `suite_command`; a note with another command proves nothing), CI's `cargo test` runs only the crates the local suite leaves out (`gen/proof.b --test-args`, from `unproven`: today `blue-lang-wasm`, whose engine tests need the wasm32 target CI's shell carries). A proof step that answers nothing runs the whole suite.
 The proof is trusted on push access alone: a note is not signed, so anyone who can push the notes ref can claim a green suite.
 
 ## 10. Determinism

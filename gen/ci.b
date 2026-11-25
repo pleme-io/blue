@@ -4,7 +4,8 @@ holds no logic of its own: it builds blue once, then hands each question to the
 blue binary or to nix. The `check` job is substrate's `cargo-ci.yml`, because
 it carries the git credentials a private pleme-io git dependency needs; that
 job runs `nix flake check` (every `check` row of the Bluefile, whatever its
-stage) and `cargo test`, which the suite proof (`gen/proof.b`) may skip. A land
+stage) and `cargo test`, which the suite proof (`gen/proof.b`) narrows to the
+crates it does not cover. A land
 also runs the first gates (`gen/prepush.b --first-gates`), the consumer sweep
 (`gen/consumers.b`) and the stop-on-red watcher (`gen/land.b`).
 
@@ -101,6 +102,7 @@ def blue_job()
     "permissions" => {"contents" => "read", "actions" => "read"},
     "outputs" => {
       "proven" => "${{ steps.proof.outputs.proven }}",
+      "test-args" => "${{ steps.proof.outputs.test-args }}",
       "held" => "${{ steps.turn.outputs.held }}"
     },
     "steps" => [
@@ -122,10 +124,16 @@ def blue_job()
         )
       },
       {
-        "name" => "read the suite proof noted on this commit",
+        "name" => "read the suite proof noted on this commit, and the crates it does not cover",
         "id" => "proof",
         "continue-on-error" => true,
-        "run" => "echo \"proven=$(#{blue_out}/bin/blue run --quiet gen/proof.b -- --verify HEAD)\" >> \"$GITHUB_OUTPUT\""
+        "run" => join_lines(
+          [
+            "proven=\"$(#{blue_out}/bin/blue run --quiet gen/proof.b -- --verify HEAD)\"",
+            "echo \"proven=$proven\" >> \"$GITHUB_OUTPUT\"",
+            "echo \"test-args=$(#{blue_out}/bin/blue run --quiet gen/proof.b -- --test-args \"$proven\")\" >> \"$GITHUB_OUTPUT\""
+          ]
+        )
       },
       {
         "name" => "export blue's closure for the jobs that build it again",
@@ -153,9 +161,12 @@ end
 
 @doc """
 check_job: substrate's cargo-ci flow: `nix flake check` in shards, and `cargo
-test` unless the suite proof covers this commit. It grants `actions: read`,
-because substrate's `runner-resolve.yml`, which cargo-ci calls, asks for it,
-and GitHub refuses to start a run whose caller grants less.
+test` over what the suite proof does not cover: the whole suite on an unproven
+commit, and on a proven one the crates the proof leaves out
+(`gen/proof.b --test-args`). A proof step that answers nothing runs the whole
+suite. It grants `actions: read`, because substrate's `runner-resolve.yml`,
+which cargo-ci calls, asks for it, and GitHub refuses to start a run whose
+caller grants less.
 
     check_job["uses"] #=> "pleme-io/substrate/.github/workflows/cargo-ci.yml@main"
     check_job["permissions"]["actions"] #=> "read"
@@ -167,10 +178,10 @@ def check_job()
     "uses" => "pleme-io/substrate/.github/workflows/cargo-ci.yml@main",
     "permissions" => {"contents" => "read", "actions" => "read"},
     "with" => {
-      "test-args" => "--workspace --no-fail-fast",
+      "test-args" => "${{ needs.blue.outputs.test-args || '--workspace --no-fail-fast' }}",
       "runner" => "${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}",
       "test-runner" => "ubuntu-latest",
-      "cargo-test" => "${{ needs.blue.outputs.proven != 'true' }}",
+      "cargo-test" => "${{ needs.blue.outputs.proven != 'true' || needs.blue.outputs.test-args != '' }}",
       "closure-artifact" => "blue-closure",
       "flake-check-shards" => "${{ fromJSON(vars.BLUE_FLAKE_CHECK_SHARDS || '6') }}"
     },
@@ -399,6 +410,18 @@ end
 
 test "a project with no consumers check renders no sweep"
   assert jobs_of({})["consumers"].nil?
+end
+
+test "a proven commit still runs cargo test over the crates its proof leaves out, and a silent proof step runs the whole suite"
+  args = blue_job["outputs"]["test-args"]
+  assert args == "${{ steps.proof.outputs.test-args }}"
+  step = retsu::find_first((s) -> s["id"] == "proof", blue_job["steps"])
+  assert contains?(step["run"], "gen/proof.b -- --test-args \"$proven\"")
+  with = check_job["with"]
+  assert with["test-args"] ==
+    "${{ needs.blue.outputs.test-args || '--workspace --no-fail-fast' }}"
+  assert with["cargo-test"] ==
+    "${{ needs.blue.outputs.proven != 'true' || needs.blue.outputs.test-args != '' }}"
 end
 
 test "every workflow is rendered by a generate row or held as hand debt, and paid debt leaves the list"

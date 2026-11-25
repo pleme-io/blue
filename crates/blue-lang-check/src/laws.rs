@@ -25,9 +25,12 @@
 //! a constant, `abs`, `min`, `max`, comparisons, `==`, `!=`, `and`, `or`,
 //! `not`, `if`, local bindings, and the lengths of lists built by `[…]`,
 //! `cons`, `append`, `reverse`, `map`, `take`, `drop`, `range` and `zip`,
-//! read by `length`, `count` and `empty?`. A word the file defines is read as
-//! the file defines it, inlined; a word a `use` brings in bare is outside the
-//! fragment, since the solver does not see its body.
+//! read by `length`, `count` and `empty?`. A word the file defines with `def`
+//! is read as the file defines it, inlined. Every other name the file binds is
+//! outside the fragment, even one spelled like a word of it: a binding, a
+//! macro, a record's constructor and predicate, a union's predicate and each
+//! arm's. So is a word a `use` brings in bare, since the solver does not see
+//! its body.
 //!
 //! Blue's integers are 64-bit and raise on overflow, so a law proved over the
 //! integers holds at every call that returns. A law that is not typed gets no
@@ -35,6 +38,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use blue_lang_syntax::scope::Declared;
 use tatara_lisp::{Atom, Span, Spanned, SpannedForm};
 
 use crate::lia::{Backend, Formula, Lin, Model, Stop, Var, Verdict};
@@ -229,22 +233,19 @@ fn scope(forms: &[Spanned]) -> Scope<'_> {
             bound.extend(imports.into_iter().flat_map(|i| i.names).map(|(n, _)| n));
             continue;
         }
-        let Some([head, sig, rest @ ..]) = f.as_list() else {
+        bound.extend(
+            blue_lang_syntax::scope::bindings_of(f)
+                .iter()
+                .map(|b| b.name().to_string()),
+        );
+        let Some(definition) = blue_lang_syntax::scope::definition(f) else {
             continue;
         };
-        let head = head.as_symbol();
-        if !matches!(head, Some("define" | "define-typed" | "defmacro")) {
-            continue;
-        }
-        let Some(name) = sig
-            .as_symbol()
-            .or_else(|| sig.as_list()?.first()?.as_symbol())
-        else {
+        let Some([_, sig, rest @ ..]) = f.as_list() else {
             continue;
         };
-        bound.insert(name.to_string());
-        let body = match (head, rest) {
-            (Some("define-typed"), [_, body]) | (Some("define"), [body]) => body,
+        let body = match (definition.declared, rest) {
+            (Declared::Typed, [_, body]) | (Declared::Def, [body]) => body,
             _ => continue,
         };
         let Some([_, params @ ..]) = sig.as_list() else {
@@ -256,7 +257,7 @@ fn scope(forms: &[Spanned]) -> Scope<'_> {
         let Some(params) = params.iter().map(param_name).collect::<Option<Vec<_>>>() else {
             continue;
         };
-        defs.insert(name.to_string(), Def { params, body });
+        defs.insert(definition.name().to_string(), Def { params, body });
     }
     Scope { defs, bound }
 }

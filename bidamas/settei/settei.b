@@ -75,9 +75,10 @@ def locates(which)
 end
 
 @doc """
-coincidences: for pairs of a name and who owns it, why two owners share one name, said as the name is read.
+coincidences: for pairs of a name and who owns it, why two owners share one name, said as the name is read; two owners of one spelling, as a text key and a keyword key of one word are, are two settings of that name.
 
     coincidences([["X", "a"], ["Y", "c"], ["X", "b"]], (n) -> "read from #{n}") #=> ["a and b are both read from X"]
+    coincidences([["X", "p"], ["X", "p"]], (n) -> "read from #{n}") #=> ["two settings named p are both read from X"]
     coincidences([], (n) -> n) #=> []
 """
 def coincidences(pairs, said)
@@ -86,10 +87,12 @@ def coincidences(pairs, said)
       fn(acc, p)
         prev = acc[:prev]
         whys = if prev != nil and first(prev) == first(p)
-          append(
-            acc[:whys],
-            ["#{second(prev)} and #{second(p)} are both #{said(first(p))}"]
-          )
+          owners = if second(prev) == second(p)
+            "two settings named #{second(p)}"
+          else
+            "#{second(prev)} and #{second(p)}"
+          end
+          append(acc[:whys], ["#{owners} are both #{said(first(p))}"])
         else
           acc[:whys]
         end
@@ -780,7 +783,7 @@ def dotted_key(path)
 end
 
 @doc """
-knobs: every knob of a core model with its path, groups walked in key order. A model whose names do not each name one setting is refused as :bad_option naming both: an environment name a locator owns or two knobs share, or a name a knob was renamed from that another knob or rename holds.
+knobs: every knob of a core model with its path, groups walked in key order. A model whose names do not each name one setting is refused as :bad_option naming both: an environment name a locator owns or two knobs share, a key two knobs share, or a name a knob was renamed from that another knob or rename holds.
 
     knobs({a: knob(1)}) #=> [{path: [:a], knob: knob(1)}]
 """
@@ -822,10 +825,11 @@ def knob_rows(model, at)
 end
 
 @doc """
-model_clashes: why a model's names do not each name one setting: each environment name the environment reads (a knob's own and each it was renamed from) must be no locator and no other knob's, and each key a knob was renamed from must be no live key and no other rename.
+model_clashes: why a model's names do not each name one setting: each environment name the environment reads (a knob's own and each it was renamed from) must be no locator and no other knob's, and each key (a knob's own and each it was renamed from) must be no other knob's or rename's, whatever else the model renames.
 
     model_clashes(knob_rows({config: knob(1)}, [])) #=> ["config is read from <APP>_CONFIG, which names the config file; rename it or put it in a group"]
     model_clashes(knob_rows({config: knob(1, {set_by: [:file]})}, [])) #=> []
+    model_clashes(knob_rows({"port" => knob(1, {set_by: [:file]}), port: knob(2, {set_by: [:file]})}, [])) #=> ["two settings named port are both read from the file key port"]
 """
 def model_clashes(rows)
   env_read = flat_map(
@@ -843,23 +847,18 @@ def model_clashes(rows)
       )
     end
   )
-  renamed = filter((r) -> r[:knob][:renamed] != [], rows)
-  keyed = if renamed == []
-    []
-  else
-    append(
-      map((r) -> [dotted_key(r[:path]), dotted_key(r[:path])], rows),
-      flat_map(
-        renamed,
-        fn(r)
-          map(
-            (old) -> [old, "#{dotted_key(r[:path])} (renamed from #{old})"],
-            r[:knob][:renamed]
-          )
-        end
-      )
+  keyed = append(
+    map((r) -> [dotted_key(r[:path]), dotted_key(r[:path])], rows),
+    flat_map(
+      rows,
+      fn(r)
+        map(
+          (old) -> [old, "#{dotted_key(r[:path])} (renamed from #{old})"],
+          r[:knob][:renamed]
+        )
+      end
     )
-  end
+  )
   append(
     env_clashes("<APP>_", env_read),
     coincidences(keyed, (n) -> "read from the file key #{n}")
@@ -3749,6 +3748,14 @@ test "no setting is read from a locator's name, and no two settings share an env
     ),
     "wait_s and wait.seconds (renamed from wait_s) are both read from the file key wait_s"
   )
+  file_only = (v) -> knob(v, {set_by: [:file]})
+  assert why(() -> knobs({"port" => file_only(1), port: file_only(2)})) ==
+    "two settings named port are both read from the file key port"
+  assert why(
+    () -> knobs({"net.port" => file_only(1), net: {port: file_only(2)}})
+  ) == "two settings named net.port are both read from the file key net.port"
+  assert why(() -> knobs({"port" => knob(1), port: knob(2)})) ==
+    "two settings named port are both read from <APP>_PORT; two settings named port are both read from the file key port"
   assert contains?(
     why(() -> resolve("z", {"config" => "x", "port" => 1}, nil, no_env)),
     "config is read from Z_CONFIG, which names the config file"
@@ -3771,6 +3778,8 @@ test "the words under one name per setting and one question per layer answer for
   assert locates(:config) == "the config file"
   assert coincidences([["a", 1], ["b", 3], ["a", 2]], (n) -> n) ==
     ["1 and 2 are both a"]
+  assert coincidences([%w[a p], %w[a p]], (n) -> n) ==
+    ["two settings named p are both a"]
   assert env_clashes("X_", []) == []
   assert knob_rows({}, []) == []
   assert model_clashes([]) == []

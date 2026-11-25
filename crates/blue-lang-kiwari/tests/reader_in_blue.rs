@@ -301,7 +301,7 @@ const SNIPPETS: &[&str] = &[
     "{a: 1, **m, b:, \"c\" => 2,}\n{}\n{**m}\n[1,\n]\n[]\n[1, 2]",
     "x[:k]\nx[0]\nx.y\nx.y(1)\nx.y(*z)",
     "x |> f\nx |> f(1)\nx |> not()\nx |> equal?(nil)\nx |> g(if a\n  1\nend)",
-    "a == nil\nnil == a\nnil == nil\nequal?(a, nil)\nnot (a == b)\nnot (a != b)\nnot (a != nil)\nnot (f(a, b, c))",
+    "a == nil\nnil == a\nnil == nil\nequal?(a, nil)\nnot (a == b)\nnot (a != b)\nnot (a != nil)\nnot (f(a, b, c))\nnil != a\nnil != nil\nnot (nil != a)",
     "if a\n  b\nelsif c\n  d\nelse\n  e\nend\nif a\nelse\nend\nif a\nelse\n  # kept\nend\nunless a == b\n  c\nend",
     "def f(a, c: Int, b?, d?: m::T) -> List(Int, Str)\n  if a\n    nil\n  else\n    b\n    c\n  end\n  d\nend\ndef g\nend\ndef h() -> T() 1 end",
     "\"a#{x}b\"\n\"\\n\"\n\"a\\n\"\n\"a\\nb#{x}\\n#{y}\"",

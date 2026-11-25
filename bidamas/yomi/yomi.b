@@ -3653,8 +3653,9 @@ end
 
 @doc """
 rewritten: The rewrites blue's parser makes beside the grammar's lowering: a
-nil comparison (`x == nil` is `x.nil?`), a negated comparison (`not (a == b)`
-is `a != b`), and a pipe into `not`, a one-armed `if` or `==`.
+nil comparison (`x == nil` is `x.nil?`, and `nil != x` is `x != nil`), a
+negated comparison (`not (a == b)` is `a != b`), and a pipe into `not`, a
+one-armed `if` or `==`.
 
     rewritten({kind: "integer"}, [[0, 1, :int, 1]]) #=> [[0, 1, :int, 1]]
 """
@@ -3710,13 +3711,17 @@ def nil_test(span, op, a, b)
 end
 
 @doc """
-nil_tested: An `equal?` of two operands as its nil test when it is one.
+nil_tested: An `equal?` of two operands as its nil test when it is one, and a
+`not=` with nil alone on its left turned round, as `x != nil` is written.
 
     nil_tested([0, 1, :int, 1]) #=> [0, 1, :int, 1]
+    nil_tested([0, 8, :list, [[4, 6, :sym, "not="], [0, 3, :nil, nil], [7, 8, :sym, "x"]]]) #=> [0, 8, :list, [[4, 6, :sym, "not="], [7, 8, :sym, "x"], [0, 3, :nil, nil]]]
 """
 def nil_tested(v)
   hit = if head_is?(v, "equal?", 3)
     nil_test([v[0], v[1]], [v[3][0][0], v[3][0][1]], v[3][1], v[3][2])
+  elsif head_is?(v, "not=", 3) and v[3][1][2] == :nil and v[3][2][2] != :nil
+    [v[0], v[1], :list, [v[3][0], v[3][2], v[3][1]]]
   end
   if hit.nil?
     v

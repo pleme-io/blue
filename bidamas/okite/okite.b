@@ -387,7 +387,7 @@ def law_maps_by_value()
 end
 
 def law_nil_is_not_empty_list()
-  nil != [] and [] == [] and nil == nil and is_empty(nil) and is_empty([])
+  [] != nil and [] == [] and nil == nil and is_empty(nil) and is_empty([])
 end
 
 def law_membership_is_equality()

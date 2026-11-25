@@ -1031,7 +1031,7 @@ spelling and writes the short one, and a mixed map keeps its explicit values:
         slug: "nil-test",
         severity: Error,
         fix: Machine,
-        law: "a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x`",
+        law: "a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x`, and its negation `x != nil`, never `nil != x`",
         witness: "name = 1\nname == nil\n",
         waivable: false,
         explanation: "\
@@ -1039,7 +1039,8 @@ spelling and writes the short one, and a mixed map keeps its explicit values:
 put to the value. blue reads `nil?(x)`, `x == nil` and `nil == x` and writes
 `x.nil?`; the three build the same answer on every value.
 
-The opposite test stays `x != nil`, and `not x.nil?` is read as written.
+The opposite test is `x != nil`: blue reads `nil != x` and writes `x != nil`,
+as it writes `nil == x` as `x.nil?`, and `not x.nil?` is read as written.
 A program's own `nil?` is left alone. `.nil?` is never a field: a map that
 holds a `nil?` key is not nil, and the key is read `m[\"nil?\"]` or
 `m[:nil?]`.",

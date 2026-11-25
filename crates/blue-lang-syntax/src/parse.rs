@@ -1545,6 +1545,25 @@ impl Parser {
     }
 
     #[inline(never)]
+    fn nil_negation(
+        &mut self,
+        start: usize,
+        op_span: Span,
+        lhs: &Spanned,
+        rhs: &Spanned,
+    ) -> Option<Spanned> {
+        if !matches!(lhs.form, SpannedForm::Nil) || matches!(rhs.form, SpannedForm::Nil) {
+            return None;
+        }
+        let span = self.span_since(start);
+        self.note(Spelling::NilTest, span, "nil != x", "x != nil");
+        Some(list_at(
+            span,
+            vec![sym_at(op_span, "not="), rhs.clone(), lhs.clone()],
+        ))
+    }
+
+    #[inline(never)]
     fn infix_node(
         &mut self,
         start: usize,
@@ -1564,6 +1583,12 @@ impl Parser {
 
         if callee == Some("equal?") {
             if let Some(test) = self.nil_test(start, op_span, &lhs, &rhs) {
+                return test;
+            }
+        }
+
+        if callee == Some("not=") {
+            if let Some(test) = self.nil_negation(start, op_span, &lhs, &rhs) {
                 return test;
             }
         }

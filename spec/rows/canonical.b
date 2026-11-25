@@ -208,6 +208,18 @@ row(
   formats(unlines(["name = 1", "name != nil"]))
 )
 
+row(
+  "canon.B0047.reversed_negation",
+  join_lines(["name = 1", "nil != name"]),
+  formats(unlines(["name = 1", "name != nil"]))
+)
+
+row(
+  "canon.B0047.reversed_negation_diagnosed",
+  join_lines(["name = 1", "nil != name"]),
+  diagnoses(["B0047"])
+)
+
 row("canon.B0065", "\"a\\nb\"", diagnoses(["B0065"]), covers("rule:B0065"))
 
 row(

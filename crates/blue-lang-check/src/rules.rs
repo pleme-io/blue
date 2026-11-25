@@ -1187,7 +1187,7 @@ that is there only for the error it may raise. docs/SAFETY.md, row 2.",
         fix: Machine,
         law: "a bidama's public definition has a `@doc` whose first sentence starts with its name",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\ndef kagi()\n  1\nend\n",
-        ratchet: 1886,
+        ratchet: 1884,
         package: "kagi",
         explanation: "\
 A reader of one bidama should be proficient in it, so every definition a `use`
@@ -1217,7 +1217,7 @@ the example. It writes nothing it cannot source; what stays is counted by
         fix: Machine,
         law: "a `@doc` holds at least one example, an indented `expr #=> value` line",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 745,
+        ratchet: 744,
         package: "kagi",
         explanation: "\
 An example shows how a definition is called and what it answers, and blue
@@ -1917,7 +1917,7 @@ not refused: each side runs the code.",
         fix: None,
         law: "each definition of a bidama is named by a test of its file: called, referenced, or its `target:`",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 3373,
+        ratchet: 3367,
         package: "kagi",
         explanation: "\
 A definition reached only through a caller is tested only as far as the
@@ -1933,7 +1933,7 @@ fall; at zero the rule is an error on every door.",
         fix: None,
         law: "each tag a definition of a bidama raises is named by a test of its file, the way a test expects it",
         witness: "@moduledoc \"\"\"\nkagi refuses a negative.\n\n    kagi(1) #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi gives back a count.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(n)\n  if n < 0\n    raise(:negative, \"no\")\n  end\n  n\nend\n\ntest \"kagi\"\n  assert kagi(2) == 2\nend\n",
-        ratchet: 192,
+        ratchet: 191,
         package: "kagi",
         explanation: "\
 A refusal is behaviour: a caller relies on the tag (docs/COVERAGE.md E2). The

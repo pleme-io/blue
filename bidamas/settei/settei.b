@@ -75,10 +75,10 @@ def locates(which)
 end
 
 @doc """
-coincidences: for pairs of a name and who owns it, why two owners share one name, said as the name is read; two owners of one spelling, as a text key and a keyword key of one word are, are two settings of that name.
+coincidences: for pairs of a name and who owns it, why two owners share one name: the two owners, then what said says of the shared name; two owners of one spelling, as a text key and a keyword key of one word are, are two settings of that name.
 
-    coincidences([["X", "a"], ["Y", "c"], ["X", "b"]], (n) -> "read from #{n}") #=> ["a and b are both read from X"]
-    coincidences([["X", "p"], ["X", "p"]], (n) -> "read from #{n}") #=> ["two settings named p are both read from X"]
+    coincidences([["X", "a"], ["Y", "c"], ["X", "b"]], (n) -> "are both read from #{n}") #=> ["a and b are both read from X"]
+    coincidences([["p", "p"], ["p", "p"]], (n) -> "share the key #{n}") #=> ["two settings named p share the key p"]
     coincidences([], (n) -> n) #=> []
 """
 def coincidences(pairs, said)
@@ -92,7 +92,7 @@ def coincidences(pairs, said)
           else
             "#{second(prev)} and #{second(p)}"
           end
-          append(acc[:whys], ["#{owners} are both #{said(first(p))}"])
+          append(acc[:whys], ["#{owners} #{said(first(p))}"])
         else
           acc[:whys]
         end
@@ -126,7 +126,10 @@ def env_clashes(prefix, named)
       end
     end
   )
-  append(located, coincidences(named, (n) -> "read from #{prefix}#{n}"))
+  append(
+    located,
+    coincidences(named, (n) -> "are both read from #{prefix}#{n}")
+  )
 end
 
 def kind_of(v)
@@ -825,15 +828,16 @@ def knob_rows(model, at)
 end
 
 @doc """
-model_clashes: why a model's names do not each name one setting: each environment name the environment reads (a knob's own and each it was renamed from) must be no locator and no other knob's, and each key (a knob's own and each it was renamed from) must be no other knob's or rename's, whatever else the model renames.
+model_clashes: why a model's names do not each name one setting: each environment name the environment layer reads for a knob (its own and each it was renamed from), whatever layers may set the knob, since the layer refuses an offer outside set_by by that name, must be no locator and no other knob's, and each key (a knob's own and each it was renamed from) must be no other knob's or rename's, whatever else the model renames.
 
     model_clashes(knob_rows({config: knob(1)}, [])) #=> ["config is read from <APP>_CONFIG, which names the config file; rename it or put it in a group"]
-    model_clashes(knob_rows({config: knob(1, {set_by: [:file]})}, [])) #=> []
-    model_clashes(knob_rows({"port" => knob(1, {set_by: [:file]}), port: knob(2, {set_by: [:file]})}, [])) #=> ["two settings named port are both read from the file key port"]
+    model_clashes(knob_rows({config: knob(1, {set_by: [:file]})}, [])) #=> ["config is read from <APP>_CONFIG, which names the config file; rename it or put it in a group"]
+    model_clashes(knob_rows({a: {b: knob(1, {set_by: [:file]})}, a__b: knob(2)}, [])) #=> ["a.b and a__b are both read from <APP>_A__B"]
+    model_clashes(knob_rows({"port" => knob(1, {computed: (_c) -> 1}), port: knob(2, {computed: (_c) -> 2})}, [])) #=> ["two settings named port are both read from <APP>_PORT", "two settings named port share the key port"]
 """
 def model_clashes(rows)
   env_read = flat_map(
-    filter((r) -> by_env?(r[:knob]), rows),
+    rows,
     fn(r)
       key = dotted_key(r[:path])
       append(
@@ -861,7 +865,7 @@ def model_clashes(rows)
   )
   append(
     env_clashes("<APP>_", env_read),
-    coincidences(keyed, (n) -> "read from the file key #{n}")
+    coincidences(keyed, (n) -> "share the key #{n}")
   )
 end
 
@@ -1413,7 +1417,7 @@ def flag_rows(model)
     ),
     coincidences(
       map((r) -> [flag_word(r[:path]), dotted_key(r[:path])], rows),
-      (n) -> "rendered as the flag #{n}; rename one"
+      (n) -> "are both rendered as the flag #{n}; rename one"
     )
   )
   if whys != []
@@ -3734,7 +3738,6 @@ test "no setting is read from a locator's name, and no two settings share an env
     ),
     "<APP>_CONFIG"
   )
-  assert why(() -> knobs({config: knob("x", {set_by: %i[file flag]})})).nil?
   assert why(() -> knobs({net: {config: knob(1)}})).nil?
   assert why(() -> knobs({a__b: knob(1), a: {b: knob(2)}})) ==
     "a.b and a__b are both read from <APP>_A__B"
@@ -3746,22 +3749,85 @@ test "no setting is read from a locator's name, and no two settings share an env
         )
       end
     ),
-    "wait_s and wait.seconds (renamed from wait_s) are both read from the file key wait_s"
+    "wait_s and wait.seconds (renamed from wait_s) share the key wait_s"
   )
   file_only = (v) -> knob(v, {set_by: [:file]})
   assert why(() -> knobs({"port" => file_only(1), port: file_only(2)})) ==
-    "two settings named port are both read from the file key port"
+    "two settings named port are both read from <APP>_PORT; two settings named port share the key port"
   assert why(
     () -> knobs({"net.port" => file_only(1), net: {port: file_only(2)}})
-  ) == "two settings named net.port are both read from the file key net.port"
+  ) == "two settings named net.port share the key net.port"
   assert why(() -> knobs({"port" => knob(1), port: knob(2)})) ==
-    "two settings named port are both read from <APP>_PORT; two settings named port are both read from the file key port"
+    "two settings named port are both read from <APP>_PORT; two settings named port share the key port"
+  computed = (v) -> knob(v, {computed: (_c) -> v})
+  assert why(() -> knobs({"s" => computed(1), s: computed(2)})) ==
+    "two settings named s are both read from <APP>_S; two settings named s share the key s"
   assert contains?(
     why(() -> resolve("z", {"config" => "x", "port" => 1}, nil, no_env)),
     "config is read from Z_CONFIG, which names the config file"
   )
   assert resolve("z", {"net" => {"config" => "x"}}, nil, no_env) ==
     {"net" => {"config" => "x"}}
+end
+
+test "the environment reads every knob's names to refuse an offer outside set_by, so a knob it may not set takes no locator's name and no other knob's"
+  why = fn(f)
+    begin
+      f()
+      nil
+    rescue :bad_option as e
+      e.message
+    end
+  end
+  assert why(() -> knobs({config: knob("x", {set_by: [:file]})})) ==
+    "config is read from <APP>_CONFIG, which names the config file; rename it or put it in a group"
+  assert contains?(
+    why(() -> knobs({config: knob("x", {set_by: %i[file flag]})})) or "",
+    "<APP>_CONFIG"
+  )
+  assert contains?(
+    why(() -> knobs({defaults: knob(0, {computed: (_c) -> 1})})) or "",
+    "<APP>_DEFAULTS, which names the file of prescribed defaults"
+  )
+  assert why(
+    () -> knobs({a: {b: knob(1, {set_by: [:file]})}, a__b: knob(2)})
+  ) == "a.b and a__b are both read from <APP>_A__B"
+  assert contains?(
+    why(
+      fn()
+        settle(
+          "zapp",
+          {config: knob("none", {set_by: [:file]}), port: knob(80)},
+          nil,
+          env_of({"ZAPP_CONFIG" => "zapp.yaml"}),
+          {}
+        )
+      end
+    ) or "",
+    "<APP>_CONFIG"
+  )
+  assert contains?(
+    why(
+      fn()
+        settle(
+          "x",
+          {a: {b: knob(1, {set_by: %i[file flag]})}, a__b: knob(2)},
+          nil,
+          env_of({"X_A__B" => "5"}),
+          {}
+        )
+      end
+    ) or "",
+    "<APP>_A__B"
+  )
+  s = settle(
+    "x",
+    {finds: knob(false, {set_by: [:flag]})},
+    nil,
+    env_of({"X_FINDS" => "true"}),
+    {}
+  )
+  assert map((f) -> f[:kind], s[:refusals]) == [:not_settable]
 end
 
 test "the words under one name per setting and one question per layer answer for small cases"
@@ -3776,10 +3842,10 @@ test "the words under one name per setting and one question per layer answer for
   assert locator("zapp", :config) == "ZAPP_CONFIG"
   assert kyohi::raised(() -> locator("zapp", :port)) == :bad_option
   assert locates(:config) == "the config file"
-  assert coincidences([["a", 1], ["b", 3], ["a", 2]], (n) -> n) ==
+  assert coincidences([["a", 1], ["b", 3], ["a", 2]], (n) -> "are both #{n}") ==
     ["1 and 2 are both a"]
-  assert coincidences([%w[a p], %w[a p]], (n) -> n) ==
-    ["two settings named p are both a"]
+  assert coincidences([%w[a p], %w[a p]], (n) -> "share #{n}") ==
+    ["two settings named p share a"]
   assert env_clashes("X_", []) == []
   assert knob_rows({}, []) == []
   assert model_clashes([]) == []

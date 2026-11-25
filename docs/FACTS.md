@@ -1,5 +1,6 @@
 ---
 kind: explanation
+r_ids: PERFORMANCE.md
 summary: how facts decide and defaults follow; the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language
 ---
 

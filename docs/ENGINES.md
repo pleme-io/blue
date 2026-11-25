@@ -1,5 +1,6 @@
 ---
 kind: explanation
+r_ids: PERFORMANCE.md
 summary: "The plan for the two engines W3.4 and W4.2 waited on, an effect graph and equality saturation over a measured cost model, each phase with its lever, switch and lock"
 ---
 

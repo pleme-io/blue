@@ -1,5 +1,6 @@
 ---
 kind: explanation
+r_ids: PURE-BLUE.md
 summary: pure blue tracks B (backend) and R (runtime), mapped to the code they replace
 ---
 # Pure blue — tracks B (backend) and R (runtime), mapped to the code

@@ -1,5 +1,6 @@
 ---
 kind: explanation
+r_ids: PURE-BLUE.md
 summary: pure blue track D, the build surface
 ---
 # Pure blue — track D: the build surface

@@ -1,4 +1,4 @@
-use("bunsho", %i[extract inlines law_failures parse walk])
+use("bunsho", %i[extract inlines law_failures parse plain_text walk])
 use("hon", %i[doc_pages path_in])
 use("moji", %i[after_first before_first drop_chars made_of text_of])
 use("retsu", %i[find_first first flat_map last push])
@@ -449,11 +449,17 @@ inline_runs: Every run of inline nodes a Markdown page holds, as [line, nodes]: 
     length(inline_runs(join_lines(["# A", "", "b", "", "| c | d |", "|---|---|"]))) #=> 4
 """
 def inline_runs(text)
+  inline_runs_of(parse(text))
+end
+
+@doc """
+inline_runs_of: inline_runs over a page already parsed.
+
+    length(inline_runs_of(parse("a `b` c"))) #=> 1
+"""
+def inline_runs_of(tree)
   flat_map(
-    filter(
-      (n) -> member?(n[:kind], %i[heading paragraph table]),
-      walk(parse(text))
-    ),
+    filter((n) -> member?(n[:kind], %i[heading paragraph table]), walk(tree)),
     fn(block)
       line = if block[:at].nil?
         0
@@ -964,6 +970,300 @@ test "a cited path that reaches nothing or leads where the check does not read, 
       "docs/a.md:3: `docs/gone.md` is cited by a ✅ or ⏳ row and reaches no file",
       "docs/a.md:4: `gen/x.b` leads into `gen`, which this check does not read; list `gen` in the inputs of check(\"markdown-laws\", …)",
       "docs/a.md:7: spec row `p.q` is cited, and spec/rows/ holds no row with that id"
+    ]
+end
+
+@doc """
+digits_end: The index just past the run of decimal digits that starts at `i` of `cs`.
+
+    digits_end(chars("R14 (U9)"), 1) #=> 3
+"""
+def digits_end(cs, i)
+  if digit?(cs[i])
+    digits_end(cs, i + 1)
+  else
+    i
+  end
+end
+
+@doc """
+r_id_at: The R id a text starts with: `R`, its digits and at most one lower-case letter, when no letter or digit follows; nil otherwise.
+
+    r_id_at("R6b folds into R7") #=> "R6b"
+"""
+def r_id_at(text)
+  cs = chars(text)
+  if cs[0] != "R" or not digit?(cs[1])
+    nil
+  else
+    d = digits_end(cs, 1)
+    e = if cs[d] != nil and contains?("abcdefghijklmnopqrstuvwxyz", cs[d])
+      d + 1
+    else
+      d
+    end
+    if not name_start?(cs[e]) and not digit?(cs[e])
+      text_of(cs, 0, e)
+    end
+  end
+end
+
+@doc """
+r_ids_defined: The R ids a parsed page defines: each heading, and each table row whose first cell, that starts with one.
+
+    r_ids_defined(parse(join_lines(["### R0 — a", "", "| # | x |", "|---|---|", "| R1 | a |", "| R2: b | c |"]))) #=> ["R0", "R1", "R2"]
+"""
+def r_ids_defined(tree)
+  flat_map(
+    filter((n) -> member?(n[:kind], %i[heading table_row]), walk(tree)),
+    fn(n)
+      head = if n[:kind] == :heading
+        n
+      else
+        first(n[:children] or [])
+      end
+      id = if head != nil
+        r_id_at(trim(plain_text(head[:children] or [])))
+      end
+      if id.nil?
+        []
+      else
+        [id]
+      end
+    end
+  )
+end
+
+@doc """
+doc_name: The name a page goes by in an R id's qualifier: its file name without `.md`.
+
+    doc_name("docs/PURE-BLUE.md") #=> "PURE-BLUE"
+"""
+def doc_name(path)
+  before_first(last(split(path, "/")), ".md")
+end
+
+@doc """
+qualifier_word: The page name a word of prose holds, with a bracket, `docs/`, `.md` and a possessive taken off, or nil when it holds none of `names`.
+
+    qualifier_word("(docs/PERFORMANCE.md", ["PERFORMANCE"]) #=> "PERFORMANCE"
+"""
+def qualifier_word(word, names)
+  bare = before_first(
+    before_first(
+      replace(replace(replace(word, "(", ""), "[", ""), "docs/", ""),
+      ".md"
+    ),
+    "'"
+  )
+  if member?(bare, names)
+    bare
+  end
+end
+
+@doc """
+r_tokens: Each R id a run of prose names, as [index, id, page]: the page is the one a word before the id names (past `ruling` or `rule`), or one after it as `of PAGE`, or the one the list it continues carries (after `, `, ` and `, ` to ` or `-`); nil when the id is bare.
+
+    r_tokens("PERFORMANCE R5 and R11, then R2 of ROADMAP", ["PERFORMANCE", "ROADMAP"]) #=> [[12, "R5", "PERFORMANCE"], [19, "R11", "PERFORMANCE"], [29, "R2", "ROADMAP"]]
+"""
+def r_tokens(text, names)
+  cs = chars(text)
+  found = filter(
+    (x) -> x != nil,
+    map(
+      fn(i)
+        if cs[i] == "R" and not name_start?(cs[i - 1]) and not digit?(cs[i - 1])
+          id = r_id_at(text_of(cs, i, length(cs)))
+          if id != nil
+            [i, id]
+          end
+        end
+      end,
+      range(length(cs))
+    )
+  )
+  reduce(
+    fn(acc, x)
+      i = first(x)
+      id = last(x)
+      prior = last(acc)
+      gap = if prior != nil
+        text_of(cs, prior[0] + length(prior[1]), i)
+      end
+      words = filter((w) -> w != "", split(text_of(cs, 0, i), " "))
+      said = if member?(last(words), %w[ruling rule rulings rules])
+        words[length(words) - 2]
+      else
+        last(words)
+      end
+      after = filter(
+        (w) -> w != "",
+        split(text_of(cs, i + length(id), length(cs)), " ")
+      )
+      of = if first(after) == "of"
+        qualifier_word(after[1] or "", names)
+      end
+      page = if gap != nil and
+          member?(gap, [", ", " and ", ", and ", " to ", "-", " or "])
+        prior[2]
+      else
+        qualifier_word(said or "", names) or of
+      end
+      push(acc, [i, id, page])
+    end,
+    [],
+    found
+  )
+end
+
+@doc """
+r_tables: Each page's name and the R ids its tables define, as [name, ids], pages being [path, parsed tree].
+
+    r_tables([["docs/A.md", parse(join_lines(["| R1 | x |", "|---|---|"]))]]) #=> [["A", ["R1"]]]
+"""
+def r_tables(trees)
+  map((t) -> [doc_name(first(t)), r_ids_defined(last(t))], trees)
+end
+
+@doc """
+defines?: Whether a page's R ids hold `id`, an id naming the family its lettered rows split it into (R6 for R6a, R6b and R6c).
+
+    defines?(["R5", "R6a", "R6b"], "R6") #=> true
+"""
+def defines?(ids, id)
+  member?(id, ids) or
+    any?(
+      fn(d)
+        starts_with?(d, id) and
+          length(d) == length(id) + 1 and
+          contains?("abcdefghijklmnopqrstuvwxyz", last(chars(d)))
+      end,
+      ids
+    )
+end
+
+@doc """
+ids_of: The R ids the page named `name` defines, [] for a page that defines none or does not exist.
+
+    ids_of([["A", ["R1"]]], "B") #=> []
+"""
+def ids_of(tables, name)
+  last(find_first((t) -> first(t) == name, tables) or [name, []])
+end
+
+@doc """
+front_value: The value of a front matter key of a parsed page, or nil.
+
+    front_value(parse(join_lines(["---", "r_ids: PERFORMANCE.md", "---", "# A"])), "r_ids") #=> "PERFORMANCE.md"
+"""
+def front_value(tree, key)
+  last(find_first((kv) -> first(kv) == key, tree[:front] or []) or [key, nil])
+end
+
+@doc """
+r_id_failure: Why one R id of a page fails, or [] when it names a row: an id qualified by a page that defines no such row; a bare id on a page whose own ids, or the ids its front matter's `r_ids:` names, do not hold it; a bare id where the page has neither.
+
+    r_id_failure("a.md:3", [0, "R2", nil], ["a.md", ["R1"]], []) #=> ["a.md:3: R2 is not an R id of a.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R2"]
+"""
+def r_id_failure(where, token, table, tables)
+  id = token[1]
+  page = token[2]
+  if page != nil and defines?(ids_of(tables, page), id)
+    []
+  elsif page != nil
+    ["#{where}: #{page} #{id} names no row: #{page} defines no #{id}"]
+  elsif table.nil?
+    [
+      "#{where}: a bare #{id} on a page with no R ids of its own; name the page that defines it (PERFORMANCE #{id}), or name that page in the front matter (r_ids: PERFORMANCE.md)"
+    ]
+  elsif not defines?(last(table), id)
+    [
+      "#{where}: #{id} is not an R id of #{first(table)} (#{join(last(table), ", ")}); name the page an id from elsewhere comes from, as in PERFORMANCE #{id}"
+    ]
+  else
+    []
+  end
+end
+
+@doc """
+r_id_failures: Why each R id the prose of the pages names fails, a page being [path, text]: a page names bare its own ids and those of the page its front matter names in `r_ids:` (a sub-page and its parent), and any other page's ids after that page's name (`PERFORMANCE R7`), so one id never means two rows. Code spans and code blocks name nothing.
+
+    r_id_failures([["docs/D.md", "D names R3, and `R5` is code."]]) #=> ["docs/D.md:1: a bare R3 on a page with no R ids of its own; name the page that defines it (PERFORMANCE R3), or name that page in the front matter (r_ids: PERFORMANCE.md)"]
+"""
+def r_id_failures(pages)
+  trees = map((p) -> [first(p), parse(last(p))], pages)
+  tables = r_tables(trees)
+  names = map(first, filter((t) -> last(t) != [], tables))
+  flat_map(
+    trees,
+    fn(t)
+      path = first(t)
+      tree = last(t)
+      own = ids_of(tables, doc_name(path))
+      declared = front_value(tree, "r_ids")
+      table = if declared != nil
+        [declared, append(own, ids_of(tables, doc_name(declared)))]
+      elsif own != []
+        [path, own]
+      end
+      flat_map(
+        inline_runs_of(tree),
+        fn(run)
+          where = "#{path}:#{to_s(first(run))}"
+          flat_map(
+            filter((n) -> n[:kind] == :text, last(run)),
+            fn(n)
+              flat_map(
+                r_tokens(replace(n[:text], line_break, " "), names),
+                (token) -> r_id_failure(where, token, table, tables)
+              )
+            end
+          )
+        end
+      )
+    end
+  )
+end
+
+test "every R id a page names is one row of one page"
+  pages = doc_pages(root)
+  found = r_id_failures(pages)
+  if found != []
+    write_stderr(unlines(found))
+  end
+  tables = r_tables(map((p) -> [first(p), parse(last(p))], pages))
+  assert length(filter((t) -> last(t) != [], tables)) >= 8
+  assert member?("R19", ids_of(tables, "PERFORMANCE"))
+  assert found == []
+end
+
+test "an id a page does not define, a qualified id its page lacks and a bare id with no table are refused; a declared table and code pass"
+  pages = [
+    [
+      "docs/A.md",
+      join_lines(
+        [
+          "| # | x |",
+          "|---|---|",
+          "| R1 | a |",
+          "",
+          "See R1, R2 and B R1, and B R9."
+        ]
+      )
+    ],
+    ["docs/B.md", join_lines(["| # | y |", "|---|---|", "| R1 | b |"])],
+    [
+      "docs/C.md",
+      join_lines(["---", "r_ids: B.md", "---", "", "C cites R1 and R4."])
+    ],
+    ["docs/D.md", "D names R3, and `R5` is code."]
+  ]
+  assert r_id_failures(pages) ==
+    [
+      "docs/A.md:5: R2 is not an R id of docs/A.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R2",
+      "docs/A.md:5: B R9 names no row: B defines no R9",
+      "docs/C.md:5: R4 is not an R id of B.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R4",
+      "docs/D.md:1: a bare R3 on a page with no R ids of its own; name the page that defines it (PERFORMANCE R3), or name that page in the front matter (r_ids: PERFORMANCE.md)"
     ]
 end
 

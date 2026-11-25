@@ -13,7 +13,7 @@ Fleet column cites the owning repo at repo level (read each CLAUDE.md or README 
 |---|---|---|
 | fairu (S, design) | files and paths | 41 |
 | asshuku? (N) 圧縮 | compression, archives, binary deltas | 14 |
-| souko? (N) 倉庫 | object and blob stores (S3, R2, GCS, local) | 30 |
+| souko? (N) 倉庫 | object and blob stores (S3, Cloudflare's `R2`, GCS, local) | 30 |
 | teeburu (S) | relational databases: connection, pool, transaction, schema | 36 |
 | ikou? (N) 移行 | migration over any store (SQL, kv, files, events) | 15 |
 | shuunou? (N) 収納 | key-value and document stores | 30 |

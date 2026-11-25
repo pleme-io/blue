@@ -1,5 +1,6 @@
 ---
 kind: explanation
+r_ids: PURE-BLUE.md
 summary: pure blue, the Lisp layer
 ---
 # Pure blue — the Lisp layer

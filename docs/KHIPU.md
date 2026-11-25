@@ -142,7 +142,7 @@ No phase builds what a later phase throws away.
 | arbitrary-precision decimals for XSD `decimal` and `integer` | ❌ not built | No numeric host primitive exists. |
 | streaming reads for multi-GB N-Quads | ❌ not built | `bidamas/fairu` has no `stream`. |
 
-Vectors and embeddings stay with codesearch (arika ruling R8).
+Vectors and embeddings stay with codesearch (ROADMAP ruling R8).
 
 ## Risks
 

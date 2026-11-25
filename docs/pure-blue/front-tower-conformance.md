@@ -1,5 +1,6 @@
 ---
 kind: explanation
+r_ids: PURE-BLUE.md
 summary: pure blue tracks F (front end), S (stages) and C (conformance), mapped to the code
 ---
 # Pure blue — tracks F (front end), S (stages) and C (conformance), mapped to the code

@@ -472,14 +472,18 @@ local = kankyou::read(".env")
 
 ### 4.4 settei (設定), typed configuration, *extended*
 
-**Verbs:** `read(app, defaults, opts) -> record` (defaults < `$XDG_CONFIG_HOME/<app>/<app>.yaml` <
-`<APP>_*` environment, shikumi's tiers, each value's type taken from its default and checked),
-`get`, `need`, `render` (the resolved record with the tier each value came from), `watch` (reload
-on change). **Left out on purpose:** writing configuration, which home-manager and nix own.
+**Verbs:** `settled(app, model, opts) -> record` (a core model of knobs, defaults <
+`$XDG_CONFIG_HOME/<app>/<app>.yaml` < `<APP>_*` environment, shikumi's tiers, each value read by
+its knob's type and a bad one refused for its key alone; `{mode: :enforce}` stops on any refusal),
+`read(app, defaults, opts) -> record` (the record form: each value's type taken from its default,
+every fault refused at once), `get`, `need`, `render` (the resolved record with the tier each
+value came from), `watch` (reload on change). **Left out on purpose:** writing configuration,
+which home-manager and nix own. A list setting waits on a `:list` knob type (CORE-MODEL §9).
 
 ```ruby
-cfg = settei::read("tend", {interval: jikan::minutes(5), workspaces: []})
-rogu::info("loaded", {interval: cfg.interval})
+settings = {interval_s: settei::knob(300, {min: 1, unit: "seconds", doc: "how often to sync"})}
+cfg = settei::settled("tend", settings)
+rogu::info("loaded", {interval: cfg.interval_s})
 ```
 
 **Absorbs:** `settei::load` → `read`, `flag`/`setting` → fields, `coerce`/`same_kind?` (internal).

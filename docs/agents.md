@@ -180,13 +180,19 @@ meaning, and one bidama for each cross-cutting concern (errors and refusals in
 `kyohi`, entries and switches in `kousei`, configuration in `settei`). Reach
 for that bidama before writing the concern by hand.
 
-Configuration is a record of defaults, grouped by concern, that
-`settei::read(app, defaults)` resolves: the defaults, then
+Configuration is a core model: a record of knobs grouped by concern, each
+`settei::knob(default, annotations)` with its type, bounds and doc.
+`settei::settled(app, model)` resolves it: the defaults, then
 `~/.config/<app>/<app>.yaml` (or `<APP>_CONFIG`), then `<APP>_<GROUP>__<KEY>`
-in the environment, each value typed by its default. Read it by dotted path,
-`config.guard.branch`: a misspelt path raises and names the fields that
-exist, where `config["branch"]` returns nil. A program never reads its own
-settings with `getenv`. `bidamas/kakehashi/kirikae` is the worked example.
+in the environment, each value read by its knob's type and a bad one refused
+for its key alone and warned. `settei::command(app, model, frame, f)` adds the
+flags, help and `--explain KEY`. A program that must not start on a broken
+setting passes `{mode: :enforce}`, and every refusal stops it. Read the result
+by dotted path, `config.guard.branch`: a misspelt path raises and names the
+fields that exist, where `config["branch"]` returns nil. A program never reads
+its own settings with `getenv`. `bidamas/kakehashi/kirikae` is the worked
+example. `settei::read(app, defaults)` is the older record form: a plain
+record of defaults, every fault refused at once.
 
 Before you name a function, look for its verb: the graph rows in
 `bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in

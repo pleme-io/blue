@@ -2570,56 +2570,49 @@ test "a command that exits 0 without switching is a failure the history counts"
   rm_rf(dir)
 end
 
-test "every setting resolves from defaults, then the config file, then KIRIKAE_ env, typed"
-  none = settei::resolve("kirikae", config_defaults, nil, settei::no_env)
-  assert none == config_defaults
-  filed = settei::resolve(
-    "kirikae",
-    config_defaults,
-    {"phases" => {"plan" => false}, "wait" => {"seconds" => 60}},
-    settei::no_env
+test "every setting resolves from defaults, then the config file, then KIRIKAE_ env, typed, through the model config settles"
+  at = (doc, env) -> settei::settle("kirikae", config_model, doc, env, {})
+  none = at(nil, settei::no_env)
+  assert none[:config] == config_defaults
+  assert none[:refusals] == []
+  filed = get(
+    at(
+      {"phases" => {"plan" => false}, "wait" => {"seconds" => 60}},
+      settei::no_env
+    ),
+    :config
   )
   assert filed.phases.plan == false
   assert filed.phases.verify == true
   assert filed.wait.seconds == 60
-  env = settei::resolve(
-    "kirikae",
-    config_defaults,
-    {"phases" => {"plan" => false}},
-    settei::env_of(
-      {"KIRIKAE_PHASES__PLAN" => "1", "KIRIKAE_PHASES__VERIFY" => "0"}
-    )
+  env = get(
+    at(
+      {"phases" => {"plan" => false}},
+      settei::env_of(
+        {"KIRIKAE_PHASES__PLAN" => "1", "KIRIKAE_PHASES__VERIFY" => "0"}
+      )
+    ),
+    :config
   )
   assert env.phases.plan == true
   assert env.phases.verify == false
-  sentinela = settei::resolve(
-    "kirikae",
-    config_defaults,
-    nil,
-    settei::aliased(
+  sentinela = get(
+    at(
+      nil,
       settei::env_of(
         {
           "KIRIKAE_BACKOFF_BASE_S" => "300",
           "KIRIKAE_HISTORY" => "/var/log/pleme-gitops/kirikae.jsonl"
         }
-      ),
-      env_aliases
-    )
+      )
+    ),
+    :config
   )
   assert sentinela.backoff.base_seconds == 300
   assert sentinela.records.history == "/var/log/pleme-gitops/kirikae.jsonl"
-  assert error?(
-    begin
-      settei::resolve(
-        "kirikae",
-        config_defaults,
-        nil,
-        settei::env_of({"KIRIKAE_PHASES__VERIFY" => "yes please"})
-      )
-    rescue e
-      e
-    end
-  ) == true
+  bad = at(nil, settei::env_of({"KIRIKAE_PHASES__VERIFY" => "yes please"}))
+  assert bad[:config].phases.verify == true
+  assert map((f) -> f[:key], bad[:refusals]) == ["phases.verify"]
 end
 
 test "with KIRIKAE_PHASES__PLAN at 0 the guard's go switches with no plan and no dry-run"

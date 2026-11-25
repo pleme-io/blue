@@ -191,10 +191,17 @@ end
 def file_tier(defaults, doc, path)
   reduce(
     fn(acc, e)
-      key = first(e)
       v = second(e)
+      hit = find(map_entries(defaults), (x) -> to_s(first(x)) == to_s(first(e)))
+      key = if hit.nil?
+        first(e)
+      else
+        first(hit)
+      end
       at = append(path, [key])
-      d = get(defaults, key)
+      d = if hit != nil
+        second(hit)
+      end
       if d.nil?
         [
           first(acc),
@@ -1716,11 +1723,12 @@ def line(app, model, frame, args, doc, lookup)
 end
 
 @doc """
-settled: the settings of a program with a core model and no command line of its own (a service, a library tool): the discovered config file and the environment settled per key, each refusal and notice warned on stderr, the config returned.
+settled: the settings of a program with a core model and no command line of its own (a service, a library tool): the discovered config file and the environment settled per key, the config returned. opts[:mode] is the posture a refusal takes, shisei's two words: :audit, the default, warns each refusal on stderr and runs with the value kept; :enforce stops the start with one error naming every refusal (stopped), for a program that must not run on a broken setting, as a service must not (docs/SERVICE-ARCHITECTURE.md §10). Notices are warned in both.
 
     procedure?(settled) #=> true
 """
-def settled(app, model)
+def settled(app, model, opts?)
+  mode = refusal_mode(opts)
   path = discovered_path(app)
   doc = if path.nil?
     nil
@@ -1728,11 +1736,49 @@ def settled(app, model)
     file_doc(path, file_format(app, nil))
   end
   s = settle(app, model, doc, (name) -> getenv(name), {})
+  if mode == :enforce
+    stopped(s)
+  end
   said = append(map((f) -> f[:why], s[:refusals]), s[:notices])
   if said != []
     write_stderr(unlines(map((w) -> "#{app}: #{w}", said)))
   end
   s[:config]
+end
+
+@doc """
+refusal_mode: the posture a door's options name for a refusal, :audit when they name none, refusing any other as :bad_option.
+
+    refusal_mode(nil) #=> :audit
+    refusal_mode({mode: :enforce}) #=> :enforce
+"""
+def refusal_mode(opts)
+  mode = if opts.nil?
+    :audit
+  else
+    opts[:mode] or :audit
+  end
+  if not member?(mode, %i[audit enforce])
+    raise(
+      :bad_option,
+      "#{to_s(mode)} is not a refusal mode; the modes are audit and enforce"
+    )
+  end
+  mode
+end
+
+@doc """
+stopped: a settled record under the enforce posture: one error naming every refusal, of the first refusal's kind, as the record doors (read, resolve, current) raise; the record itself when nothing was refused.
+
+    stopped({config: {p: 1}, sources: {}, refusals: [], notices: []})[:config] #=> {p: 1}
+"""
+def stopped(s)
+  enforce(
+    s[:refusals],
+    [(fs) -> map((f) -> refusal(f[:kind], f[:why]), fs)],
+    {kind: :first}
+  )
+  s
 end
 
 @doc """
@@ -3867,6 +3913,56 @@ test "one text reads as one value on every layer that reads text, and as the con
   assert reads(knob(true), "yes") ==
     {env: true, flag: true, form: true, file: :refused}
   assert reads(knob("a"), " 81")[:env] == " 81"
+end
+
+test "one engine settles one model under both postures: audit keeps every good key and the kept value, enforce stops naming every refusal"
+  m = {port: knob(8080, {min: 1}), host: knob("x")}
+  env = env_of({"APP_PORT" => "eighty", "APP_HOST" => "db.local"})
+  s = settle("app", m, nil, env, {})
+  assert s[:config] == {port: 8080, host: "db.local"}
+  assert map((f) -> f[:why], s[:refusals]) ==
+    ["port must be int, got eighty from APP_PORT; kept 8080"]
+  stop = begin
+    stopped(s)
+    nil
+  rescue err
+    err
+  end
+  assert stop.kind == :wrong_type
+  assert contains?(stop.message, "got eighty from APP_PORT")
+  record = begin
+    resolve("app", defaults_of(m), nil, env)
+    nil
+  rescue err
+    err
+  end
+  assert record.kind == stop.kind
+  assert contains?(record.message, "APP_PORT")
+  assert stopped(settle("app", m, nil, no_env, {}))[:config] == defaults_of(m)
+  required = {url: knob(nil, {type: :text, required: true, doc: "the url"})}
+  assert settled("settei-test-none", required) == {url: nil}
+  assert kyohi::raised(
+    () -> settled("settei-test-none", required, {mode: :enforce})
+  ) == :missing
+  assert kyohi::raised(
+    () -> settled("settei-test-none", required, {mode: :loud})
+  ) == :bad_option
+  assert refusal_mode(nil) == :audit
+end
+
+test "a plain record of defaults finds its config file's keys as text, as a model does"
+  doc = deeta::parse(unlines(["port: 2", "net:", "  mode: b"]), :yaml)
+  assert resolve("app", {port: 1, net: {mode: "a"}}, doc, no_env) ==
+    {port: 2, net: {mode: "b"}}
+  assert resolve(
+    "app",
+    {"port" => 1},
+    deeta::parse("port: 2", :yaml),
+    no_env
+  ) == {"port" => 2}
+  assert kyohi::raised(
+    () -> resolve("app", {port: 1}, deeta::parse("prot: 2", :yaml), no_env)
+  ) == :unknown_key
 end
 
 test "a knob renamed twice is read by every old name, through settle and through the alias map"

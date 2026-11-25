@@ -43,9 +43,9 @@ model cannot be read, documented or set. A surface the words cannot yet render
 is a word to build once in blue, never a hand-written file beside the model.
 
 No world fact limits this destination. Every limit met so far is in our own
-abstractions: hikisuu types a flag only as switch, int or text, and settei
-refused a whole file for one bad key. Both are ours to change, and §10 changes
-the second.
+abstractions: hikisuu typed a flag only as switch, int or text, and settei
+refused a whole file for one bad key. Both were ours to change: §10 changes
+the second, and P22 the first (a float kind, and a flag's own reader).
 
 ## 2. Ground (read from source, 2026-11-13)
 
@@ -378,7 +378,7 @@ itself and what the release proves:
 |---|---|---|
 | D1 | The model is a blue value (a record of knob records), not a macro-generated struct | a `defmacro` that expands to a struct: the renderings need the annotations at run time, so the value is the source; a macro can add sugar later and still yield the same value |
 | D2 | It lives in settei; knob annotations are kousei field checks | a new bidama: it would split one space (settings) in two; katachi takes the knob vocabulary for data fields when it is built |
-| D3 | Per-key refusal in `settle`; the old `resolve` and `read` keep their all-at-once refusal | changing `resolve`: kirikae, kernel/run.b and shisutemu rely on a raise; behaviour is configured, never deleted, so the new path is beside it and a program opts in by declaring a model |
+| D3 | Per-key refusal in `settle`, under the posture a door names, shisei's two words: audit (each refusal warned, the run goes on: `settled`, `command`) or enforce (one error naming every refusal stops the start: `settled(app, model, {mode: :enforce})`). The record doors `read`, `resolve`, `load` and `current` keep their all-at-once refusal, the enforce posture, and share settle's reader (`scalar`) and its refusal of a clashing name | changing `resolve` to warn: a service must stop on a broken setting (SERVICE-ARCHITECTURE §10) and shisutemu's test locks blue_exe's raise; folding the record doors into `settle` now: a plain record holds lists and nil leaves no knob type holds yet (§9), so it cannot lift into a model. Their callers, 2026-11-25: shisutemu::blue_exe, shinchoku::settings_from and the service path (`settei::current`: examples/http, examples/kernel-agent, nix/component-fixture, the fleet's services); kirikae and kernel/run.b moved to `settled` in P13 |
 | D4 | A bad flag is still exit 64; a bad file or env value warns and the run goes on | warn on a flag too: the person typed it now, and hikisuu's contract is one refusal of the whole line |
 | D5 | Flags render only for knobs with `:flag` in `set_by` | a flag for every knob: a secret set on a command line lands in shell history |
 | D6 | `--explain KEY` is a flag the model owns, like hikisuu's `--help` | an `explain` command: a program without commands has positionals, and the word would be ambiguous; one spelling for every program |
@@ -427,6 +427,7 @@ Answered since: the unmodelled check follows nested groups (`config.guard.branch
 | P19 | drift: declared against observed capabilities from run receipts | a receipt with an undeclared host call is a finding | beyond build: drift | design |
 | P20 | `required`, `immutable`, `computed` and `value_name` join the vocabulary, as iac-forge, pangea-forge and hikisuu reached them | settei tests, red on unbound names; heni mutation "a required knob is optional" caught | M1 | built |
 | P21 | `typed_groups(model)`: the module trio's `shikumiTypedGroups` (intRange, enum, nullOr, default, description) rendered from the model, each knob outside one group refused alone | settei test "the module trio's typed groups…", red on an unbound name | M1 at deploy | built; wiring a blue command's trio to it is the flake's `commands` row, open |
+| P22 | one name per setting and one reader per type: `settable_by?` and `by_env?` decide where an environment name shows, as `by_flag?` does a flag; `locators` are reserved and `knobs` refuses a clashing environment name or file key; `flag_rows` refuses two knobs on one flag word, and hikisuu judges a clash by its text; `scalar` is a knob type's one reader (deeta's `:scalar` grammar), handed to hikisuu as a flag's `read:`; `settled` takes the audit or enforce posture | settei tests "an environment name is shown only where…", "no setting is read from a locator's name…", "two knobs that render one flag…", "one text reads as one value…", "one engine settles one model under both postures…", each red on the commit before it | M1 and M4: one name, one setting; one text, one value | built; the record doors as doors over `settle` wait on a `:list` knob type (§9) |
 
 M6 (tests and coverage) is already enforced for the distribution by
 `gen/test-beside.b` and the heni ratio baseline. Its next rungs are
@@ -453,6 +454,7 @@ design them again.
 | P13b, tehai migrated (phase 6) | tested | tehai tests (63), `checks.core-models` over souji, heni, kirikae and tehai, red-run on an unmodelled read |
 | P13c, kijun migrated (phase 7) | tested | kijun tests (153), `run` driven for `--help`, `rules` and a bad flag, `checks.core-models` over five programs, red-run on an unmodelled read |
 | P21 and kernel/run.b (phase 3) | tested | settei test; kernel/run.b's forwarded settings equal the hand-written list, its bounds law holds |
+| P22, one name and one reader (phase 9) | tested | settei, hikisuu and deeta tests, each lock red on the commit before it; the spelling law over 19 spellings and four knob types; `checks.core-models` over six programs |
 | P14 and P15, M4 and M3 (phase 8) | tested, ratcheted | B0098 at 34 and B0099 at 1 in the rule registry and the obligation engine; each witness fires alone; `blue census` holds both |
 | P14 to P17, the other structures | registered | obligation rows `structure/core-model`, `capabilities`, `refusals`, `observability`, `supervision`, each a Design row naming what blocks it |
 | P18, P19 | design | this doc |

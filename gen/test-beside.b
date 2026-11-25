@@ -145,7 +145,7 @@ def recorded()
       "unbranched: toride 4",
       "unbranched: toriyose 189",
       "unbranched: touroku 8",
-      "unbranched: ukai 23",
+      "unbranched: ukai 20",
       "unbranched: utsushi 9"
     ]
   )

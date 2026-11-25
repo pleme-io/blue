@@ -1062,14 +1062,36 @@ def act(argvs, dry_run)
   end
 end
 
-def read_applied(path)
-  doc = json_parse(read_or(path, "")) rescue nil
+@doc """
+read_state: the state document the last run wrote at `path`, or nil when there is none or it does not parse.
+
+    read_state("/nonexistent/ukai/state.json") #=> nil
+"""
+def read_state(path)
+  json_parse(read_or(path, "")) rescue nil
+end
+
+@doc """
+applied_of: the hosts a state document says this side applied; [] for no document, and only the strings of its list.
+
+    applied_of(nil) #=> []
+"""
+def applied_of(doc)
   xs = as_json(doc, "applied")
   if xs.nil? or not list?(xs)
     []
   else
     filter((x) -> string?(x), xs)
   end
+end
+
+@doc """
+read_applied: the hosts the state document at `path` says this side applied.
+
+    read_applied("/nonexistent/ukai/state.json") #=> []
+"""
+def read_applied(path)
+  applied_of(read_state(path))
 end
 
 def config()
@@ -1157,8 +1179,8 @@ end
 
 def run(cfg)
   now = now_ms
-  last = json_parse(read_or(cfg[:state_path], "")) rescue nil
-  cfg2 = assoc(cfg, :applied, read_applied(cfg[:state_path]))
+  last = read_state(cfg[:state_path])
+  cfg2 = assoc(cfg, :applied, applied_of(last))
   s = assemble(cfg2, observe(cfg2))
   o = decide(s)
   argvs = plan(o, cfg2)
@@ -1713,6 +1735,24 @@ test "the state and the beat are written whole, and a path that cannot be writte
     :unwritable,
     () -> persist([[path_join(path_join(dir, "state.json"), "x"), "{}"]])
   ) == true
+end
+
+test "a run reads its last state once: the hosts it applied and when it last checked, and nothing from a missing or broken state"
+  path = path_join(temp_dir("ukai-state"), "state.json")
+  assert read_state(path).nil?
+  assert read_applied(path) == []
+  write_file(
+    path,
+    json_stringify({checked_ms: 1000, applied: ["192.0.2.1", 7]})
+  )
+  prior = read_state(path)
+  assert applied_of(prior) == ["192.0.2.1"]
+  assert read_applied(path) == ["192.0.2.1"]
+  assert poll_of(as_json(prior, "checked_ms"), 121_000) == 120
+  write_file(path, json_stringify({applied: "192.0.2.1"}))
+  assert read_applied(path) == []
+  write_file(path, "not json")
+  assert read_state(path).nil?
 end
 
 test "routes through the current gateway are never stale, and a host this side never applied is never retracted"

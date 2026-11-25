@@ -67,12 +67,15 @@ to dissolve.
 - **Concurrency** is share-nothing processes (SAFETY row 10), plus tatara
   channels and fibers (`chan`, `go`) whose run and put/take words have no blue
   spelling.
-- **A bytecode VM** is `blue run`'s default door where the conformance
-  columns agree on every construct the program uses (`--door auto`,
-  `crates/blue-lang-runtime/src/door.rs`); the tree-walker runs the rest. It
-  lifts every callback back to a tree-walker closure, looks globals up by
-  name, and keeps captures in `Arc<Mutex<Value>>` cells (`PERFORMANCE.md`
-  §2.2).
+- **A bytecode VM** runs a program under `blue run` when the door rule of
+  `PERFORMANCE.md` §1.4 lets it (`--door auto`,
+  `crates/blue-lang-runtime/src/door.rs`), and the tree-walker runs the rest.
+  Since tatara-lisp-eval 0.4.21 a native word such as `map` runs a callback
+  on one VM it keeps for the whole traversal; a callback whose body falls
+  back to the walker's evaluation, or that runs under a call observer, is
+  still lifted to a tree-walker closure. The VM reads a global through an
+  inline cache and keeps captures in `Arc<Mutex<Value>>` cells
+  (`PERFORMANCE.md` §2.2).
 
 ## 3. Rust's compile-time benefits
 
@@ -109,7 +112,7 @@ shape; they share one surface (§6).
 | L2 | Upvalues: open on the stack, closed on frame exit | a capture costs nothing until its frame ends | `Arc<Mutex<Value>>` per capture | §5: open/closed upvalues; values are immutable, so a closed upvalue needs no lock |
 | L3 | One `lua_State` per thread, no locks inside | no allocation and no lock per call | `Mutex<HashMap>` behind `Arc` per frame | one interpreter per blue process (already share-nothing); frames become a stack window |
 | L4 | Interned strings | a name or key compare is a pointer compare | SipHash + `memcmp` per read | intern symbols and keyword keys at parse; map keys of keyword type compare by id |
-| L5 | Native calls VM closures without leaving the VM | `map(f, xs)` costs one VM call per element | callback lifted to a tree-walker closure per call | the VM is the only evaluator; builtins take a VM call handle |
+| L5 | Native calls VM closures without leaving the VM | `map(f, xs)` costs one VM call per element | a callback runs on one VM for the whole traversal (tatara-lisp-eval 0.4.21), and the tree-walker still runs each program the door sends it | the VM is the only evaluator; builtins take a VM call handle |
 | L6 | Asymmetric coroutines (`resume`/`yield`) | generators, lazy pipelines, cooperative tasks | `chan`/`go` with no blue spelling for run, put or take | `coroutine(f)`, `resume(co, x)`, `yield(x)`: stackful, inside one process |
 | L7 | Small, stable embedding API; sol2's one-line `new_usertype` | a host type becomes a script type with no glue | bidamas written by hand per library | a derive in `blue-lang-host-macros` that exposes a Rust type and its methods as a bidama |
 | L8 | Tiny core, small binary, fast start | embed anywhere | 6.4 ms `hello`, faster than Python already | keep: a start-up budget row in `PERFORMANCE.md` |
@@ -233,7 +236,7 @@ and a row in `docs/PERFORMANCE.md` or `docs/DIAGNOSTICS.md`.
 | phase 1: static arity (R2) | ✅ built | B0072 (`crates/blue-lang-check/src/contracts.rs`, its test asserts three B0072 findings). |
 | phase 2: slot resolver and interned symbols (R1, L1, L4) | ❌ not built | The work is in tatara-lisp-eval. The runtime looks each name up by hash (`docs/PERFORMANCE.md` 3.2). |
 | phase 3: lock-free frames and upvalues (L2, L3) | ❌ not built | The work is in tatara-lisp-eval. |
-| phase 4: VM-native callbacks; the VM on for `blue run` (L5) | ⏳ in progress | The VM is `blue run`'s door where the conformance columns agree (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`); its callbacks are still lifted to tree-walker closures (`docs/PERFORMANCE.md` 3.3). |
+| phase 4: VM-native callbacks; the VM on for `blue run` (L5) | ⏳ in progress | Built: `blue run` takes the VM by the door rule of `docs/PERFORMANCE.md` 1.4 (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`), and since tatara-lisp-eval 0.4.21 a callback a native word calls runs on one VM for the whole traversal, so a lambda argument keeps a program on the VM. Not built: the VM as the only evaluator; a callback that falls back to the walker's evaluation, or runs under a call observer, is still lifted (`docs/PERFORMANCE.md` 3.3). |
 | phase 5: resolved-program cache by content hash (R15) | ⏳ in progress | A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`). No measurement shows one resolution per run (`docs/PERFORMANCE.md` 3.5). |
 | phase 6: coroutines (`coroutine`, `resume`, `yield`) (L6) | ❌ not built | No such word in `crates/`. |
 | phase 7: `record` (R4) | ✅ built | B0079; `spec/rows/records.b`. |

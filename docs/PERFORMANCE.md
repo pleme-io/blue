@@ -194,8 +194,8 @@ release speed (`fib` 0.39 s against 0.31 s CPU).
 
 Since 2026-11-11 `blue run` takes the VM as its default door where the
 conformance columns agree (`crates/blue-lang-runtime/src/door.rs`): every
-construct the program uses is agreed, it reaches no host effect, and it hands
-no function to a native word (the slower case below). Otherwise it takes the
+construct the program uses is agreed, and it reaches no host effect (the
+door's one `Unreplayable` rule). Otherwise it takes the
 tree-walker. A fault on the VM runs the program again on the walker, with its
 output words silenced, so the error carries its place and stack and the output
 is written once. `--door walker` or `BLUE_DOOR=walker` turns the VM door off;
@@ -217,7 +217,14 @@ only blue processes. A probe build sent the whole program to
 | spawn | 0.30 | 0.32 |
 
 The VM is 15% faster on a plain recursive function and up to 2× slower when a
-lambda goes to `map`, `filter` or `reduce`. Section 2.2 gives the cause.
+lambda goes to `map`, `filter` or `reduce`. Section 2.2 gives the cause. On
+2026-11-16 (tatara-lisp-eval 0.4.21) the VM began to run such a callback
+itself, and the door's rule that sent a program handing a function to a
+native word to the walker went, since it was no longer true: `pipeline`
+evaluates in 576 ms on the walker and 401 ms on the VM, `strbuild` in 358
+and 306 ms.
+`a_call_through_a_value_stays_on_the_walker_and_a_lambda_argument_takes_the_vm`
+in `crates/blue-lang-cli/tests/door.rs` holds the lambda on the VM.
 
 2026-11-16, tatara-lisp-eval 0.4.19: the VM caches each global under the
 environment's write stamps, runs `+ - * < > <= >= =` on two Ints or two Floats
@@ -533,10 +540,13 @@ time.
 
 ### 2.2 Why the VM is not faster
 
-- A lambda that the VM compiles and gives to a native higher-order function is
-  lifted back to a tree-walker closure on each call
-  (`CompiledClosure::lift_to_closure`, `vm/run.rs`). So `map`, `filter` and
-  `reduce` callbacks pay the walker's cost plus the lift.
+- Until tatara-lisp-eval 0.4.21, a lambda that the VM compiled and gave to a
+  native higher-order function was lifted back to a tree-walker closure on
+  each call (`CompiledClosure::lift_to_closure`, `vm/run.rs`), so `map`,
+  `filter` and `reduce` callbacks paid the walker's cost plus the lift. Since
+  0.4.21 the native word runs the callback on one VM it keeps for the whole
+  traversal. A callback still lifts when its body falls back to the walker's
+  evaluation (`Op::EvalSexp`) or when a call observer is installed.
 - `LoadGlobal` looked a global up by name on each access. Since 2026-11-16 it
   reads an inline cache that a write to any frame of the globals invalidates.
 - Captured variables are `Arc<Mutex<Value>>` cells.
@@ -854,8 +864,8 @@ One row for each item of section 3.
 |---|---|---|
 | 3.1 Linear library words | ⏳ in progress | `distinct`, `frequencies`, `shuugou::unique` and `mokuroku::name_collisions` are linear (section 4, spec row `lists.distinct.keys`). `hex_encode` and `hex_decode` are native, and shinsuu's `bytes_hex` and `hex_bytes` wrap them (1.6, spec rows `strings.hex_*`). The census of the builtins that still run as Lisp, and a size row per word, do not exist. |
 | 3.2 Lexical addressing in the tree-walker | ❌ not built | The work is in tatara-lisp-eval. This repository holds no measurement of it. |
-| 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). Built in tatara-lisp-eval 0.4.19: globals cached under write stamps, operators in place, allocation-free calls (`tests/vm_operators.rs`, `tests/vm_allocations.rs`). Not built: a closure handed to a native higher-order word still lifts to the walker. |
-| 3.4 Tiered execution | ⏳ in progress | The R7 profile counts each definition's outermost calls by `def_hash` (`store::profile`), which picks the native tier; no VM promotion exists. The VM is slower than the walker on the common script shape (1.4), so 3.2 and 3.3 come first. |
+| 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). Built in tatara-lisp-eval 0.4.19: globals cached under write stamps, operators in place, allocation-free calls (`tests/vm_operators.rs`, `tests/vm_allocations.rs`). Built in 0.4.21: a closure handed to a native higher-order word runs on one VM for the whole traversal (`a_hof_callback_runs_on_one_reused_vm_and_never_lifts` in tatara-lisp-eval's `vm/parity.rs`), so a lambda argument keeps a program on the VM door. Not built: captures without a lock, and a callback that falls back to the walker's evaluation still lifts. |
+| 3.4 Tiered execution | ⏳ in progress | The R7 profile counts each definition's outermost calls by `def_hash` (`store::profile`), which picks the native tier; no VM promotion exists. The VM was slower than the walker on the common script shape until tatara-lisp-eval 0.4.21 (1.4), which is why 3.2 and 3.3 were put first. |
 | 3.4 T3: ahead of time per `def_hash` | ⏳ in progress | One derivation per `def_hash` from a slice that is a function of the hash (`nix/native-defs.nix`, `checks.native-def-keys`), the `native` tier of the store (`store::native_artifact`), and `BLUE_NATIVE=on` answering an Int call from an artifact (`checks.native-defs`), all built (1.7.1). An in-process call is built (W1 of docs/FACTS.md): 2,000 calls of a native `fib` ran 4.01 s as processes and 0.06 s through the library (debug build, the same answer, and the interpreter 0.19 s). Values beyond Int: Bool, Float and Str cross the native tier (FACTS.md W1). Not built: the VM door, the hot set from a fleet counter, a project word for any program, values beyond those scalars. |
 | 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). Each check stage resolves its program at most once, and its rules read that resolution (2.7, `the_check_stage_resolves_a_program_at_most_once`). `blue run` still runs two check stages, `check_entry` for the formatter and the pipeline's own. |
 | 3.6 Shared bidama analysis | ⏳ in progress | `mkAnalysis` (`bidamas/mk-bidama.nix`) writes each bidama's check entries, and `mkBlueWithBidamas` points `BLUE_CACHE_SHARED` at them. Measured 2026-11-16 on a loaded host: a script that imports kueri spends the same check time with the shared store as without it (137 and 142 ms cold), so no gain is shown yet. Re-measure on a quiet host. |

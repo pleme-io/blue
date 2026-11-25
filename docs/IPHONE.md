@@ -56,12 +56,12 @@ The app shell is `asobi/crates/asobi-smoke` (UIApplication, scene delegate,
 Blue today: `blue-lang-host` embeds the interpreter in Rust with `#[host]`
 blocks; `blue-lang-runtime` is pure Rust. Both build for `aarch64-apple-ios`
 and `aarch64-apple-ios-sim` with no source change (I0, section 8).
-`blue-lang-wasm` has no import table. `blue run` takes the bytecode VM where
-the conformance columns agree on every construct a program uses (`--door
-auto`, [COMMANDS.md](COMMANDS.md)), and blue's native backends (chuuzou to
-Rust, hashiru to x86-64, [PURE-BLUE.md](PURE-BLUE.md)) have no
-`aarch64-apple-ios` target. `crates/blue-lang-ios` is the shell (I1,
-section 8).
+`blue-lang-wasm` has no import table. `blue run` runs each program on the
+bytecode VM or on the tree-walker, by the door rule of
+[PERFORMANCE.md §1.4](PERFORMANCE.md#14-the-vm-against-the-tree-walker), and
+blue's native backends (chuuzou to Rust, hashiru to x86-64,
+[PURE-BLUE.md](PURE-BLUE.md)) have no `aarch64-apple-ios` target.
+`crates/blue-lang-ios` is the shell (I1, section 8).
 
 ## 3. Decisions
 

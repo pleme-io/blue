@@ -445,12 +445,38 @@ def claims_in(nodes)
 end
 
 @doc """
-inline_runs: Every run of inline nodes a Markdown page holds, as [line, nodes]: each paragraph's and heading's, and each table cell's under its table's first line; a code block holds none.
+inline_runs: Every run of inline nodes a Markdown page holds, as [line, nodes]: each paragraph's and heading's, and each table cell's under its row's line; a code block holds none.
 
     length(inline_runs(join_lines(["# A", "", "b", "", "| c | d |", "|---|---|"]))) #=> 4
+    map(first, inline_runs(join_lines(["| a | b |", "|---|---|", "| c | d |", "| e | f |"]))) #=> [1, 1, 3, 3, 4, 4]
 """
 def inline_runs(text)
   inline_runs_of(parse(text))
+end
+
+@doc """
+table_rows: The rows of a parsed table, as [line, row]: the header on the table's first line and each row under the delimiter row on its own line, as a table's rows are written.
+
+    map(first, table_rows(first(extract(parse(join_lines(["x", "", "| a |", "|---|", "| b |", "| c |"])), :table)))) #=> [3, 5, 6]
+"""
+def table_rows(table)
+  start = if table[:at].nil?
+    0
+  else
+    table[:at][0]
+  end
+  rows = filter((n) -> n[:kind] == :table_row, walk(table))
+  map(
+    fn(i)
+      line = if i == 0
+        start
+      else
+        start + i + 1
+      end
+      [line, rows[i]]
+    end,
+    range(length(rows))
+  )
 end
 
 @doc """
@@ -462,18 +488,20 @@ def inline_runs_of(tree)
   flat_map(
     filter((n) -> member?(n[:kind], %i[heading paragraph table]), walk(tree)),
     fn(block)
-      line = if block[:at].nil?
-        0
-      else
-        block[:at][0]
-      end
       if block[:kind] == :table
-        map(
-          (c) -> [line, walk(c)],
-          filter((n) -> n[:kind] == :table_cell, walk(block))
+        flat_map(
+          table_rows(block),
+          fn(r)
+            map(
+              (c) -> [first(r), walk(c)],
+              filter((n) -> n[:kind] == :table_cell, walk(last(r)))
+            )
+          end
         )
+      elsif block[:at].nil?
+        [[0, walk(block)]]
       else
-        [[line, walk(block)]]
+        [[block[:at][0], walk(block)]]
       end
     end
   )
@@ -492,6 +520,9 @@ def page_claims(text)
 end
 
 REPO_TOPS = %w[
+  .cargo
+  .githooks
+  .github
   bench
   bidamas
   crates
@@ -543,26 +574,19 @@ def status_rows(text)
   flat_map(
     filter((n) -> n[:kind] == :table, walk(parse(text))),
     fn(t)
-      start = t[:at][0]
-      rows = filter((n) -> n[:kind] == :table_row, walk(t))
       map(
-        fn(i)
+        fn(r)
           nodes = filter(
             (n) -> member?(n[:kind], %i[text inline_code]),
-            walk(rows[i])
+            walk(last(r))
           )
-          line = if i == 0
-            start
-          else
-            start + i + 1
-          end
           [
-            line,
+            first(r),
             row_state(join(map((n) -> n[:text], nodes), " ")),
             map((n) -> n[:text], built_codes(nodes))
           ]
         end,
-        range(length(rows))
+        table_rows(t)
       )
     end
   )
@@ -990,10 +1014,12 @@ test "every path a ✅ or ⏳ row cites reaches a file, and every spec row a pag
   assert found == []
 end
 
-test "a cited path that reaches nothing or leads where the check does not read, and a cited row that does not exist, are refused; a ❌ row and good citations pass"
+test "a cited path that reaches nothing or leads where the check does not read, in a dot directory too, and a cited row that does not exist, are refused at their row's line; a ❌ row and good citations pass"
   dir = path_join(temp_dir("evidence"), "evidence")
   mkdir_p(path_join(dir, "docs"))
+  mkdir_p(path_join(dir, ".githooks"))
   write_file(path_join(dir, "docs/b.md"), "# B")
+  write_file(path_join(dir, ".githooks/pre-push"), "glue")
   text = join_lines(
     [
       "| Item | State | What makes it true |",
@@ -1001,13 +1027,15 @@ test "a cited path that reaches nothing or leads where the check does not read, 
       "| a | ✅ built | `docs/b.md` and `docs/gone.md:12` |",
       "| c | ⏳ in progress | `gen/x.b` |",
       "| d | ❌ not built | `docs/later.md` |",
+      "| e | ✅ built | `.github/workflows/gone.yml` and `.githooks/pre-push` |",
+      "| f | ✅ built | spec row `m.n` |",
       "",
       "Spec rows `x.y` and `p.q` hold it; `r.s` is a field."
     ]
   )
   pages = [["docs/a.md", text]]
   found = append(
-    evidence_failures(dir, ["docs"], pages),
+    evidence_failures(dir, %w[docs .github .githooks], pages),
     citation_failures(pages, ["x.y"])
   )
   rm_rf(dir)
@@ -1015,7 +1043,9 @@ test "a cited path that reaches nothing or leads where the check does not read, 
     [
       "docs/a.md:3: `docs/gone.md` is cited by a ✅ or ⏳ row and reaches no file",
       "docs/a.md:4: `gen/x.b` leads into `gen`, which this check does not read; list `gen` in the inputs of check(\"markdown-laws\", …)",
-      "docs/a.md:7: spec row `p.q` is cited, and spec/rows/ holds no row with that id"
+      "docs/a.md:6: `.github/workflows/gone.yml` is cited by a ✅ or ⏳ row and reaches no file",
+      "docs/a.md:7: spec row `m.n` is cited, and spec/rows/ holds no row with that id",
+      "docs/a.md:9: spec row `p.q` is cited, and spec/rows/ holds no row with that id"
     ]
 end
 
@@ -1239,9 +1269,33 @@ def front_value(tree, key)
 end
 
 @doc """
-r_id_failure: Why one R id of a page fails, or [] when it names a row: an id qualified by a page that defines no such row; a bare id on a page whose own ids, or the ids its front matter's `r_ids:` names, do not hold it; a bare id where the page has neither.
+definers: The names of the pages whose ids hold `id`, in the order of `tables`.
 
-    r_id_failure("a.md:3", [0, "R2", nil], ["a.md", ["R1"]], []) #=> ["a.md:3: R2 is not an R id of a.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R2"]
+    definers([["docs/A.md", ["R1"]], ["docs/B.md", ["R6a"]], ["docs/C.md", ["R6"]]], "R6") #=> ["B", "C"]
+"""
+def definers(tables, id)
+  map((t) -> doc_name(first(t)), filter((t) -> defines?(last(t), id), tables))
+end
+
+@doc """
+r_id_hint: What to write for an R id a page cannot name as it does: the id after each page that defines it, or that no page does.
+
+    r_id_hint(["ROADMAP", "PERFORMANCE"], "R14") #=> "write the page it comes from: ROADMAP R14 or PERFORMANCE R14"
+    r_id_hint([], "R9") #=> "no page defines R9"
+"""
+def r_id_hint(pages, id)
+  if pages == []
+    "no page defines #{id}"
+  else
+    "write the page it comes from: #{join(map((p) -> "#{p} #{id}", pages), " or ")}"
+  end
+end
+
+@doc """
+r_id_failure: Why one R id of a page fails, or [] when it names a row: an id qualified by a page that defines no such row; a bare id on a page whose own ids, or the ids its front matter's `r_ids:` names, do not hold it; a bare id where the page has neither. Each refusal names the pages that define the id, or says no page does.
+
+    r_id_failure("a.md:3", [0, "R2", nil], ["a.md", ["R1"]], []) #=> ["a.md:3: R2 is not an R id of a.md (R1); no page defines R2"]
+    r_id_failure("a.md:3", [0, "R2", nil], ["a.md", ["R1"]], [["docs/B.md", ["R2"]]]) #=> ["a.md:3: R2 is not an R id of a.md (R1); write the page it comes from: B R2"]
 """
 def r_id_failure(where, token, table, tables)
   id = token[1]
@@ -1249,14 +1303,22 @@ def r_id_failure(where, token, table, tables)
   if page != nil and defines?(ids_named(tables, page), id)
     []
   elsif page != nil
-    ["#{where}: #{page} #{id} names no row: #{page} defines no #{id}"]
-  elsif table.nil?
     [
-      "#{where}: a bare #{id} on a page with no R ids of its own; name the page that defines it (PERFORMANCE #{id}), or name that page in the front matter (r_ids: PERFORMANCE.md)"
+      "#{where}: #{page} #{id} names no row: #{page} defines no #{id}; #{r_id_hint(definers(tables, id), id)}"
+    ]
+  elsif table.nil?
+    from = definers(tables, id)
+    front = if from == []
+      ""
+    else
+      ", or name its page in the front matter (r_ids: #{first(from)}.md)"
+    end
+    [
+      "#{where}: a bare #{id} on a page with no R ids of its own; #{r_id_hint(from, id)}#{front}"
     ]
   elsif not defines?(last(table), id)
     [
-      "#{where}: #{id} is not an R id of #{first(table)} (#{join(last(table), ", ")}); name the page an id from elsewhere comes from, as in PERFORMANCE #{id}"
+      "#{where}: #{id} is not an R id of #{first(table)} (#{join(last(table), ", ")}); #{r_id_hint(definers(tables, id), id)}"
     ]
   else
     []
@@ -1266,7 +1328,7 @@ end
 @doc """
 r_id_failures: Why each R id the pages define or their prose names fails, a page being [path, text]: two rows of one table of R ids that start with one id are refused, and a page names bare its own ids and those of the page its front matter names in `r_ids:` (a sub-page and its parent), and any other page's ids after that page's name (`PERFORMANCE R7`), so one id never means two rows. A page's own ids are its path's, so two pages of one file name keep their own. Code spans and code blocks name nothing.
 
-    r_id_failures([["docs/D.md", "D names R3, and `R5` is code."]]) #=> ["docs/D.md:1: a bare R3 on a page with no R ids of its own; name the page that defines it (PERFORMANCE R3), or name that page in the front matter (r_ids: PERFORMANCE.md)"]
+    r_id_failures([["docs/D.md", "D names R3, and `R5` is code."]]) #=> ["docs/D.md:1: a bare R3 on a page with no R ids of its own; no page defines R3"]
 """
 def r_id_failures(pages)
   trees = map((p) -> [first(p), parse(last(p))], pages)
@@ -1323,7 +1385,7 @@ test "every R id a page names is one row of one page"
   assert found == []
 end
 
-test "an id a page does not define, a qualified id its page lacks and a bare id with no table are refused; a declared table, code and a project rule's code pass"
+test "an id a page does not define, a qualified id its page lacks and a bare id with no table are refused, each naming the pages that define it; a declared table, code and a project rule's code pass"
   pages = [
     [
       "docs/A.md",
@@ -1337,19 +1399,26 @@ test "an id a page does not define, a qualified id its page lacks and a bare id 
         ]
       )
     ],
-    ["docs/B.md", join_lines(["| # | y |", "|---|---|", "| R1 | b |"])],
+    [
+      "docs/B.md",
+      join_lines(["| # | y |", "|---|---|", "| R1 | b |", "| R2 | c |"])
+    ],
     [
       "docs/C.md",
       join_lines(["---", "r_ids: B.md", "---", "", "C cites R1 and R4."])
     ],
-    ["docs/D.md", "D names R3, and `R5` is code, and R0003 a project rule."]
+    [
+      "docs/D.md",
+      "D names R3 and R1, and `R5` is code, and R0003 a project rule."
+    ]
   ]
   assert r_id_failures(pages) ==
     [
-      "docs/A.md:5: R2 is not an R id of docs/A.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R2",
-      "docs/A.md:5: B R9 names no row: B defines no R9",
-      "docs/C.md:5: R4 is not an R id of B.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R4",
-      "docs/D.md:1: a bare R3 on a page with no R ids of its own; name the page that defines it (PERFORMANCE R3), or name that page in the front matter (r_ids: PERFORMANCE.md)"
+      "docs/A.md:5: R2 is not an R id of docs/A.md (R1); write the page it comes from: B R2",
+      "docs/A.md:5: B R9 names no row: B defines no R9; no page defines R9",
+      "docs/C.md:5: R4 is not an R id of B.md (R1, R2); no page defines R4",
+      "docs/D.md:1: a bare R3 on a page with no R ids of its own; no page defines R3",
+      "docs/D.md:1: a bare R1 on a page with no R ids of its own; write the page it comes from: A R1 or B R1, or name its page in the front matter (r_ids: A.md)"
     ]
 end
 
@@ -1391,7 +1460,7 @@ test "an id two rows of a table of R ids start with is refused; a heading and a 
   assert r_id_failures(pages) ==
     [
       "docs/A.md:3: two rows of this table start with R2; one id names one row, so give the later one the next free id",
-      "docs/x/E.md:5: R4 is not an R id of docs/x/E.md (R3); name the page an id from elsewhere comes from, as in PERFORMANCE R4"
+      "docs/x/E.md:5: R4 is not an R id of docs/x/E.md (R3); write the page it comes from: E R4"
     ]
 end
 

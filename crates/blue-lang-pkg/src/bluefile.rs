@@ -1957,6 +1957,7 @@ mod tests {
             .chain([
                 "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
             ])
+            .chain([blue_lang_syntax::LOWERED_CAUGHT])
             .chain(blue_lang_syntax::INFIX.iter().map(|i| i.callee))
             .collect();
 

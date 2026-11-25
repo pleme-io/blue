@@ -1179,7 +1179,7 @@ that is there only for the error it may raise. docs/SAFETY.md, row 2.",
         fix: Machine,
         law: "a bidama's public definition has a `@doc` whose first sentence starts with its name",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\ndef kagi()\n  1\nend\n",
-        ratchet: 1887,
+        ratchet: 1886,
         package: "kagi",
         explanation: "\
 A reader of one bidama should be proficient in it, so every definition a `use`
@@ -1909,7 +1909,7 @@ not refused: each side runs the code.",
         fix: None,
         law: "each definition of a bidama is named by a test of its file: called, referenced, or its `target:`",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 3374,
+        ratchet: 3373,
         package: "kagi",
         explanation: "\
 A definition reached only through a caller is tested only as far as the

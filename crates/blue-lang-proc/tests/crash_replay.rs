@@ -43,6 +43,18 @@ m = monitor(sup)
 receive(:_, 10000, :nothing)
 ";
 
+const MAP_CRASH: &str = "\
+def poisoned()
+  receive()
+  raise(:poison, \"bad message\", {data: {a: 1, b: 2, c: 3, d: 4, e: 5}})
+end
+sup = supervisor(:one_for_one, [poisoned], 0)
+c = nth(0, children(sup))
+m = monitor(sup)
+send(c, :bad)
+receive()
+";
+
 fn trace_round_trip(t: &Trace) -> Trace {
     let text = serde_json::to_string(&t.to_json()).expect("serialize");
     Trace::parse(&text).expect("parse")
@@ -318,5 +330,33 @@ fn a_map_has_one_trace_text_however_it_was_built() {
     assert!(
         at.windows(2).all(|w| w[0] < w[1]),
         "the pairs follow map_entries' key order: {at:?} in {text}"
+    );
+}
+
+#[test]
+#[ignore = "G32: a crash's exit text is tatara-lisp-eval's Display, which walks a map in hash order in 0.4.26; the mark comes off with the bump to tatara-lisp 6011c03 (docs/ROADMAP.md, placement parity)"]
+fn a_crash_whose_error_holds_a_map_has_one_name_and_reproduces() {
+    let mut texts = std::collections::BTreeSet::new();
+    let mut names = std::collections::BTreeSet::new();
+    let mut reproduced = Vec::new();
+    for _ in 0..8 {
+        let (mut root, node) = node(100);
+        let _ = show(&mut root, MAP_CRASH);
+        let kept = &node.traces()[0];
+        names.insert(kept.crash_hash());
+        let trace = trace_round_trip(kept);
+        texts.insert(trace.reason_text.clone());
+        reproduced.push(replay(&trace, blue_lang_runtime::interpreter_hostless()).reproduced);
+    }
+    assert_eq!(texts.len(), 1, "one exit text: {texts:#?}");
+    assert_eq!(names.len(), 1, "one crash name: {names:#?}");
+    assert!(
+        reproduced.iter().all(|r| *r),
+        "every replay reproduces: {reproduced:?}"
+    );
+    let text = texts.into_iter().next().unwrap_or_default();
+    assert!(
+        text.contains("{:a 1, :b 2, :c 3, :d 4, :e 5}"),
+        "the map's pairs follow map_entries' key order: {text}"
     );
 }

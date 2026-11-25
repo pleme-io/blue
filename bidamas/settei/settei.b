@@ -410,7 +410,7 @@ def file_doc(path, format)
 end
 
 @doc """
-read: resolve defaults, then file, then environment into one record. opts[:aliases] maps a setting's environment name to the older name that still sets it.
+read: resolve defaults, then file, then environment into one record. opts[:aliases] maps a setting's environment name to the older names that still set it, a list tried in order or one name as text, as aliased reads it and aliases_of renders it.
 """
 def read(app, defaults, opts?)
   path = discovered_path(app)

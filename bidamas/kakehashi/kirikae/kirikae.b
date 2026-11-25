@@ -344,7 +344,7 @@ def assoc_all(m, pairs)
 end
 
 @doc """
-config_model: kirikae's core model, every setting grouped by concern with its default, bounds, unit, doc and the flat environment name it had before (sentinela still passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S). An unset host, kind, history, events or narrate means the computed default, and narrate is one of off, brief or full.
+config_model: kirikae's core model, every setting grouped by concern with its default, bounds, unit, doc and the flat environment name it had before (sentinela still passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S). An unset host, kind, history, events or narrate means the computed default, and so does empty text from the environment for all but narrate: narrate is one of off, brief or full, and any other word, empty text among them, is refused for its key alone and the computed default kept.
 
     settei::defaults_of(config_model)["guard"]["branch"] #=> "main"
 """
@@ -373,7 +373,7 @@ def config_model()
       {
         type: :text,
         choices: %w[off brief full],
-        doc: "how much to say; full for a run and brief for a plan when unset"
+        doc: "how much to say; full for a run and brief for a plan when unset, and empty text is refused as any other word is"
       }
     ),
     "phases" => {
@@ -2734,6 +2734,16 @@ test "narrate is a closed set in the model: a word outside it is refused for its
   )
   assert brief[:config]["narrate"] == "brief"
   assert or_computed(nil, () -> "x") == "x"
+  empty = settei::settle(
+    "kirikae",
+    config_model,
+    nil,
+    settei::env_of({"KIRIKAE_NARRATE" => "", "KIRIKAE_HOST" => ""}),
+    {}
+  )
+  assert map((f) -> f[:key], empty[:refusals]) == ["narrate"]
+  assert empty[:config]["narrate"].nil?
+  assert or_computed(empty[:config]["host"], () -> "computed") == "computed"
 end
 
 test "a writer is named by its command and the rev it builds, and by its command alone without one"

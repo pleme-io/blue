@@ -187,12 +187,13 @@ Configuration is a core model: a record of knobs grouped by concern, each
 in the environment, each value read by its knob's type and a bad one refused
 for its key alone and warned. `settei::command(app, model, frame, f)` adds the
 flags, help and `--explain KEY`. A program that must not start on a broken
-setting passes `{mode: :enforce}`, and every refusal stops it. Read the result
-by dotted path, `config.guard.branch`: a misspelt path raises and names the
-fields that exist, where `config["branch"]` returns nil. A program never reads
-its own settings with `getenv`. `bidamas/kakehashi/kirikae` is the worked
-example. `settei::read(app, defaults)` is the older record form: a plain
-record of defaults, every fault refused at once.
+setting calls `settei::settled(app, model, {mode: :enforce})`, and every
+refusal stops it. Read the result by dotted path, `config.guard.branch`: a
+misspelt path raises and names the fields that exist, where `config["branch"]`
+returns nil. A program never reads its own settings with `getenv`.
+`bidamas/kakehashi/kirikae` is the worked example.
+`settei::read(app, defaults)` is the older record form: a plain record of
+defaults, every fault refused at once.
 
 Before you name a function, look for its verb: the graph rows in
 `bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in

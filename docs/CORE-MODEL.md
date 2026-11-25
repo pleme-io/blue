@@ -395,6 +395,7 @@ itself and what the release proves:
 | Where the config file path is printed in `explain` (the pure `line` sees the parsed file, not its path) | ours: carry the path into `line` |
 | A service's chart config is the Bluefile's flat `config:`, which a Bluefile cannot render from a blue model (a Bluefile runs only Bluefile words) | ours: a Bluefile word that names the model's bidama, read by `blue lock` (P8b) |
 | A full-screen form (CLI-TUI.md L3 is not built; the line form is, P7b) | ours: raw mode, key events and the screen layer |
+| An infinity (`.inf`, `-.inf`, `1e400`) is a legal float on every layer of both doors, as YAML 1.2's core reads it, while NaN fits no setting. The cohesion audit asks that a float knob refuse a non-finite value unless the knob allows one | ours: an annotation that allows an infinity, refused without it, in the one value-type vocabulary (COHESION.md U76); until then a `max:` refuses `.inf` and a `min:` refuses `-.inf` |
 
 Answered since: the unmodelled check follows nested groups (`config.guard.branch`), a word called with no arguments (`config`), and a local name bound to the record (`c = config`); a predicate on a setting (`a.test.nil?`) reads the setting. Hot reload is `reload`.
 

@@ -7497,7 +7497,7 @@ TCP_CHUNK: the most bytes one tcp_read or tcp_write moves, the size of the buffe
 TCP_CHUNK = 4096
 
 @doc """
-RT_TCP_READ: tcp_read natively: at most the tagged max in rsi bytes (and at most TCP_CHUNK) from the handle in rdi (consumed), as a list of numbers built from the last byte back. None ready, a closed handle or a max below 1 answer nil, which is also the empty list natively; when the peer has closed, the handle is closed too (its descriptor -1), so net_wait reports it :closed.
+RT_TCP_READ: tcp_read natively: at most the tagged max in rsi bytes (and at most TCP_CHUNK) from the handle in rdi (consumed), as a list of numbers built from the last byte back. A read that fails, as one with no bytes ready does (EAGAIN), answers the empty list (EMPTY); a closed handle or a max below 1 answer nil, and so does a peer that has closed, which closes the handle too (its descriptor -1), so net_wait reports it :closed.
 
     RT_TCP_READ[0] #=> {op: "label", name: "rt_tcp_read"}
 """

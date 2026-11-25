@@ -13,11 +13,12 @@ use crate::load_path::LoadPath;
 pub const FIXTURE_DISTRIBUTIONS: &[&str] = &["spec/bidamas"];
 
 /// Directories of `.b` DATA, relative to the root: `spec/rows/*.b` are row
-/// declarations (`row(…)`, `value(…)`) whose words only the conformance
-/// runner binds, and `bidamas/mokuroku/graph/*.b` are verb-graph rows
-/// (`verb(…)`, `edge(…)`) that only mokuroku's reader accepts. They are
-/// formatted like every `.b` file, and are not programs to check.
-pub const DATA_DIRECTORIES: &[&str] = &["spec/rows", "bidamas/mokuroku/graph"];
+/// declarations (`row(…)`, `value(…)`) and `spec/gaps/gaps.b` the gap ledger
+/// (`gap(…)`), whose words only the conformance runner binds, and
+/// `bidamas/mokuroku/graph/*.b` are verb-graph rows (`verb(…)`, `edge(…)`)
+/// that only mokuroku's reader accepts. They are formatted like every `.b`
+/// file, and are not programs to check.
+pub const DATA_DIRECTORIES: &[&str] = &["spec/rows", "spec/gaps", "bidamas/mokuroku/graph"];
 
 /// The model eval's tasks (`eval/README.md`): each `hidden.b` holds tests
 /// for words only a submission defines, so it checks only once

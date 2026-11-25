@@ -1,0 +1,139 @@
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use blue_lang_syntax::{Atom, Sexp};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Gap {
+    pub id: String,
+    pub open: bool,
+}
+
+pub const LEDGER: &str = "spec/gaps/gaps.b";
+
+pub fn load(path: &Path) -> (Vec<Gap>, Vec<String>) {
+    match std::fs::read_to_string(path) {
+        Ok(text) => parse(&text, &path.display().to_string()),
+        Err(e) => (Vec::new(), vec![format!("{}: {e}", path.display())]),
+    }
+}
+
+pub fn parse(text: &str, file: &str) -> (Vec<Gap>, Vec<String>) {
+    let forms = match blue_lang_syntax::parse_program(text) {
+        Ok(f) => f,
+        Err(e) => return (Vec::new(), vec![format!("{file}: {e}")]),
+    };
+    let mut ledger: Vec<Gap> = Vec::new();
+    let mut refused = Vec::new();
+    for form in &forms {
+        match gap_of(form) {
+            Ok(g) if ledger.iter().any(|h| h.id == g.id) => refused.push(format!(
+                "{file}: gap {} has two rows; one id names one gap",
+                g.id
+            )),
+            Ok(g) => ledger.push(g),
+            Err(why) => refused.push(format!("{file}: {why}")),
+        }
+    }
+    (ledger, refused)
+}
+
+fn gap_id(id: &str) -> bool {
+    id.strip_prefix('G')
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn gap_of(form: &Sexp) -> Result<Gap, String> {
+    let shape = "gap(ID, :open or :closed, WHAT IS MISSING, opened(DATE), OPTION...)";
+    let Sexp::List(items) = form else {
+        return Err(format!("the ledger holds only {shape} calls"));
+    };
+    let [head, id, state, what, options @ ..] = items.as_slice() else {
+        return Err(format!("a gap row is {shape}"));
+    };
+    if head.as_symbol() != Some("gap") {
+        return Err(format!("the ledger holds only {shape} calls"));
+    }
+    let id = blue_lang_syntax::constant_text(id).ok_or(format!("a gap row is {shape}"))?;
+    if !gap_id(&id) {
+        return Err(format!("`{id}` is not a gap id: G and a number"));
+    }
+    let open = match state {
+        Sexp::Atom(Atom::Keyword(k)) if k == "open" => true,
+        Sexp::Atom(Atom::Keyword(k)) if k == "closed" => false,
+        _ => return Err(format!("gap {id}: its state is :open or :closed")),
+    };
+    if blue_lang_syntax::constant_text(what).is_none_or(|w| w.trim().is_empty()) {
+        return Err(format!("gap {id}: it says what is missing, as a string"));
+    }
+    let mut said = BTreeMap::new();
+    for option in options {
+        let named = match option {
+            Sexp::List(call) => match call.as_slice() {
+                [name, arg] => name.as_symbol().zip(blue_lang_syntax::constant_text(arg)),
+                _ => None,
+            },
+            _ => None,
+        };
+        match named {
+            Some((name, arg)) if ["opened", "closed", "owner", "was"].contains(&name) => {
+                said.insert(name.to_owned(), arg);
+            }
+            _ => {
+                return Err(format!(
+                    "gap {id}: an option is opened(DATE), closed(DATE), owner(DOC) or was(ID)"
+                ));
+            }
+        }
+    }
+    if !said.contains_key("opened") {
+        return Err(format!("gap {id}: opened(DATE) says when it was opened"));
+    }
+    if open == said.contains_key("closed") {
+        return Err(format!(
+            "gap {id}: a closed gap says closed(DATE), and an open one does not"
+        ));
+    }
+    if said.get("was").is_some_and(|w| !gap_id(w)) {
+        return Err(format!("gap {id}: was(ID) names a gap id"));
+    }
+    Ok(Gap { id, open })
+}
+
+pub fn refusals(ledger: &[Gap], marks: &[(String, String)]) -> Vec<String> {
+    marks
+        .iter()
+        .filter_map(|(at, gap)| match ledger.iter().find(|g| &g.id == gap) {
+            None => Some(format!(
+                "{at} names gap {gap}, which {LEDGER} does not hold; add its row there"
+            )),
+            Some(g) if !g.open => Some(format!(
+                "{at} names gap {gap}, which {LEDGER} has closed; remove the mark"
+            )),
+            Some(_) => None,
+        })
+        .collect()
+}
+
+pub fn row_marks(rows: &[crate::rows::Row]) -> Vec<(String, String)> {
+    rows.iter()
+        .flat_map(|r| {
+            r.pending
+                .iter()
+                .map(move |p| (format!("row {}", r.id), p.gap.clone()))
+        })
+        .collect()
+}
+
+pub fn door_marks() -> Vec<(String, String)> {
+    use blue_lang_runtime::door::{Reason, TABLE};
+    TABLE
+        .iter()
+        .filter_map(|rule| match rule.reason {
+            Reason::Disagrees { gap, row } => {
+                Some((format!("door::TABLE's rule for {row}"), gap.to_owned()))
+            }
+            _ => None,
+        })
+        .collect()
+}

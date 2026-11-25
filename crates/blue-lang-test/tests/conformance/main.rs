@@ -32,6 +32,7 @@ static ALLOC: blue_lang_runtime::alloc::Counting = blue_lang_runtime::alloc::Cou
 
 mod coverage;
 mod eval;
+mod gaps;
 mod judge;
 mod rows;
 
@@ -741,6 +742,28 @@ fn main() {
 
     for r in &refusals {
         writeln!(out, "MALFORMED {r}").ok();
+        red = true;
+    }
+
+    let (ledger, ledger_refused) = gaps::load(&repo.join(gaps::LEDGER));
+    for r in &ledger_refused {
+        writeln!(out, "MALFORMED {r}").ok();
+        red = true;
+    }
+    let mut marks = gaps::row_marks(&all_rows);
+    marks.extend(gaps::door_marks());
+    for f in gaps::refusals(&ledger, &marks) {
+        writeln!(out, "FAIL gaps: {f}").ok();
+        red = true;
+    }
+    if ledger.len() < 30 {
+        writeln!(
+            out,
+            "FAIL gaps: {} holds {} gaps, and the ledger holds at least 30",
+            gaps::LEDGER,
+            ledger.len()
+        )
+        .ok();
         red = true;
     }
 

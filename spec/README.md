@@ -110,7 +110,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | option | meaning |
 |---|---|
 | `covers("builtin:append", "form:x = 5", …)` | the registry entries this row specifies (the missing-row gate) |
-| `pending("G5")` / `pending("G16", "wasm")` | the row states a destination the gap has not reached, everywhere or on one evaluator |
+| `pending("G12")` / `pending("G16", "wasm")` | the row states a destination the gap has not reached, everywhere or on one evaluator; the gap is an open row of `spec/gaps/gaps.b` |
 | `pending("G1", fails(:check, "B0001"))` / `pending("G16", "wasm", value("nil"))` | the same, naming the miss: while the gap is open the row misses exactly this way, judged as an expectation is |
 | `flaky("G23", "component")` | a pending mark for a gap that misses only sometimes: a pass is reported pending instead of failing the run, every other outcome is judged as `pending` judges it, and the gap stays named until its cause is fixed |
 | `position("checked")` | the blueshift rung the behaviour applies at; the runner refuses the row if the program measures elsewhere |
@@ -130,7 +130,8 @@ still run.
 2. Write the behaviour the language **promises** — REFERENCE.md, okite's
    RULES.md, AGENTS.md — not whatever the implementation happens to do. When
    they differ, the row states the promise and is pending on the gap that owns
-   the difference. Name a new gap id if no gap owns it.
+   the difference. If no gap owns it, open one: a `gap(…)` row in
+   `spec/gaps/gaps.b` with the next free id.
 3. `blue fmt --write spec/rows/<area>.b`, then run the suite.
 
 A new builtin, form, keyword, operator, rule code or okite decision fails the
@@ -154,6 +155,18 @@ claim must name a real entry:
 A claim is checked where it can be: a `builtin:` claim must name a symbol in
 the row's parsed program, a `rule:` claim must be the code the row expects,
 an `op:` or `keyword:` claim must appear in the program's text.
+
+## The gap ledger
+
+`spec/gaps/gaps.b` allocates every G id, one `gap(…)` row each, parsed and
+never evaluated as the rows are: `gap(ID, :open or :closed, WHAT IS MISSING,
+opened(DATE), OPTION...)`, with `closed(DATE)` on a closed gap, `owner(DOC)`
+naming where its design lives and `was(ID)` an id it was once cited by. The
+runner refuses a malformed row, an id with two rows, a mark or a
+`door::TABLE` rule naming a gap the ledger does not hold, and one naming a
+closed gap (`cargo test -p blue-lang-test --test gap_ledger` runs the same
+check alone). A G id in another document's own table (ARIKA G1 to G9, GPU G1
+to G4, …) is that document's goal label and is cited with its name.
 
 ## Pending: how a closed gap flips visibly
 

@@ -282,16 +282,27 @@ def read(app, defaults, opts?)
 end
 
 @doc """
-aliased: a lookup that reads a setting's environment name, then the older name aliases gives it, so a renamed setting keeps its old name working.
+aliased: a lookup that reads a setting's environment name, then each older name aliases gives it, in order, so a renamed setting keeps every old name working. An alias is a list of old names, or one old name as text.
 
     aliased(env_of({"APP_WAIT_S" => "5"}), {"APP_WAIT__SECONDS" => "APP_WAIT_S"})("APP_WAIT__SECONDS") #=> "5"
+    aliased(env_of({"APP_PAUSE" => "7"}), {"APP_WAIT__SECONDS" => %w[APP_WAIT_S APP_PAUSE]})("APP_WAIT__SECONDS") #=> "7"
 """
 def aliased(lookup, aliases)
   fn(name)
     v = lookup(name)
     old = get(aliases, name)
-    if v.nil? and old != nil
-      lookup(old)
+    olds = if old.nil?
+      []
+    elsif string?(old)
+      [old]
+    else
+      old
+    end
+    hit = if v.nil?
+      find(olds, (o) -> lookup(o) != nil)
+    end
+    if hit != nil
+      lookup(hit)
     else
       v
     end
@@ -765,11 +776,7 @@ def offer_of(app, layer, p, k, doc, lookup, given)
       {value: v, from: "the file"}
     end
   elsif layer == :env
-    names = append(
-      [env_name(app, map(to_s, p))],
-      map((old) -> env_name(app, split(old, ".")), k[:renamed])
-    )
-    name = find(names, (n) -> lookup(n) != nil)
+    name = find(env_names(app, {path: p, knob: k}), (n) -> lookup(n) != nil)
     text = if name != nil
       lookup(name)
     end
@@ -802,9 +809,14 @@ def settle_knob(app, acc, row, doc, lookup, given)
   reduce(
     fn(s, layer)
       o = offer_of(app, layer, p, k, doc, lookup, given)
+      named = if layer == :file
+        ""
+      else
+        " (#{o and o[:from]})"
+      end
       if o.nil?
         s
-      elsif not member?(layer, k[:set_by])
+      elsif not settable_by?(k, layer)
         jisho::update(
           s,
           :refusals,
@@ -818,9 +830,9 @@ def settle_knob(app, acc, row, doc, lookup, given)
                   refusal(
                     :not_settable,
                     if k[:computed] != nil
-                      "#{key} is computed from the other settings; no layer sets it"
+                      "#{key} is computed from the other settings; no layer sets it#{named}"
                     else
-                      "#{key} may not be set by #{to_s(layer)}; it is set by #{join(map(to_s, k[:set_by]), ", ")}"
+                      "#{key} may not be set by #{to_s(layer)}#{named}; it is set by #{join(map(to_s, k[:set_by]), ", ")}"
                     end
                   )
                 )
@@ -1026,7 +1038,7 @@ def derived(app, model, s)
         where = filter(
           (w) -> w != nil,
           [
-            if member?(:env, k[:set_by])
+            if by_env?(k)
               env_name(app, map(to_s, r[:path]))
             end,
             if by_flag?(k)
@@ -1034,7 +1046,7 @@ def derived(app, model, s)
             end
           ]
         )
-        named = if member?(:file, k[:set_by])
+        named = if settable_by?(k, :file)
           "#{join(where, ", ")} or the file"
         else
           join(where, " or ")
@@ -1106,12 +1118,42 @@ def flag_kind(k)
 end
 
 @doc """
-by_flag?: whether a flag may set a knob.
+settable_by?: whether a layer may set a knob; every rendering of a layer (its name in the table and in explain, the refusal of its offer, the bounds law's cases) asks this one question.
+
+    settable_by?(knob(1, {set_by: [:file]}), :env) #=> false
+"""
+def settable_by?(k, layer)
+  member?(layer, k[:set_by])
+end
+
+@doc """
+by_flag?: whether a flag may set a knob, so a flag is rendered for it.
 
     by_flag?(knob("", {set_by: [:file]})) #=> false
 """
 def by_flag?(k)
-  member?(:flag, k[:set_by])
+  settable_by?(k, :flag)
+end
+
+@doc """
+by_env?: whether the environment may set a knob, so an environment name is shown for it.
+
+    by_env?(knob(1, {set_by: [:flag]})) #=> false
+"""
+def by_env?(k)
+  settable_by?(k, :env)
+end
+
+@doc """
+env_names: the environment names that set a knob: its own, then each name it was renamed from, in order.
+
+    env_names("app", {path: [:wait, :seconds], knob: knob(0, {renamed: %w[wait_s pause]})}) #=> %w[APP_WAIT__SECONDS APP_WAIT_S APP_PAUSE]
+"""
+def env_names(app, r)
+  append(
+    [env_name(app, map(to_s, r[:path]))],
+    map((old) -> env_name(app, split(old, ".")), r[:knob][:renamed])
+  )
 end
 
 @doc """
@@ -1250,7 +1292,20 @@ def source_text(app, r, layer)
 end
 
 @doc """
-explain: one setting as a person reads it: its value, the layer it came from, its default, range, type, unit, doc, the layers that may set it, its environment name and flag, since and deprecated. A secret's value and default read <secret>; an unknown key raises :usage naming the settings.
+set_by_text: the layers that may set a knob as a person reads them, or computed for a knob no layer sets.
+
+    set_by_text(knob(1, {set_by: %i[file env]})) #=> "file, env"
+"""
+def set_by_text(k)
+  if k[:computed] != nil
+    "computed"
+  else
+    join(map(to_s, k[:set_by]), ", ")
+  end
+end
+
+@doc """
+explain: one setting as a person reads it: its value, the layer it came from, its default, range, type, unit, doc, the layers that may set it, its environment name and flag when that layer may set it, since and deprecated. A secret's value and default read <secret>; an unknown key raises :usage naming the settings.
 
     contains?(explain("app", {port: knob(80)}, settle("app", {port: knob(80)}, nil, no_env), "port"), "port = 80") #=> true
 """
@@ -1273,8 +1328,13 @@ def explain(app, model, settled, key)
       ["type", to_s(k[:type])],
       ["unit", k[:unit]],
       ["doc", k[:doc]],
-      ["set by", join(map(to_s, k[:set_by]), ", ")],
-      ["env", env_name(app, map(to_s, r[:path]))],
+      ["set by", set_by_text(k)],
+      [
+        "env",
+        if by_env?(k)
+          env_name(app, map(to_s, r[:path]))
+        end
+      ],
       [
         "flag",
         if by_flag?(k)
@@ -1425,7 +1485,7 @@ def settled(app, model)
 end
 
 @doc """
-env_pairs: the named knobs of a settled record as [environment name, value] pairs, in the order named, to hand the same settings to another process or host. A key the model lacks raises :bad_option naming it.
+env_pairs: the named knobs of a settled record as [environment name, value] pairs, in the order named, to hand the same settings to another process or host. A key the model lacks, or one the environment may not set, raises :bad_option naming it.
 
     env_pairs("app", {port: knob(80)}, {port: 9}, ["port"]) #=> [["APP_PORT", 9]]
 """
@@ -1437,6 +1497,12 @@ def env_pairs(app, model, config, keys)
       if r.nil?
         raise(:bad_option, "#{key} is not a setting of #{app}")
       end
+      if not by_env?(r[:knob])
+        raise(
+          :bad_option,
+          "#{key} is not set by the environment; it is set by #{set_by_text(r[:knob])}"
+        )
+      end
       [env_name(app, map(to_s, r[:path])), doc_at(config, r[:path])]
     end,
     keys
@@ -1444,20 +1510,18 @@ def env_pairs(app, model, config, keys)
 end
 
 @doc """
-aliases_of: each renamed knob's environment name and the name it had before, the alias map read takes.
+aliases_of: each renamed knob the environment may set, by its environment name, with every name it had before, in order: the alias map read takes.
 
-    aliases_of("app", {wait: {seconds: knob(0, {renamed: ["wait_s"]})}}) #=> {"APP_WAIT__SECONDS" => "APP_WAIT_S"}
+    aliases_of("app", {wait: {seconds: knob(0, {renamed: ["wait_s"]})}}) #=> {"APP_WAIT__SECONDS" => ["APP_WAIT_S"]}
 """
 def aliases_of(app, model)
   jisho::from_entries(
     map(
-      fn(r)
-        [
-          env_name(app, map(to_s, r[:path])),
-          env_name(app, split(first(r[:knob][:renamed]), "."))
-        ]
-      end,
-      filter((r) -> r[:knob][:renamed] != [], knobs(model))
+      (r) -> [first(env_names(app, r)), rest(env_names(app, r))],
+      filter(
+        (r) -> r[:knob][:renamed] != [] and by_env?(r[:knob]),
+        knobs(model)
+      )
     )
   )
 end
@@ -2098,7 +2162,7 @@ def bounds_law(app, model)
           )
         end,
         [],
-        filter((l) -> member?(l, k[:set_by]), layers)
+        filter((l) -> settable_by?(k, l), layers)
       )
       append(
         acc,
@@ -2441,13 +2505,21 @@ def table(app, model, opts?)
         code_cell(shown_value(k, k[:default])),
         range_text(k),
         k[:unit] or "",
-        code_cell(env_name(app, map(to_s, r[:path]))),
+        if by_env?(k)
+          code_cell(env_name(app, map(to_s, r[:path])))
+        else
+          ""
+        end,
         if lined and by_flag?(k)
           code_cell(flag_word(r[:path]))
         else
           ""
         end,
-        join(map(to_s, by), ", "),
+        if k[:computed] != nil
+          set_by_text(k)
+        else
+          join(map(to_s, by), ", ")
+        end,
         k[:since] or "",
         about_cell(k)
       ]
@@ -2770,7 +2842,7 @@ test "a bad value is refused for its key alone, naming the key and its range, an
   )
   assert contains?(
     whys,
-    "net.token may not be set by flag; it is set by file, env"
+    "net.token may not be set by flag (--net-token); it is set by file, env"
   )
   assert map((r) -> r[:key], s[:refusals]) ==
     %w[colour min_age_hours net.port net.token retries]
@@ -3227,7 +3299,7 @@ test "the helpers under the renderings answer for the fixture model: schema piec
   assert trio_field(knob(3, {min: 1, doc: "n"}))["type"] == "int"
   assert renames({w: knob(0, {renamed: ["w_s"]})}, {"w_s" => 5})[:doc] == {w: 5}
   assert aliases_of("app", {w: knob(0, {renamed: ["w_s"]})}) ==
-    {"APP_W" => "APP_W_S"}
+    {"APP_W" => ["APP_W_S"]}
   assert drop_at({"a" => {"b" => 1, "c" => 2}}, %w[a c]) == {"a" => {"b" => 1}}
   assert env_pairs(
     "app",
@@ -3271,6 +3343,79 @@ end
 
 test "settled answers the defaults of a model when no file or environment sets it"
   assert settled("settei-test-none", {p: knob(7)}) == {p: 7}
+end
+
+test "an environment name is shown only where the environment may set the knob, as a flag is"
+  m = {
+    finds: knob(false, {set_by: [:flag], doc: "run no test"}),
+    root: knob(".", {set_by: %i[file flag], doc: "the root"}),
+    hours: knob(2, {doc: "hours"}),
+    seconds: knob(
+      0,
+      {computed: (c) -> c[:hours] * 3600, doc: "the span in seconds"}
+    )
+  }
+  t = table("x", m)
+  assert contains?(
+    t,
+    "| `finds` | bool | `false` | any bool |  |  | `--finds` | flag |  | run no test |"
+  )
+  assert contains?(
+    t,
+    "| `root` | text | `.` | any text |  |  | `--root` | file, flag |  | the root |"
+  )
+  assert contains?(
+    t,
+    "| `seconds` | int | `0` | any int |  |  |  | computed |  | the span in seconds |"
+  )
+  assert contains?(
+    t,
+    "| `hours` | int | `2` | any int |  | `X_HOURS` | `--hours` |"
+  )
+  s = settle("x", m, nil, env_of({"X_FINDS" => "true"}), {})
+  e = explain("x", m, s, "finds")
+  assert not contains?(e, "X_FINDS")
+  assert contains?(e, "flag     --finds")
+  c = explain("x", m, s, "seconds")
+  assert contains?(c, "set by   computed")
+  assert not contains?(c, "X_SECONDS")
+  assert contains?(explain("x", m, s, "hours"), "env      X_HOURS")
+  assert map((f) -> f[:why], s[:refusals]) ==
+    ["finds may not be set by env (X_FINDS); it is set by flag"]
+  assert kyohi::raised(() -> env_pairs("x", m, s[:config], ["finds"])) ==
+    :bad_option
+  assert env_pairs("x", m, s[:config], ["hours"]) == [["X_HOURS", 2]]
+  r = settle(
+    "x",
+    {url: knob(nil, {type: :text, required: true, set_by: [:flag]})},
+    nil,
+    no_env,
+    {}
+  )
+  assert r[:refusals][0][:why] == "url is required and no layer sets it (--url)"
+end
+
+test "a knob renamed twice is read by every old name, through settle and through the alias map"
+  m = {wait: {seconds: knob(0, {renamed: %w[wait_s pause], doc: "wait"})}}
+  assert aliases_of("app", m) ==
+    {"APP_WAIT__SECONDS" => %w[APP_WAIT_S APP_PAUSE]}
+  env = env_of({"APP_PAUSE" => "7"})
+  assert settle("app", m, nil, env, {})[:config][:wait][:seconds] == 7
+  assert resolve(
+    "app",
+    defaults_of(m),
+    nil,
+    aliased(env, aliases_of("app", m))
+  ).wait.seconds == 7
+  one = aliased(
+    env_of({"APP_WAIT_S" => "5"}),
+    {"APP_WAIT__SECONDS" => "APP_WAIT_S"}
+  )
+  assert resolve("app", defaults_of(m), nil, one).wait.seconds == 5
+  assert aliases_of(
+    "app",
+    {w: knob(0, {renamed: ["old_w"], set_by: [:flag]})}
+  ) == {}
 end
 
 test "reload takes the flags given, and form_run starts at the line it is told"

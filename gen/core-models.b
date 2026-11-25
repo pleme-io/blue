@@ -94,22 +94,76 @@ def root()
 end
 
 @doc """
+read_layers: the layers above the defaults that set at least one of a program's knobs and that its door reads: a settled program reads no flags.
+
+    read_layers(retsu::first(programs)) #=> %i[file env flag]
+"""
+def read_layers(p)
+  filter(
+    fn(l)
+      (l != :flag or p[:door] != :settled) and
+        any?(
+          (r) -> settei::settable_by?(r[:knob], l),
+          settei::knobs(p[:settings])
+        )
+    end,
+    settei::layers
+  )
+end
+
+@doc """
+layer_text: where a program's settings come from, lowest first, said once from the layers its knobs and door read.
+
+    layer_text({app: "x", door: :settled}, %i[file env]) #=> "the defaults, `~/.config/x/x.yaml` (or the file `X_CONFIG` names), then the environment"
+"""
+def layer_text(p, read)
+  prefix = settei::env_prefix(p[:app])
+  said = filter(
+    (w) -> w != nil,
+    [
+      if member?(:file, read)
+        "`~/.config/#{p[:app]}/#{p[:app]}.yaml` (or the file `#{prefix}CONFIG` names)"
+      end,
+      if member?(:env, read) and p[:door] == :settled
+        "the environment"
+      elsif member?(:env, read)
+        "the `#{prefix}` environment"
+      end,
+      if member?(:flag, read)
+        "the flags"
+      end
+    ]
+  )
+  if said == []
+    "the defaults"
+  else
+    join(
+      append(
+        ["the defaults"],
+        take(size(said) - 1, said),
+        ["then #{retsu::last(said)}"]
+      ),
+      ", "
+    )
+  end
+end
+
+@doc """
 section: one program's part of the settings page: its heading, where its settings come from and its table.
 
     contains?(section(retsu::first(programs)), "## souji") #=> true
 """
 def section(p)
-  prefix = settei::env_prefix(p[:app])
   door = if p[:door] == :settled
-    "then the environment. A bad value is refused for its key alone and warned on stderr."
+    "A bad value is refused for its key alone and warned on stderr."
   else
-    "the `#{prefix}` environment, then the flags. `#{p[:app]} --explain KEY` shows one setting and the layer it came from."
+    "`#{p[:app]} --explain KEY` shows one setting and the layer it came from."
   end
   unlines(
     [
       "## #{p[:app]}",
       "",
-      "#{p[:frame][:about]}. Layers, lowest first: the defaults, `~/.config/#{p[:app]}/#{p[:app]}.yaml` (or the file `#{prefix}CONFIG` names), #{door}",
+      "#{p[:frame][:about]}. Layers, lowest first: #{layer_text(p, read_layers(p))}. #{door}",
       "",
       settei::table(p[:app], p[:settings], {flags: p[:door] != :settled})
     ]
@@ -245,6 +299,28 @@ test "the page holds a section and a row for every knob of every program"
   assert size(programs) >= 1
   assert contains?(text, "## souji")
   assert contains?(text, "| `min_age_hours` | int | `6` | 0 or more | hours |")
+end
+
+test "a section names only the layers its program's knobs and door read"
+  kijun = retsu::find_first((p) -> p[:app] == "kijun", programs)
+  assert contains?(
+    section(kijun),
+    "Layers, lowest first: the defaults, then the flags."
+  )
+  assert not contains?(section(kijun), "KIJUN_")
+  souji = retsu::find_first((p) -> p[:app] == "souji", programs)
+  assert contains?(
+    section(souji),
+    "Layers, lowest first: the defaults, `~/.config/souji/souji.yaml` (or the file `SOUJI_CONFIG` names), the `SOUJI_` environment, then the flags."
+  )
+end
+
+test "the layers a section says are those a knob reads and the door reads, the last after then"
+  kijun = retsu::find_first((p) -> p[:app] == "kijun", programs)
+  assert read_layers(kijun) == [:flag]
+  assert layer_text({app: "x", door: :line}, []) == "the defaults"
+  assert layer_text({app: "x", door: :line}, %i[file env flag]) ==
+    "the defaults, `~/.config/x/x.yaml` (or the file `X_CONFIG` names), the `X_` environment, then the flags"
 end
 
 test "each output path, local or in the nix store, gets its own rendering"

@@ -109,6 +109,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 |---|---|
 | `covers("builtin:append", "form:x = 5", …)` | the registry entries this row specifies (the missing-row gate) |
 | `pending("G5")` / `pending("G16", "wasm")` | the row states a destination the gap has not reached, everywhere or on one evaluator |
+| `pending("G1", fails(:check, "B0001"))` / `pending("G16", "wasm", value("nil"))` | the same, naming the miss: while the gap is open the row misses exactly this way, judged as an expectation is |
 | `flaky("G23", "component")` | a pending mark for a gap that misses only sometimes: a pass is reported pending instead of failing the run, every other outcome is judged as `pending` judges it, and the gap stays named until its cause is fixed |
 | `position("checked")` | the blueshift rung the behaviour applies at; the runner refuses the row if the program measures elsewhere |
 | `host()` | the program reaches a host effect (files, processes, the clock) |
@@ -166,6 +167,23 @@ red until someone deletes the mark and the row becomes an ordinary one.
 - The ABI cannot tell one non-integer from another, so on `wasm` only an
   exact integer flips a pending row.
 
+A mark must fail for its own gap, so the miss is part of the mark:
+
+- A mark that names its miss (`pending("G1", fails(:check, "B0001"))`) is
+  pending only while the cell misses that way. A cell that misses any other
+  way fails with "the miss moved", so a gap that half-closes, or a row broken
+  by something else, turns the run red.
+- A mark that names no miss may not stop before the behaviour its row
+  states. A cell fails when it stops at an earlier stage than the one its
+  expectation is judged at: `:eval` for a value, an output or a leak; the
+  stage that `fails` names; `:check` for diagnostics, formatting, fixes, a
+  rung or facts. On the diagnostics door, `B0006` is a stop at parse. A row
+  whose program does not parse can never flip, whatever its gap does, so it
+  fails until the row is fixed or its mark names the miss.
+
 The runner's negative controls check this every run: a wrong value must fail
 on every evaluator, a pending row that passes must fail, a pending row that
-misses must report pending, and two different messages must not agree.
+misses must report pending, a pending row whose program does not parse must
+fail on the evaluators and on the diagnostics door, the same row must report
+pending once its mark names the parse miss, a pending row whose miss moved
+must fail, and two different messages must not agree.

@@ -53,7 +53,7 @@ row(
   "chan.put_take",
   join_lines(["ch = chan(1)", "put(ch, 1)", "take_from(ch)"]),
   value("1"),
-  pending("G11")
+  pending("G11", fails(:check, "B0001"))
 )
 
 row(

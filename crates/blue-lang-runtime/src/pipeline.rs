@@ -1906,8 +1906,10 @@ fn data_law_diagnostics(
 /// BUILTIN macros are expanded: their bodies are the runtime's own
 /// templates. A program's own `defmacro` is not run at check time — checking a
 /// file (and an editor checking on every keystroke) must not execute the code
-/// it checks — so names a program macro generates are not seen; none of the
-/// corpus's macros generates one (measured 2026-09-29).
+/// it checks — so names a program macro generates are not seen: gap G3, the
+/// row `macros.generated_names_are_seen`. Measured 2026-11-25 at b003734f: the
+/// tree's programs hold 3 top-level `defmacro` forms (`examples/08_tatara_forms.b`,
+/// `spec/macros.b`) and bidamas hold none, and none of the 3 generates a name.
 #[must_use]
 pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTable) -> NameTable {
     use blue_lang_check::Binding;
@@ -3612,8 +3614,10 @@ mod tier2_tests {
     use super::*;
     use crate::inputs::{Declaration, Inputs};
 
-    /// **The Tier-2 conversion §V.6.3 said was gated: a macro that emits real
-    /// declarations FROM A SCHEMA.**
+    /// **The first step of the Tier-2 conversion §V.6.3 said was gated: a
+    /// macro whose expansion depends on a schema.** A declaration whose name
+    /// comes from the schema is the next step, and waits on G3: the check stage
+    /// does not see a name a program macro generates.
     ///
     /// The blocker was plain: tenet 2 installs a `NoLoader`, so a macro cannot
     /// read a schema, which gated every Tier-2 conversion and therefore blue's

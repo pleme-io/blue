@@ -2,7 +2,7 @@
 //! agreement with stage 0.
 
 use crate::eval::{project, Obs};
-use crate::rows::{Ev, Expect, Row};
+use crate::rows::{Ev, Expect, Pending, Row, Stage};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Verdict {
@@ -69,6 +69,66 @@ pub fn describe(expect: &Expect) -> String {
     }
 }
 
+pub fn meets_row(row: &Row, obs: &Obs) -> bool {
+    meets(&row.expect, obs).is_ok()
+}
+
+fn subject_stage(expect: &Expect) -> Stage {
+    match expect {
+        Expect::Fails(stage, _) => *stage,
+        Expect::Value(_) | Expect::Prints(_) | Expect::Leaks(_) | Expect::ClosesAtEnd => {
+            Stage::Eval
+        }
+        Expect::Diagnoses(_)
+        | Expect::Formats(_)
+        | Expect::Fixes(_)
+        | Expect::Shifts(..)
+        | Expect::Facts(_) => Stage::Check,
+    }
+}
+
+fn stop(obs: &Obs) -> Option<Stage> {
+    match obs {
+        Obs::Failed { stage, .. } => Some(*stage),
+        Obs::Codes(codes)
+            if codes
+                .iter()
+                .any(|c| c == blue_lang_check::Code::B0006.as_str()) =>
+        {
+            Some(Stage::Parse)
+        }
+        _ => None,
+    }
+}
+
+fn missed(row: &Row, p: &Pending, obs: &Obs) -> Verdict {
+    match (&p.misses, stop(obs)) {
+        (Some(miss), _) if meets(miss, obs).is_ok() => Verdict::Pending(p.gap.clone()),
+        (Some(miss), _) => Verdict::Fail(format!(
+            "pending({:?}) names its miss as {}, but the row now misses with {obs}: the miss moved — re-record the mark or remove it",
+            p.gap,
+            describe(miss)
+        )),
+        (None, Some(stage)) if stage < subject_stage(&row.expect) => Verdict::Fail(format!(
+            "pending({:?}) but the program stops at :{} ({obs}), before the behaviour the row states, so closing {} cannot flip it — fix the row, or name the miss: pending({:?}, {})",
+            p.gap,
+            stage.name(),
+            p.gap,
+            p.gap,
+            as_expectation(obs)
+        )),
+        (None, _) => Verdict::Pending(p.gap.clone()),
+    }
+}
+
+fn as_expectation(obs: &Obs) -> String {
+    match obs {
+        Obs::Failed { stage, message } => format!("fails(:{}, {message:?})", stage.name()),
+        Obs::Codes(codes) => format!("diagnoses({codes:?})"),
+        other => other.to_string(),
+    }
+}
+
 /// The verdict for one evaluator, before agreement is considered.
 pub fn verdict(row: &Row, ev: Ev, obs: &Obs) -> Verdict {
     if let Obs::Blind(why) = obs {
@@ -78,7 +138,7 @@ pub fn verdict(row: &Row, ev: Ev, obs: &Obs) -> Verdict {
     match (row.pending_on(ev), met) {
         (None, Ok(())) => Verdict::Pass,
         (None, Err(why)) => Verdict::Fail(why),
-        (Some(p), Err(_)) => Verdict::Pending(p.gap.clone()),
+        (Some(p), Err(_)) => missed(row, p, obs),
         // The ABI reads "not an integer" or "an error" for every value but an
         // Int, so its agreeing with a pending destination is no evidence the
         // gap closed. Only an exact integer can flip a pending row there.

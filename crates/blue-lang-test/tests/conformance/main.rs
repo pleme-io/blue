@@ -184,7 +184,7 @@ fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
             row.pending.iter().find(|p| p.on == Some(ev)),
             judge::reference_for(ev, row),
         ) {
-            if v.is_fail() && !judge::agrees(&obs[&reference], o) {
+            if v.is_fail() && judge::meets_row(row, o) && !judge::agrees(&obs[&reference], o) {
                 v = Verdict::Pending(p.gap.clone());
             }
         }
@@ -223,7 +223,7 @@ fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
 /// runner judges it as such.
 fn controls(env: &mut Env) -> (usize, Vec<String>) {
     let mut failures = Vec::new();
-    let mut judged = 7;
+    let mut judged = 11;
 
     let mut wasmtime = std::process::Command::new("wasmtime");
     eval::cache_beside(&mut wasmtime, &env.scratch);
@@ -271,15 +271,18 @@ fn controls(env: &mut Env) -> (usize, Vec<String>) {
         }
     }
 
+    let mark = |misses: Option<Expect>| rows::Pending {
+        gap: "G0".into(),
+        on: None,
+        flaky: false,
+        misses,
+    };
+
     let flipped = control(
         "control.pending-passes",
         "1 + 1",
         Expect::Value("2".into()),
-        vec![rows::Pending {
-            gap: "G0".into(),
-            on: None,
-            flaky: false,
-        }],
+        vec![mark(None)],
     );
     let out = run_row(env, &flipped, usize::MAX - 1);
     for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
@@ -295,11 +298,7 @@ fn controls(env: &mut Env) -> (usize, Vec<String>) {
         "control.pending-holds",
         "1 + 1",
         Expect::Value("3".into()),
-        vec![rows::Pending {
-            gap: "G0".into(),
-            on: None,
-            flaky: false,
-        }],
+        vec![mark(None)],
     );
     let out = run_row(env, &held, usize::MAX - 2);
     for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
@@ -311,14 +310,82 @@ fn controls(env: &mut Env) -> (usize, Vec<String>) {
         }
     }
 
+    let unparsable = "def unquote(name)(xs)\n  xs\nend\n";
+    let early = control(
+        "control.pending-stops-early",
+        unparsable,
+        Expect::Value("2".into()),
+        vec![mark(None)],
+    );
+    let out = run_row(env, &early, usize::MAX - 4);
+    for ev in [Ev::Walker, Ev::Vm, Ev::Memo] {
+        if !out.verdicts[&ev].is_fail() {
+            failures.push(format!(
+                "control: a pending row whose program does not parse was not failed by {} ({:?})",
+                ev.name(),
+                out.verdicts[&ev]
+            ));
+        }
+    }
+
+    let early_codes = control(
+        "control.pending-diagnoses-stops-early",
+        unparsable,
+        Expect::Diagnoses(vec!["B0001".into()]),
+        vec![mark(None)],
+    );
+    let out = run_row(env, &early_codes, usize::MAX - 7);
+    if !out.verdicts[&Ev::Static].is_fail() {
+        failures.push(format!(
+            "control: a pending diagnoses row whose program does not parse was not failed by static ({:?})",
+            out.verdicts[&Ev::Static]
+        ));
+    }
+
+    let named = control(
+        "control.pending-names-its-miss",
+        unparsable,
+        Expect::Value("2".into()),
+        vec![mark(Some(Expect::Fails(
+            rows::Stage::Parse,
+            "reserved word".into(),
+        )))],
+    );
+    let out = run_row(env, &named, usize::MAX - 5);
+    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
+        if !matches!(out.verdicts[&ev], Verdict::Pending(_)) {
+            failures.push(format!(
+                "control: a pending row that misses as its mark names was not reported pending by {} ({:?})",
+                ev.name(),
+                out.verdicts[&ev]
+            ));
+        }
+    }
+
+    let moved = control(
+        "control.pending-miss-moved",
+        "1 + 2",
+        Expect::Value("2".into()),
+        vec![mark(Some(Expect::Value("4".into())))],
+    );
+    let out = run_row(env, &moved, usize::MAX - 6);
+    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
+        if !out.verdicts[&ev].is_fail() {
+            failures.push(format!(
+                "control: a pending row whose miss moved was not failed by {} ({:?})",
+                ev.name(),
+                out.verdicts[&ev]
+            ));
+        }
+    }
+
     let flaky = control(
         "control.flaky-passes",
         "1 + 1",
         Expect::Value("2".into()),
         vec![rows::Pending {
-            gap: "G0".into(),
-            on: None,
             flaky: true,
+            ..mark(None)
         }],
     );
     let out = run_row(env, &flaky, usize::MAX - 3);
@@ -419,7 +486,7 @@ fn controls(env: &mut Env) -> (usize, Vec<String>) {
         .enumerate()
         {
             let row = control(id, src, Expect::Value(want.into()), vec![]);
-            let out = run_row(env, &row, usize::MAX - 4 - k);
+            let out = run_row(env, &row, usize::MAX - 17 - k);
             if !out.verdicts[&Ev::Native].is_fail() {
                 failures.push(format!(
                     "control: `{src}` wanting {want} was not failed by native ({:?}, observed {})",

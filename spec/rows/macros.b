@@ -130,16 +130,14 @@ row(
     [
       "defmacro field(name, i)",
       "  quote",
-      "    def unquote(name)(xs)",
-      "      nth(unquote(i), xs)",
-      "    end",
+      "    define(unquote(first(read_forms(name))), (xs) -> xs[unquote(i)])",
       "  end",
       "end",
       "",
-      "field(px, 0)",
+      "field(\"px\", 0)",
       "px([7, 8])"
     ]
   ),
   value("7"),
-  pending("G3")
+  pending("G3", fails(:check, "B0001"))
 )

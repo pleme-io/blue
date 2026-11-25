@@ -134,4 +134,10 @@ row("pred.zero", "zero?(0)", value("true"), covers("builtin:zero?"))
 # A symbol may end in `?` or `!`, as a name may, so an import list can name
 # a predicate: `use("isshou/nisshi", [:pair?])`.
 row("pred.keyword_bang", "[:done!, :pair?]", value("[:done!, :pair?]"))
-row("pred.type_of", "type_of(1)", value(":int"), pending("G12"))
+
+row(
+  "pred.type_of",
+  "type_of(1)",
+  value(":int"),
+  pending("G12", fails(:check, "B0001"))
+)

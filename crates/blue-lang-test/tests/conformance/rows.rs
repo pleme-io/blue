@@ -105,7 +105,9 @@ impl Ev {
 }
 
 /// Where a failure is expected to stop the program.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Stage {
     Parse,
     Check,
@@ -185,6 +187,7 @@ pub struct Pending {
     pub gap: String,
     pub on: Option<Ev>,
     pub flaky: bool,
+    pub misses: Option<Expect>,
 }
 
 #[derive(Clone, Debug)]
@@ -429,14 +432,29 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
         match name {
             "pending" | "flaky" => {
                 let flaky = name == "flaky";
-                let (gap, on) = match args {
-                    [gap] => (gap, None),
-                    [gap, on] => (gap, Some(on)),
-                    _ => return Err(label(format!("{name}(GAP) or {name}(GAP, EVALUATOR)"))),
+                let (gap, on, misses) = match args {
+                    [gap] => (gap, None, None),
+                    [gap, on] if str_of(on).is_some() => (gap, Some(on), None),
+                    [gap, miss] => (gap, None, Some(miss)),
+                    [gap, on, miss] => (gap, Some(on), Some(miss)),
+                    _ => {
+                        return Err(label(format!(
+                            "{name}(GAP), {name}(GAP, EVALUATOR), {name}(GAP, MISS) or {name}(GAP, EVALUATOR, MISS)"
+                        )))
+                    }
                 };
                 let gap = str_of(gap)
                     .ok_or_else(|| label("pending(\"G5\"): the gap is a string".into()))?
                     .to_owned();
+                let misses = misses
+                    .map(|m| {
+                        expect_of(m).map_err(|why| {
+                            label(format!(
+                                "{name}({gap:?}, MISS): the miss is an expectation, value(…) or fails(:stage, …) ({why})"
+                            ))
+                        })
+                    })
+                    .transpose()?;
                 let on = match on {
                     None => None,
                     Some(e) => {
@@ -449,7 +467,12 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                         })?)
                     }
                 };
-                row.pending.push(Pending { gap, on, flaky });
+                row.pending.push(Pending {
+                    gap,
+                    on,
+                    flaky,
+                    misses,
+                });
             }
             "position" => {
                 let p = one_str("position", args).map_err(label)?;

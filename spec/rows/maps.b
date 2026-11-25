@@ -91,8 +91,19 @@ row(
   covers("builtin:map?")
 )
 
-row("maps.keys", "keys({a: 1, b: 2})", value("[:a, :b]"), pending("G1"))
-row("maps.values", "values({a: 1, b: 2})", value("[1, 2]"), pending("G1"))
+row(
+  "maps.keys",
+  "keys({a: 1, b: 2})",
+  value("[:a, :b]"),
+  pending("G1", fails(:check, "B0001"))
+)
+
+row(
+  "maps.values",
+  "values({a: 1, b: 2})",
+  value("[1, 2]"),
+  pending("G1", fails(:check, "B0001"))
+)
 
 row(
   "maps.assoc.linear",

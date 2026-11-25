@@ -14,9 +14,11 @@ use(
   %i[
     anf
     closure_convert
+    fv
     head_is?
     literal_of
     mark_tail
+    minus
     perceus_program
     returns_var?
     whole
@@ -2375,9 +2377,75 @@ compile_whole_in: compile_whole under the calling convention named, :owned or :b
 """
 def compile_whole_in(form, mode, convention)
   executable(
-    assemble(rc_whole(whole_in(bare_calls(form), convention), mode)),
+    assemble(
+      rc_whole(names_bound(whole_in(bare_calls(form), convention)), mode)
+    ),
     true
   )
+end
+
+@doc """
+unbound_name: the first name a whole program (kuzushi's whole_in) reads that nothing in it binds, or nil: a name that is no parameter, captured name or local of the code reading it. Every name read natively comes from a slot, so such a name is one blue binds and hashiru does not: a record, a type, a builtin it has no code for used as a value, or what a form it does not compile defines.
+
+    unbound_name(whole(read_forms("(let ((x 1)) (+ x 2))")[0])) #=> nil
+    unbound_name(whole(read_forms("(+ y 2)")[0])) #=> "y"
+"""
+def unbound_name(w)
+  first(
+    append(
+      *[
+        fv(w[:main]),
+        flat_map(w[:globals], (g) -> minus(fv(g[:body]), g[:params])),
+        flat_map(
+          w[:fns],
+          (f) -> minus(fv(f[:body]), append(f[:params], f[:captured]))
+        )
+      ]
+    )
+  )
+end
+
+@doc """
+names_bound: a whole program unchanged when every name it reads is bound (unbound_name), else refused with :unsupported, naming the first name hashiru has no native binding for, before any code is made; so a slot that is missing later is hashiru's own fault, a crash.
+
+    names_bound(whole(read_forms("7")[0]))[:globals] #=> []
+"""
+def names_bound(w)
+  name = unbound_name(w)
+  if name != nil
+    raise(
+      :unsupported,
+      "hashiru: no native code for `#{name}`; nothing native binds it"
+    )
+  end
+  w
+end
+
+test "a name nothing binds is refused by name before any code is made"
+  record = nth(
+    0,
+    read_forms("(begin (blue-record point point? :x :y) (define p (point 1 2)) (blue-field p :x))")
+  )
+  refused = begin
+    compile_program(record, :show)
+  rescue e
+    [e.kind, e.message]
+  end
+  assert refused ==
+    [
+      :unsupported,
+      "hashiru: no native code for `point`; nothing native binds it"
+    ]
+  assert unbound_name(
+    whole(read_forms("(begin (define (f x) (+ x z)) (f 1))")[0])
+  ) == "z"
+  assert unbound_name(
+    whole(read_forms("(let ((k 3)) (map (lambda (x) (* x k)) (list 1)))")[0])
+  ).nil?
+  assert unbound_name(whole(read_forms("()")[0])).nil?
+  assert kyohi::raised(() -> names_bound(whole(read_forms("(+ y 2)")[0]))) ==
+    :unsupported
+  assert names_bound(whole(read_forms("7")[0]))[:globals] == []
 end
 
 @doc """

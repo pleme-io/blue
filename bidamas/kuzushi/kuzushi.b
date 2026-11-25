@@ -2064,7 +2064,7 @@ def ir_live(w)
 end
 
 @doc """
-ir_eval: a core form through B1's whole IR, A-normal form, error propagation, closure conversion and Perceus with borrowed parameters (whole_in :borrow), then run by kuzushi's evaluator: {value:, live:}, where live lists every reference the reference-count checker finds still held or used twice (empty for a clean program). A form kuzushi has no code for (ir_refusal), or that its lowering refuses (:rebind, :arity), is refused with :ir_refused before anything runs.
+ir_eval: a core form through B1's whole IR, A-normal form, error propagation, closure conversion and Perceus with borrowed parameters (whole_in :borrow), then run by kuzushi's evaluator: {value:, live:}, where live lists every reference the reference-count checker finds still held or used twice (empty for a clean program). A form kuzushi has no code for (ir_refusal), or that its lowering refuses (a gap, GAP_KINDS), is refused with :ir_refused before anything runs; any other error in the lowering is raised as it is, a crash.
 
     ir_eval(read_forms("(+ 1 2)")[0]) #=> {value: 3, live: []}
 """
@@ -2073,12 +2073,112 @@ def ir_eval(form)
   if why != nil
     raise(:ir_refused, "kuzushi: #{why}")
   end
-  w = begin
-    whole_in(form, :borrow)
-  rescue e
+  w = gap_refused(() -> whole_in(form, :borrow))
+  {value: eval_whole(w), live: ir_live(w)}
+end
+
+@doc """
+gap_refused: what f answers, where an error f raises that is a gap (gap?) is refused with :ir_refused, naming its kind and message, and any other error is raised as it is, a crash.
+
+    gap_refused(() -> 7) #=> 7
+"""
+def gap_refused(f)
+  f()
+rescue e
+  if gap?(e.kind)
     raise(:ir_refused, "kuzushi: #{to_s(e.kind)}: #{e.message}")
   end
-  {value: eval_whole(w), live: ir_live(w)}
+  raise(e)
+end
+
+@doc """
+GAP_KINDS: the error kinds that say a backend has no code for a program yet, so it is refused, never compiled to another meaning: :unsupported (hashiru), :arity and :rebind (kuzushi's lowering, C1's ruling) and :ir_refused (kuzushi's evaluator). Any other error while a backend makes or runs code is a crash.
+
+    member?(:arity, GAP_KINDS) #=> true
+"""
+GAP_KINDS = %i[unsupported arity rebind ir_refused]
+
+@doc """
+gap?: whether an error kind says a backend has no code for a program yet (GAP_KINDS), not that it broke.
+
+    gap?(:unsupported) #=> true
+    gap?(:type_mismatch) #=> false
+"""
+def gap?(kind)
+  member?(kind, GAP_KINDS)
+end
+
+@doc """
+REFUSED_EXIT: the exit status a backend's row driver ends with on a program it refuses (exit_for), which every reader counts as blind, never as a pass.
+
+    REFUSED_EXIT #=> 3
+"""
+REFUSED_EXIT = 3
+
+@doc """
+CRASHED_EXIT: the exit status a backend's row driver ends with on any other error (exit_for), a crash, which every reader counts as a failure.
+
+    CRASHED_EXIT #=> 5
+"""
+CRASHED_EXIT = 5
+
+@doc """
+exit_for: the exit status a backend's row driver (gen/native-row.b, gen/ir-row.b) ends with on the error kind that stopped it: REFUSED_EXIT for a gap (gap?) or a recursion past blue's call-depth budget, which a backend running in blue meets before the walker does; CRASHED_EXIT for anything else.
+
+    exit_for(:unsupported) #=> REFUSED_EXIT
+    exit_for(:type_mismatch) #=> CRASHED_EXIT
+"""
+def exit_for(kind)
+  if gap?(kind) or member?(to_s(kind), %w[depth-exceeded depth_exceeded])
+    REFUSED_EXIT
+  else
+    CRASHED_EXIT
+  end
+end
+
+test "a gap or the call-depth bound exits 3, any other kind 5"
+  assert gap?(:unsupported)
+  assert not gap?(:unbound)
+  assert map(exit_for, GAP_KINDS) == [3, 3, 3, 3]
+  assert exit_for(read_forms(":depth-exceeded")[0]) == 3
+  assert exit_for(:depth_exceeded) == 3
+  assert exit_for(:unbound) == 5
+  assert exit_for(:type_mismatch) == 5
+  assert exit_for(read_forms(":type-mismatch")[0]) == 5
+  assert exit_for(:integer_overflow) == 5
+end
+
+test "a gap in the lowering is refused, and any other error is raised as it is"
+  assert kyohi::raised(() -> ir_eval(read_forms("(frob 1)")[0])) == :ir_refused
+  assert kyohi::raised(
+    () -> ir_eval(read_forms("(begin (define (f a) a) (f 1 2))")[0])
+  ) == :ir_refused
+  assert kyohi::raised(() -> gap_refused(() -> raise(:arity, "f takes 1"))) ==
+    :ir_refused
+  assert kyohi::raised(
+    () -> gap_refused(() -> raise(:type_mismatch, "expected list"))
+  ) == :type_mismatch
+  assert gap_refused(() -> []) == []
+end
+
+@doc """
+row_outcome: how a backend's row driver ends after running f: {value: what f answers}, or, when f raises, {exit: exit_for(kind), why:}, why being the line the driver writes to stderr, `<door>: <kind>: <message>`.
+
+    row_outcome("ir", () -> 7) #=> {value: 7}
+    row_outcome("ir", () -> raise(:unsupported, "no code")) #=> {exit: REFUSED_EXIT, why: "ir: unsupported: no code"}
+"""
+def row_outcome(door, f)
+  {value: f()}
+rescue e
+  {exit: exit_for(e.kind), why: "#{door}: #{to_s(e.kind)}: #{e.message}"}
+end
+
+test "a row driver ends a gap as a refusal and anything else as a crash"
+  assert row_outcome("native", () -> raise(:unsupported, "no `x` yet")) ==
+    {exit: REFUSED_EXIT, why: "native: unsupported: no `x` yet"}
+  assert row_outcome("native", () -> raise(:unbound, "`x` has no slot")) ==
+    {exit: CRASHED_EXIT, why: "native: unbound: `x` has no slot"}
+  assert row_outcome("ir", () -> nil) == {value: nil}
 end
 
 @doc """

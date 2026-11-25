@@ -15,6 +15,7 @@ use(
 
 use("hikisuu", [:flag])
 use("kazu", [:max])
+use("kuzushi", [:REFUSED_EXIT])
 use("kyohi", %i[refusal why])
 use("moji", %i[after_first before_first includes lines trim])
 use("retsu", %i[first is_empty size])
@@ -910,13 +911,18 @@ end
 @doc """
 bluec_image: The blue program at `program` compiled by bluec to the executable `out`:
 `blue ast` lowers it and gen/native-row.b compiles the tree in :run mode.
-Answers `{image: out}`, or `{refused: why}` naming what bluec has no code for.
+Answers `{image: out}`, or `{refused: why}` naming what bluec has no code for
+(the driver's REFUSED_EXIT); a lowering or a compile that fails any other way is a
+crash, raised, never a refusal.
 """
 def bluec_image(blue, program, out)
   lowered = "#{out}.lisp"
   ast = exec_capture(blue, "ast", program)
   if status_of(ast) != 0
-    {refused: "blue ast: #{trim(stderr_of(ast))}"}
+    raise(
+      :bench,
+      "#{path_basename(program)}: blue ast does not lower it: #{trim(stderr_of(ast))}"
+    )
   else
     write_file(lowered, stdout_of(ast))
     built = exec_capture(
@@ -931,8 +937,13 @@ def bluec_image(blue, program, out)
       out,
       "run"
     )
-    if status_of(built) != 0
+    if status_of(built) == REFUSED_EXIT
       {refused: trim(stderr_of(built))}
+    elsif status_of(built) != 0
+      raise(
+        :bench,
+        "#{path_basename(program)}: bluec crashed compiling it: #{trim(stderr_of(built))}"
+      )
     else
       output_of(["chmod", "+x", out])
       {image: out}

@@ -50,6 +50,8 @@ and the door sends each such row's program to the walker.
 | `memo` | the walker with the memo on, cold then warm from disk | value, failure |
 | `component` | `blue-lang-component`, the engine as a wasm32-wasip2 component, under wasmtime: the second placement of the program | output, failure |
 | `default` | the shipped `blue` binary as a user runs it: no step bound and every default on (fold, fusion, the membership index, the memo and native planners), a 45 s wall-clock limit as its only guard; blind to rows whose outcome is the step bound and to rows that read the node clock or a declared input | value (through `blue run --literal`), output, failure |
+| `native` | `BLUE_CONFORMANCE_NATIVE=1`, on x86-64 Linux: the row lowered by `blue ast`, compiled by hashiru through `gen/native-row.b` in `:show` mode, and run | value: what a clean exit writes; any other exit or a signal is `CRASHED`, never a value |
+| `ir` | `BLUE_CONFORMANCE_IR=1`: the row lowered by `blue ast --resolved` and run by kuzushi's evaluator through `gen/ir-row.b` | value, and no reference left live |
 
 `walker` is stage 0 for evaluated rows and `static` for front-end rows.
 `component` is judged against `cli`: the same program run natively (`blue
@@ -67,6 +69,13 @@ primitives the wasm32 module does not).
 A row whose evaluator may die (a stack overflow aborts the OS process, a
 runaway never returns) is marked `isolate()` and runs in a child process
 with a 45 s limit; a death is an observation (`CRASHED`), never a pass.
+
+The `native` and `ir` columns keep one driver contract, kuzushi's
+`exit_for`. A driver exits 3 when the backend has no code for the row yet:
+an error of a kind in `kuzushi::GAP_KINDS`, or a recursion past blue's
+call-depth budget. That row is `blind`, and its reason is on stderr. Any
+other error exits 5, and the row is `CRASHED`. The passing counts are
+ratchets: `spec/native.baseline` and `gen/ir-rows.baseline`.
 
 ## The row format
 

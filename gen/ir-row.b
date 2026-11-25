@@ -1,30 +1,19 @@
-use("kuzushi", %i[ir_eval program_of])
+use("kuzushi", %i[CRASHED_EXIT REFUSED_EXIT ir_eval program_of row_outcome])
 use("kyohi")
 
 @doc """
-exit_for: the exit status for an error that ends the IR run: 3 (the row is refused, not counted) for kuzushi's refusal and for a recursion past blue's call-depth budget, which kuzushi's evaluator reaches before the walker does since it runs each IR call through several blue frames and loops no tail call; 5 (a crash) for anything else.
-
-    exit_for(:ir_refused) #=> 3
-    exit_for(:type_mismatch) #=> 5
-"""
-def exit_for(kind)
-  if kind == :ir_refused or kind == :depth_exceeded
-    3
-  else
-    5
-  end
-end
-
-@doc """
-main: run the resolved core in argv 0 (`blue ast --resolved` output) through B1's IR (kuzushi: A-normal form, closure conversion, Perceus with borrowed parameters, its evaluator) and write the value as a one-element list's literal. A row kuzushi refuses exits 3 (exit_for), naming why on stderr, which the conformance `ir` column reads as blind; a reference the IR leaves live exits 4, naming it; any other error in the IR exits 5, which the column reads as a crash.
+main: run the resolved core in argv 0 (`blue ast --resolved` output) through B1's IR (kuzushi: A-normal form, closure conversion, Perceus with borrowed parameters, its evaluator) and write the value as a one-element list's literal. An error ends the run with the status kuzushi's row_outcome gives, the one contract both backend row drivers keep, its kind and message on stderr: REFUSED_EXIT for a row kuzushi refuses, which the conformance `ir` column reads as blind, and CRASHED_EXIT for any other error, which it reads as a crash; a reference the IR leaves live exits 4, naming it.
 """
 def main()
-  r = begin
-    ir_eval(program_of(read_forms(read_file(argv_get(0)))))
-  rescue e
-    write_stderr(unlines(["ir: #{to_s(e.kind)}: #{e.message}"]))
-    exit_with(exit_for(e.kind))
+  o = row_outcome(
+    "ir",
+    () -> ir_eval(program_of(read_forms(read_file(argv_get(0)))))
+  )
+  if o[:exit] != nil
+    write_stderr(unlines([o.why]))
+    exit_with(o.exit)
   end
+  r = o.value
   if r[:live] != []
     write_stderr(unlines(r[:live]))
     exit_with(4)
@@ -39,9 +28,14 @@ test "a program kuzushi accepts gives its value with nothing live"
 end
 
 test "a refusal and a recursion past the depth budget exit 3, anything else 5"
-  assert exit_for(:ir_refused) == 3
-  assert exit_for(:depth_exceeded) == 3
-  assert exit_for(:type_mismatch) == 5
+  assert row_outcome("ir", () -> raise(:ir_refused, "no `frob`"))[:exit] ==
+    REFUSED_EXIT
+  assert get(
+    row_outcome("ir", () -> raise(read_forms(":depth-exceeded")[0], "deep")),
+    :exit
+  ) == REFUSED_EXIT
+  assert row_outcome("ir", () -> raise(:type_mismatch, "list"))[:exit] ==
+    CRASHED_EXIT
 end
 
 test "a program kuzushi has no code for is refused before it runs"

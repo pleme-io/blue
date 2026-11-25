@@ -1204,7 +1204,14 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
     match (&row.expect, ev) {
         (
             Expect::Value(_),
-            Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo | Ev::Default | Ev::Scheduled,
+            Ev::Walker
+            | Ev::Vm
+            | Ev::Wasm
+            | Ev::Memo
+            | Ev::Default
+            | Ev::Scheduled
+            | Ev::Native
+            | Ev::Ir,
         ) => true,
         (Expect::Leaks(_) | Expect::ClosesAtEnd, Ev::Walker | Ev::Vm) => true,
         (
@@ -1241,10 +1248,9 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
     let Some(bin) = env.cli.clone() else {
         return Obs::Blind("no `blue` binary: set BLUE_BIN".into());
     };
-    let Expect::Value(want) = &row.expect else {
-        return Obs::Blind("native observes a value as its exit status".into());
-    };
-    let by_status = want.parse::<i64>().is_ok_and(|v| (0..=255).contains(&v));
+    if !matches!(row.expect, Expect::Value(_)) {
+        return Obs::Blind("the native column observes a value row".into());
+    }
     let lowered = match lower_row(env, &bin, row, &format!("native-{n}"), &["ast"]) {
         Ok(p) => p,
         Err(o) => return o,
@@ -1259,17 +1265,16 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
             .arg("--")
             .arg(&lowered)
             .arg(&exe)
-            .args((!by_status).then_some("show")),
+            .arg("show"),
     ) {
         Ok(o) => o,
         Err(crashed) => return crashed,
     };
-    if !compiled.status.success() {
-        let why = String::from_utf8_lossy(&compiled.stderr);
-        return Obs::Blind(format!(
-            "native has no code for this row yet: {}",
-            why.trim()
-        ));
+    if let Err(not_compiled) = native_compiled(
+        compiled.status.code(),
+        &String::from_utf8_lossy(&compiled.stderr),
+    ) {
+        return not_compiled;
     }
     #[cfg(unix)]
     {
@@ -1279,13 +1284,33 @@ pub fn native(env: &mut Env, row: &Row, n: usize) -> Obs {
         }
     }
     match output_within(&mut Command::new(&exe)) {
-        Ok(o) => match o.status.code() {
-            Some(code) if by_status => Obs::Value(code.to_string()),
-            Some(0) => Obs::Value(String::from_utf8_lossy(&o.stdout).into_owned()),
-            Some(code) => Obs::Crashed(format!("native: the show run exited {code}")),
-            None => Obs::Crashed("native: the executable died by a signal".into()),
-        },
+        Ok(o) => native_ran(o.status.code(), &String::from_utf8_lossy(&o.stdout)),
         Err(crashed) => crashed,
+    }
+}
+
+pub const NATIVE_REFUSED: i32 = 3;
+
+pub fn native_compiled(code: Option<i32>, stderr: &str) -> Result<(), Obs> {
+    match code {
+        Some(0) => Ok(()),
+        Some(NATIVE_REFUSED) => Err(Obs::Blind(format!(
+            "native has no code for this row yet: {}",
+            stderr.trim()
+        ))),
+        Some(c) => Err(Obs::Crashed(format!(
+            "native: the compile exited {c}: {}",
+            stderr.trim()
+        ))),
+        None => Err(Obs::Crashed("native: the compile died by a signal".into())),
+    }
+}
+
+pub fn native_ran(code: Option<i32>, stdout: &str) -> Obs {
+    match code {
+        Some(0) => Obs::Value(stdout.to_owned()),
+        Some(c) => Obs::Crashed(format!("native: the program exited {c}")),
+        None => Obs::Crashed("native: the program died by a signal".into()),
     }
 }
 

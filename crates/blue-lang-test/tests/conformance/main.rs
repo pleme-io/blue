@@ -221,8 +221,9 @@ fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
 /// Negative controls. A runner that passes everything is caught here: each
 /// synthetic row has a known wrong answer, and the run is red unless the
 /// runner judges it as such.
-fn controls(env: &mut Env) -> Vec<String> {
+fn controls(env: &mut Env) -> (usize, Vec<String>) {
     let mut failures = Vec::new();
+    let mut judged = 7;
 
     let mut wasmtime = std::process::Command::new("wasmtime");
     eval::cache_beside(&mut wasmtime, &env.scratch);
@@ -373,7 +374,62 @@ fn controls(env: &mut Env) -> Vec<String> {
             "control: a component printing other bytes than cli was not failed naming the field ({other:?})"
         )),
     }
-    failures
+
+    judged += 1;
+    let one = control(
+        "control.native-status-is-no-value",
+        "true",
+        Expect::Value("1".into()),
+        vec![],
+    );
+    for (what, obs) in [
+        (
+            "a run that exits 1 with nothing written",
+            eval::native_ran(Some(1), ""),
+        ),
+        ("a run that dies by a signal", eval::native_ran(None, "")),
+        (
+            "a compile that crashes",
+            eval::native_compiled(Some(5), "native: unbound: hashiru: `x` has no slot")
+                .err()
+                .unwrap_or_else(|| Obs::Value("1".into())),
+        ),
+    ] {
+        if !judge::verdict(&one, Ev::Native, &obs).is_fail() {
+            failures.push(format!("control: {what} was not failed by native ({obs})"));
+        }
+    }
+    if !matches!(
+        eval::native_compiled(
+            Some(eval::NATIVE_REFUSED),
+            "native: unsupported: hashiru: no code for `frob` yet"
+        ),
+        Err(Obs::Blind(_))
+    ) {
+        failures.push("control: a native compile hashiru refuses was not blind".into());
+    }
+
+    if env.native.is_some() {
+        judged += 1;
+        for (k, (id, src, want)) in [
+            ("control.native.true-is-not-1", "true", "1"),
+            ("control.native.wrong-value", "1 + 1", "3"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let row = control(id, src, Expect::Value(want.into()), vec![]);
+            let out = run_row(env, &row, usize::MAX - 4 - k);
+            if !out.verdicts[&Ev::Native].is_fail() {
+                failures.push(format!(
+                    "control: `{src}` wanting {want} was not failed by native ({:?}, observed {})",
+                    out.verdicts[&Ev::Native],
+                    out.obs[&Ev::Native]
+                ));
+            }
+        }
+    }
+    (judged, failures)
 }
 
 fn tally_line(name: &str, counts: &[usize; 4]) -> String {
@@ -793,7 +849,7 @@ fn main() {
     }
 
     // Negative controls.
-    let control_failures = controls(&mut env);
+    let (judged, control_failures) = controls(&mut env);
     for c in &control_failures {
         writeln!(out, "FAIL {c}").ok();
         red = true;
@@ -802,9 +858,9 @@ fn main() {
         out,
         "\ncontrols: {}",
         if control_failures.is_empty() {
-            "7 of 7 judged as expected"
+            format!("{judged} of {judged} judged as expected")
         } else {
-            "RED"
+            "RED".to_owned()
         }
     )
     .ok();

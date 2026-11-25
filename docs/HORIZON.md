@@ -728,8 +728,12 @@ by a constant, `abs`, `min`, `max`, comparisons, `==`, `!=`, `and`, `or`,
 `length`, `count` and `empty?` (each length rule measured against the
 runtime: `take(-1, xs)` is empty, `drop(5, [1, 2, 3])` is empty,
 `range(5, 2)` is empty). A refuted list law gets a list built to the length
-the solver chose. A word the file defines is read as the file defines it,
-inlined; a word a `use` brings in bare is outside the fragment. Blue
+the solver chose. A call reads its name as the resolver binds it: a local,
+then the file's frame, then the fragment's words. A `def` that is the last
+binding of its name in the file is inlined. Every other name the file binds
+is outside the fragment, a record's, a union's and a word a `use` brings in
+bare among them, and so is a call to a local
+(`crates/blue-lang-check/tests/definitions.rs`). Blue
 integers raise on overflow, so a law proved over the integers holds at every
 call that returns. B0043 never reads `law_` as a hand-made namespace: a
 program of three laws was refused, and `blue run` would have stripped the

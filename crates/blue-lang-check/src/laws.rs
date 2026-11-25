@@ -25,12 +25,19 @@
 //! a constant, `abs`, `min`, `max`, comparisons, `==`, `!=`, `and`, `or`,
 //! `not`, `if`, local bindings, and the lengths of lists built by `[…]`,
 //! `cons`, `append`, `reverse`, `map`, `take`, `drop`, `range` and `zip`,
-//! read by `length`, `count` and `empty?`. A word the file defines with `def`
-//! is read as the file defines it, inlined. Every other name the file binds is
-//! outside the fragment, even one spelled like a word of it: a binding, a
-//! macro, a record's constructor and predicate, a union's predicate and each
-//! arm's. So is a word a `use` brings in bare, since the solver does not see
-//! its body.
+//! read by `length`, `count` and `empty?`.
+//!
+//! A call reads its name as the resolver binds it: a local first, then the
+//! file's frame, then the fragment's words. The file's frame holds every name
+//! a top-level form binds (`blue_lang_syntax::scope::definitions_of`), a
+//! statement's and a value's bindings among them, and each name a `use` brings
+//! in bare. A name whose last binding in the file is a `def` is read as that
+//! `def`, inlined. Every other name in the frame is outside the fragment, even
+//! one spelled like a word of it: a binding, a macro, a record's constructor
+//! and predicate, a union's predicate and each arm's, a `def` that a later
+//! form binds again, and a word a `use` brings in, since the solver does not
+//! see its body. A local, a parameter or a binding in a body, is read as its
+//! value, and a call to it is outside.
 //!
 //! Blue's integers are 64-bit and raise on overflow, so a law proved over the
 //! integers holds at every call that returns. A law that is not typed gets no
@@ -229,37 +236,48 @@ fn scope(forms: &[Spanned]) -> Scope<'_> {
     let mut defs = BTreeMap::new();
     let mut bound = BTreeSet::new();
     for f in forms {
-        if let Some(imports) = blue_lang_syntax::scope::use_targets(f) {
-            bound.extend(imports.into_iter().flat_map(|i| i.names).map(|(n, _)| n));
-            continue;
+        for name in frame_names(f) {
+            defs.remove(&name);
+            bound.insert(name);
         }
-        bound.extend(
-            blue_lang_syntax::scope::bindings_of(f)
-                .iter()
-                .map(|b| b.name().to_string()),
-        );
-        let Some(definition) = blue_lang_syntax::scope::definition(f) else {
-            continue;
-        };
-        let Some([_, sig, rest @ ..]) = f.as_list() else {
-            continue;
-        };
-        let body = match (definition.declared, rest) {
-            (Declared::Typed, [_, body]) | (Declared::Def, [body]) => body,
-            _ => continue,
-        };
-        let Some([_, params @ ..]) = sig.as_list() else {
-            continue;
-        };
-        if params.iter().any(crate::is_marker) {
-            continue;
+        if let Some((name, def)) = inlined(f) {
+            defs.insert(name, def);
         }
-        let Some(params) = params.iter().map(param_name).collect::<Option<Vec<_>>>() else {
-            continue;
-        };
-        defs.insert(definition.name().to_string(), Def { params, body });
     }
     Scope { defs, bound }
+}
+
+fn frame_names(f: &Spanned) -> Vec<String> {
+    match blue_lang_syntax::scope::use_targets(f) {
+        Some(imports) => imports
+            .into_iter()
+            .flat_map(|i| i.names)
+            .map(|(n, _)| n)
+            .collect(),
+        None => blue_lang_syntax::scope::definitions_of(f)
+            .into_iter()
+            .map(|(n, _, _)| n)
+            .collect(),
+    }
+}
+
+fn inlined(f: &Spanned) -> Option<(String, Def<'_>)> {
+    let definition = blue_lang_syntax::scope::definition(f)?;
+    let [_, sig, rest @ ..] = f.as_list()? else {
+        return None;
+    };
+    let body = match (definition.declared, rest) {
+        (Declared::Typed, [_, body]) | (Declared::Def, [body]) => body,
+        _ => return None,
+    };
+    let [_, params @ ..] = sig.as_list()? else {
+        return None;
+    };
+    if params.iter().any(crate::is_marker) {
+        return None;
+    }
+    let params = params.iter().map(param_name).collect::<Option<Vec<_>>>()?;
+    Some((definition.name().to_string(), Def { params, body }))
 }
 
 fn law_of(form: &Spanned) -> Option<Law<'_>> {
@@ -752,6 +770,11 @@ impl<'a, 'b> Translate<'a, 'b> {
         env: &Env,
         body: Reader<'a, 'b, T>,
     ) -> Option<Result<T, String>> {
+        if env.contains_key(name) {
+            return Some(Err(format!(
+                "`{name}` is a local here, and the solver does not read a call to a local"
+            )));
+        }
         let scope = self.scope;
         let Some(def) = scope.defs.get(name) else {
             return scope.bound.contains(name).then(|| {

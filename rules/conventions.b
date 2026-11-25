@@ -67,6 +67,18 @@ def index_binding?(node)
 end
 
 @doc """
+nil_test_of: The node a condition tests for nil, `x` in `x.nil?`, or nil when it
+tests none. The parser writes `x == nil` and `nil == x` as `x.nil?`.
+
+    nil_test_of(nil) #=> nil
+"""
+def nil_test_of(cond)
+  if call?(cond, "blue-field", 2) and cond[2] == :nil?
+    cond[1]
+  end
+end
+
+@doc """
 nil_tested: The name a node tests against nil, as a string, or nil when it
 tests none. `x == nil` reads as `x.nil?` in the tree, so two shapes cover all
 three spellings.
@@ -74,7 +86,7 @@ three spellings.
     nil_tested(nil) #=> nil
 """
 def nil_tested(node)
-  if call?(node, "blue-field", 2) and node[2] == :nil? and symbol?(node[1])
+  if symbol?(nil_test_of(node))
     to_s(node[1])
   elsif call?(node, "not=", 2) and
       symbol?(node[1]) and
@@ -249,23 +261,83 @@ def nil_node?(node)
 end
 
 @doc """
-silent_guard?: Whether a node is `if self_exe != nil … end` with no else.
+set_test_of: The node a condition holds set, `x` in `x != nil` and in
+`nil != x`, or nil when it holds none.
 
-    silent_guard?(nil) #=> false
+    set_test_of(nil) #=> nil
 """
-def silent_guard?(node)
-  call?(node, "if", 2) and
-    call?(node[1], "not=", 2) and
-    exe_node?(node[1][1]) and
-    nil_node?(node[1][2])
+def set_test_of(cond)
+  if call?(cond, "not=", 2) and nil_node?(cond[2])
+    cond[1]
+  elsif call?(cond, "not=", 2) and nil_node?(cond[1])
+    cond[2]
+  end
 end
 
 @doc """
-silent_skip: A test whose last statement is `if self_exe != nil … end`, with no
-else, passes with no assertion where no blue CLI runs it, as in an embedded
-host: a skip that counts as a pass (docs/TESTING.md, "a skip is never a pass").
-The fix is the named skip, tesuto's `needs_blue(self_exe)`, in the guard's
-place, followed by what it guarded; under the blue CLI the test runs as before.
+set_if_true: The node a condition holds set when it is true: `x` in `x != nil`
+and `nil != x`, and the condition itself read for its truth, as `if self_exe`
+reads it. A `not` turns the question to set_if_false.
+
+    set_if_true(nil) #=> nil
+"""
+def set_if_true(cond)
+  if call?(cond, "not", 1)
+    set_if_false(cond[1])
+  else
+    set_test_of(cond) or cond
+  end
+end
+
+@doc """
+set_if_false: The node a condition holds set when it is false: `x` in
+`x.nil?`, and through a `not`, what set_if_true finds.
+
+    set_if_false(nil) #=> nil
+"""
+def set_if_false(cond)
+  if call?(cond, "not", 1)
+    set_if_true(cond[1])
+  else
+    nil_test_of(cond)
+  end
+end
+
+@doc """
+guarded: What a guard on `self_exe` runs, as `[exe, body]`: `exe` is the node
+that reads `self_exe`, and `body` is the branch that runs only where it is set.
+It is nil for any other node. The guard is an `if` with one empty branch, and
+its condition, by meaning, holds `self_exe` set for the other branch. The
+spellings are `self_exe != nil`, `nil != self_exe`, `not self_exe.nil?`,
+`self_exe` read for its truth, and `self_exe.nil?` with the guarded code in its
+else. The parser writes `unless self_exe.nil?`, `unless self_exe == nil` and
+`not (self_exe == nil)` as `not self_exe.nil?`. B0047 rewrites
+`nil?(self_exe)` to `self_exe.nil?` first.
+
+    guarded(nil) #=> nil
+"""
+def guarded(node)
+  if call?(node, "if", 2) or call?(node, "if", 3) and nil_node?(node[3])
+    exe = set_if_true(node[1])
+    if exe_node?(exe)
+      [exe, node[2]]
+    end
+  elsif call?(node, "if", 3) and nil_node?(node[2])
+    exe = set_if_false(node[1])
+    if exe_node?(exe)
+      [exe, node[3]]
+    end
+  end
+end
+
+@doc """
+silent_skip: Finds a test whose last statement is a guard on `self_exe`
+(guarded): `if self_exe != nil … end` or any other spelling of it. Where no
+blue CLI runs the test, as in an embedded host, it passes with no assertion.
+That is a skip that counts as a pass (docs/TESTING.md, "a skip is never a
+pass"). The fix puts the named skip, tesuto's `needs_blue(self_exe)`, in the
+guard's place, followed by what the guard ran. Under the blue CLI the test runs
+as before.
 
     silent_skip(nil) #=> []
 """
@@ -273,18 +345,18 @@ def silent_skip(form)
   if head?(form, "deftest") and length(form) >= 3
     body = last(form)
     stmts = statements(body)
-    guard = last(stmts)
-    if silent_guard?(guard)
+    found = guarded(last(stmts))
+    if not found.nil?
       opener = if head?(body, "begin")
         first(body)
       else
         first(read_forms("(begin)")[0])
       end
-      skip = [first(read_forms("needs_blue")), guard[1][1]]
+      skip = [first(read_forms("needs_blue")), first(found)]
       [
         {
           at: [],
-          message: "this test ends in `if self_exe != nil … end`, so where no blue CLI runs it, it passes with no assertion",
+          message: "this test ends in a guard that runs only where `self_exe` is set (`if self_exe != nil … end` or another spelling of it), so where no blue CLI runs it, it passes with no assertion",
           help: "skip it by name: `needs_blue(self_exe)` (tesuto) in the guard's place; blue test counts a skip apart from a pass, and BLUE_TEST_SKIP=refuse refuses it",
           fix: append(
             take(length(form) - 1, form),
@@ -293,7 +365,7 @@ def silent_skip(form)
                 [opener],
                 take(length(stmts) - 1, stmts),
                 [skip],
-                statements(guard[2])
+                statements(last(found))
               )
             ]
           )
@@ -358,4 +430,37 @@ test "a guard with an else, a guard before more statements, another condition an
     read_forms("(define (f) (if (not= self_exe ()) (g 1)))")[0]
   ) == []
   assert silent_skip(nil) == []
+end
+
+@doc """
+guard_fix: The fix silent_skip offers for a test whose whole body is `guard`,
+written as the tree a rule receives, or nil when it finds nothing.
+
+    guard_fix("(f 1)") #=> nil
+"""
+def guard_fix(guard)
+  found = silent_skip(read_forms("(deftest \"t\" #{guard})")[0])
+  if found != []
+    first(found)[:fix]
+  end
+end
+
+test "every spelling of the guard is found by its meaning, and each fix keeps the node that reads self_exe"
+  fixed = read_forms("(deftest \"t\" (begin (needs_blue (self_exe)) (f 1)))")[0]
+  assert guard_fix("(if (not= nil (self_exe)) (f 1))") == fixed
+  assert guard_fix("(if (not (blue-field (self_exe) :nil?)) (f 1))") == fixed
+  assert guard_fix("(if (self_exe) (f 1))") == fixed
+  assert guard_fix("(if (blue-field (self_exe) :nil?) nil (f 1))") == fixed
+  assert guard_fix("(if (not (not (self_exe))) (f 1))") == fixed
+  assert guard_fix("(if (not= (self_exe) nil) (f 1) nil)") == fixed
+  assert guard_fix("(if self_exe (f 1))") ==
+    read_forms("(deftest \"t\" (begin (needs_blue self_exe) (f 1)))")[0]
+end
+
+test "a guard that runs only where self_exe is nil, one with two branches and one on another value find nothing"
+  assert guard_fix("(if (blue-field (self_exe) :nil?) (f 1))").nil?
+  assert guard_fix("(if (not (self_exe)) (f 1))").nil?
+  assert guard_fix("(if (blue-field (self_exe) :nil?) (g 1) (f 1))").nil?
+  assert guard_fix("(if (not= (f (self_exe)) nil) (g 1))").nil?
+  assert guard_fix("(if (not (blue-field x :nil?)) (f 1))").nil?
 end

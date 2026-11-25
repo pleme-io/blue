@@ -175,9 +175,9 @@ Section 3 is in progress, and four words of section 2 are not written (see the L
 | time, durations, cron | ❌ not built | No `jikan` bidama. `hizuke` is the calendar only. |
 | parallel map, timeouts, supervision words | ❌ not built | No `heikou` bidama ([`ASYNC.md`](ASYNC.md)). |
 | rate limit, circuit breaker, bulkhead | ❌ not built | No `kyoujin` bidama. `bougyo` has no rate posture. |
-| files and paths | ⏳ in progress | `bidamas/fairu` has 8 definitions. |
-| processes | ⏳ in progress | `bidamas/shisutemu` has 15 definitions. Some bidamas still call `exec_*` directly. |
-| HTTP client | ⏳ in progress | `eigyou/tsuushin`: URL and a basic request. No JSON or pagination helpers. |
+| files and paths | ⏳ in progress | `bidamas/fairu`; the verbs it still lacks are its row of the [STDLIB ledger](STDLIB.md#ledger). |
+| processes | ⏳ in progress | `bidamas/shisutemu`; the verbs it still lacks are its row of the [STDLIB ledger](STDLIB.md#ledger). Some bidamas still call `exec_*` directly. |
+| HTTP client | ⏳ in progress | `bidamas/eigyou/tsuushin`: the URL words and `request`, which sends a JSON body. No response decoding and no pagination. |
 | encodings | ⏳ in progress | base64 and hex in `shinsuu`. No base64url and no URL encoding outside `kyuuji`. |
 | UUID, semver, regex | ❌ not built | No definition in `bidamas/`. Regex needs a runtime primitive. |
 | Kubernetes (`kurasuta`) | ⏳ in progress | `bidamas/kurasuta` holds the `kinds` level. The reads of `STDLIB.md` §4.18 are not built. |

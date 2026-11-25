@@ -629,9 +629,12 @@ share nothing, by design) and channels (tatara's `chan` has no blue spelling).
 `json:` (a body sent as JSON), `timeout:` and `retry:` (a heikou policy). **Left out on purpose:**
 cookies and sessions (no use on this fleet) and HTTP/2 (HTTP/1.1 covers every API we call).
 
-**Runtime:** TLS is the gap, since `http_request` refuses https today. That is decision D3. Until it
-lands, `tsuushin` and the spaces on it (`habu`) speak through a process (`curl` supplied by nix)
-behind the same surface: a typed fallback, not a second API.
+**Runtime:** since 2026-11-15 `http_request` speaks `https://` through the runtime's one TLS seam,
+rustls over `ring` with the server's certificate checked against the Mozilla roots
+(`crates/blue-lang-runtime/src/net/tls.rs`). Decision D3 landed as its option (b), so `tsuushin`
+and the spaces on it (`habu`) need no `curl` fallback. D3's recommended pure-Rust provider is
+VERB-ROADMAP's H1 TLS row, and the rest of TLS (NATS, the `tls_*` words) is implementing.md's TLS
+row.
 
 ### 4.14 shomei (署名), hashing and signatures, *extended*
 
@@ -957,7 +960,7 @@ rule.
   `crypto.rs`'s pure, C-free stance but is younger and less audited. Option (b): rustls with
   aws-lc-rs or ring, which are mature but are C and assembly behind the seam. Option (c): no TLS in
   the runtime, with `curl` through shisutemu permanently. **Recommendation: (a)**, with (c) as the
-  typed fallback while it lands.
+  typed fallback while it lands. *(Landed 2026-11-15 as option (b), rustls over `ring`: §4.13.)*
 - **D4, `write` is atomic by default.** A temporary file plus a rename changes the file's inode. That
   breaks hard links and writes through to a symlink's target differently, and it fails on `/proc`
   and `/sys`. **Recommendation:** atomic by default, with `{atomic: false}` for the rare in-place
@@ -1033,27 +1036,29 @@ One row for each space of §4, and one for each part of the design that is not a
 
 ✅ built and tested · ⏳ in progress · ❌ not built
 
+A row names the bidama that holds a space, never a count of its tests: `blue test` on it counts them.
+
 | Item | State | What makes it true |
 |---|---|---|
 | Master verb dispatch (§3.7) | ✅ built | `spec/rows/dispatch.b`. |
 | The verb graph and its check (§5) | ✅ built | `bidamas/mokuroku/graph/`, `blue verbs check`, `docs/verbs/H/DESIGN.md`. |
-| fairu, files and paths (§4.1) | ⏳ in progress | `bidamas/fairu` has path words with 9 tests. Temporary directories, atomic write, `info`, copy and watch do not exist. |
-| shisutemu, processes (§4.2) | ⏳ in progress | `bidamas/shisutemu`, 11 tests, holds the process captures (`run_capture`, `status_of`, `stdout_of`, `read_or`) and the terminal words. None of §4.2's verbs exists: `run`, `capture`, `succeeds?`, `stream`, `pipe`, `spawn`, `wait`, `stop`, `which`, `become`, `info`, `exit`. |
+| fairu, files and paths (§4.1) | ⏳ in progress | `bidamas/fairu` holds the nouns `absolute`, `relative`, `parts`, `stem` and `home`, `with_temp_dir` (a label first, then the function) and `write_atomic`, which §4.1 spells `write(path, text, {atomic: true})`. Not built: `read`, `write`, `append`, `exists?`, `file?`, `dir?`, `list`, `walk`, `glob`, `copy`, `move`, `delete`, `make_dir`, `with_temp_file`, `info` and `watch`, and the nouns `join`, `parent`, `name`, `extension` and `current`. |
+| shisutemu, processes (§4.2) | ⏳ in progress | `bidamas/shisutemu` holds the process captures (`run_capture`, `status_of`, `stdout_of`, `read_or`) and the terminal words. None of §4.2's verbs exists: `run`, `capture`, `succeeds?`, `stream`, `pipe`, `spawn`, `wait`, `stop`, `which`, `become`, `info`, `exit`. |
 | kankyou, the environment (§4.3) | ❌ not built | No `kankyou` bidama. `getenv` is a builtin. |
-| settei, typed configuration (§4.4) | ✅ built | `bidamas/settei`, 16 tests. |
-| deeta, data formats (§4.5) | ⏳ in progress | `bidamas/deeta`, 27 tests. `deeta::parse(text, format)` reads `:json`, `:yaml` (`spec/rows/yaml.b`), `:xml` and `:nix`; `:toml`, `:csv`, `:lines` and `:lisp` raise, and no `render` exists. `deeta::read(text)` parses JSON text, where §4.5's `read(path)` reads a file. |
-| jisho, maps and records (§4.6) | ✅ built | `bidamas/jisho`, 12 tests. |
-| jikan, instants and durations (§4.7) | ❌ not built | No `jikan` bidama. `bidamas/hizuke` holds the pure calendar, with 37 tests. |
-| moji, text (§4.8) | ⏳ in progress | `bidamas/moji`, 54 tests. No regular expression word exists. |
-| kyohi, error kinds (§4.9) | ⏳ in progress | `bidamas/kyohi`, 13 tests: the ledger of kinds, `check`, `enforce` and the declared result union that §4.9's absorbs clause had retired (superseded, ABSENCE.md §0). Not built: §5.4's rule that every `raise` in a space package names a ledger kind. |
-| hikisuu, command-line arguments (§4.10) | ✅ built | `bidamas/hikisuu`, 13 tests. |
-| rogu, logging (§4.11) | ✅ built | `bidamas/mitoshi/rogu`, 21 tests. |
-| heikou, concurrency, timeouts and retry (§4.12) | ⏳ in progress | No `heikou` bidama. Retry is `bidamas/saishikou` (4 tests). Processes are in `blue-lang-proc`. [ASYNC.md](ASYNC.md) holds the plan. |
-| tsuushin, the HTTP client (§4.13) | ⏳ in progress | `bidamas/eigyou/tsuushin`, 11 tests, holds the URL words (`parse`, `render`, `join`). The client's verbs do not exist; the builtin `http_request` speaks `http://` and, over TLS, `https://` (`crates/blue-lang-runtime/src/net/tls.rs`). |
-| shomei, hashing and signatures (§4.14) | ✅ built | `bidamas/shomei`, 33 tests. |
-| Testing, owned by the runner (§4.15) | ✅ built | `bidamas/tesuto`, 18 tests. |
-| hyouka, nix (§4.16) | ✅ built | `bidamas/kakehashi/hyouka`, 7 tests. |
-| gitto, git (§4.17) | ✅ built | `bidamas/gitto`, 20 tests. |
+| settei, typed configuration (§4.4) | ✅ built | `bidamas/settei`. |
+| deeta, data formats (§4.5) | ⏳ in progress | `bidamas/deeta`. `deeta::parse(text, format)` reads `:json`, `:yaml` (`spec/rows/yaml.b`), `:xml` and `:nix`; `:toml`, `:csv`, `:lines` and `:lisp` raise, and no `render` exists. `deeta::read(text)` parses JSON text, where §4.5's `read(path)` reads a file. |
+| jisho, maps and records (§4.6) | ✅ built | `bidamas/jisho`. |
+| jikan, instants and durations (§4.7) | ❌ not built | No `jikan` bidama. `bidamas/hizuke` holds the pure calendar. |
+| moji, text (§4.8) | ⏳ in progress | `bidamas/moji`. No regular expression word exists. |
+| kyohi, error kinds (§4.9) | ⏳ in progress | `bidamas/kyohi` holds the ledger of kinds, `check`, `enforce` and the declared result union that §4.9's absorbs clause had retired (superseded, ABSENCE.md §0). Not built: §5.4's rule that every `raise` in a space package names a ledger kind. |
+| hikisuu, command-line arguments (§4.10) | ✅ built | `bidamas/hikisuu`. |
+| rogu, logging (§4.11) | ✅ built | `bidamas/mitoshi/rogu`. |
+| heikou, concurrency, timeouts and retry (§4.12) | ❌ not built | No `heikou` bidama: its verbs are phase A2 of [ASYNC.md](ASYNC.md#ledger), not built. Retry is `bidamas/saishikou`, and processes are `blue-lang-proc`'s. |
+| tsuushin, the HTTP client (§4.13) | ⏳ in progress | `bidamas/eigyou/tsuushin` holds the URL words (`parse`, `render`, `join`) and `request`, which sends one request through a transport the caller may replace, the builtin `http_request` by default, and answers any status as data (its tests "request sends a json body with its content type through the transport" and "request passes a plain body and refuses what it cannot send"); `http_request` speaks `http://` and, over TLS, `https://` (`crates/blue-lang-runtime/src/net/tls.rs`). Not built: `read`, `get`, `need`, `list`, `create`, `update`, `put`, `delete`, `exists?` and `stream`. |
+| shomei, hashing and signatures (§4.14) | ✅ built | `bidamas/shomei`. |
+| Testing, owned by the runner (§4.15) | ✅ built | `bidamas/tesuto`. |
+| hyouka, nix (§4.16) | ⏳ in progress | `bidamas/kakehashi/hyouka` holds the store-path words and `eval_json`, `eval_raw`, `plan_build` and `run_nix`, the words §4.16 absorbs into its verbs. Not built: those verbs, `eval`, `build`, `plan`, `info`, `copy`, `lock` and `get`. |
+| gitto, git (§4.17) | ✅ built | `bidamas/gitto`. |
 | kurasuta, Kubernetes reads (§4.18) | ⏳ in progress | `bidamas/kurasuta/kinds` holds the typed kinds. The reads `list`, `get`, `need` and `watch` do not exist. |
 | habu, the GitHub API (§4.19) | ❌ not built | No `habu` bidama. |
 | joujuu, services (§4.20) | ❌ not built | No `joujuu` bidama. |

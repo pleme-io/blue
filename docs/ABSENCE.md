@@ -27,7 +27,7 @@ R20, U9).
 |---|---|---|---|---|
 | absence | there is nothing to answer, and that is data | an option: `umu::some(v)` or `umu::none` | `umu::fold`, `value_or`, `expect`, `map`, `and_then`, or `?` in a `def` body | the bidama is built; a lookup (`get`, `find`, `nth`, `json_get`, …) answers nil until P3 moves it to an option (section 7) |
 | refusal | a check said no, for a reason a caller branches on | a kyohi result: `kyohi::ok(v)` or `kyohi::refused(r)`, the declared `union result = yes(value) \| no(refusal)` | `?` in a `def` body, a `case` over `yes` and `no` (B0081), `kyohi::ok?`; every finding at once with `kyohi::check` | built: spec rows `refusals.result_union` and `refusals.kyohi_results` |
-| fault | the call could not do what it says | a raise: `raise(:kind, "why", {data: d, cause: e})`, its kind one of kyohi's ledger | `rescue :kind as e` where it can be handled | built; that a bare `rescue` does not swallow a bug is the open row `errors.catch_does_not_swallow_bugs` |
+| fault | the call could not do what it says | a raise: `raise(:kind, "why", {data: d, cause: e})`, its kind one of kyohi's ledger | `rescue :kind as e` where it can be handled | built: the raise and `rescue`. Not built: STDLIB §5.4's rule that holds a raise's kind to the ledger, and a bare `rescue` that leaves a bug alone (the open row `errors.catch_does_not_swallow_bugs`) |
 
 One word crosses each seam: `umu::ok_or` (option to result), `umu::to_option`
 (result to option), `umu::expect` (option to raise, `:not_found`), and

@@ -118,7 +118,7 @@ Measured 2026-11-09 on `docs/verbs/merged/verbs.tsv`, which `gen/verbs/verbs.b` 
 | H0: the coverage baseline | ✅ built | `bidamas/mokuroku/graph/graph.baseline`; `gen/verb-graph.b` test "the committed graph breaks no gate beyond the debt it recorded" |
 | H0: `docs/VERBS.md` rendered from the graph | ❌ not built | No generator writes `docs/VERBS.md`. |
 | H1: the spine | ⏳ in progress | Wave 0 has 635 verbs: 343 exist and 17 are absent. The rest are partial or live only in Rust. Wave 1 has 723 verbs: 48 exist and 597 are absent. |
-| H1: TLS | ❌ not built | No `rustls` in any crate. Done when a pure-Rust provider sits behind `Capability::Network`. |
+| H1: TLS | ❌ not built | Since 2026-11-15 `http_request` over `https://` and the RESP client's `tls` target speak TLS through rustls over `ring`, whose core is C and assembly (`crates/blue-lang-runtime/src/net/tls.rs`). Done when a pure-Rust provider sits behind `Capability::Network`. |
 | H1: entropy | ✅ built | `random_bytes` in `crates/blue-lang-runtime/src/provide.rs`; `shomei::random` in `bidamas/shomei/shomei.b` |
 | H1: `fuuin` threshold verbs | ✅ built | `generate` and `combine` in `bidamas/fuuin/fuuin.b`, with its tests |
 | H2: stores and conversation | ⏳ in progress | `bidamas/chozou` holds `teeburu`, `kiibariu` and `sutoriimu`. No one store contract joins the store spaces. |

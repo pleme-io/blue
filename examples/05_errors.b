@@ -4,7 +4,8 @@
 # input is good. Tests read the kinds, and a caller can act on every refusal at
 # once. Only at the boundary does the program raise, with raise(kind, why); a
 # caller that rescues it reads the error as a record (e.kind, e.message,
-# e.data, e.cause), but sees only the first refusal. This is kueri's
+# e.data, e.cause): its kind is the first refusal's, and every refusal's why
+# reaches it only as text, joined into the message. This is kueri's
 # refusals / check.
 use("retsu", %i[first is_empty last])
 

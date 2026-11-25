@@ -798,7 +798,7 @@ def blue_says(args)
 end
 
 @doc """
-spec_rows: Every conformance row whose program is a string, as {id:, src:, expect:}, from `blue doc --rows`, which parses spec/rows/ as the conformance runner does.
+spec_rows: Every conformance row, as {id:, src:, expect:}, from `blue doc --rows`, which reads spec/rows/ and each row's program as the conformance runner does.
 
     length(spec_rows) > 400 #=> true
 """

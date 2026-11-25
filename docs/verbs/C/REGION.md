@@ -69,7 +69,7 @@ ses-email-send, ntfy-push, cloudflare-cache-purge, fastly-cache-purge, github-we
 
 ## Risks
 - Blue processes need `blue run` support for `heikou` and `aktaa` over real concurrency (AUTHORING "Missing today"); wave 1 depends on it.
-- TLS is the known gap (`http_request` refuses https, STDLIB D3): `tsuushin`, `sokketto::secure`, `keiyaku::call` all wait on it.
+- TLS was the known gap when this region was drawn (STDLIB D3). Since 2026-11-15 `http_request` speaks `https://` through rustls, so `tsuushin` no longer waits on it; what is still missing (TLS for NATS, the `tls_*` words with ALPN `h2` that `sokketto::secure` needs) is the TLS row of [implementing.md](../../implementing.md#what-is-not-built).
 - `call` appears in aktaa, keiyaku and kyoujin with three argument shapes; the same name means "invoke through a wrapper". The check rule in STDLIB 8 should state that meaning once.
 - `watch` here is a stream of events (`ami`, `goui`, `nisshi`) and matches STDLIB 3.2; `stream` kind rows must not return lazy sequences.
 - Names are provisional; a collision sweep is owed for every `?` space (e.g. `ami`, short, likely to hit).

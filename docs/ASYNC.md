@@ -5,8 +5,9 @@ summary: "Native async in blue, DESIGN: one ontology of every async concept as a
 
 # Native async: the design of record
 
-The process runtime and phase A1 are built. Phases A2 to A7 are not built.
-The [Ledger](#ledger) gives the state of each item.
+The process runtime and phase A6 are built, and phase A1 is in progress (its
+context row). Phases A2 to A5 and A7 are not built. The [Ledger](#ledger)
+gives the state of each item.
 
 Operator, 2026-11-06: *"full batteries included async
 programming … native … all the semantics around async … the most purely

@@ -166,14 +166,17 @@ vm_check(
 check("verb-graph", "gen/verb-graph.b", {stage: :ci})
 check("heni-mutations", "gen/heni-gate.b", {stage: :ci})
 
-# The purity ledger (docs/PURE-BLUE.md S0): the Rust source bytes of each crate,
-# held by gen/purity.baseline. A crate may shrink or hold and never grow; a new
-# crate must be recorded (blue gen/purity.b record). The count only falls as
-# blue replaces its Rust layers with blue.
+# The purity ledger (docs/PURE-BLUE.md S0): the hand-written Rust source bytes
+# of each crate, held by gen/purity.baseline. A file a `generate` row writes is
+# a rendering of blue, so the ledger reads this lock and leaves it out; with no
+# lock the ledger is blind, and blind is red. A crate may shrink or hold; a
+# growth or a new crate is recorded with its reason (blue gen/purity.b record
+# --receipt "<kind>: <why>"), and a record with none banks every fall. The
+# count falls as blue replaces its Rust layers with blue.
 check(
   "purity-ledger",
   "gen/purity.b",
-  ["crates", "gen/purity.baseline"],
+  ["crates", "gen/purity.baseline", "Bluefile.lock"],
   {stage: :ci}
 )
 

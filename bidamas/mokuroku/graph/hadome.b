@@ -93,8 +93,23 @@ verb(
     shape: "tighten(rows, kind, measurements) -> [row]",
     laterals: %w[migrate test],
     fleet: nil,
-    today: "partial:hadome",
+    today: "exists:hadome",
     meaning: "rows lowered to the new sizes, never raised",
+    wave: 1,
+    origin: "F"
+  }
+)
+
+verb(
+  "hadome",
+  "record",
+  {
+    kind: :effect,
+    shape: "record(path, measured, opts) -> result",
+    laterals: %w[migrate test],
+    fleet: nil,
+    today: "exists:hadome",
+    meaning: "the ledger written from measured rows: every fall banked, a rise or a new row only with a typed receipt, a blind measure refused",
     wave: 1,
     origin: "F"
   }
@@ -118,6 +133,7 @@ verb(
 edge("hadome::failures", :composes, "hadome::judge", "judge each key")
 edge("hadome::shrunk", :composes, "hadome::judge", "keys that fell")
 edge("hadome::tighten", :composes, "hadome::shrunk", "lowers recorded sizes")
+edge("hadome::record", :composes, "hadome::tighten", "banks every fall")
 
 edge(
   "hadome::waive",

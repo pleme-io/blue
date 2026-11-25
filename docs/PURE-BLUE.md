@@ -127,8 +127,8 @@ Each is a check that fails the build, from the rung named in "From".
 | I3 | No row leaks | `checks.no-leak`, live count zero at exit per runtime | C2, held by M3 |
 | I4 | A cycle can form only through a typed cell | a checker rule; a fuzz row over every value shape | M3 (flat closures) |
 | I5 | Raw-memory words are used only in the runtime subset | a check-stage rule | R1 |
-| I6 | The non-blue bytes in the pure toolchain only fall | `checks.purity-ledger` | S0 |
-| I7 | Native speed never regresses | `checks.native-bench`, owned by C3 | C3 |
+| I6 | The hand-written non-blue bytes in the pure toolchain only fall, except by a receipted rise: a file a `generate` row renders from blue is not counted, a rise needs a typed receipt kept in the ledger, and a record banks every fall | `checks.purity-ledger` | S0 |
+| I7 | Native speed never regresses | `checks.native-bench`, owned by C3: a ratio is judged on the machine that recorded it, and a program a path stops running is judged on every machine | C3 |
 | I8 | The compiler is a fixpoint of its own source | `checks.pure-fixpoint` | S1 |
 | I9 | The seed and the Rust witness rebuild the same bytes (DDC) | `checks.pure-seed-ddc` | S2 |
 | I10 | The full-source chain rebuilds the seed | `checks.pure-full-source` | S4 |

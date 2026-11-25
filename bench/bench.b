@@ -6,6 +6,7 @@ use(
     judge_within
     measurement
     parse
+    receipt_refusal
     receipted
     recorded
     render
@@ -727,39 +728,14 @@ def cost_command(blue, work, flags)
 end
 
 @doc """
-receipt_kinds: The kinds of reason a raised row may carry, as `--receipt "<kind>: <why>"`:
-the measure itself changed (`measurement`), a fix costs work (`correctness`), new
-behaviour costs work (`capability`), or the toolchain or host changed (`platform`).
-A slower release with any other reason, or none, is refused.
+unhosted_advice: What bench says of a kind the baseline has no row for on this
+host: it is not judged here, and the record that starts judging it, with a
+receipt receipt_refusal takes.
 
-    receipt_kinds #=> ["measurement", "correctness", "capability", "platform"]
+    includes(unhosted_advice("bench-allocs", "linux"), "--receipt \"first-measure: linux bench-allocs\"") #=> true
 """
-def receipt_kinds()
-  %w[measurement correctness capability platform]
-end
-
-@doc """
-receipt_refusal: Why a receipt is not a typed reason, or nil when it is one: a kind
-from receipt_kinds, a colon, and a reason. No receipt is no refusal.
-
-    receipt_refusal(nil) #=> nil
-    receipt_refusal("correctness: the overflow check") #=> nil
-    receipt_refusal("faster later").nil? #=> false
-"""
-def receipt_refusal(receipt)
-  if receipt.nil?
-    nil
-  else
-    kind = trim(before_first(receipt, ":"))
-    why = if includes(receipt, ":")
-      trim(after_first(receipt, ":"))
-    else
-      ""
-    end
-    if not member?(kind, receipt_kinds) or why == ""
-      "bench: a receipt is \"<kind>: <why>\" with a kind of #{join(receipt_kinds, ", ")}; got \"#{receipt}\""
-    end
-  end
+def unhosted_advice(k, host)
+  "advisory: #{BASELINE} has no #{k} row for #{host}, so #{k} is not judged here; record it: blue bench/bench.b cost BLUE WORKDIR --record --receipt \"first-measure: #{host} #{k}\""
 end
 
 def record_costs(old, rows, costs, host, flags)
@@ -767,7 +743,7 @@ def record_costs(old, rows, costs, host, flags)
   up = raises(rows, costs, host)
   refused = receipt_refusal(receipt)
   if not refused.nil?
-    write_stdout(unlines([refused]))
+    write_stdout(unlines(["bench: #{why(refused)}"]))
     false
   elsif member?("--quick", flags)
     write_stdout(
@@ -803,18 +779,7 @@ def check_costs(rows, costs, host, n)
       ]
     )
   )
-  map(
-    fn(k)
-      write_stdout(
-        unlines(
-          [
-            "advisory: #{BASELINE} has no #{k} row for #{host}, so #{k} is not judged here; record it: blue bench/bench.b cost BLUE WORKDIR --record --receipt \"first #{host} measure\""
-          ]
-        )
-      )
-    end,
-    j[:unhosted]
-  )
+  map((k) -> write_stdout(unlines([unhosted_advice(k, host)])), j[:unhosted])
   if size(j[:fell]) > 0
     write_stdout(
       unlines(["bank it: blue bench/bench.b cost BLUE WORKDIR --record"])
@@ -1302,6 +1267,26 @@ def native_gated?(rows, host, machine)
   m.nil? or m == machine
 end
 
+@doc """
+native_judged: The native refusals this machine judges. On the machine the
+host's rows were measured on, every ratio past its row and every program a path
+stopped running; on any other, only the stopped programs, since a program a path
+no longer runs is lost on every CPU and a ratio to Rust is not.
+
+    native_judged([{kind: "native-machine", key: "linux amd-x", size: 1}], [], "linux", "intel-y") #=> []
+"""
+def native_judged(rows, results, host, machine)
+  if native_gated?(rows, host, machine)
+    native_refusals(rows, results, host)
+  else
+    reduce(
+      (acc, p) -> append(acc, native_lost(rows, results, p, host)),
+      [],
+      paths_on(host)
+    )
+  end
+end
+
 def native_command(blue, work, flags)
   runs = 3
   host = host_name
@@ -1363,20 +1348,20 @@ def native_command(blue, work, flags)
       )
       true
     else
-      write_stdout(unlines([refused]))
+      write_stdout(unlines(["bench: #{why(refused)}"]))
       false
     end
-  elsif not native_gated?(rows, host, machine)
-    write_stdout(
-      unlines(
-        [
-          "advisory: the #{host} native rows were measured on #{native_machine(rows, host)}; this is #{machine}, so its ratios are shown, not judged"
-        ]
-      )
-    )
-    true
   else
-    bad = native_refusals(rows, results, host)
+    if not native_gated?(rows, host, machine)
+      write_stdout(
+        unlines(
+          [
+            "advisory: the #{host} native rows were measured on #{native_machine(rows, host)}; this is #{machine}, so its ratios are shown, not judged, and a program a path stopped running is judged here as everywhere"
+          ]
+        )
+      )
+    end
+    bad = native_judged(rows, results, host, machine)
     map((b) -> write_stdout(unlines([why(b)])), bad)
     is_empty(bad)
   end
@@ -1476,7 +1461,7 @@ def lever_command(blue, work, flags)
       )
       true
     else
-      write_stdout(unlines([refused]))
+      write_stdout(unlines(["bench: #{why(refused)}"]))
       false
     end
   else
@@ -1676,7 +1661,10 @@ end
 test "a raised row needs a typed reason, and an untyped one is refused by name"
   assert receipt_refusal(nil).nil?
   assert receipt_refusal("capability: hex words").nil?
-  assert includes(receipt_refusal("slower is fine"), "got \"slower is fine\"")
+  assert includes(
+    why(receipt_refusal("slower is fine")),
+    "got \"slower is fine\""
+  )
   assert not receipt_refusal("speed: why").nil?
   assert not receipt_refusal("measurement:").nil?
   assert not record_costs(
@@ -1715,6 +1703,44 @@ test "a program with no N is not timed against its Rust twin", {kind: :unit}
   }
   assert native_measures([timed_one, startup], path, "linux") ==
     [{key: "fib tree linux", size: 20000}]
+end
+
+test "the receipt bench advises for an unhosted kind is one its own validator takes"
+  advice = unhosted_advice("bench-allocs", "linux")
+  given = before_first(after_first(advice, "--receipt \""), "\"")
+  assert given == "first-measure: linux bench-allocs"
+  assert receipt_refusal(given).nil?
+end
+
+test "off the machine that measured the rows, a program a path stopped running is still red, and a slower ratio is shown, not judged"
+  rows = parse(
+    unlines(
+      [
+        "native-machine: linux amd-x 1",
+        "native-ratio: fib tree linux 30000",
+        "native-ratio: fib vm linux 25000",
+        "native-ratio: fib chuuzou linux 1100",
+        "native-ratio: fib bluec linux 2000"
+      ]
+    )
+  )
+  fast = {
+    name: "fib",
+    work: 1,
+    tree: {cpu: 300},
+    vm: {cpu: 250},
+    chuuzou: {cpu: 11},
+    bluec: {cpu: 20},
+    refused: {bluec: nil},
+    rust: {cpu: 10}
+  }
+  slow = {**fast, bluec: {cpu: 40}}
+  gone = {**fast, bluec: nil, refused: {bluec: "no code for `x`"}}
+  assert native_judged(rows, [slow], "linux", "intel-y") == []
+  assert map(first, native_judged(rows, [gone], "linux", "intel-y")) == [:lost]
+  assert size(native_judged(rows, [slow], "linux", "amd-x")) == 1
+  assert map(first, native_judged(rows, [gone], "linux", "amd-x")) == [:lost]
+  assert native_judged(rows, [fast], "linux", "intel-y") == []
 end
 
 test "native rows are judged only on the machine that measured them", {

@@ -1,5 +1,8 @@
-use("hadome", %i[failures measurement parse])
+use("hadome", %i[blind failures measurement parse row])
+use("hikisuu", [:flag])
+use("hon", [:generated_outputs])
 use("junjo", [:sort_by])
+use("kyohi", %i[kinds ok ok? refusal refusal_of refused value why])
 use("moji", [:includes])
 use("retsu", %i[is_empty size])
 use("shisutemu", [:read_or])
@@ -7,6 +10,8 @@ use("shisutemu", [:read_or])
 KIND = "purity-bytes"
 
 BASELINE = "gen/purity.baseline"
+
+LOCK = "Bluefile.lock"
 
 @doc """
 root: the tree the ledger reads: $GEN_ROOT, where a nix check places its inputs, or the working directory.
@@ -17,7 +22,7 @@ def root()
   getenv("GEN_ROOT", ".")
 end
 
-RECORD = "blue gen/purity.b record"
+RECORD = "blue gen/purity.b record [--receipt \"<kind>: <why>\"]"
 
 @doc """
 crate_of: the crate a Rust source path belongs to, or nil for a path outside crates/*/src.
@@ -35,16 +40,45 @@ def crate_of(path)
 end
 
 @doc """
-rust_files: every Rust source path under crates, sorted.
+generated: the crate sources a `generate` row of the tree's Bluefile.lock writes, as a kyohi result. Each is a rendering of blue that its checks.generated-<name>-fresh holds to its program, so the ledger leaves it out. A tree with no readable lock is refused as blind: the ledger cannot then tell generated Rust from hand-written.
 
-    is_empty(rust_files("no/such/root")) #=> true
+    kinds([refusal_of(generated("no/such/root"))]) #=> [:blind]
 """
-def rust_files(root)
+def generated(root)
+  text = read_or(path_join(root, LOCK), "")
+  lock = if text == ""
+    nil
+  else
+    json_read(text) rescue nil
+  end
+  if lock.nil?
+    refused(
+      refusal(
+        :blind,
+        "#{LOCK} is absent or unreadable, so generated Rust cannot be told from hand-written"
+      )
+    )
+  else
+    ok(
+      filter(
+        (p) -> crate_of(p) != nil,
+        generated_outputs({manifest: lock["manifest"] or {}})
+      )
+    )
+  end
+end
+
+@doc """
+rust_files: every hand-written Rust source path under crates, sorted: a path in `made`, the generated ones, is left out.
+
+    is_empty(rust_files("no/such/root", [])) #=> true
+"""
+def rust_files(root, made)
   if path_exists(path_join(root, "crates"))
     sort_by(
       (p) -> p,
       filter(
-        (p) -> crate_of(p) != nil,
+        (p) -> crate_of(p) != nil and not member?(p, made),
         map(
           (p) -> replace(p, "#{root}/crates/", "crates/"),
           walk_dir(path_join(root, "crates"))
@@ -84,47 +118,59 @@ def totals(paths, sizes)
   )
 end
 
-def measured(root)
-  paths = rust_files(root)
-  totals(paths, map((p) -> file_size(path_join(root, p)), paths))
-end
-
 @doc """
-rows_text: a baseline file's text for these measurements, one row each.
+measured: the ledger's rows for a tree: each crate's hand-written Rust bytes, or one blind row when the tree's lock cannot say which Rust is generated.
 
-    rows_text([measurement("crates/a", 3)]) #=> "purity-bytes: crates/a 3\n"
+    measured("no/such/root")[0][:key] #=> "Bluefile.lock"
 """
-def rows_text(ms)
-  join(map((m) -> unlines(["#{KIND}: #{m[:key]} #{to_s(m[:size])}"]), ms), "")
+def measured(root)
+  made = generated(root)
+  if ok?(made)
+    paths = rust_files(root, value(made))
+    map(
+      (m) -> row(KIND, m[:key], m[:size]),
+      totals(paths, map((p) -> file_size(path_join(root, p)), paths))
+    )
+  else
+    [blind(KIND, LOCK, why(refusal_of(made)))]
+  end
 end
 
-def record()
-  text = rows_text(measured(root))
-  write_file(path_join(root, BASELINE), text)
-  write_stdout(
-    unlines(["recorded #{to_s(size(measured(root)))} crate(s) in #{BASELINE}"])
-  )
+def record(receipt)
+  got = hadome::record(path_join(root, BASELINE), measured(root), {receipt:})
+  if ok?(got)
+    write_stdout(
+      unlines(["recorded #{to_s(value(got))} crate(s) in #{BASELINE}"])
+    )
+  else
+    write_stderr(unlines([why(refusal_of(got)), "usage: #{RECORD}"]))
+    exit_with(1)
+  end
 end
 
 def main()
   if argv_get(0) == "record"
-    record
+    record(flag(argv, "--receipt"))
   else
     write_stderr(unlines(["usage: #{RECORD}"]))
     exit_with(64)
   end
 end
 
-test "no crate grows past its recorded Rust bytes, and a new crate must be recorded"
+test "no crate grows past its recorded hand-written Rust bytes, and a new crate must be recorded"
   rows = parse(read_or(path_join(root, BASELINE), ""))
   ms = measured(root)
-  assert size(ms) >= 20
   bad = map((f) -> f[1], failures(rows, KIND, ms))
   if not is_empty(bad)
     write_stderr(unlines(bad))
-    write_stderr(unlines(["record a shrink with: #{RECORD}"]))
+    write_stderr(
+      unlines(
+        ["a crate that grew or is new is recorded with its reason: #{RECORD}"]
+      )
+    )
   end
   assert is_empty(bad)
+  assert size(ms) >= 20
 end
 
 test "a crate whose source grew is refused, one that shrank or held is not"
@@ -154,12 +200,93 @@ test "a growth is reported as its message"
     ["purity-bytes: crates/a measures 101, past its recorded 100 by 1"]
 end
 
+def lock_text(outputs)
+  json_stringify(
+    {
+      manifest: {
+        generated: reduce(
+          (acc, o) -> assoc(acc, o, {output: o, program: "gen/t.b"}),
+          {},
+          outputs
+        )
+      }
+    }
+  )
+end
+
+def tree_at(name, files, outputs)
+  away = path_join(temp_dir("purity"), name)
+  map(
+    fn(f)
+      mkdir_p(path_join(away, path_dirname(f[0])))
+      write_file(path_join(away, f[0]), f[1])
+    end,
+    files
+  )
+  if outputs != nil
+    write_file(path_join(away, LOCK), lock_text(outputs))
+  end
+  away
+end
+
 test "the ledger measures a tree it is not standing in"
-  away = temp_dir("purity-away")
-  mkdir_p(path_join(away, "crates/tiny/src"))
-  write_file(path_join(away, "crates/tiny/src/lib.rs"), unlines(["fn a() {}"]))
+  away = tree_at(
+    "away",
+    [["crates/tiny/src/lib.rs", unlines(["fn a() {}"])]],
+    []
+  )
   ms = measured(away)
-  assert size(ms) == 1
-  assert ms[0][:size] == 10
+  assert ms == [row(KIND, "crates/tiny", 10)]
+  rm_rf(away)
+end
+
+test "a Rust file a generate row writes is not counted, and growing it moves nothing"
+  files = [
+    ["crates/k/src/lib.rs", "fn a() {}"],
+    ["crates/k/src/t.rs", "pub const T: u8 = 1;"]
+  ]
+  away = tree_at("made", files, ["crates/k/src/t.rs"])
+  assert measured(away) == [row(KIND, "crates/k", 9)]
+  write_file(
+    path_join(away, "crates/k/src/t.rs"),
+    "pub const T: [u8; 2] = [1, 2];"
+  )
+  rows = [row(KIND, "crates/k", 9)]
+  assert failures(rows, KIND, measured(away)) == []
+  write_file(path_join(away, "crates/k/src/lib.rs"), "fn a() { 1; }")
+  assert kinds(failures(rows, KIND, measured(away))) == [:grew]
+  rm_rf(away)
+end
+
+test "a tree with no lock is blind, and a blind ledger is red"
+  away = tree_at("unlocked", [["crates/k/src/lib.rs", "fn a() {}"]], nil)
+  got = failures([row(KIND, "crates/k", 9)], KIND, measured(away))
+  assert kinds(got) == [:blind]
+  assert includes(got[0][1], "#{LOCK} is absent or unreadable")
+  rm_rf(away)
+end
+
+test "record banks a shrink with no receipt and refuses a growth without one"
+  away = tree_at("record", [["crates/k/src/lib.rs", "fn a() {}"]], [])
+  path = path_join(away, BASELINE)
+  mkdir_p(path_dirname(path))
+  write_file(
+    path,
+    unlines(
+      ["# receipt: measurement: receipts begin", "purity-bytes: crates/k 20"]
+    )
+  )
+  assert value(hadome::record(path, measured(away), {})) == 1
+  assert read_file(path) ==
+    unlines(
+      ["# receipt: measurement: receipts begin", "purity-bytes: crates/k 9"]
+    )
+  write_file(path_join(away, "crates/k/src/lib.rs"), "fn a() { 1; }")
+  assert kinds([refusal_of(hadome::record(path, measured(away), {}))]) ==
+    [:unreceipted]
+  assert read_file(path) ==
+    unlines(
+      ["# receipt: measurement: receipts begin", "purity-bytes: crates/k 9"]
+    )
   rm_rf(away)
 end

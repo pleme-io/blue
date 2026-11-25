@@ -74,9 +74,13 @@ of the baseline: it banks every fall, keeps the old row for a rise inside the
 tolerance so the baseline cannot creep, and refuses a rise past it without
 `--receipt`, which stays in the file as a `# receipt:` line, as in
 `reuse.baseline`. A receipt is typed: `--receipt "<kind>: <why>"`, with a
-kind of `measurement`, `correctness`, `capability` or `platform`
-(`receipt_kinds` in `bench/bench.b`); any other reason is refused, on
-`cost`, `native` and `lever` alike.
+kind of `first-measure`, `measurement`, `correctness`, `capability`,
+`platform` or `un-gain` (the one grammar every ledger takes, `hadome`'s
+`receipt_kinds` and `receipt_refusal`); any other reason is refused, on
+`cost`, `native` and `lever` alike. A host with no row for a kind is told the
+record that starts judging it, `--receipt "first-measure: <host> <kind>"`. A
+program a native path stops running is judged on every machine; only the
+ratios wait for the machine that recorded them.
 
 The cost rows include the lever rows of 1.6 (`memo`, `bake`, `incremental`,
 `hexmsg`), so the levers are gated in CI by their steps: a build where the

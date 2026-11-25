@@ -1,9 +1,11 @@
-use("hadome", %i[failures measurement parse])
+use("hadome", %i[blind failures parse row])
+use("hikisuu", [:flag])
 use("junjo", [:sort_by])
 use("kuzushi", [:head_is?])
-use("moji", [:includes])
-use("retsu", %i[is_empty size])
-use("shisutemu", %i[read_or status_of stdout_of])
+use("kyohi", %i[kinds ok ok? refusal refusal_of refused value why])
+use("moji", %i[includes lines])
+use("retsu", %i[first is_empty size])
+use("shisutemu", %i[read_or status_of stderr_of stdout_of])
 use("shuugou", [:unique])
 
 BASELINE = "gen/mutation-census.baseline"
@@ -17,7 +19,7 @@ def root()
   getenv("GEN_ROOT", ".")
 end
 
-RECORD = "blue gen/mutation-census.b record"
+RECORD = "blue gen/mutation-census.b record [--receipt \"<kind>: <why>\"]"
 
 KINDS = %w[mutation-set mutation-while mutation-redefine]
 
@@ -81,13 +83,23 @@ def tally(node)
   end
 end
 
-def counts_of(path)
-  r = exec_capture(self_exe, "ast", path_join(root, path))
+@doc """
+read_of: the census of one `blue ast` run, as a kyohi result: ok of the [set!, while, redefine] counts of the tree it printed, or refused as blind when it could not read the file, which is never zero rebinds.
+
+    value(read_of([[:status, 0], [:stdout, "(define (f) (set! a 1))"], [:stderr, ""]])) #=> [1, 0, 0]
+    kinds([refusal_of(read_of([[:status, 1], [:stdout, ""], [:stderr, "parse error"]]))]) #=> [:blind]
+"""
+def read_of(r)
   if status_of(r) != 0
-    zero
+    said = first(lines(stderr_of(r))) or ""
+    refused(refusal(:blind, "blue ast exited #{to_s(status_of(r))}: #{said}"))
   else
-    reduce((acc, f) -> plus(acc, tally(f)), zero, read_forms(stdout_of(r)))
+    ok(reduce((acc, f) -> plus(acc, tally(f)), zero, read_forms(stdout_of(r))))
   end
+end
+
+def counts_of(path)
+  read_of(exec_capture(self_exe, "ast", path_join(root, path)))
 end
 
 def blue_files()
@@ -105,72 +117,111 @@ def blue_files()
   )
 end
 
+@doc """
+rows_of: the census rows of one file's read: a row for each kind it holds at least one of, or, when the file could not be read, a blind row for every kind.
+
+    rows_of("a.b", ok([2, 0, 1])) #=> [row("mutation-set", "a.b", 2), row("mutation-redefine", "a.b", 1)]
+"""
+def rows_of(path, read)
+  if ok?(read)
+    c = value(read)
+    retsu::flat_map(
+      range(0, size(KINDS)),
+      fn(i)
+        if c[i] > 0
+          [row(KINDS[i], path, c[i])]
+        else
+          []
+        end
+      end
+    )
+  else
+    map((k) -> blind(k, path, why(refusal_of(read))), KINDS)
+  end
+end
+
 def measured(paths)
+  retsu::flat_map(paths, (p) -> rows_of(p, counts_of(p)))
+end
+
+@doc """
+failed: every row of a census that grew, is new, or is blind, as its message.
+
+    failed([], []) #=> []
+"""
+def failed(rows, ms)
   retsu::flat_map(
-    paths,
-    fn(p)
-      c = counts_of(p)
-      filter(
-        (m) -> m != nil,
-        [
-          if c[0] > 0
-            {kind: KINDS[0], m: measurement(p, c[0])}
-          end,
-          if c[1] > 0
-            {kind: KINDS[1], m: measurement(p, c[1])}
-          end,
-          if c[2] > 0
-            {kind: KINDS[2], m: measurement(p, c[2])}
-          end
-        ]
-      )
-    end
+    KINDS,
+    (k) -> map((f) -> f[1], failures(rows, k, filter((m) -> m[:kind] == k, ms)))
   )
 end
 
-def rows_text(ms)
-  join(
-    map(
-      (x) -> unlines(["#{x[:kind]}: #{x[:m][:key]} #{to_s(x[:m][:size])}"]),
-      ms
-    ),
-    ""
+def record(receipt)
+  got = hadome::record(
+    path_join(root, BASELINE),
+    measured(blue_files),
+    {receipt:}
   )
-end
-
-def record()
-  ms = measured(blue_files)
-  write_file(BASELINE, rows_text(ms))
-  write_stdout(unlines(["recorded #{to_s(size(ms))} row(s) in #{BASELINE}"]))
+  if ok?(got)
+    write_stdout(
+      unlines(["recorded #{to_s(value(got))} row(s) in #{BASELINE}"])
+    )
+  else
+    write_stderr(unlines([why(refusal_of(got)), "usage: #{RECORD}"]))
+    exit_with(1)
+  end
 end
 
 def main()
   if argv_get(0) == "record"
-    record
+    record(flag(argv, "--receipt"))
   else
     write_stderr(unlines(["usage: #{RECORD}"]))
     exit_with(64)
   end
 end
 
-test "no file gains a rebind past its recorded count, and a new file with one must be recorded"
+test "no file gains a rebind past its recorded count, a new file with one must be recorded, and no file is blind"
   rows = parse(read_or(path_join(root, BASELINE), ""))
   assert size(blue_files) >= 500
-  ms = measured(blue_files)
-  bad = retsu::flat_map(
-    KINDS,
-    fn(k)
-      map(
-        (f) -> f[1],
-        failures(rows, k, map((x) -> x[:m], filter((x) -> x[:kind] == k, ms)))
-      )
-    end
-  )
+  bad = failed(rows, measured(blue_files))
   if not is_empty(bad)
     write_stderr(unlines(bad))
-    write_stderr(unlines(["record a fall with: #{RECORD}"]))
+    write_stderr(
+      unlines(
+        ["a file that gained a rebind is recorded with its reason: #{RECORD}"]
+      )
+    )
   end
   assert is_empty(bad)
+end
+
+test "a file blue ast cannot read is blind in every kind, never zero rebinds, and a blind census is red"
+  read = read_of([[:status, 1], [:stdout, ""], [:stderr, "1:5: parse error"]])
+  got = rows_of("b/three.b", read)
+  assert map((r) -> r[:kind], got) == KINDS
+  assert failed([], got) ==
+    map(
+      (k) -> "#{k}: b/three.b is blind: blue ast exited 1: 1:5: parse error",
+      KINDS
+    )
+  assert failed([], rows_of("b/two.b", ok([0, 0, 0]))) == []
+end
+
+test "a record banks a fall, and refuses a gained rebind with no receipt and a blind file with one"
+  path = path_join(temp_dir("census"), "census.baseline")
+  write_file(path, unlines(["mutation-set: a.b 3"]))
+  assert value(hadome::record(path, rows_of("a.b", ok([1, 0, 0])), {})) == 1
+  assert read_file(path) == unlines(["mutation-set: a.b 1"])
+  up = hadome::record(path, rows_of("a.b", ok([2, 0, 0])), {})
+  assert kinds([refusal_of(up)]) == [:unreceipted]
+  blinded = hadome::record(
+    path,
+    rows_of("a.b", refused(refusal(:blind, "unread"))),
+    {receipt: "measurement: a.b"}
+  )
+  assert kinds([refusal_of(blinded)]) == [:blind]
+  assert read_file(path) == unlines(["mutation-set: a.b 1"])
 end
 
 test "tally counts set!, while and a captured repeated define in one block"

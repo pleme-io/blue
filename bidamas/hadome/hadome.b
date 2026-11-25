@@ -1,17 +1,25 @@
 @moduledoc """
 hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
 
+One ledger for every one-way gate, the blue rung of joeira-ratchet: rows are
+`kind: key N`, and a gate judges its measures with failures. A measure that
+could not be taken is blind, and blind is red. A ledger is written only by
+record: every fall is banked (tighten, joeira-ratchet's bank), a row no longer
+measured leaves, and a rise or a new row needs a typed receipt,
+`<kind>: <why>` with a kind of receipt_kinds, kept in the file as a
+`# receipt:` line beside every earlier one.
+
     render("rust", []) #=> ""
 """
 
-use("kyohi", %i[kinds refusal])
+use("kyohi", %i[kinds ok refusal refusal_of refused value why])
 
 use(
   "moji",
   %i[after_first after_last before_first before_last includes lines trim]
 )
 
-use("retsu", %i[is_empty last])
+use("retsu", %i[flat_map is_empty last])
 
 def row(kind, key, size)
   {kind:, key:, size:}
@@ -19,6 +27,15 @@ end
 
 def measurement(key, size)
   {key:, size:}
+end
+
+@doc """
+blind: a measured row whose measure could not be taken, and why. failures names it red and record refuses it; it is never read as zero.
+
+    blind("purity-bytes", "crates/a", "unreadable")[:blind] #=> "unreadable"
+"""
+def blind(kind, key, why)
+  {kind:, key:, blind: why}
 end
 
 def sized(kind, rest)
@@ -88,28 +105,32 @@ end
 def failure(rows, kind, m, permille)
   key = m[:key]
   size = m[:size]
-  j = judge_within(rows, kind, key, size, permille)
-  v = j[:verdict]
-  beyond = if permille == 0
-    ""
+  if m[:blind] != nil
+    refusal(:blind, "#{kind}: #{key} is blind: #{m[:blind]}")
   else
-    ", beyond its #{to_s(permille)} per mille tolerance"
-  end
-  if v == :unrecorded
-    refusal(
-      :unrecorded,
-      "#{kind}: #{key} measures #{to_s(size)} and the baseline has no row for it"
-    )
-  elsif v == :grew
-    refusal(
-      :grew,
-      "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(j[:recorded])} by #{to_s(j[:grew])}#{beyond}"
-    )
+    j = judge_within(rows, kind, key, size, permille)
+    v = j[:verdict]
+    beyond = if permille == 0
+      ""
+    else
+      ", beyond its #{to_s(permille)} per mille tolerance"
+    end
+    if v == :unrecorded
+      refusal(
+        :unrecorded,
+        "#{kind}: #{key} measures #{to_s(size)} and the baseline has no row for it"
+      )
+    elsif v == :grew
+      refusal(
+        :grew,
+        "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(j[:recorded])} by #{to_s(j[:grew])}#{beyond}"
+      )
+    end
   end
 end
 
 @doc """
-failures: every key that grew or is new.
+failures: every key that grew, is new, or is blind.
 
     failures(example_baseline, "entry", []) #=> []
 """
@@ -187,6 +208,115 @@ def receipted(old, receipt, rows)
     rows
   else
     "#{unlines(notes)}#{rows}"
+  end
+end
+
+@doc """
+tighten: the rows of `kind` a record banks, as joeira-ratchet's bank does: each measured key at its recorded size or lower, never raised. A key no longer measured, or never recorded, is left out; a blind measure keeps its row.
+
+    tighten([row("cost", "fib", 9), row("cost", "gone", 4)], "cost", [measurement("fib", 7)]) #=> [row("cost", "fib", 7)]
+"""
+def tighten(rows, kind, measurements)
+  flat_map(
+    sort_keyed((m) -> m[:key], measurements),
+    fn(m)
+      was = recorded(rows, kind, m[:key])
+      if was.nil?
+        []
+      elsif m[:blind] != nil or was < m[:size]
+        [row(kind, m[:key], was)]
+      else
+        [row(kind, m[:key], m[:size])]
+      end
+    end
+  )
+end
+
+@doc """
+receipt_kinds: the kinds of reason a raised or new row carries, written `"<kind>: <why>"`: a row's first measure (`first-measure`), the measure itself changed (`measurement`), a fix costs work (`correctness`), new behaviour costs work (`capability`), the toolchain or host changed (`platform`), or a gain given back on purpose, naming what it gives back (`un-gain`, the ratchet law's word).
+
+    receipt_kinds #=> ["first-measure", "measurement", "correctness", "capability", "platform", "un-gain"]
+"""
+def receipt_kinds()
+  %w[first-measure measurement correctness capability platform un-gain]
+end
+
+@doc """
+receipt_refusal: why a receipt is not a typed reason, or nil when it is one: a kind from receipt_kinds, a colon and a reason. No receipt is no refusal.
+
+    receipt_refusal(nil) #=> nil
+    receipt_refusal("correctness: the overflow check") #=> nil
+    kinds([receipt_refusal("faster later")]) #=> [:receipt]
+"""
+def receipt_refusal(receipt)
+  if receipt != nil
+    named = trim(before_first(receipt, ":"))
+    reason = if includes(receipt, ":")
+      trim(after_first(receipt, ":"))
+    else
+      ""
+    end
+    if not member?(named, receipt_kinds) or reason == ""
+      refusal(
+        :receipt,
+        "a receipt is \"<kind>: <why>\" with a kind of #{join(receipt_kinds, ", ")}; got \"#{receipt}\""
+      )
+    end
+  end
+end
+
+@doc """
+record: write the ledger at `path` from the measured rows, of one kind or more, and answer a kyohi result: ok of the count of rows written, or the refusal that wrote nothing. Every fall is banked and a key no longer measured leaves (tighten). A row that rises or is new needs `opts.receipt`, checked by receipt_refusal and kept as a `# receipt:` line beside the file's earlier ones. A blind measure is refused.
+
+    kinds([refusal_of(record("/nonexistent/hadome", [blind("k", "a", "unread")], {}))]) #=> [:blind]
+"""
+def record(path, measured, opts)
+  old = if is_file?(path)
+    read_file(path)
+  else
+    ""
+  end
+  rows = parse(old)
+  receipt = opts[:receipt]
+  of_kind = (xs, k) -> filter((m) -> m[:kind] == k, xs)
+  ks = distinct(sort_keyed((k) -> k, map((m) -> m[:kind], measured)))
+  found = flat_map(ks, (k) -> failures(rows, k, of_kind(measured, k)))
+  blinds = filter((f) -> kyohi::kind(f) == :blind, found)
+  rises = filter((f) -> kyohi::kind(f) != :blind, found)
+  bad = receipt_refusal(receipt)
+  if blinds != []
+    refused(refusal(:blind, join_lines(map(why, blinds))))
+  elsif bad != nil
+    refused(bad)
+  elsif rises != [] and receipt.nil?
+    refused(
+      refusal(
+        :unreceipted,
+        join_lines(
+          append(
+            map(why, rises),
+            [
+              "a raised or new row needs a receipt, \"<kind>: <why>\" with a kind of #{join(receipt_kinds, ", ")}"
+            ]
+          )
+        )
+      )
+    )
+  else
+    kept = if receipt.nil?
+      flat_map(ks, (k) -> tighten(rows, k, of_kind(measured, k)))
+    else
+      measured
+    end
+    write_file(
+      path,
+      receipted(
+        old,
+        receipt,
+        join(map((k) -> render(k, of_kind(kept, k)), ks), "")
+      )
+    )
+    ok(length(kept))
   end
 end
 
@@ -332,6 +462,117 @@ test "failures_within names a grown row with its tolerance and skips a held one"
   assert includes(got[0][1], "past its recorded 1000 by 200")
   assert includes(got[0][1], "10 per mille")
   assert failures_within(rows, "cost", [measurement("fib", 1005)], 10) == []
+end
+
+test "tighten banks as joeira-ratchet's bank does: a fall lowers its row, a rise never raises one, and an orphan or a new key leaves"
+  push = "wf/image-push.yml::push/Build and push"
+  tendril = "docs/CLAUDE.md::The Tendril Method"
+  assert tighten(
+    example_baseline,
+    "entry",
+    [measurement(push, 12), measurement(tendril, 4139)]
+  ) == [row("entry", tendril, 4139), row("entry", push, 12)]
+  assert tighten(
+    example_baseline,
+    "entry",
+    [measurement(push, 61), measurement(tendril, 9000)]
+  ) == [row("entry", tendril, 4139), row("entry", push, 60)]
+  assert tighten(example_baseline, "entry", [measurement(tendril, 4000)]) ==
+    [row("entry", tendril, 4000)]
+  assert tighten(example_baseline, "entry", [measurement("new", 7)]) == []
+  assert tighten(example_baseline, "host", [measurement(push, 1)]) == []
+end
+
+test "tighten is a fixed point once banked, and a blind measure keeps its row"
+  ms = [measurement("a", 3), measurement("b", 8)]
+  once = tighten([row("k", "a", 5), row("k", "b", 8)], "k", ms)
+  assert tighten(once, "k", ms) == once
+  assert failures(once, "k", ms) == []
+  assert tighten(once, "k", [blind("k", "a", "unread")]) == [row("k", "a", 3)]
+end
+
+test "a blind measure is red, never read as zero"
+  got = failures(
+    [row("k", "a", 5)],
+    "k",
+    [blind("k", "a", "blue ast exited 1"), measurement("b", 0)]
+  )
+  assert kinds(got) == %i[blind unrecorded]
+  assert includes(got[0][1], "k: a is blind: blue ast exited 1")
+end
+
+test "a receipt is a kind of receipt_kinds, a colon and a reason"
+  assert receipt_kinds ==
+    %w[first-measure measurement correctness capability platform un-gain]
+  assert receipt_refusal(nil).nil?
+  assert receipt_refusal("un-gain: mutual's rows leave the gate").nil?
+  assert receipt_refusal("first-measure: linux").nil?
+  assert kinds([receipt_refusal("first linux measure")]) == [:receipt]
+  assert kinds([receipt_refusal("measurement:")]) == [:receipt]
+  assert kinds([receipt_refusal("faster: later")]) == [:receipt]
+end
+
+@doc """
+ledger_at: a scratch ledger file holding `text`, for a test of record.
+
+    read_file(ledger_at("doc.baseline", "k: a 1")) #=> "k: a 1"
+"""
+def ledger_at(name, text)
+  path = path_join(temp_dir("hadome"), name)
+  write_file(path, text)
+  path
+end
+
+test "a record banks a fall and drops a gone row with no receipt, keeping every receipt line"
+  path = ledger_at(
+    "fall.baseline",
+    unlines(["# receipt: measurement: first", "k: a 5", "k: gone 2"])
+  )
+  got = record(path, [row("k", "a", 3)], {})
+  assert value(got) == 1
+  assert read_file(path) == unlines(["# receipt: measurement: first", "k: a 3"])
+end
+
+test "a rise or a new row with no receipt is refused and the ledger is untouched"
+  text = unlines(["k: a 5"])
+  path = ledger_at("rise.baseline", text)
+  up = record(path, [row("k", "a", 6)], {})
+  assert kinds([refusal_of(up)]) == [:unreceipted]
+  assert includes(
+    refusal_of(up)[1],
+    "k: a measures 6, past its recorded 5 by 1"
+  )
+  assert kinds([refusal_of(record(path, [row("k", "b", 1)], {}))]) ==
+    [:unreceipted]
+  assert read_file(path) == text
+end
+
+test "a receipted rise is written with its receipt, and a malformed receipt is refused"
+  path = ledger_at("raise.baseline", unlines(["k: a 5"]))
+  assert kinds(
+    [refusal_of(record(path, [row("k", "a", 6)], {receipt: "bigger"}))]
+  ) == [:receipt]
+  got = record(
+    path,
+    [row("k", "a", 6), row("j", "b", 1)],
+    {receipt: "capability: the b row"}
+  )
+  assert value(got) == 2
+  assert read_file(path) ==
+    unlines(["# receipt: capability: the b row", "j: b 1", "k: a 6"])
+end
+
+test "a blind measure is refused by a record, even with a receipt, and nothing is written"
+  text = unlines(["k: a 5"])
+  path = ledger_at("blind.baseline", text)
+  got = record(
+    path,
+    [blind("k", "a", "unreadable"), row("k", "b", 1)],
+    {receipt: "measurement: b"}
+  )
+  assert kinds([refusal_of(got)]) == [:blind]
+  assert read_file(path) == text
+  assert value(record(ledger_at("none.baseline", ""), [], {})) == 0
 end
 
 test "receipted keeps every comment, adds the receipt, and drops old rows"

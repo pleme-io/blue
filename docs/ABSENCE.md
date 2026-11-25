@@ -42,12 +42,12 @@ into a nil that reads as absence or as the unit, so `json_parse(text) rescue
 nil` answers one nil for a `null` document and for text that is not JSON; a
 caller that must tell them apart rescues the error itself.
 
-A default for an absence is `umu::value_or(o, d)`, the one `_or` word, with
-`ok_or` its bridge to a result; no raising verb grows a default-giving `_or`
-twin. The `_or` words that exist (`deeta::get_or`, `shisutemu::read_or`,
-`gitto::out_or`, `koutei::input_or`, the builtin `json_get_or`) are legacy,
-and they retire at P3, when `get` answers an option, so callers are rewritten
-once.
+A default for an absence is `umu::value_or(o, d)`, the one default word,
+with `umu::ok_or` its bridge to a result; no raising verb grows a
+default-giving `_or` twin. The `_or` words that exist (`deeta::get_or`,
+`shisutemu::read_or`, `gitto::out_or`, `koutei::input_or`, the builtin
+`json_get_or`) are legacy, and they retire at P3, when `get` answers an
+option, so callers are rewritten once.
 
 ## 1. Destination
 

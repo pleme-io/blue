@@ -2,6 +2,7 @@ use("bunsho", %i[extract inlines law_failures parse plain_text walk])
 use("hon", %i[doc_pages path_in])
 use("moji", %i[after_first before_first drop_chars made_of text_of])
 use("retsu", %i[find_first first flat_map last push])
+use("shuugou", [:frequencies])
 
 LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
 DIGITS = "0123456789"
@@ -1009,26 +1010,48 @@ def r_id_at(text)
 end
 
 @doc """
+r_id_of: The R id a heading starts with, or a table row's first cell; nil for any other node, and for one that starts with none.
+
+    r_id_of(first(parse("### R0 — a")[:children])) #=> "R0"
+"""
+def r_id_of(n)
+  head = if n[:kind] == :heading
+    n
+  elsif n[:kind] == :table_row
+    first(n[:children] or [])
+  end
+  if head != nil
+    r_id_at(trim(plain_text(head[:children] or [])))
+  end
+end
+
+@doc """
 r_ids_defined: The R ids a parsed page defines: each heading, and each table row whose first cell, that starts with one.
 
     r_ids_defined(parse(join_lines(["### R0 — a", "", "| # | x |", "|---|---|", "| R1 | a |", "| R2: b | c |"]))) #=> ["R0", "R1", "R2"]
 """
 def r_ids_defined(tree)
+  filter((id) -> id != nil, map(r_id_of, walk(tree)))
+end
+
+@doc """
+r_ids_repeated: Each R id that two rows of one table of R ids start with, as [line, id], the line the table opens on. A table of R ids allocates them, every row below its header starting with one, so there one id names one row. A ledger that mixes series (`S0`, `L1`, `R6a (first slice)`) gives an item a row per slice, and a heading and a row that start with one id are its section and its row: neither allocates an id twice.
+
+    r_ids_repeated(parse(join_lines(["### R1 — a", "", "| # | x |", "|---|---|", "| R1 | a |", "| R2 (b) | c |", "| R2 (d) | e |"]))) #=> [[3, "R2"]]
+"""
+def r_ids_repeated(tree)
   flat_map(
-    filter((n) -> member?(n[:kind], %i[heading table_row]), walk(tree)),
-    fn(n)
-      head = if n[:kind] == :heading
-        n
-      else
-        first(n[:children] or [])
-      end
-      id = if head != nil
-        r_id_at(trim(plain_text(head[:children] or [])))
-      end
-      if id.nil?
+    extract(tree, :table),
+    fn(t)
+      rows = drop(1, t[:children])
+      ids = filter((id) -> id != nil, map(r_id_of, rows))
+      if length(ids) < length(rows)
         []
       else
-        [id]
+        map(
+          (f) -> [t[:at][0], first(f)],
+          filter((f) -> last(f) > 1, frequencies(ids))
+        )
       end
     end
   )
@@ -1117,12 +1140,12 @@ def r_tokens(text, names)
 end
 
 @doc """
-r_tables: Each page's name and the R ids its tables define, as [name, ids], pages being [path, parsed tree].
+r_tables: Each page's path and the R ids it defines, as [path, ids], pages being [path, parsed tree].
 
-    r_tables([["docs/A.md", parse(join_lines(["| R1 | x |", "|---|---|"]))]]) #=> [["A", ["R1"]]]
+    r_tables([["docs/A.md", parse(join_lines(["| R1 | x |", "|---|---|"]))]]) #=> [["docs/A.md", ["R1"]]]
 """
 def r_tables(trees)
-  map((t) -> [doc_name(first(t)), r_ids_defined(last(t))], trees)
+  map((t) -> [first(t), r_ids_defined(last(t))], trees)
 end
 
 @doc """
@@ -1143,12 +1166,21 @@ def defines?(ids, id)
 end
 
 @doc """
-ids_of: The R ids the page named `name` defines, [] for a page that defines none or does not exist.
+ids_of: The R ids the page at `path` defines, [] for a page that defines none or does not exist.
 
-    ids_of([["A", ["R1"]]], "B") #=> []
+    ids_of([["docs/A.md", ["R1"]]], "docs/B.md") #=> []
 """
-def ids_of(tables, name)
-  last(find_first((t) -> first(t) == name, tables) or [name, []])
+def ids_of(tables, path)
+  last(find_first((t) -> first(t) == path, tables) or [path, []])
+end
+
+@doc """
+ids_named: The R ids the pages a qualifier names define, a page's name being its file name without `.md`; [] when no such page defines any.
+
+    ids_named([["docs/A.md", ["R1"]], ["docs/x/A.md", ["R2"]], ["docs/B.md", ["R3"]]], "A") #=> ["R1", "R2"]
+"""
+def ids_named(tables, name)
+  flat_map(filter((t) -> doc_name(first(t)) == name, tables), last)
 end
 
 @doc """
@@ -1168,7 +1200,7 @@ r_id_failure: Why one R id of a page fails, or [] when it names a row: an id qua
 def r_id_failure(where, token, table, tables)
   id = token[1]
   page = token[2]
-  if page != nil and defines?(ids_of(tables, page), id)
+  if page != nil and defines?(ids_named(tables, page), id)
     []
   elsif page != nil
     ["#{where}: #{page} #{id} names no row: #{page} defines no #{id}"]
@@ -1186,27 +1218,33 @@ def r_id_failure(where, token, table, tables)
 end
 
 @doc """
-r_id_failures: Why each R id the prose of the pages names fails, a page being [path, text]: a page names bare its own ids and those of the page its front matter names in `r_ids:` (a sub-page and its parent), and any other page's ids after that page's name (`PERFORMANCE R7`), so one id never means two rows. Code spans and code blocks name nothing.
+r_id_failures: Why each R id the pages define or their prose names fails, a page being [path, text]: two rows of one table of R ids that start with one id are refused, and a page names bare its own ids and those of the page its front matter names in `r_ids:` (a sub-page and its parent), and any other page's ids after that page's name (`PERFORMANCE R7`), so one id never means two rows. A page's own ids are its path's, so two pages of one file name keep their own. Code spans and code blocks name nothing.
 
     r_id_failures([["docs/D.md", "D names R3, and `R5` is code."]]) #=> ["docs/D.md:1: a bare R3 on a page with no R ids of its own; name the page that defines it (PERFORMANCE R3), or name that page in the front matter (r_ids: PERFORMANCE.md)"]
 """
 def r_id_failures(pages)
   trees = map((p) -> [first(p), parse(last(p))], pages)
   tables = r_tables(trees)
-  names = map(first, filter((t) -> last(t) != [], tables))
+  names = map((t) -> doc_name(first(t)), filter((t) -> last(t) != [], tables))
   flat_map(
     trees,
     fn(t)
       path = first(t)
       tree = last(t)
-      own = ids_of(tables, doc_name(path))
+      own = ids_of(tables, path)
       declared = front_value(tree, "r_ids")
       table = if declared != nil
-        [declared, append(own, ids_of(tables, doc_name(declared)))]
+        [declared, append(own, ids_named(tables, doc_name(declared)))]
       elsif own != []
         [path, own]
       end
-      flat_map(
+      repeated = map(
+        fn(r)
+          "#{path}:#{to_s(first(r))}: two rows of this table start with #{last(r)}; one id names one row, so give the later one the next free id"
+        end,
+        r_ids_repeated(tree)
+      )
+      named = flat_map(
         inline_runs_of(tree),
         fn(run)
           where = "#{path}:#{to_s(first(run))}"
@@ -1221,6 +1259,7 @@ def r_id_failures(pages)
           )
         end
       )
+      append(repeated, named)
     end
   )
 end
@@ -1233,7 +1272,8 @@ test "every R id a page names is one row of one page"
   end
   tables = r_tables(map((p) -> [first(p), parse(last(p))], pages))
   assert length(filter((t) -> last(t) != [], tables)) >= 8
-  assert member?("R19", ids_of(tables, "PERFORMANCE"))
+  assert member?("R19", ids_of(tables, "docs/PERFORMANCE.md"))
+  assert member?("R6", ids_named(tables, "PERFORMANCE"))
   assert found == []
 end
 
@@ -1264,6 +1304,48 @@ test "an id a page does not define, a qualified id its page lacks and a bare id 
       "docs/A.md:5: B R9 names no row: B defines no R9",
       "docs/C.md:5: R4 is not an R id of B.md (R1); name the page an id from elsewhere comes from, as in PERFORMANCE R4",
       "docs/D.md:1: a bare R3 on a page with no R ids of its own; name the page that defines it (PERFORMANCE R3), or name that page in the front matter (r_ids: PERFORMANCE.md)"
+    ]
+end
+
+test "an id two rows of a table of R ids start with is refused; a heading and a row share one, a ledger's slices share one, and pages of one file name keep their own ids"
+  pages = [
+    [
+      "docs/A.md",
+      join_lines(
+        [
+          "### R1 — a",
+          "",
+          "| # | x |",
+          "|---|---|",
+          "| R1 | a |",
+          "| R2 (U9) | b |",
+          "| R2 (U10) | c |",
+          "",
+          "A cites R1 and R2.",
+          "",
+          "| Rung | built |",
+          "|---|---|",
+          "| S0 | f |",
+          "| R1 (first slice) | g |",
+          "| R1 (second slice) | h |"
+        ]
+      )
+    ],
+    [
+      "docs/x/E.md",
+      join_lines(
+        ["| # | x |", "|---|---|", "| R3 | d |", "", "E cites R3 and R4."]
+      )
+    ],
+    [
+      "docs/y/E.md",
+      join_lines(["| # | y |", "|---|---|", "| R4 | e |", "", "E cites R4."])
+    ]
+  ]
+  assert r_id_failures(pages) ==
+    [
+      "docs/A.md:3: two rows of this table start with R2; one id names one row, so give the later one the next free id",
+      "docs/x/E.md:5: R4 is not an R id of docs/x/E.md (R3); name the page an id from elsewhere comes from, as in PERFORMANCE R4"
     ]
 end
 

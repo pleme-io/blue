@@ -7,8 +7,11 @@
 //! `BLUE_PATH`; what it documents is the distribution `BLUE_PATH` names.
 //!
 //! `blue doc --rows` prints the conformance rows compiled in by `build.rs`
-//! (`spec/rows/*.b`) as one JSON array of `{id, src, expect, covers}`: a builtin's example is the row that specifies it. Rows are
-//! parsed, never evaluated, exactly as the conformance runner reads them.
+//! (`spec/rows/*.b`) as one JSON array of `{id, src, expect, covers, marks}`:
+//! a builtin's example is the row that specifies it, and `marks` holds each
+//! `pending` and `flaky` mark as `{mark, gap, on}`, `on` null when the mark
+//! holds on every evaluator. Rows are parsed, never evaluated, exactly as the
+//! conformance runner reads them.
 
 use blue_lang_syntax::{Atom, Sexp};
 
@@ -23,6 +26,27 @@ struct RowJson {
     src: String,
     expect: String,
     covers: Vec<String>,
+    marks: Vec<MarkJson>,
+}
+
+#[derive(serde::Serialize)]
+struct MarkJson {
+    mark: String,
+    gap: String,
+    on: Option<String>,
+}
+
+fn mark(option: &Sexp) -> Option<MarkJson> {
+    let Sexp::List(xs) = option else { return None };
+    let word = xs.first().and_then(Sexp::as_symbol)?;
+    if word != "pending" && word != "flaky" {
+        return None;
+    }
+    Some(MarkJson {
+        mark: word.to_owned(),
+        gap: text(xs.get(1)?)?,
+        on: xs.get(2).and_then(text),
+    })
 }
 
 fn text(s: &Sexp) -> Option<String> {
@@ -78,6 +102,7 @@ pub fn rows_json() -> serde_json::Result<String> {
                     .trim_end()
                     .to_string(),
                 covers,
+                marks: options.iter().filter_map(mark).collect(),
             };
             out.push(row);
         }

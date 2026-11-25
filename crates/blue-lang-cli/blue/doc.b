@@ -64,10 +64,24 @@ def builtins()
   json_get(json_parse(captured(["reference"])), :names)
 end
 
-# [id, program, expectation] for every conformance row covering the builtin.
+@doc """
+held?: Whether main holds what a conformance row states: no `pending` or `flaky` mark of the row holds on the walker, the reference evaluator, and a mark that names no evaluator holds on every one.
+
+    held?(json_parse("{\"marks\": [{\"mark\": \"pending\", \"gap\": \"G16\", \"on\": \"wasm\"}]}")) #=> true
+    held?(json_parse("{\"marks\": [{\"mark\": \"pending\", \"gap\": \"G12\", \"on\": null}]}")) #=> false
+"""
+def held?(row)
+  not any?(
+    (m) -> json_get(m, :on).nil? or json_get(m, :on) == "walker",
+    json_get(row, :marks) or []
+  )
+end
+
+# [id, program, expectation] for every conformance row covering the builtin
+# whose expectation main holds.
 def rows_for(name)
   filter(
-    (r) -> member?("builtin:#{name}", json_get(r, :covers)),
+    (r) -> member?("builtin:#{name}", json_get(r, :covers)) and held?(r),
     json_parse(captured(%w[doc --rows]))
   )
 end
@@ -220,8 +234,8 @@ end
 default_line: one rule `blue shift --defaults` decided for a definition, as `blue doc`
 writes it.
 
-    default_line({rule: "R2", fires: true, detail: "answered from a table"}) #=> "default R2: answered from a table"
-    default_line({rule: "R2", fires: false, missing: "it is not pure"}) #=> "R2 waits on: it is not pure"
+    default_line(json_read("{\"rule\": \"R2\", \"fires\": true, \"detail\": \"answered from a table\"}")) #=> "default R2: answered from a table"
+    default_line(json_read("{\"rule\": \"R2\", \"fires\": false, \"missing\": \"it is not pure\"}")) #=> "R2 waits on: it is not pure"
 """
 def default_line(r)
   if json_get(r, :fires)

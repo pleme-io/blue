@@ -734,12 +734,24 @@ def row_value(expect)
 end
 
 @doc """
-fact_failure: Why a stated result fails the spec rows, or nil when a row agrees: no row runs the expression, or each row that does expects another result.
+walker_mark: The first pending or flaky mark of a spec row that holds on the walker, the reference evaluator: a mark that names no evaluator holds on every one. nil when the row has none, so main holds what the row states.
+
+    walker_mark({marks: [{mark: "pending", gap: "G16", on: "wasm"}, {mark: "pending", gap: "G17", on: nil}]})[:gap] #=> "G17"
+    walker_mark({marks: [{mark: "flaky", gap: "G24", on: "component"}]}) #=> nil
+"""
+def walker_mark(row)
+  find_first((m) -> m[:on].nil? or m[:on] == "walker", row[:marks] or [])
+end
+
+@doc """
+fact_failure: Why a stated result fails the spec rows, or nil when a row agrees: no row runs the expression, only a row pending or flaky on the walker runs it (its expectation is a destination main does not hold yet), or each row main holds expects another result.
 
     fact_failure("a.md:3", "7 / 2", [:is, "3.5"], [{id: "d", src: "7 / 2", expect: "value(\"3.5\")"}]) #=> nil
+    fact_failure("a.md:1", "f(1)", [:is, "2"], [{id: "p", src: "f(1)", expect: "value(\"2\")", marks: [{mark: "pending", gap: "G17", on: nil}]}]) #=> "a.md:1: `f(1)` is 2 states the destination of spec row p, which is pending on gap G17 (spec/gaps/gaps.b): main does not hold it yet"
 """
 def fact_failure(where, code, claim, rows)
   mine = filter((r) -> r[:src] == code, rows)
+  held = filter((r) -> walker_mark(r).nil?, mine)
   raises = first(claim) == :raises
   stated = if raises
     "raises"
@@ -754,17 +766,20 @@ def fact_failure(where, code, claim, rows)
         row_value(r[:expect]) == last(claim)
       end
     end,
-    mine
+    held
   )
   if mine == []
     "#{where}: `#{code}` #{stated} states a runtime fact no spec row runs; add a row whose program is `#{code}` (spec/README.md)"
+  elsif held == []
+    mark = walker_mark(first(mine))
+    "#{where}: `#{code}` #{stated} states the destination of spec row #{first(mine)[:id]}, which is #{mark[:mark]} on gap #{mark[:gap]} (spec/gaps/gaps.b): main does not hold it yet"
   elsif not agrees
-    "#{where}: `#{code}` #{stated}, but spec row #{first(mine)[:id]} expects #{first(mine)[:expect]}"
+    "#{where}: `#{code}` #{stated}, but spec row #{first(held)[:id]} expects #{first(held)[:expect]}"
   end
 end
 
 @doc """
-fact_failures: Why each runtime fact the pages and reference lines state over the `known` builtins fails the spec rows, a row being {id:, src:, expect:}.
+fact_failures: Why each runtime fact the pages and reference lines state over the `known` builtins fails the spec rows, a row being {id:, src:, expect:, marks:}.
 
     fact_failures([["a.md", "`list?(nil)` is true"]], [], [{id: "l", src: "list?(nil)", expect: "value(\"false\")"}], ["list?"]) #=> ["a.md:1: `list?(nil)` is true, but spec row l expects value(\"false\")"]
 """
@@ -798,13 +813,29 @@ def blue_says(args)
 end
 
 @doc """
-spec_rows: Every conformance row, as {id:, src:, expect:}, from `blue doc --rows`, which reads spec/rows/ and each row's program as the conformance runner does.
+spec_rows: Every conformance row, as {id:, src:, expect:, marks:}, from `blue doc --rows`, which reads spec/rows/ and each row's program as the conformance runner does; each mark is {mark:, gap:, on:}, a `pending` or `flaky` option and the evaluator it names, nil for every one.
 
     length(spec_rows) > 400 #=> true
 """
 def spec_rows()
   map(
-    (r) -> {id: r["id"], src: r["src"], expect: r["expect"]},
+    fn(r)
+      if r["marks"].nil?
+        raise(
+          :blind,
+          "`blue doc --rows` gives row #{r["id"]} no marks, and a row whose marks are unread would pass as one main holds"
+        )
+      end
+      {
+        id: r["id"],
+        src: r["src"],
+        expect: r["expect"],
+        marks: map(
+          (m) -> {mark: m["mark"], gap: m["gap"], on: m["on"]},
+          r["marks"]
+        )
+      }
+    end,
     json_read(blue_says(%w[doc --rows]))
   )
 end
@@ -875,7 +906,7 @@ test "every runtime fact a page or a reference line states is a spec row that ag
   assert found == []
 end
 
-test "a fact no row runs and a fact its row contradicts are each refused, and agreeing facts pass"
+test "a fact no row runs, a fact its row contradicts and a fact only a row pending on the walker states are each refused, and agreeing facts pass"
   rows = [
     {id: "lists.nil.list_p", src: "list?(nil)", expect: "value(\"false\")"},
     {id: "numbers.div.float", src: "7 / 2", expect: "value(\"3.5\")"},
@@ -884,7 +915,19 @@ test "a fact no row runs and a fact its row contradicts are each refused, and ag
       src: "length(nil)",
       expect: "fails(:eval, \"got nil\")"
     },
-    {id: "numbers.round", src: "round(2.5)", expect: "value(\"3\")"}
+    {id: "numbers.round", src: "round(2.5)", expect: "value(\"3\")"},
+    {
+      id: "lazy.take",
+      src: "take(2, cycle([1, 2]))",
+      expect: "value(\"[1, 2]\")",
+      marks: [{mark: "pending", gap: "G17", on: nil}]
+    },
+    {
+      id: "numbers.abs",
+      src: "abs(-3)",
+      expect: "value(\"3\")",
+      marks: [{mark: "pending", gap: "G16", on: "wasm"}]
+    }
   ]
   page = join_lines(
     [
@@ -893,7 +936,8 @@ test "a fact no row runs and a fact its row contradicts are each refused, and ag
       "- `list?(nil)` is",
       "  true, `7 / 2` is 3.5 and `length(nil)` raises.",
       "- `1 + 1` is 2, and `get(m, :k)` is nil.",
-      "- `7 / 2` is `3.5`, and `nil` is not `[]`."
+      "- `7 / 2` is `3.5`, and `nil` is not `[]`.",
+      "- `take(2, cycle([1, 2]))` is [1, 2], and `abs(-3)` is 3."
     ]
   )
   lines = [
@@ -902,13 +946,14 @@ test "a fact no row runs and a fact its row contradicts are each refused, and ag
       "Halves away: round(2.5) is 3, round(x) is 4, and round(2.5) is 2."
     ]
   ]
-  known = %w[get length list? round]
+  known = %w[abs cycle get length list? round take]
   found = fact_failures([["docs/a.md", page]], lines, rows, known)
-  assert length(stated_facts([["docs/a.md", page]], lines, known)) == 7
+  assert length(stated_facts([["docs/a.md", page]], lines, known)) == 9
   assert found ==
     [
       "docs/a.md:3: `list?(nil)` is true, but spec row lists.nil.list_p expects value(\"false\")",
       "docs/a.md:5: `1 + 1` is 2 states a runtime fact no spec row runs; add a row whose program is `1 + 1` (spec/README.md)",
+      "docs/a.md:7: `take(2, cycle([1, 2]))` is [1, 2] states the destination of spec row lazy.take, which is pending on gap G17 (spec/gaps/gaps.b): main does not hold it yet",
       "blue reference `round`: `round(2.5)` is 2, but spec row numbers.round expects value(\"3\")"
     ]
 end

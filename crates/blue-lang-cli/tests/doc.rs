@@ -68,6 +68,77 @@ fn the_rows_door_reads_every_program_the_conformance_runner_reads() {
         "{deep}"
     );
     assert!(rows.len() > 1000, "only {} rows", rows.len());
+    let marks: Vec<&serde_json::Value> = rows
+        .iter()
+        .flat_map(|r| {
+            r["marks"]
+                .as_array()
+                .unwrap_or_else(|| panic!("row {} carries no marks: {r}", r["id"]))
+        })
+        .collect();
+    assert!(!marks.is_empty(), "no row carries a mark");
+    for m in marks {
+        assert!(
+            ["pending", "flaky"].contains(&m["mark"].as_str().unwrap_or_default())
+                && m["gap"].as_str().is_some_and(|g| g.starts_with('G'))
+                && (m["on"].is_null() || m["on"].is_string()),
+            "{m}"
+        );
+    }
+}
+
+#[test]
+fn every_example_of_the_doc_program_holds() {
+    let o = Command::new(env!("CARGO_BIN_EXE_blue"))
+        .env_remove("BLUE_CONFIG")
+        .env_remove("BLUE_TIER")
+        .env("BLUE_PATH", repo().join("bidamas"))
+        .env("BLUE_TEST_CACHE", "off")
+        .current_dir(repo())
+        .args(["test", "crates/blue-lang-cli/blue/doc.b"])
+        .output()
+        .expect("spawn");
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        o.status.success() && out.contains(" 0 failed"),
+        "{out}{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+}
+
+#[test]
+fn a_builtin_takes_its_example_only_from_a_row_main_holds() {
+    let o = doc(&["--rows"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let rows: Vec<serde_json::Value> = serde_json::from_slice(&o.stdout).expect("a JSON array");
+    let unheld = |r: &serde_json::Value| {
+        r["marks"]
+            .as_array()
+            .is_some_and(|ms| ms.iter().any(|m| m["on"].is_null() || m["on"] == "walker"))
+    };
+    let names: std::collections::BTreeSet<String> = rows
+        .iter()
+        .filter(|r| unheld(r))
+        .flat_map(|r| r["covers"].as_array().cloned().unwrap_or_default())
+        .filter_map(|c| c.as_str()?.strip_prefix("builtin:").map(str::to_owned))
+        .collect();
+    for name in &names {
+        let o = doc(&[format!("blue::{name}").as_str(), "--json"]);
+        assert!(
+            o.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&o.stderr)
+        );
+        let e = &json_lines(&o)[0];
+        if let Some(from) = e["example"]["from"].as_str() {
+            let id = from.strip_prefix("spec row ").unwrap_or(from);
+            let row = rows.iter().find(|r| r["id"] == id);
+            assert!(
+                row.is_some_and(|r| !unheld(r)),
+                "{name}: its example is {from}, which main does not hold: {e}"
+            );
+        }
+    }
 }
 
 /// A bidama's definition: qualified signature, the comment above it, and

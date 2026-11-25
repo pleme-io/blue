@@ -1359,6 +1359,35 @@ def explain_flag()
 end
 
 @doc """
+flag_rows: the knobs of a model a flag may set, refusing as :bad_option two that render one flag (`net.max_conns`, `net_max.conns` and `net_max_conns` all spell --net-max-conns) or one that renders --explain or --help, the flags the line owns; a pair a flag may not set renders no flag and stays legal.
+
+    map((r) -> r[:path], flag_rows({port: knob(80), token: knob("", {set_by: [:env]})})) #=> [[:port]]
+"""
+def flag_rows(model)
+  rows = filter((r) -> by_flag?(r[:knob]), knobs(model))
+  owned = filter(
+    (r) -> member?(flag_word(r[:path]), %w[--explain --help]),
+    rows
+  )
+  whys = append(
+    map(
+      fn(r)
+        "#{dotted_key(r[:path])} renders #{flag_word(r[:path])}, which the command line owns; rename it"
+      end,
+      owned
+    ),
+    coincidences(
+      map((r) -> [flag_word(r[:path]), dotted_key(r[:path])], rows),
+      (n) -> "rendered as the flag #{n}; rename one"
+    )
+  )
+  if whys != []
+    raise(:bad_option, join(whys, "; "))
+  end
+  rows
+end
+
+@doc """
 knob_flags: the hikisuu flags of a model's knobs, each defaulting to its value in below, or to nil when below is :unset.
 
     knob_flags({port: knob(80, {min: 1})}, {port: 9})[:port][:default] #=> 9
@@ -1386,26 +1415,30 @@ def knob_flags(model, below)
       assoc(acc, flag_key(r[:path]), floored)
     end,
     {},
-    filter((r) -> by_flag?(r[:knob]), knobs(model))
+    flag_rows(model)
   )
 end
 
 @doc """
-spec_with: a frame with its knob flags and --explain added, refusing a frame flag the model already renders.
+spec_with: a frame with its knob flags and --explain added, refusing a frame flag whose text the model already renders, or --explain, compared as the command line spells it.
 
     spec_with({port: knob(80)}, {name: "x"}, :unset)[:flags][:port][:default] #=> nil
 """
 def spec_with(model, frame, below)
   own = frame[:flags] or {}
   rendered = knob_flags(model, below)
-  clash = find(
-    map(first, map_entries(rendered)),
-    (k) -> get(own, k) != nil or to_s(k) == "explain"
+  taken = append(
+    ["--explain"],
+    map((r) -> flag_word(r[:path]), flag_rows(model))
   )
-  if clash != nil or own[:explain] != nil
+  clash = find(
+    map((e) -> hikisuu::flag_text(first(e)), map_entries(own)),
+    (t) -> member?(t, taken)
+  )
+  if clash != nil
     raise(
       :bad_option,
-      "flag #{flag_word([clash or :explain])} is the core model's; the frame does not declare it"
+      "flag #{clash} is the core model's; the frame does not declare it"
     )
   end
   assoc(frame, :flags, assoc(merge(own, rendered), :explain, explain_flag))
@@ -1438,7 +1471,7 @@ def given_flags(model, parsed)
       end
     end,
     {},
-    filter((r) -> by_flag?(r[:knob]), knobs(model))
+    flag_rows(model)
   )
 end
 
@@ -3658,6 +3691,57 @@ test "the words under one name per setting and one question per layer answer for
   assert knob_rows({}, []) == []
   assert model_clashes([]) == []
   assert leaf_paths({"a" => {"b" => 1}}, []) == [%w[a b]]
+  assert flag_rows({t: knob("", {set_by: [:env]})}) == []
+end
+
+test "two knobs that render one flag are refused by name, and a frame flag is judged by the text it spells"
+  why = fn(f)
+    begin
+      f()
+      nil
+    rescue :bad_option as e
+      e.message
+    end
+  end
+  three = {
+    net: {max_conns: knob(10)},
+    net_max: {conns: knob(20)},
+    net_max_conns: knob(30)
+  }
+  w = why(() -> cli_spec(three, {name: "x"}))
+  assert w != nil
+  assert contains?(
+    w,
+    "net.max_conns and net_max.conns are both rendered as the flag --net-max-conns; rename one"
+  )
+  assert contains?(
+    w,
+    "net_max.conns and net_max_conns are both rendered as the flag --net-max-conns"
+  )
+  assert why(
+    () -> line("x", three, {name: "x"}, %w[--net-max-conns 99], nil, no_env)
+  ) != nil
+  assert settle("x", three, nil, no_env, {})[:config][:net_max_conns] == 30
+  framed = why(
+    () -> cli_spec({net: {port: knob(1)}}, {name: "x", flags: {net_port: 5}})
+  )
+  assert framed ==
+    "flag --net-port is the core model's; the frame does not declare it"
+  assert contains?(
+    why(() -> cli_spec({explain: knob(1)}, {name: "x"})) or "",
+    "explain renders --explain, which the command line owns"
+  )
+  assert why(
+    fn()
+      cli_spec(
+        {
+          net: {max_conns: knob(10, {set_by: %i[file env]})},
+          net_max_conns: knob(30)
+        },
+        {name: "x"}
+      )
+    end
+  ).nil?
 end
 
 test "a knob renamed twice is read by every old name, through settle and through the alias map"

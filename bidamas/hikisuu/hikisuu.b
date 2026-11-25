@@ -165,7 +165,7 @@ def commands_of(spec)
 end
 
 @doc """
-shape: the flags and positionals in force for a command of a spec, nil for none, refusing a key declared twice.
+shape: the flags and positionals in force for a command of a spec, nil for none, refusing a flag whose text another flag in force has (a key declared twice, or two keys that spell one flag, as "a_b" and :a_b do) and a flag that spells --help.
 
     size(get(shape({name: "x", flags: {a: 1}}, nil), :flags)) #=> 1
 """
@@ -181,15 +181,15 @@ def shape(spec, command)
   else
     c[:flags]
   end
-  clash = filter(
-    (k) -> member?(k, map(first, map_entries(spec[:flags] or {}))),
-    map(first, map_entries(own))
+  texts = map(
+    (e) -> flag_text(first(e)),
+    append(map_entries(spec[:flags] or {}), map_entries(own))
   )
-  if not is_empty(clash)
-    raise(:bad_option, "flag #{flag_text(first(clash))} is declared twice")
+  twice = find_first((t) -> size(filter((u) -> u == t, texts)) > 1, texts)
+  if twice != nil
+    raise(:bad_option, "flag #{twice} is declared twice")
   end
-  if member?(:help, map(first, map_entries(spec[:flags] or {}))) or
-      member?(:help, map(first, map_entries(own)))
+  if member?("--help", texts)
     raise(
       :bad_option,
       "--help is hikisuu's own flag; a spec does not declare it"
@@ -920,6 +920,25 @@ test "a bad spec is refused as bad_option, naming the flag"
       :bad_option,
       "unknown option colour; this verb takes name, about, flags, positional, commands"
     ]
+end
+
+test "two keys that spell one flag are refused as a key declared twice is, and so is a key that spells --help"
+  bad = fn(spec)
+    begin
+      parse([], spec)
+      nil
+    rescue err
+      [err.kind, err.message]
+    end
+  end
+  assert bad({name: "x", flags: {"a_b" => 1, a_b: 2}}) ==
+    [:bad_option, "flag --a-b is declared twice"]
+  assert bad(
+    {name: "x", flags: {a_b: 1}, commands: [{name: :c, flags: {"a_b" => 2}}]}
+  ) == [:bad_option, "flag --a-b is declared twice"]
+  assert bad({name: "x", flags: {"help" => false}}) ==
+    [:bad_option, "--help is hikisuu's own flag; a spec does not declare it"]
+  assert bad({name: "x", flags: {a_b: 1, a_c: 2}}).nil?
 end
 
 test "help renders the title, usage, commands, arguments and aligned flags"

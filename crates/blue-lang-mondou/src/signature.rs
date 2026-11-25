@@ -4,6 +4,7 @@
 //! (`add(1, `) and does not parse; the callee is then resolved against the
 //! newest analysis that did.
 
+use blue_lang_syntax::scope::Role;
 use blue_lang_syntax::TokenKind;
 
 use crate::{Engine, Symbol};
@@ -11,7 +12,7 @@ use crate::{Engine, Symbol};
 /// The call at the cursor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature {
-    /// `def add(a, b)`, or a builtin's calling form.
+    /// `def add(a, b)`, a builtin's calling form, or a predicate's: `point?(v)`.
     pub label: String,
     pub parameters: Vec<String>,
     /// Which parameter the cursor is on.
@@ -31,7 +32,10 @@ impl Engine {
             Symbol::Def(ns, name) => {
                 let l = a.definition_of(self, &ns, &name)?;
                 let item = self.item_at(&a, &l)?;
-                (item.signature, item.doc)
+                match item.role_of(&name) {
+                    Some(Role::Predicate) => (format!("{name}(v)"), item.doc),
+                    Some(Role::Name) | None => (item.signature, item.doc),
+                }
             }
             Symbol::Builtin(name) => {
                 let d = blue_lang_runtime::docs::doc_of(&name)?;

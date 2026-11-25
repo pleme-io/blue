@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use blue_lang_lsp::{Response, Server};
 use blue_lang_mondou::{Engine, Query};
 use blue_lang_runtime::uses::NoLoader;
+use blue_lang_syntax::scope::DefinitionKind;
 use serde_json::{json, Value};
 
 const SOURCE: &str = r#"@doc """
@@ -137,7 +138,15 @@ const SHAPES: &[Shape] = &[
     },
 ];
 
-const KINDS: &[&str] = &["function", "value", "macro", "record", "union"];
+const CALLS: &[(&str, &str, &[&str])] = &[
+    ("point?", "point?(v)", &["v"]),
+    ("shape?", "shape?(v)", &["v"]),
+    ("circle?", "circle?(v)", &["v"]),
+    ("square?", "square?(v)", &["v"]),
+    ("circle", "record circle(r)", &["r"]),
+    ("point", "record point(x, y)", &["x", "y"]),
+    ("g", "def g(v)", &["v"]),
+];
 
 fn shape_of(bound: &str) -> &'static Shape {
     SHAPES
@@ -275,10 +284,19 @@ fn every_definition_shape_reads_alike_through_every_face() {
         &mut out,
     );
 
-    for kind in KINDS {
+    check(
+        "a shape for every kind the recognizer names",
+        DefinitionKind::ALL
+            .into_iter()
+            .filter(|k| !SHAPES.iter().any(|s| s.kind == k.word()))
+            .collect::<Vec<_>>(),
+        Vec::<DefinitionKind>::new(),
+        &mut out,
+    );
+    for kind in DefinitionKind::ALL.map(DefinitionKind::word) {
         let want: Vec<(&str, &str)> = SHAPES
             .iter()
-            .filter(|s| s.kind == *kind)
+            .filter(|s| s.kind == kind)
             .map(|s| (s.name, s.kind))
             .collect();
         let got: Result<Vec<(String, String)>, String> = Query::parse(&format!("(kind {kind})"))
@@ -386,6 +404,56 @@ fn every_definition_shape_reads_alike_through_every_face() {
                 let (line, character) = line_col(named);
                 (Some(line as u64), Some(character as u64))
             },
+            &mut out,
+        );
+    }
+
+    let after_g = SOURCE.find("def g(v)").expect("g") + "def g(v)".len();
+    let mut answered = Vec::new();
+    for (callee, label, parameters) in CALLS {
+        let open = after_g
+            + SOURCE[after_g..]
+                .find(&format!("{callee}("))
+                .expect("the source calls it")
+            + callee.len()
+            + 1;
+        let help = request(&mut server, "textDocument/signatureHelp", at(open));
+        let signature = &help["result"]["signatures"][0];
+        let got: Vec<String> = signature["parameters"]
+            .as_array()
+            .map(|ps| {
+                ps.iter()
+                    .filter_map(|p| p["label"].as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        check(
+            &format!("signature help inside `{callee}(`"),
+            (signature["label"].as_str(), &got),
+            (Some(*label), parameters),
+            &mut out,
+        );
+        answered.push((*callee, got.join(", ")));
+    }
+    for (head, callee) in [("record", "point?"), ("union", "shape?")] {
+        let subject = answered
+            .iter()
+            .find(|(c, _)| *c == callee)
+            .map_or("", |(_, s)| s.as_str());
+        let form = blue_lang_syntax::FORMS
+            .iter()
+            .find(|f| f.example.starts_with(&format!("{head} ")))
+            .expect("the reference has the form");
+        let example = blue_lang_syntax::parse_program_documented(form.example).expect("parses");
+        let spelled = blue_lang_syntax::scope::bindings_of(&example[0])
+            .into_iter()
+            .find(|b| b.role == blue_lang_syntax::scope::Role::Predicate)
+            .map(|b| format!("{}({subject})", b.name()))
+            .unwrap_or_default();
+        check(
+            &format!("the reference spells a {head} predicate's call as signature help does"),
+            (form.doc.contains(&spelled), &spelled),
+            (true, &spelled),
             &mut out,
         );
     }

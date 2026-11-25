@@ -560,35 +560,35 @@ pub fn definition_nodes<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a Spanned, 
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum DefinitionKind {
-    Function,
-    Macro,
-    Value,
-    Record,
-    Union,
+macro_rules! definition_kinds {
+    ($($kind:ident => $word:literal),+ $(,)?) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub enum DefinitionKind {
+            $($kind),+
+        }
+
+        impl DefinitionKind {
+            pub const ALL: [DefinitionKind; [$($word),+].len()] = [$(DefinitionKind::$kind),+];
+
+            #[must_use]
+            pub fn word(self) -> &'static str {
+                match self {
+                    $(DefinitionKind::$kind => $word),+
+                }
+            }
+        }
+    };
+}
+
+definition_kinds! {
+    Function => "function",
+    Macro => "macro",
+    Value => "value",
+    Record => "record",
+    Union => "union",
 }
 
 impl DefinitionKind {
-    pub const ALL: [DefinitionKind; 5] = [
-        DefinitionKind::Function,
-        DefinitionKind::Macro,
-        DefinitionKind::Value,
-        DefinitionKind::Record,
-        DefinitionKind::Union,
-    ];
-
-    #[must_use]
-    pub fn word(self) -> &'static str {
-        match self {
-            DefinitionKind::Function => "function",
-            DefinitionKind::Macro => "macro",
-            DefinitionKind::Value => "value",
-            DefinitionKind::Record => "record",
-            DefinitionKind::Union => "union",
-        }
-    }
-
     #[must_use]
     pub fn of_word(word: &str) -> Option<DefinitionKind> {
         DefinitionKind::ALL.into_iter().find(|k| k.word() == word)

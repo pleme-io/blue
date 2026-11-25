@@ -410,7 +410,11 @@ fn bound(items: &[crate::Item]) -> Vec<(crate::Item, DefinitionKind, String)> {
     items
         .iter()
         .filter_map(|i| Some((i, defined_kind(i.kind)?)))
-        .flat_map(|(i, kind)| i.binds.iter().map(move |n| (i.clone(), kind, n.clone())))
+        .flat_map(|(i, kind)| {
+            i.binds
+                .iter()
+                .map(move |(n, _)| (i.clone(), kind, n.clone()))
+        })
         .collect()
 }
 

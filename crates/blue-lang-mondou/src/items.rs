@@ -2,7 +2,7 @@
 //! where each is and how its signature reads. No body is resolved, so an
 //! edit inside one leaves the items of every other form as they were.
 
-use blue_lang_syntax::scope::DefinitionKind;
+use blue_lang_syntax::scope::{DefinitionKind, Role};
 use blue_lang_syntax::{Atom, Span, Spanned, SpannedForm};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,7 +26,17 @@ pub struct Item {
     pub signature: String,
     /// The form's `@doc` text.
     pub doc: Option<String>,
-    pub binds: Vec<String>,
+    pub binds: Vec<(String, Role)>,
+}
+
+impl Item {
+    #[must_use]
+    pub fn role_of(&self, name: &str) -> Option<Role> {
+        self.binds
+            .iter()
+            .find(|(bound, _)| bound == name)
+            .map(|&(_, role)| role)
+    }
 }
 
 /// Every item of a file's documented parse: a documented definition is its
@@ -59,7 +69,11 @@ fn items(form: &Spanned, mut doc: Option<String>) -> Vec<Item> {
             name_span: d.name.span,
             signature: signature_of(d.form),
             doc: doc.take(),
-            binds: d.binds.iter().map(|b| b.name().to_string()).collect(),
+            binds: d
+                .binds
+                .iter()
+                .map(|b| (b.name().to_string(), b.role))
+                .collect(),
         })
         .collect()
 }

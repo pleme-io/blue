@@ -603,6 +603,8 @@ pub const LOWERED_OPTIONAL_ARG: &str = "blue-optional-arg";
 
 pub const LOWERED_FIELD: &str = "blue-field";
 
+pub const NIL_TEST: &str = "nil?";
+
 pub const LOWERED_MERGE: &str = "blue-merge";
 
 pub const LOWERED_SPLICE: &str = "blue-splice";
@@ -1537,7 +1539,7 @@ impl Parser {
             vec![
                 sym_at(op_span, LOWERED_FIELD),
                 subject.clone(),
-                atom_at(op_span, Atom::Keyword("nil?".to_string())),
+                atom_at(op_span, Atom::Keyword(NIL_TEST.to_string())),
             ],
         ))
     }

@@ -259,9 +259,20 @@ row(
 
 row(
   "canon.B0047.eval",
-  "[nil.nil?, 1.nil?, [].nil?, \"\".nil?, {a: 1}.nil?]",
-  value("[true, false, false, false, false]"),
+  "[nil.nil?, 1.nil?, [].nil?, \"\".nil?, {a: 1}.nil?, {\"nil?\" => true}.nil?, {nil?: 5}.nil?]",
+  value("[true, false, false, false, false, false, false]"),
   covers("form:x == nil")
+)
+
+row(
+  "canon.B0047.key_is_data",
+  join_lines(
+    [
+      "m = json_read(\"{\\\"nil?\\\": true}\")",
+      "[m == nil, nil == m, m.nil?, m != nil, nil != m, map(nil?, [m]), m[\"nil?\"]]"
+    ]
+  ),
+  value("[false, false, false, true, true, [false], true]")
 )
 
 row(

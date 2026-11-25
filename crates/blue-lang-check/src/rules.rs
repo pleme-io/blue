@@ -1040,8 +1040,9 @@ put to the value. blue reads `nil?(x)`, `x == nil` and `nil == x` and writes
 `x.nil?`; the three build the same answer on every value.
 
 The opposite test stays `x != nil`, and `not x.nil?` is read as written.
-A program's own `nil?` is left alone, and a map that holds a `nil?` key
-answers `.nil?` with that key's value.",
+A program's own `nil?` is left alone. `.nil?` is never a field: a map that
+holds a `nil?` key is not nil, and the key is read `m[\"nil?\"]` or
+`m[:nil?]`.",
     }
     B0048 {
         slug: "undeclared-field-read",

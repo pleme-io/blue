@@ -238,7 +238,8 @@ Each one was checked against the runtime.
   fields there are when it is absent; `get(m, :k)` reads one that may be
   absent. Nested JSON that may be missing: `deeta::json_at(doc,
   "spec.items.0.name")`, nil when any step is absent. A call with arguments
-  is written `f(x, y)`.
+  is written `f(x, y)`. `x.nil?` is the nil test on every value, never a
+  field: a map's `nil?` key is read `m["nil?"]` or `m[:nil?]`.
 - **The entry point is `def main()`.** `blue run FILE` calls it after the
   file's top level; `blue test`, `blue check` and `use` never do, so a file
   is a program and a library at once. No `X_MAIN` variable (B0041).

@@ -1265,6 +1265,14 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                 return Ty::Dyn;
             }
 
+            if head == blue_lang_syntax::LOWERED_FIELD
+                && items.len() == 3
+                && items[2].as_keyword() == Some(blue_lang_syntax::NIL_TEST)
+            {
+                infer(&items[1], env, cx, out);
+                return Ty::Bool;
+            }
+
             if (head == "blue-field" || head == "get") && items.len() == 3 {
                 let base = infer(&items[1], env, cx, out);
                 if let (Ty::Fragment(sel), Some(key)) = (&base, literal_key(&items[2])) {

@@ -284,6 +284,20 @@ row(
 )
 
 row(
+  "check.signature.record_nil_test",
+  join_lines(
+    [
+      "record point(x, y: Int)",
+      "",
+      "def absent?(p: point) -> Bool",
+      "  p.nil?",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
   "check.signature.record_return",
   join_lines(
     [
@@ -811,6 +825,22 @@ row(
       "",
       "def user_card(user: UserCard)",
       "  [user.id, user[:name], user.__typename]",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
+  "data.B0048.nil_test",
+  join_lines(
+    [
+      "use(\"toriyose/danpen\")",
+      "",
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
+      "",
+      "def user_card(user: UserCard)",
+      "  user.nil?",
       "end"
     ]
   ),

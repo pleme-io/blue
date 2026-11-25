@@ -323,6 +323,51 @@ def law_not_equal_is_negation()
   )
 end
 
+@doc """
+nil_keyed: Maps that hold a `nil?` key, written and decoded: data, which the
+nil test never reads.
+
+    all(map?, nil_keyed) #=> true
+"""
+def nil_keyed()
+  [
+    {nil?: true},
+    {"nil?" => true},
+    {nil?: 5},
+    {"nil?" => false, a: 1},
+    json_read("{\"nil?\": true}")
+  ]
+end
+
+@doc """
+law_nil_only_equals_nil holds that the nil test `v == nil`, written `v.nil?`,
+answers what the function `nil?` answers on every value, a map holding a
+`nil?` key among them.
+
+    law_nil_only_equals_nil #=> true
+"""
+def law_nil_only_equals_nil()
+  vs = append(values(16, 300), nil_keyed, [nil])
+  absent = map(nil?, vs)
+  all((i) -> vs[i].nil? == absent[i], range(0, size(vs)))
+end
+
+@doc """
+law_not_equal_nil_is_negation holds that `v != nil` is `not (v == nil)` with
+the literal nil, a map holding a `nil?` key among the values.
+
+    law_not_equal_nil_is_negation #=> true
+"""
+def law_not_equal_nil_is_negation()
+  all(
+    fn(v)
+      absent = v.nil?
+      v != nil == (not absent)
+    end,
+    append(values(17, 300), nil_keyed, [nil])
+  )
+end
+
 def law_numbers_by_value()
   ns = map((i) -> i - 20, range(0, 41))
   all((n) -> n == to_float(n) and to_float(n) == n and n != n + 0.5, ns) and
@@ -405,9 +450,10 @@ def kinds(v)
 end
 
 def law_one_kind_each()
-  all((v) -> size(filter((k) -> k, kinds(v))) == 1, values(15, 300)) and
-    not list?(nil) and
-    not [].nil?
+  all(
+    (v) -> size(filter((k) -> k, kinds(v))) == 1,
+    append(values(15, 300), nil_keyed)
+  ) and not list?(nil) and not [].nil?
 end
 
 # waive B0036: the law states what cdr and nil? themselves answer
@@ -649,7 +695,8 @@ def decisions()
         ["reflexive", () -> law_equal_reflexive],
         ["symmetric", () -> law_equal_symmetric],
         ["numbers by value", () -> law_numbers_by_value],
-        ["maps by value", () -> law_maps_by_value]
+        ["maps by value", () -> law_maps_by_value],
+        ["nil only equals nil", () -> law_nil_only_equals_nil]
       ]
     },
     {
@@ -657,7 +704,10 @@ def decisions()
       date: "2026-09-27",
       rule: "`!=` is exactly `not(a == b)`.",
       why: "Two operators, one meaning.",
-      laws: [["negation", () -> law_not_equal_is_negation]]
+      laws: [
+        ["negation", () -> law_not_equal_is_negation],
+        ["negation of the nil test", () -> law_not_equal_nil_is_negation]
+      ]
     },
     {
       id: "D0003",
@@ -886,6 +936,12 @@ test "the generator covers every kind (anti-vacuity)"
   assert some((v) -> v.nil?, vs)
   assert some((v) -> list?(v) and not is_empty(v), vs)
   assert some((v) -> map?(v), vs)
+end
+
+test "a map holding a nil? key is data: the nil test and its negation never read it"
+  assert all((m) -> m[:nil?] != nil or m["nil?"] != nil, nil_keyed)
+  assert law_nil_only_equals_nil
+  assert law_not_equal_nil_is_negation
 end
 
 test "every row of the chain table has a law, and each law reaches values"

@@ -63,18 +63,18 @@ Wave 0 has no dependencies. Each later wave depends only on earlier waves.
 |---|---|---|---|---|
 | ❌ | U1 | Write doors keep meaning | M | ➖ |
 | ⏳ | U2 | The nil test is a question | S | ➖ |
-| ❌ | U3 | One text for keys and floats | M | ➖ |
+| ⏳ | U3 | One text for keys and floats | M | ➖ |
 | ⏳ | U4 | Snake-case kinds at the rescue seam | M | ➖ |
 | ❌ | U5 | VM and walker mean one thing | M | ➖ |
 | ⏳ | U6 | The native column can say no | M | ➖ |
 | ⏳ | U7 | PERFORMANCE R19 sees purity and scope | M | ➖ |
-| ❌ | U8 | Gates and ratchets can say no | L | ➖ |
-| ❌ | U9 | Docs of record match main | L | ➖ |
+| ⏳ | U8 | Gates and ratchets can say no | L | ➖ |
+| ⏳ | U9 | Docs of record match main | L | ➖ |
 | ❌ | U10 | One capability vocabulary and the shebang hold | L | ➖ |
 | ⏳ | U11 | Macro foundations | M | ➖ |
-| ❌ | U12 | One definition recognizer | S | ➖ |
+| ⏳ | U12 | One definition recognizer | S | ➖ |
 | ❌ | U13 | Docs teach only canonical spellings | M | ➖ |
-| ❌ | U14 | settei has one engine and one reader | L | ➖ |
+| ⏳ | U14 | settei has one engine and one reader | L | ➖ |
 
 U2, U4, U6, U7 and U11 land together (2026-11-25). U11 lands its first two
 commits. Its third commit adds the G30 and G31 rows to `spec/rows/macros.b`,
@@ -83,37 +83,30 @@ with the DIAGNOSTICS text on the head that a project rule receives for
 gaps: the tatara-lisp release gate runs the rows of blue main against the
 candidate, so the two marks on main would turn that release red.
 
-Nine units are held for review fixes:
+U3, U8, U9, U12 and U14 land together after them (2026-11-25), with their
+rulings ROADMAP R17 (U3), ROADMAP R18 (U8), ROADMAP R19 and ROADMAP R20 (U9).
+U3's gap G32 stays open until blue bumps to the tatara-lisp release that holds
+its map order (6011c03): the bump takes the `flaky("G32")` mark and the three
+ignored G32 tests away in one commit.
 
-- U1: a bare `?` that ends a branch with more code after it still cannot be
-  printed, so a canonical file of that shape fails `fmt --check`. The G1 ✅
-  row in GUARD-RETURN.md is wrong for a guard nested in the last statement of
-  a body.
-- U3: the exit text of a crashed process is still the Display of
-  tatara-lisp-eval, so a crash whose error data holds a map gets a new name on
-  each run, and its replay says "not reproduced". `deeta::read("-0")` gives
-  Int 0 where `json_parse` gives Float -0.0.
-- U5: the machine fix of B0102 does not see a `set!` of the name inside a
-  nested closure or block, so `blue check --fix` turns a program that returns
-  5 into one that raises `type_error`.
-- U8: R0003 refuses only one spelling of the silent guard. The direct land
-  builds 278 checks where CI builds 342, but the unit's ruling and
-  implementing.md say that it builds what CI builds.
-- U9: the rewritten STDLIB rows are false (`tsuushin::request` exists, the
-  test counts are wrong, and `heikou` has two states). The rescue and pipe row
-  passes under both precedences, four false TLS claims remain, and the floors
-  of the gap ledger go red when a gap closes.
-- U10: the tests of kensa and caligo assert the old "posture refuses" text,
-  so they go red at their next blue bump. The safety docs say that line 1
-  holds a script on every door, but `blue profile`, `blue trace` and
-  `blue test` run it with no hold.
-- U12: signature help on a predicate call shows the parameters of the record
-  constructor.
-- U13: row 85 of CANONICAL-FORMS.md and two other lines still teach the
-  spellings that the unit replaced.
-- U14: a `config` knob that only a file sets passes `knobs()`. Then each start
-  with `<APP>_CONFIG` set warns of a false `not_settable` refusal, and the
-  enforce posture stops that start.
+Four units are held for review fixes:
+
+- U1: `blue fmt` refuses a canonical file in which a tail `if` holds a guard
+  in a branch and its whole `else` is a bare `return`. `within` builds that
+  `else` again with an empty span, so the `return` is lost, the printer drops
+  the `else` and the meaning law refuses the result. The G1 ✅ row in
+  GUARD-RETURN.md says that `blue fmt` keeps every guard as written.
+- U5: the door gate does not flush on an empty write. On the default door,
+  `display("a")`, `write_stdout("")` and then `write_stderr("b")` print `b`
+  first, where the walker and the VM print `"a"` first.
+- U10: the help of `blue run --allow` says that a script that declares no
+  capability runs with none, and does not say that `--allow` or a Bluefile can
+  hold it. The plan edits the review names (r2doors-14 and its locks in U28,
+  the line-1 lock of `blue test` in U56, and a unit for the label flip, the
+  Bluefile fixer and the meta-word grammar) are not made yet.
+- U13: three spellings that the gated texts teach are refused by
+  `blue check`: B0073's help offers `use(%i[thing sub])`, `blue doc list?`
+  teaches `x == nil`, and B0004's explanation names `&&` and `||`.
 
 ### Wave 1: one table per concern
 

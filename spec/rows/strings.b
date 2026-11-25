@@ -148,6 +148,8 @@ row(
   covers("builtin:text_bytes")
 )
 
+row("strings.text_bytes.two_bytes", "text_bytes(\"é\")", value("[195, 169]"))
+
 row(
   "strings.bytes_text",
   "[bytes_text([104, 195, 169]), bytes_text([195]), bytes_text(\"ok\")]",
@@ -175,6 +177,8 @@ row(
   fails(:eval, "outside 0..=255"),
   covers("builtin:hex_encode")
 )
+
+row("strings.hex_encode.bytes", "hex_encode([0, 15, 255])", value("\"000fff\""))
 
 row(
   "strings.hex_decode",

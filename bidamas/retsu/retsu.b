@@ -1,17 +1,19 @@
 @moduledoc """
 retsu (列) — lists, made TOTAL.
 
-This package exists because the underlying primitives are not total, and a
-standard library's first job is to close that. Measured on the runtime this
-distribution targets:
+This package exists because the underlying primitives are not total over
+nil, and a standard library's first job is to close that. Measured on the
+runtime this distribution targets:
 
-  cdr([1])        => nil          -- not [], a DIFFERENT empty
-  nil == []       => false        -- the two empties are distinguishable
-  length(nil)     => runtime error: expected a string, got nil
+  nil == []         => false       -- nil is not a list (okite D0004, D0010)
+  length(nil)       => runtime error: expected a string, got nil
+  blue::rest(nil)   => runtime error: cdr of empty list
 
-So the obvious recursive shape — `if length(xs) < 1 … else f(cdr(xs))` —
-crashes on every list, at the last element, in every package that writes it.
-It is not a rare edge: it is the base case of structural recursion.
+The list words themselves no longer make a nil where a list belongs (okite
+D0011: `blue::rest([1])` and `append([], [])` are `[]`), but a value that
+comes from elsewhere still can be nil: an absent map key, a `find` that found
+nothing. The obvious recursive shape, `if length(xs) < 1 … else f(rest(xs))`,
+crashes on that nil instead of answering.
 
 `size` / `first` / `rest` / `is_empty` are the total replacements, and every
 other bidama in this distribution is written against them rather than against
@@ -75,8 +77,8 @@ end
 @doc """
 rest: The tail, NORMALISED to a list.
 
-`cdr` hands back nil at the last element; this hands back [] so a caller can
-keep treating the result as a list without a nil check at every step.
+`blue::rest` raises on nil; this hands back [] for nil and for [], so a caller
+can keep treating the result as a list without a nil check at every step.
 
     rest([]) #=> []
 """
@@ -180,8 +182,8 @@ def clamped_sum(n, lo, hi)
 end
 
 test "size is total where length is not"
-  # cdr of a singleton is nil, and length(nil) errors. This is the whole
-  # reason the package exists, so it is the first thing asserted.
+  # length(nil) errors where size(nil) answers. This is the whole reason the
+  # package exists, so it is the first thing asserted.
   assert size(blue::rest([1])) == 0
   assert size([]) == 0
   assert size([1, 2, 3]) == 3
@@ -496,16 +498,16 @@ end
 # Editing by position.
 #
 # All three clamp rather than reject: an index outside the list is a no-op that
-# returns the list, because the alternative in a language with no exceptions is
-# a caller that must bounds-check before every call and gets it wrong once.
+# returns the list, because the alternative is a caller that must bounds-check
+# before every call and gets it wrong once.
 
 @doc """
 as_list: nil-to-[] normalisation, in one place.
 
-The two empties again, and this time from an operation whose arguments were
-BOTH lists: `append([], [])` hands back nil, so `remove_at([1], 0) == []` is
-false without this. Every constructor below that can produce an empty result
-funnels through it, so a caller never has to ask which empty it got.
+Every constructor below that can produce an empty result funnels through it,
+so a caller never gets nil where a list belongs, whatever the list it was
+given was made of. The runtime's own list words have answered `[]` since okite
+D0011 (`append([], [])` is `[]`); a nil argument still reaches here.
 """
 def as_list(xs)
   if is_empty(xs)

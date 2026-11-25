@@ -41,6 +41,7 @@ row(
 )
 
 row("numbers.overflow.add", "9223372036854775807 + 1", fails(:eval, "overflow"))
+row("numbers.overflow.floor", "floor(9.9e300)", fails(:eval, "overflow"))
 
 row(
   "numbers.overflow.sub",
@@ -113,12 +114,14 @@ row(
 )
 
 row("numbers.round", "round(2.5)", value("3"), covers("builtin:round"))
+row("numbers.round.negative_half", "round(-2.5)", value("-3"))
 row("numbers.sin", "sin(0)", value("0.0"), covers("builtin:sin"))
 row("numbers.sqrt", "sqrt(16)", value("4.0"), covers("builtin:sqrt"))
 row("numbers.tan", "tan(0)", value("0.0"), covers("builtin:tan"))
 row("numbers.to_float", "to_float(3)", value("3.0"), covers("builtin:to_float"))
 row("numbers.to_int", "to_int(3.9)", value("3"), covers("builtin:to_int"))
 row("numbers.to_int.string", "to_int(\"42\")", value("42"))
+row("numbers.to_int.not_a_number", "to_int(\"12x\")", value("nil"))
 
 row(
   "numbers.to_int_bang",
@@ -189,6 +192,8 @@ row(
   value("[true, false]"),
   covers("builtin:unsigned_less?")
 )
+
+row("numbers.unsigned_less.minus_one", "unsigned_less?(1, -1)", value("true"))
 
 row(
   "numbers.unsigned_div",

@@ -28,6 +28,7 @@ row(
 )
 
 row("lists.nil.length_raises", "length(nil)", fails(:eval, "got nil"))
+row("lists.nil.not_empty", "nil == []", value("false"), covers("okite:D0004"))
 
 row(
   "lists.index",
@@ -165,6 +166,7 @@ row(
 )
 
 row("lists.nth", "nth(1, [:a, :b])", value(":b"), covers("builtin:nth"))
+row("lists.nth.past_end", "nth(5, [1, 2])", value("nil"))
 
 row("lists.nth.out_of_range", "nth(5, [1])", value("nil"))
 

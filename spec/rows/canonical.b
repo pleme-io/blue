@@ -534,6 +534,12 @@ row(
 )
 
 row(
+  "errors.rescue.level_with_pipe",
+  "raise(:k, \"m\") rescue -1 |> abs()",
+  value("1")
+)
+
+row(
   "errors.rescue.kind",
   join_lines(
     [

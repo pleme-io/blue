@@ -85,14 +85,10 @@ def symmetric_difference(a, b)
 end
 
 @doc """
-as_set: The runtime has TWO empties and only one of them is `[]`:
-
-  append([], [])   => nil        range(3, 3)  => nil        nil == []  => false
-
-so a set operation that empties out through an append chain compares UNEQUAL
-to the empty set it obviously is, and `pairs([]) == []` fails while every
-non-empty case passes. `map`, `filter` and a `reduce` with a `[]` seed are
-already total; `append` and `range` are not. Every constructor below that can
+as_set: A set operation's empty result, normalised to `[]`. The runtime's own
+list words answer `[]` (okite D0011: `append([], [])` and `range(3, 3)` are
+`[]`), but nil is not `[]` (`nil == []` is false), so a set built from a nil
+argument would compare UNEQUAL to the empty set it obviously is. Every constructor below that can
 reach one of those returns through here, which is why the empty-input
 assertions in this file are exact equalities rather than size checks.
 """

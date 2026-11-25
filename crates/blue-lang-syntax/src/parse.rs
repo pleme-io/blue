@@ -784,7 +784,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "if" => "`if c … elsif d … else … end`: an expression; its value is the branch taken, nil when none is. An `else` that is empty or `nil` is dropped (B0035).",
         "unless" => "`unless c … end` is read as `if not c` and written that way (B0026).",
         "begin" => "`begin … rescue :kind as e … rescue e … ensure … end`: run the statements; a `rescue` clause catches an error by kind, binding it with `as`, and `rescue e` catches every error; `ensure` always runs. A def body takes the same clauses without `begin`.",
-        "rescue" => "A clause of `begin` or `def`: `rescue :a, :b as e`, `rescue e` (every error, last). Inline, `x rescue fallback` is fallback when x raises; it binds loosest, below `|>`.",
+        "rescue" => "A clause of `begin` or `def`: `rescue :a, :b as e`, `rescue e` (every error, last). Inline, `x rescue fallback` is fallback when x raises; it binds loosest, level with `|>`, and the two read left to right.",
         "ensure" => "The last clause of `begin` or `def`: statements that run whether the block returned or raised; the block's value or error is kept.",
         "and" => "`a and b`: logical and; `&&` is read as `and` and written `and` (B0025).",
         "or" => "`a or b`: logical or; `||` is read as `or` and written `or` (B0025).",

@@ -274,7 +274,7 @@ the same columns, when its gate lands. This document does not land them.
 
 ## 5. Row notes (measurements)
 
-**Row 1, null.** `nth(5, [1, 2])` is `nil`, `get({a: 1}, :b)` is `nil`,
+**Row 1, null.** `nth(5, [1, 2])` is `nil`, `get({a: 1}, :z)` is `nil`,
 `to_int("12x")` is `nil`; built-in `first([])` raises. B0047 fixes the nil
 test spelling only. The design and the rule are `docs/ABSENCE.md`.
 
@@ -312,7 +312,7 @@ the only stateful values, and row 10 keeps them inside one process.
 **Row 6, numbers.** Measured: `9223372036854775807 + 1` raises "integer
 overflow in `+`"; `* 2` and `abs(min)` raise the same way; `floor(9.9e300)`
 raises; `1 / 0` and `1.0 / 0` raise "division by zero" (stricter than IEEE
-754); `to_int(1.0e300)` is `nil`. Decision: keep checked arithmetic, never
+754); `to_int(1e300)` is `nil`. Decision: keep checked arithmetic, never
 wrap and never promote to a bignum.
 
 **Row 7, coercion.** Measured: `"a" + 1`, `1 + "a"`, `"a" + "b"` and

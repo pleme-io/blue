@@ -805,7 +805,7 @@ def decisions()
     {
       id: "D0010",
       date: "2026-09-27",
-      rule: "Every value has exactly one kind, each with one predicate: nil?, bool?, integer?, float?, string?, keyword?, list?, map?.",
+      rule: "Every value has exactly one kind, each with one predicate: x.nil?, boolean?, integer?, float?, string?, keyword?, list?, map?.",
       why: "float?, map? and bool? did not exist; nil? and list? each also held of the other kind.",
       laws: [["one kind each", () -> law_one_kind_each]]
     },

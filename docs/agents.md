@@ -198,12 +198,14 @@ The plan and the waves are `docs/VERB-ROADMAP.md`.
 
 ### The traps that cost the most
 
-Each one was checked against the runtime.
+A trap that says what an expression is, or that it raises, states a runtime
+fact: the markdown-laws check holds it to the spec row whose program is that
+expression, and conformance runs the row on every evaluator.
 
-- **`nil` is not `[]`** (okite D0004). `nil == []` is false, `list?(nil)` is
-  true, and `length(nil)` raises. Use retsu's `size`, `first`, `rest`,
-  `is_empty`, which accept both. The built-in `first([])` raises; retsu's
-  answers nil.
+- **`nil` is not `[]`, and not a list** (okite D0004, D0010). `nil == []` is
+  false, `list?(nil)` is false and `length(nil)` raises. Use retsu's `size`,
+  `first`, `rest`, `is_empty`, which accept both. The built-in `first([])`
+  raises; retsu's answers nil.
 - **`/` never truncates.** `7 / 2` is 3.5, while `6 / 2` stays the Int 3.
   Integer division is `floor(a / b)`. `%` is Euclidean: `-7 % 3` is 2.
 - **`==` is structural** (`equal?`): strings, lists and maps compare by
@@ -218,8 +220,11 @@ Each one was checked against the runtime.
   `xs.map { |x| … }` or `do … end`. `xs[0]` is `nth(0, xs)` and `m[:k]` is `get(m, :k)` (B0066); a key held in a variable is read with `get(m, key)`, since `m[key]` reads a position.
 - **Errors are raised and rescued.** `raise(:not_found, "no repo #{name}")`
   raises; `raise(:k, "m", {data: d, cause: e})` attaches data and the error
-  it wraps; `raise(e)` raises one again. `json_parse(text) rescue nil` is the
-  value or nil. A block catches by kind and binds the error:
+  it wraps; `raise(e)` raises one again. `x rescue fallback` is the fallback
+  when `x` raises. It cannot tell a failure from a value that is nil:
+  `json_parse(text) rescue nil` is nil both for text that is not JSON and for
+  the document `null`, so where null is a valid document, rescue the error
+  itself. A block catches by kind and binds the error:
   `begin … rescue :timeout, :refused as e … rescue e … ensure … end`, and a
   `def` takes the same clauses directly. The error reads as a record:
   `e.kind`, `e.message`, `e.data`, `e.cause`, `e.trace`. A catch-all that
@@ -259,10 +264,12 @@ Each one was checked against the runtime.
   takes two numbers, and shuugou's `remove(xs, v)` reverses the built-in's
   order (REFERENCE.md marks each). **Do not prefix** your names (`kz_count`
   is an error, B0013/B0014): callers write `kazu::count`.
-- **Maps cannot be walked.** `get(m, k)` and `assoc(m, k, v)` work, but no
-  word lists a map's keys. When you need entries, keep `[key, value]` pairs,
-  as shuugou's `group_by` and `frequencies` do. A parsed JSON object is such a
-  pair list, not a map: read it with `json_get` or deeta.
+- **A map walks in one key order.** `get(m, k)` reads it and `assoc(m, k, v)`
+  extends it; `map_entries({b: 2, a: 1})` is `[[:a, 1], [:b, 2]]`: every entry,
+  ordered by key and total over every key kind, the order jisho's `keys`,
+  `values` and `entries` read. An object `json_parse` gives is a
+  `[key, value]` pair list, not a map: read it with `json_get` or deeta, or
+  parse with `json_read`, which gives maps.
 - **A function with no parameters is called bare** (B0023, `blue explain
   B0023`): `now_ms`, `argv`, `kueri::count_all`, never `now_ms()`. `blue fmt
   --write` rewrites the old spelling and the check stage refuses it. Pass
@@ -283,8 +290,11 @@ Each one was checked against the runtime.
   *argv)`; `apply(f, xs)` with `f` a name is written that way (B0042).
 - **Names with `-` do not exist in blue.** tatara-lisp's kebab-case words are
   unreachable. A keyword may end in `?` or `!` (`[:pair?]`), as a name may.
-- **Deep recursion aborts.** Prefer `map`, `filter` and `reduce` over
-  hand-written recursion on long lists, and `sort_keyed(key, xs)` for sorting.
+- **Deep recursion is refused, not aborted.** A call deeper than the
+  call-depth budget (`max_call_depth`) raises an error that `rescue` catches
+  (spec rows `fn.deep_recursion` and `fn.deep_recursion.catchable`). Prefer
+  `map`, `filter` and `reduce` over hand-written recursion on long lists, and
+  `sort_keyed(key, xs)` for sorting.
 
 The rest of blue's semantics is Ruby's, except where
 [`bidamas/okite/RULES.md`](../bidamas/okite/RULES.md) says otherwise.

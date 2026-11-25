@@ -1,7 +1,8 @@
 //! One line for every name a blue program can call without a `use`.
 //!
-//! The interpreter [`crate::interpreter`] builds binds 228 names a blue
-//! call can spell (`blue_lang_syntax::is_callable_name`, measured 2026-09-29).
+//! The interpreter [`crate::interpreter`] builds binds every name a blue call
+//! can spell (`blue_lang_syntax::is_callable_name`); `docs/REFERENCE.md`
+//! states the count, rendered from this table.
 //! The reserved words among its bindings (`if`, `fn`, `case`, …) are described
 //! with the keywords, and the kebab-case rest of tatara-lisp's stdlib is
 //! unreachable, because the lexer reads `-` as an operator. Most are installed by tatara-lisp, which records no description,
@@ -9,16 +10,19 @@
 //! each one does, in blue's calling form: `blue reference` prints it and
 //! `docs/REFERENCE.md` is rendered from it.
 //!
-//! **It cannot drift from the runtime.** `blue-lang-cli/tests/reference.rs`
-//! compares it with a live interpreter in both directions: a name the runtime
-//! binds with no row here, a row naming nothing the runtime binds, and a
-//! signature whose parameter count disagrees with the bound function's arity
-//! are each a red build. A new primitive therefore arrives with its line or
-//! does not arrive.
+//! **Its names cannot drift from the runtime.** The tests of
+//! `blue-lang-cli/src/reference.rs` compare it with a live interpreter in both
+//! directions: a name the runtime binds with no row here, a row naming nothing
+//! the runtime binds, and a signature whose parameter count disagrees with the
+//! bound function's arity are each a red build. A new primitive therefore
+//! arrives with its line or does not arrive.
 //!
-//! Every line was checked against the runtime by running it, not read off a
-//! name. Where a builtin is partial or surprising the line says so, because
-//! that is what an author needs from it.
+//! **Its results cannot drift either.** A line that states what a call gives,
+//! `f(x) is v` or `f(x) raises`, states a runtime fact, and the markdown-laws
+//! check (`gen/markdown-laws.b`) holds it to the spec row whose program is
+//! that call, which conformance runs on every evaluator: a fact with no row,
+//! or one its row contradicts, is red. Where a builtin is partial or
+//! surprising the line says so, because that is what an author needs from it.
 //!
 //! # Signatures
 //!
@@ -250,7 +254,7 @@ pub const NAMES: &[NameDoc] = names! {
     Lisp: "dolist" "(dolist (x xs) …)" "Lisp loop; its binding list has no blue spelling. In blue, map(fn(x) … end, xs).";
     Lisp: "doseq" "(doseq (x xs) …)" "Same as dolist. In blue, map(fn(x) … end, xs).";
     Lisp: "dotimes" "(dotimes (i n) …)" "Lisp counted loop. In blue, map(fn(i) … end, range(n)).";
-    Lisp: "match" "(match v (pattern expr) …)" "Lisp pattern matching; its patterns have no blue spelling. blue's case compares values and does not destructure.";
+    Lisp: "match" "(match v (pattern expr) …)" "Lisp pattern matching; its patterns have no blue spelling. blue's case destructures in its when patterns instead: rect(w, h), [x, *rest] and {name:} bind the names they hold.";
     Lisp: "defflow" "defflow(name, f, g, more...)" "Define name as a function that pipes its argument through f, then g: defflow(slug, trim, downcase).";
     Lisp: "defsm" "defsm(name, :initial, s, :transitions, [[from, event, to], …])" "Define a state machine. name(:send, event) moves it and returns the state; name(:current) reads it.";
     Lisp: "defstrategy" "defstrategy(name, :variant, f, …, :default, g)" "Define name(variant, args...) dispatching to the function under that keyword, or :default.";
@@ -281,7 +285,7 @@ pub const NAMES: &[NameDoc] = names! {
     Number: "floor" "floor(x)" "The largest Int not above x. floor(a / b) is integer division.";
     Number: "ceiling" "ceiling(x)" "The smallest Int not below x.";
     Number: "round" "round(x)" "The nearest Int, halves away from zero: round(2.5) is 3, round(-2.5) is -3.";
-    Number: "truncate" "truncate(x)" "The Int part of x, toward zero: truncate(-2.7) is -2.";
+    Number: "truncate" "truncate(x)" "The Int part of x, toward zero: truncate(-3.7) is -3.";
     Number: "mod" "mod(a, b)" "Euclidean remainder, never negative; what % lowers to.";
     Number: "modulo" "modulo(a, b)" "The same as mod.";
     Number: "rem" "rem(a, b)" "The same as mod here: mod(-7, 3), modulo and rem are all 2.";
@@ -290,7 +294,7 @@ pub const NAMES: &[NameDoc] = names! {
     Number: "expt" "expt(base, power)" "base raised to power: expt(2, 10) is 1024.";
     Number: "sqrt" "sqrt(x)" "Square root, always a Float: sqrt(16) is 4.0, and 4.0 == 4.";
     Number: "exp" "exp(x)" "e to the x, a Float.";
-    Number: "log" "log(x[, base])" "Natural logarithm, or log to base: log(100, 10) is 2.0.";
+    Number: "log" "log(x[, base])" "Natural logarithm, or log to base: log(8, 2) is 3.0.";
     Number: "sin" "sin(x)" "Sine of x radians.";
     Number: "cos" "cos(x)" "Cosine of x radians.";
     Number: "tan" "tan(x)" "Tangent of x radians.";
@@ -310,7 +314,7 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "upcase" "upcase(s)" "The string in upper case. Raises on nil.";
     Text: "downcase" "downcase(s)" "The string in lower case. Raises on nil.";
     Text: "trim" "trim(s[, opts])" "The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option.";
-    Text: "split" "split(s, sep)" "The fields between separators, empty ones kept (okite D0012): split(\"a,b,\", \",\") is [\"a\", \"b\", \"\"]. An empty sep splits into characters.";
+    Text: "split" "split(s, sep)" "The fields between separators, empty ones kept (okite D0012): split(\"a,b,,\", \",\") is [\"a\", \"b\", \"\", \"\"]. An empty sep splits into characters.";
     Text: "join" "join(xs, sep)" "The elements' text with sep between. The LIST comes first here, and the string first in split.";
     Text: "join_lines" "join_lines(xs)" "The elements' text, one per line, with no newline after the last: what a string with a \\n escape is written as (B0065).";
     Text: "unlines" "unlines(xs)" "The elements' text, each followed by a newline: text that ends in a line break (B0065).";
@@ -415,15 +419,15 @@ pub const NAMES: &[NameDoc] = names! {
     Function: "visit" "visit(f, x)" "f(x).";
     // ── predicates ────────────────────────────────────────────────────────
     Predicate: "nil?" "nil?(x)" "Whether x is nil (okite D0010). x.nil? says the same and is the spelling blue writes (B0047).";
-    Predicate: "bool?" "bool?(x)" "Whether x is true or false.";
-    Predicate: "boolean?" "boolean?(x)" "The same as bool?.";
+    Predicate: "bool?" "bool?(x)" "The same as boolean?, which is how it is written (B0036).";
+    Predicate: "boolean?" "boolean?(x)" "Whether x is true or false.";
     Predicate: "integer?" "integer?(x)" "Whether x is an Int; integer?(1.0) is false.";
     Predicate: "float?" "float?(x)" "Whether x is a Float. 6 / 2 is the Int 3, while 7 / 2 is 3.5.";
     Predicate: "number?" "number?(x)" "Whether x is an Int or a Float.";
     Predicate: "string?" "string?(x)" "Whether x is a string.";
     Predicate: "keyword?" "keyword?(x)" "Whether x is a keyword such as :done.";
     Predicate: "symbol?" "symbol?(x)" "Whether x is a Lisp symbol; false for keywords.";
-    Predicate: "list?" "list?(x)" "Whether x is a list. list?(nil) is true, so test x == nil first.";
+    Predicate: "list?" "list?(x)" "Whether x is a list. nil is not one: list?(nil) is false (okite D0010).";
     Predicate: "map?" "map?(x)" "Whether x is a map. A parsed JSON object is not one.";
     Predicate: "procedure?" "procedure?(x)" "Whether x can be called.";
     Predicate: "empty?" "empty?(xs)" "Whether xs is nil or has no elements.";
@@ -507,7 +511,7 @@ pub const NAMES: &[NameDoc] = names! {
     Device: "canvas_pixel" "canvas_pixel(canvas, x, y)" "The shown color at x, y as \"#rrggbb\", or nil outside the canvas. Needs the display capability.";
     Device: "canvas_close" "canvas_close(canvas)" "Close the canvas; nil. Closing twice is done, and any other word on a closed canvas raises :closed. Needs the display capability.";
     // ── processes ─────────────────────────────────────────────────────────
-    Process: "exec_capture" "exec_capture(cmd, args...)" "Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of.";
+    Process: "exec_capture" "exec_capture(cmd, args...)" "Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]], a keyed list read by field: cap.status, cap.stdout, cap.stderr.";
     Process: "exec_check" "exec_check(cmd, args...)" "Run a command, no shell; its exit status as an Int. Output passes through.";
     Process: "exec_ok?" "exec_ok?(cmd, args...)" "Whether a command exits 0.";
     Process: "exec_with_stdin" "exec_with_stdin(input, cmd, args...)" "exec_capture, with input written to the command's stdin. The INPUT comes first.";
@@ -550,7 +554,7 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "nats_next_message" "nats_next_message(sub, timeout_ms)" "{subject:, payload:, status:, headers:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. status is the header block's code (JetStream's 404 and 408) or nil, headers its text or nil. reply is nil unless the sender wants an answer: publish to it.";
     Network: "nats_unsubscribe" "nats_unsubscribe(sub)" "Stop a subscription; messages already queued for it are dropped. nil.";
     Network: "nats_close" "nats_close(conn)" "Close the connection; every later call on it raises. nil.";
-    Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. timeout_ms nil is measured: ten times the slowest answer the host gave this process, at least 1 s, or 30 s for a host not yet heard from.";
+    Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url, or to an https:// url over TLS (rustls, the server's certificate verified against the Mozilla roots; the wasm targets refuse it by name): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. timeout_ms nil is measured: ten times the slowest answer the host gave this process, at least 1 s, or 30 s for a host not yet heard from.";
     Network: "http_batch" "http_batch(requests)" "Each request, a list [method, url, headers, body, timeout_ms] as http_request takes, sent at once, each on a thread of its own where the host gives threads, else one after another: the answers in the order the requests are listed, or the error of the first that failed in that order. Rule R18 writes it for a run of reads a definition makes one after another; --timings counts each batch.";
     Network: "http_pipe" "http_pipe(method, url, headers, body_file, timeout_ms)" "One HTTP/1.1 request whose body and reply are files, never values: body_file (a path, or nil) is streamed to the upstream, and the reply's body is spooled to a temp file: {status:, headers:, body_file:}, body_file nil for HEAD, 204 and 304. Hand body_file to http_respond's {file:} and remove it with rm_rf once answered. One deadline for the whole call, reset per chunk; a failed or truncated exchange raises and leaves no spool.";
     Network: "tcp_connect_ms" "tcp_connect_ms(host, port, timeout_ms)" "Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises.";
@@ -568,7 +572,7 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "pg_query" "pg_query(conn, sql, params)" "One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text.";
     Network: "pg_execute" "pg_execute(conn, sql)" "A script of statements, unparameterised: the list of their command tags. Raises naming the first failure.";
     Network: "pg_close" "pg_close(conn)" "Close the connection; every later call on it raises. nil.";
-    Network: "resp_connect" "resp_connect(host, port, password, tls[, timeout_ms])" "A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect.";
+    Network: "resp_connect" "resp_connect(host, port, password, tls[, timeout_ms])" "A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true speaks TLS (rustls, the server's certificate verified against the Mozilla roots); tls false is allowed only for 127.0.0.1. Raises when it cannot connect.";
     Network: "resp_command" "resp_command(conn, args)" "Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises.";
     Network: "resp_pipeline" "resp_pipeline(conn, commands)" "Send every command in one write and return their replies in order. Raises naming the first server error.";
     Network: "resp_next" "resp_next(conn, timeout_ms)" "The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came.";

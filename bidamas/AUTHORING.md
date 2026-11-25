@@ -20,7 +20,7 @@ traps not yet decided. Each one fixed becomes a rule there and leaves here.
 ## The one that breaks structural recursion
 
 **`length(nil)` ERRORS, and `nil` is not `[]`.** The list operations never
-hand you that `nil` any more (okite D0011: `cdr([1])` is `[]`, measured
+hand you that `nil` any more (okite D0011: `rest([1])` is `[]`, measured
 2026-09-29), but a function that receives `nil` — an absent map key, a
 `find_first` that found nothing — still reaches it:
 
@@ -379,8 +379,6 @@ a recursion that copied the tail at each step (664 ms to find the last of
   brace by codepoint, `"#\u{7b}"`, which is also how the formatter prints a
   string whose value holds `#{`. Written plainly, the literal evaluates the
   code it was meant to hold (measured 2026-09-24: "unbound symbol").
-- **`list?(nil)` is true.** Test `v == nil` before `list?(v)`, or `nil` takes
-  the list branch (a JSON writer rendered it `[]`).
 - **`find_first` answers `nil` both for "absent" and for a found `nil`.** When
   an element may be nil, ask `count_where` or `filter` instead.
 - **A parameter or local named like a function shadows it** for the rest of

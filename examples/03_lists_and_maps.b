@@ -2,9 +2,9 @@
 #
 # Lists are values: every operation returns a new list. retsu's words are
 # total (size, first, rest, last and is_empty accept [] and nil), so prefer
-# them to length, car and cdr. A map is read with get and extended with assoc;
-# grouping and counting return [key, value] pairs, because blue cannot list
-# a map's keys.
+# them to length, car and cdr. A map is read with get, extended with assoc and
+# walked in key order with map_entries; grouping and counting return
+# [key, value] pairs.
 use("junjo", [:sort_by])
 use("retsu", %i[first is_empty rest size])
 use("shuugou", %i[frequencies group_by lookup])

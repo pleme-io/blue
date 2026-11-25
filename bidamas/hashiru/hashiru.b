@@ -8591,7 +8591,7 @@ test "a bare zero-argument word becomes its call unless the program binds it"
 end
 
 @doc """
-RT_KIND_OF: the kind of the value in rdi (only read) in rax: 0 nil, 8 false, 1 a number, 2 true, 3 a list cell, 4 a string, 5 a keyword, 6 an error, 7 anything else.
+RT_KIND_OF: the kind of the value in rdi (only read) in rax: 0 nil, 8 false, 9 the empty list, 1 a number, 2 true, 3 a list cell, 4 a string, 5 a keyword, 6 an error, 7 anything else.
 
     RT_KIND_OF[0] #=> {op: "label", name: "rt_kind_of"}
 """
@@ -8632,7 +8632,7 @@ RT_KIND_OF = [
 ]
 
 @doc """
-KIND_PREDICATES: each type predicate native code answers and the kinds of rt_kind_of it accepts. Natively the empty list is nil, so list? holds for nil.
+KIND_PREDICATES: each type predicate native code answers and the kinds of rt_kind_of it accepts. The empty list is its own kind, 9, so list? holds for a list cell and for the empty list, and not for nil (okite D0010).
 
     KIND_PREDICATES[0] #=> ["integer?", [1]]
 """

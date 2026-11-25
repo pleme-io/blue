@@ -51,6 +51,7 @@ and the door sends each such row's program to the walker.
 | `component` | `blue-lang-component`, the engine as a wasm32-wasip2 component, under wasmtime: the second placement of the program | output, failure |
 | `default` | the shipped `blue` binary as a user runs it: no step bound and every default on (fold, fusion, the membership index, the memo and native planners), a 45 s wall-clock limit as its only guard; blind to rows whose outcome is the step bound and to rows that read the node clock or a declared input | value (through `blue run --literal`), output, failure |
 | `native` | `BLUE_CONFORMANCE_NATIVE=1`, on x86-64 Linux: the row lowered by `blue ast`, compiled by hashiru through `gen/native-row.b` in `:show` mode, and run | value: what a clean exit writes; any other exit or a signal is `CRASHED`, never a value |
+| `scheduled` | the `default` column on four schedulers (`schedulers: 4`): a program's answers at one scheduler and at four must be equal (docs/ASYNC.md A-parity); only rows that start a process or map are run, the rest are blind | value, output, failure |
 | `ir` | `BLUE_CONFORMANCE_IR=1`: the row lowered by `blue ast --resolved` and run by kuzushi's evaluator through `gen/ir-row.b` | value, and no reference left live |
 
 `walker` is stage 0 for evaluated rows and `static` for front-end rows.
@@ -102,6 +103,7 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | `shifts("annotated", ["loose"])` | the blueshift rung, and the declarations holding it back | static, cli |
 | `facts(["f: last_use x (+ x 1)"])` | the ownership facts kuzushi reads from the resolved tree, one line per fact, in order (docs/PURE-BLUE.md M1) | static |
 | `leaks(0)` | the bytes one run of `SRC` leaves live, read from the counting allocator: one warm-up run, then the mean of three (docs/PURE-BLUE.md C2, I3) | walker, vm |
+| `closes_at(:end)` | every host handle the run opens (a connection, a listener, a serial port) is closed when the run ends | walker, vm |
 
 - `OPTION`s:
 
@@ -115,6 +117,8 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | `host()` | the program reaches a host effect (files, processes, the clock) |
 | `isolate()` | run in a child process with a time limit |
 | `frontend("{types: …, enums: …}")` | the program is a view of a frontend whose generated schema table is this text (the data laws, B0048–B0052); the static door checks it, the cli door is blind to it |
+| `bidama("kagi")` | the program is the source of that bidama, as the rules that judge a bidama's own file (B0056–B0060) see it; the static door checks it, the cli door is blind to it |
+| `role("generator")` | the program is the program of that project row (`generator`, `service`, or a `binding` service), as the project-point rules (B0085–B0087) see it; the static door checks it |
 
 A malformed row is refused by name and fails the run; its valid siblings
 still run.
@@ -163,9 +167,8 @@ red until someone deletes the mark and the row becomes an ordinary one.
   the row. It flips only once the evaluator both meets the row and agrees.
   A cell that misses the row gets no excuse: its mark judges it, as the next
   list says.
-- When stage 0 is pending and another evaluator already meets the row (the
-  VM bounds recursion depth, G6), the difference is listed under
-  "divergences while pending" rather than failed.
+- When stage 0 is pending and another evaluator already meets the row, the
+  difference is listed under "divergences while pending" rather than failed.
 - The ABI cannot tell one non-integer from another, so on `wasm` only an
   exact integer flips a pending row.
 

@@ -58,6 +58,8 @@ row(
 )
 
 row("pred.cast", "cast(:int, 3)", value("3"), covers("builtin:cast"))
+row("pred.cast.float", "cast(:float, 5)", value("5.0"))
+row("pred.integer.float_is_not", "integer?(1.0)", value("false"))
 
 row(
   "pred.chan",

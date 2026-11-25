@@ -45,3 +45,5 @@ row(
   "[\"a\" == \"a\", :k == :k, nil == nil, [1] == [1.0], 1 == \"1\", nil != false]",
   value("[true, true, true, true, false, true]")
 )
+
+row("equality.mixed.int_and_string", "1 == \"1\"", value("false"))

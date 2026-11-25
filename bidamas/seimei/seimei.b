@@ -209,8 +209,8 @@ end
 live_coords: The live coordinates of a grid — the inverse of life_from_coords, so the two
 together are an identity a test can check.
 
-as_list because a dead grid folds `append([], [])`, which hands back nil: the
-caller would otherwise get the OTHER empty from an all-dead universe.
+as_list so an all-dead universe answers `[]`, the empty list a caller
+compares against, whatever its fold started from.
 
     live_coords(blank_grid(3, 3)) #=> []
 """

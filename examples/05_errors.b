@@ -1,10 +1,11 @@
 # Errors and refusals
 #
 # Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the
-# input is good. Tests read the kinds. Only at the boundary does the program
-# raise, with throw(error(kind, why)); error(...) alone raises nothing. A
-# caught error cannot be read (its kind and message are not reachable), which
-# is why the refusals are data first. This is kueri's refusals / check.
+# input is good. Tests read the kinds, and a caller can act on every refusal at
+# once. Only at the boundary does the program raise, with raise(kind, why); a
+# caller that rescues it reads the error as a record (e.kind, e.message,
+# e.data, e.cause), but sees only the first refusal. This is kueri's
+# refusals / check.
 use("retsu", %i[first is_empty last])
 
 def port_refusals(text)

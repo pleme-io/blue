@@ -148,9 +148,15 @@ def kind_of(v)
   end
 end
 
+@doc """
+same_kind?: whether a value may stand where a plain record holds its default, judged by fits?, the judge of a knob's value: a value of the default's kind, a whole number where the default is a float, and never NaN. The record door asks it of its file and of its environment.
+
+    same_kind?(1.5, 2) #=> true
+    same_kind?(1, "1") #=> false
+    same_kind?(1.5, to_float("nan")) #=> false
+"""
 def same_kind?(default, v)
-  kind_of(default) == kind_of(v) or
-    kind_of(default) == :float and kind_of(v) == :int
+  fits?(kind_of(default), v)
 end
 
 def dotted(path)
@@ -230,6 +236,11 @@ def file_tier(defaults, doc, path)
       elsif same_kind?(d, v)
         [assoc(first(acc), key, held(kind_of(d), v)), second(acc)]
       else
+        got = if kind_of(v) == kind_of(d)
+          to_s(v)
+        else
+          to_s(kind_of(v))
+        end
         [
           first(acc),
           append(
@@ -237,7 +248,7 @@ def file_tier(defaults, doc, path)
             [
               refusal(
                 :wrong_type,
-                "#{dotted(at)} must be #{to_s(kind_of(d))}, got #{to_s(kind_of(v))}"
+                "#{dotted(at)} must be #{to_s(kind_of(d))}, got #{got}"
               )
             ]
           )
@@ -268,7 +279,7 @@ def env_tier(app, defaults, lookup, path)
           acc
         else
           v = coerce(d, text)
-          if v.nil?
+          if v.nil? or not same_kind?(d, v)
             [
               first(acc),
               append(
@@ -3911,7 +3922,7 @@ test "two knobs that render one flag are refused by name, and a frame flag is ju
   ).nil?
 end
 
-test "one text reads as one value on every layer that reads text, and as the config file reads it wherever the file takes it"
+test "one text reads as one value on every layer that reads text, a plain record's among them, and as the config file reads it wherever the file takes it"
   reads = fn(k, text)
     m = {s: k}
     e = settle("x", m, nil, env_of({"X_S" => text}), {})
@@ -3949,6 +3960,13 @@ test "one text reads as one value on every layer that reads text, and as the con
     end
     {env:, flag:, form: typed, file:}
   end
+  record = fn(d, doc, lookup)
+    begin
+      resolve("x", {"s" => d}, doc, lookup)["s"]
+    rescue :wrong_type
+      :refused
+    end
+  end
   corpus = [
     "81",
     "+81",
@@ -3978,13 +3996,20 @@ test "one text reads as one value on every layer that reads text, and as the con
         corpus,
         fn(t)
           r = reads(k, t)
-          texts_agree = r[:env] == r[:flag] and r[:flag] == r[:form]
+          by_env = record(k[:default], nil, env_of({"X_S" => t}))
+          by_file = record(k[:default], deeta::parse("s: #{t}", :yaml), no_env)
+          texts_agree = r[:env] == r[:flag] and
+            r[:flag] == r[:form] and
+            r[:form] == by_env
           file_agrees = member?(r[:file], %i[refused absent]) or
             r[:env] == r[:file] and (k[:type] != :float or float?(r[:env]))
-          if texts_agree and file_agrees
+          record_agrees = r[:file] == :absent or by_file == r[:file]
+          if texts_agree and file_agrees and record_agrees
             []
           else
-            ["#{to_s(k[:type])} [#{t}]: #{to_s(r)}"]
+            [
+              "#{to_s(k[:type])} [#{t}]: #{to_s(r)}, a plain record's env #{to_s(by_env)} and file #{to_s(by_file)}"
+            ]
           end
         end
       )
@@ -4000,6 +4025,19 @@ test "one text reads as one value on every layer that reads text, and as the con
   assert reads(knob(true), "yes") ==
     {env: true, flag: true, form: true, file: :refused}
   assert reads(knob("a"), " 81")[:env] == " 81"
+  assert kyohi::raised(
+    () -> resolve("a", {"r" => 1.5}, nil, env_of({"A_R" => ".nan"}))
+  ) == :wrong_type
+  assert kyohi::raised(
+    () -> resolve("a", {"r" => 1.5}, deeta::parse("r: .nan", :yaml), no_env)
+  ) == :wrong_type
+  said = begin
+    resolve("a", {"r" => 1.5}, deeta::parse("r: .nan", :yaml), no_env)
+    ""
+  rescue :wrong_type as e
+    e.message
+  end
+  assert contains?(said, "r must be float, got NaN")
 end
 
 test "one engine settles one model under both postures: audit keeps every good key and the kept value, enforce stops naming every refusal"

@@ -222,9 +222,9 @@ end
 check_targets: The flake attributes a direct land builds for `check` on
 `system`. For `:project` it is the one aggregate `checks.<system>.project`. For
 `:pre_merge` it is each of `names`, the flake's checks as check_names_words
-lists them. A check whose inputs did not change is a store or cache hit, but
-every check reads the blue package, so a change that rebuilds blue builds every
-check again.
+lists them. A check whose inputs did not change is a store or cache hit. A check
+that runs blue builds again whenever blue does, and every Bluefile row runs
+blue.
 
     check_targets(:project, "x86_64-linux", []) #=> [".#checks.x86_64-linux.project"]
     check_targets(:pre_merge, "x86_64-linux", ["blue-fmt", "project"]) #=> [".#checks.x86_64-linux.blue-fmt", ".#checks.x86_64-linux.project"]
@@ -236,6 +236,21 @@ def check_targets(check, system, names)
     names
   end
   map((n) -> ".#checks.#{system}.#{n}", chosen)
+end
+
+@doc """
+check_saying: What a direct land says before it builds `targets`: the one
+aggregate for `:project`, and for `:pre_merge` how many of the flake's checks.
+
+    check_saying(:project, "x86_64-linux", [".#checks.x86_64-linux.project"]) #=> "building .#checks.x86_64-linux.project before main moves"
+    check_saying(:pre_merge, "x86_64-linux", [".#checks.x86_64-linux.a", ".#checks.x86_64-linux.b"]) #=> "building the 2 checks of .#checks.x86_64-linux before main moves"
+"""
+def check_saying(check, system, targets)
+  if check == :project
+    "building #{first(targets)} before main moves"
+  else
+    "building the #{count(targets)} checks of .#checks.#{system} before main moves"
+  end
 end
 
 @doc """
@@ -275,9 +290,7 @@ def check_before_push(check, held)
     []
   end
   targets = check_targets(check, system, names)
-  say(
-    "building #{count(targets)} of .#checks.#{system}'s attributes before main moves"
-  )
+  say(check_saying(check, system, targets))
   if exec_check("nix", "build", "--no-link", *targets) != 0
     tell(
       "the pre-merge checks are red on #{system}, so main stays where it is; fix the red check, or land past the checks with BLUE_LAND_DIRECT=prepush-only; BLUE_LAND_SYSTEM names the system they build for"

@@ -1,13 +1,20 @@
 @moduledoc """
 hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
 
-One ledger for every one-way gate, the blue rung of joeira-ratchet: rows are
-`kind: key N`, and a gate judges its measures with failures. A measure that
-could not be taken is blind, and blind is red. A ledger is written only by
-record: every fall is banked (tighten, joeira-ratchet's bank), a row no longer
-measured leaves, and a rise or a new row needs a typed receipt,
+The ledger contract every one-way gate is moving onto, the blue rung of
+joeira-ratchet: rows are `kind: key N`, and a gate judges its measures with
+failures. A measure that could not be taken is blind, and blind is red. record
+is the one writer: every fall is banked (tighten, joeira-ratchet's bank), a row
+no longer measured leaves, and a rise or a new row needs a typed receipt,
 `<kind>: <why>` with a kind of receipt_kinds, kept in the file as a
 `# receipt:` line beside every earlier one.
+
+Today gen/purity.b and gen/mutation-census.b write their ledgers through record,
+and bench takes its receipt grammar. The rest still write their own files:
+gen/heni-gate.b, eval/census.b, `blue census --reuse`,
+`blue verbs check --record`, bench's baselines, the conformance ledgers
+(spec/native.baseline, gen/ir-rows.baseline, spec/leaks.baseline) and
+native/checks/x64.refused.
 
     render("rust", []) #=> ""
 """
@@ -266,7 +273,7 @@ def receipt_refusal(receipt)
 end
 
 @doc """
-record: write the ledger at `path` from the measured rows, of one kind or more, and answer a kyohi result: ok of the count of rows written, or the refusal that wrote nothing. Every fall is banked and a key no longer measured leaves (tighten). A row that rises or is new needs `opts.receipt`, checked by receipt_refusal and kept as a `# receipt:` line beside the file's earlier ones. A blind measure is refused.
+record: write the ledger at `path` from the measured rows, of one kind or more, and answer a kyohi result: ok of the count of rows written, or the refusal that wrote nothing. `measured` is the whole ledger: every row the file holds after the write, of every kind, so a kind or a key it leaves out leaves the file, as a fall does; a writer that measures part of a ledger passes the rest as measured, as bench's other_hosts keeps another host's rows. Every fall is banked and a key no longer measured leaves (tighten). A row that rises or is new needs `opts.receipt`, checked by receipt_refusal and kept as a `# receipt:` line beside the file's earlier ones. A blind measure is refused.
 
     kinds([refusal_of(record("/nonexistent/hadome", [blind("k", "a", "unread")], {}))]) #=> [:blind]
 """
@@ -531,6 +538,16 @@ test "a record banks a fall and drops a gone row with no receipt, keeping every 
   got = record(path, [row("k", "a", 3)], {})
   assert value(got) == 1
   assert read_file(path) == unlines(["# receipt: measurement: first", "k: a 3"])
+end
+
+test "a record writes the whole ledger: a kind it was not given leaves the file, and passing a kind's rows keeps them"
+  text = unlines(["j: b 4", "k: a 5"])
+  path = ledger_at("whole.baseline", text)
+  assert value(record(path, [row("k", "a", 5)], {})) == 1
+  assert read_file(path) == unlines(["k: a 5"])
+  write_file(path, text)
+  assert value(record(path, [row("j", "b", 4), row("k", "a", 3)], {})) == 2
+  assert read_file(path) == unlines(["j: b 4", "k: a 3"])
 end
 
 test "a rise or a new row with no receipt is refused and the ledger is untouched"

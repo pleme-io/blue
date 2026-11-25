@@ -136,6 +136,31 @@ def measured(root)
   end
 end
 
+@doc """
+advice: what the gate says under its failures: a blind ledger names the lock it
+could not read, since a record refuses a blind measure; a crate that grew or is
+new names the record.
+
+    advice([]) #=> []
+    count(advice([refusal(:grew, "crates/a grew"), refusal(:blind, "no lock")])) #=> 2
+"""
+def advice(found)
+  ks = kinds(found)
+  blind = if member?(:blind, ks)
+    [
+      "the ledger is blind: write #{LOCK} with blue lock ., and name it in the purity-ledger check's inputs; a record refuses a blind measure"
+    ]
+  else
+    []
+  end
+  grew = if any?((k) -> k != :blind, ks)
+    ["a crate that grew or is new is recorded with its reason: #{RECORD}"]
+  else
+    []
+  end
+  append(blind, grew)
+end
+
 def record(receipt)
   got = hadome::record(path_join(root, BASELINE), measured(root), {receipt:})
   if ok?(got)
@@ -160,14 +185,10 @@ end
 test "no crate grows past its recorded hand-written Rust bytes, and a new crate must be recorded"
   rows = parse(read_or(path_join(root, BASELINE), ""))
   ms = measured(root)
-  bad = map((f) -> f[1], failures(rows, KIND, ms))
+  found = failures(rows, KIND, ms)
+  bad = map((f) -> f[1], found)
   if not is_empty(bad)
-    write_stderr(unlines(bad))
-    write_stderr(
-      unlines(
-        ["a crate that grew or is new is recorded with its reason: #{RECORD}"]
-      )
-    )
+    write_stderr(unlines(append(bad, advice(found))))
   end
   assert is_empty(bad)
   assert size(ms) >= 20
@@ -263,6 +284,22 @@ test "a tree with no lock is blind, and a blind ledger is red"
   got = failures([row(KIND, "crates/k", 9)], KIND, measured(away))
   assert kinds(got) == [:blind]
   assert includes(got[0][1], "#{LOCK} is absent or unreadable")
+  rm_rf(away)
+end
+
+test "a blind ledger is told to write its lock, never to record what a record refuses"
+  away = tree_at("unlocked", [["crates/k/src/lib.rs", "fn a() {}"]], nil)
+  said = advice(failures([row(KIND, "crates/k", 9)], KIND, measured(away)))
+  assert count(said) == 1
+  assert includes(said[0], "blue lock .")
+  assert not includes(said[0], "gen/purity.b record")
+  grew = failures(
+    [row(KIND, "crates/k", 1)],
+    KIND,
+    [measurement("crates/k", 2)]
+  )
+  assert advice(grew) ==
+    ["a crate that grew or is new is recorded with its reason: #{RECORD}"]
   rm_rf(away)
 end
 

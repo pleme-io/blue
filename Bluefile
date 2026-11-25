@@ -183,7 +183,10 @@ check(
 
 # The rebind census (docs/PURE-BLUE.md L0): every set!, while and repeated
 # define in a block, per file, held by gen/mutation-census.baseline. A file may
-# lose rebinds and never gain one; typed cells (L1) are how they leave.
+# lose rebinds; a gain or a new file is recorded with its reason (blue
+# gen/mutation-census.b record --receipt "<kind>: <why>"), a record with none
+# banks every fall, and a file blue ast cannot read is blind, and blind is red.
+# Typed cells (L1) are how they leave.
 check(
   "mutation-census",
   "gen/mutation-census.b",

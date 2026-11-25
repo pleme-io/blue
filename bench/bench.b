@@ -1287,6 +1287,27 @@ def native_judged(rows, results, host, machine)
   end
 end
 
+@doc """
+native_verdict: What the native gate prints and whether it holds, from the rows,
+this run's results, the host and the machine: off the machine the host's rows
+were measured on, an advisory line first; then every refusal native_judged
+names. It holds only when nothing is refused, so a program a path stopped
+running is red on every machine.
+
+    native_verdict([], [], "linux", "amd-x") #=> {lines: [], held: true}
+"""
+def native_verdict(rows, results, host, machine)
+  advice = if native_gated?(rows, host, machine)
+    []
+  else
+    [
+      "advisory: the #{host} native rows were measured on #{native_machine(rows, host)}; this is #{machine}, so its ratios are shown, not judged, and a program a path stopped running is judged here as everywhere"
+    ]
+  end
+  bad = native_judged(rows, results, host, machine)
+  {lines: append(advice, map((b) -> why(b), bad)), held: is_empty(bad)}
+end
+
 def native_command(blue, work, flags)
   runs = 3
   host = host_name
@@ -1352,18 +1373,9 @@ def native_command(blue, work, flags)
       false
     end
   else
-    if not native_gated?(rows, host, machine)
-      write_stdout(
-        unlines(
-          [
-            "advisory: the #{host} native rows were measured on #{native_machine(rows, host)}; this is #{machine}, so its ratios are shown, not judged, and a program a path stopped running is judged here as everywhere"
-          ]
-        )
-      )
-    end
-    bad = native_judged(rows, results, host, machine)
-    map((b) -> write_stdout(unlines([why(b)])), bad)
-    is_empty(bad)
+    v = native_verdict(rows, results, host, machine)
+    map((l) -> write_stdout(unlines([l])), v.lines)
+    v.held
   end
 end
 
@@ -1741,6 +1753,39 @@ test "off the machine that measured the rows, a program a path stopped running i
   assert size(native_judged(rows, [slow], "linux", "amd-x")) == 1
   assert map(first, native_judged(rows, [gone], "linux", "amd-x")) == [:lost]
   assert native_judged(rows, [fast], "linux", "intel-y") == []
+end
+
+test "the native gate holds off the recorded machine only when no program is lost, and says its ratios are advisory there"
+  rows = parse(
+    unlines(
+      ["native-machine: linux amd-x 1", "native-ratio: fib bluec linux 2000"]
+    )
+  )
+  fast = {
+    name: "fib",
+    work: 1,
+    tree: {cpu: 300},
+    vm: {cpu: 250},
+    chuuzou: {cpu: 11},
+    bluec: {cpu: 20},
+    refused: {bluec: nil},
+    rust: {cpu: 10}
+  }
+  gone = {**fast, bluec: nil, refused: {bluec: "no code for `x`"}}
+  slow = {**fast, bluec: {cpu: 40}}
+  off = native_verdict(rows, [gone], "linux", "intel-y")
+  assert not off.held
+  assert starts_with?(
+    first(off.lines),
+    "advisory: the linux native rows were measured on amd-x"
+  )
+  assert includes(retsu::last(off.lines), "bluec has no time for fib now")
+  shown = native_verdict(rows, [slow], "linux", "intel-y")
+  assert shown.held
+  assert size(shown.lines) == 1
+  judged = native_verdict(rows, [slow], "linux", "amd-x")
+  assert not judged.held
+  assert not starts_with?(first(judged.lines), "advisory")
 end
 
 test "native rows are judged only on the machine that measured them", {

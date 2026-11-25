@@ -25,17 +25,21 @@ fn json_fixtures(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-#[test]
-fn read_agrees_with_json_parse_on_every_fixture() {
+fn agreement() -> Program<()> {
     let text =
         std::fs::read_to_string(root().join("crates/blue-lang-yaml-diff/tests/json_agree.b"))
             .expect("json_agree.b");
     let loader = LoadPath::new([root().join("bidamas")]);
-    let mut program = Program::<()>::builder(Entry::anonymous(Box::leak(text.into_boxed_str())))
+    Program::<()>::builder(Entry::anonymous(Box::leak(text.into_boxed_str())))
         .loader(Box::leak(Box::new(loader)))
         .canonical(Canonical::Required)
         .load(&mut ())
-        .expect("json_agree.b loads with deeta");
+        .expect("json_agree.b loads with deeta")
+}
+
+#[test]
+fn read_agrees_with_json_parse_on_every_fixture() {
+    let mut program = agreement();
     let mut files = Vec::new();
     json_fixtures(&root().join("bidamas/deeta/fixtures"), &mut files);
     files.sort();
@@ -64,16 +68,8 @@ fn read_agrees_with_json_parse_on_every_fixture() {
 }
 
 #[test]
-fn the_readers_agree_past_what_an_int_holds() {
-    let text =
-        std::fs::read_to_string(root().join("crates/blue-lang-yaml-diff/tests/json_agree.b"))
-            .expect("json_agree.b");
-    let loader = LoadPath::new([root().join("bidamas")]);
-    let mut program = Program::<()>::builder(Entry::anonymous(Box::leak(text.into_boxed_str())))
-        .loader(Box::leak(Box::new(loader)))
-        .canonical(Canonical::Required)
-        .load(&mut ())
-        .expect("json_agree.b loads with deeta");
+fn the_readers_agree_on_every_number_edge() {
+    let mut program = agreement();
     let mut seen = Vec::new();
     for doc in [
         "9223372036854775807",
@@ -85,6 +81,14 @@ fn the_readers_agree_past_what_an_int_holds() {
         "1e400",
         "-1e400",
         "[1, 1e400]",
+        "-0",
+        "[-0, 0]",
+        "{\"a\": -0}",
+        "+1",
+        "01",
+        "1.",
+        ".5",
+        "1.e5",
     ] {
         let said = program
             .call::<Value>("agrees", (doc.to_string(),), &mut ())
@@ -103,6 +107,14 @@ fn the_readers_agree_past_what_an_int_holds() {
             "1e400: \"both refuse\"",
             "-1e400: \"both refuse\"",
             "[1, 1e400]: \"both refuse\"",
+            "-0: \"same\"",
+            "[-0, 0]: \"same\"",
+            "{\"a\": -0}: \"same\"",
+            "+1: \"both refuse\"",
+            "01: \"both refuse\"",
+            "1.: \"both refuse\"",
+            ".5: \"both refuse\"",
+            "1.e5: \"both refuse\"",
         ]
     );
 }

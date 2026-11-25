@@ -2109,8 +2109,8 @@ end
 @doc """
 read: A JSON text as blue values, in the shapes `json_parse` gives, read by blue
 itself (R6a of docs/PURE-BLUE.md): an object as a list of [key, value] pairs (an
-empty one as the empty map), an array as a list, null as nil, a number with a
-fraction or an exponent as a Float and any other as an Int.
+empty one as the empty map), an array as a list, null as nil, and a number as
+`json_number` reads it, which refuses each text `json_parse` refuses.
 
     read("{\"a\": [1, 2.5, null, true]}") #=> [["a", [1, 2.5, nil, true]]]
     read("[]") #=> []
@@ -2354,12 +2354,15 @@ end
 
 @doc """
 json_number: A number read from its characters, as json_parse reads it: a
-Float with a fraction or exponent or past what an Int holds, else an Int; a
-number no Float holds, or text that is no number, raises :json.
+Float with a fraction or exponent, past what an Int holds, or for -0, else an
+Int; text JSON does not write as a number, or a number no Float holds, raises
+:json.
 
     json_number(chars("12,"), [])[0] #=> 12
     json_number(chars("9223372036854775808"), [])[0] #=> 9223372036854775808.0
+    to_s(json_number(chars("-0"), [])[0]) #=> "-0.0"
     (json_number(chars("1e400"), []) rescue :refused) #=> :refused
+    (json_number(chars("01"), []) rescue :refused) #=> :refused
 """
 def json_number(cs, acc)
   if not empty?(cs) and member?(first(cs), chars("-+0123456789.eE"))
@@ -2368,8 +2371,10 @@ def json_number(cs, acc)
     text = join(reverse(acc), "")
     if text == ""
       raise(:json, "deeta::read: expected a value")
+    elsif not json_number_text?(text)
+      raise(:json, "deeta::read: #{text} is not a JSON number")
     end
-    floating = any?((c) -> member?(c, %w[. e E]), acc)
+    floating = text == "-0" or any?((c) -> member?(c, %w[. e E]), acc)
     whole = if floating
       nil
     else
@@ -2380,13 +2385,37 @@ def json_number(cs, acc)
     else
       whole
     end
-    if n.nil?
-      raise(:json, "deeta::read: #{text} is not a number")
-    elsif n - n != 0
+    if n - n != 0
       raise(:json, "deeta::read: #{text} is out of range")
     end
     [n, cs]
   end
+end
+
+@doc """
+json_number_text?: Whether the text is a number as JSON writes one (RFC 8259):
+a minus or none, then 0 or digits that do not start with 0, then a point and
+digits or none, then an e or E, a sign or none and digits, or none.
+
+    json_number_text?("-0.5e+3") #=> true
+    json_number_text?("01") #=> false
+    json_number_text?("1.") #=> false
+    json_number_text?("+1") #=> false
+"""
+def json_number_text?(text)
+  body = if starts_with?(text, "-")
+    join(drop(1, chars(text)), "")
+  else
+    text
+  end
+  at_e = split(downcase(body), "e")
+  at_point = split(at_e[0], ".")
+  whole = at_point[0]
+  count(at_e) <= 2 and
+    count(at_point) <= 2 and
+    (whole == "0" or digits?(whole) and not starts_with?(whole, "0")) and
+    (count(at_point) == 1 or digits?(at_point[1])) and
+    (count(at_e) == 1 or digits?(unsigned(at_e[1])))
 end
 
 test "read gives the values json_parse gives, on every JSON shape", {
@@ -2424,6 +2453,41 @@ test "read gives a Float past i64 and refuses a number no Float holds", {
   assert (read("[1, 2-]") rescue :refused) == :refused
 end
 
+test "read gives -0 as -0.0 and refuses each number json_parse refuses", {
+  kind: :unit
+}
+  texts = [
+    "-0",
+    "[-0]",
+    "{\"a\": -0}",
+    "-0.0",
+    "-0e0",
+    "0",
+    "+1",
+    "01",
+    "-01",
+    "00",
+    "1.",
+    ".5",
+    "-.5",
+    "1.e5",
+    "1e",
+    "1e+",
+    "1E+2",
+    "1e05",
+    "-",
+    "--1"
+  ]
+  assert filter(
+    fn(t)
+      to_s([read(t) rescue :refused]) != to_s([json_parse(t) rescue :refused])
+    end,
+    texts
+  ) == []
+  assert to_s(read("[-0, 0]")) == "[-0.0, 0]"
+  assert (read("+1") rescue :refused) == :refused
+end
+
 test "each step of read takes what it reads and gives back the rest", {
   kind: :unit
 }
@@ -2439,6 +2503,8 @@ test "each step of read takes what it reads and gives back the rest", {
   assert json_unit(233, chars("\""), [])[0] == "é"
   assert hex4(chars("00e9"))[0] == 233
   assert json_number(chars("12,"), [])[0] == 12
+  assert json_number_text?("-0.5e+3")
+  assert not json_number_text?("1.")
   assert object_pairs([["b", 1], ["a", 2]]) == [["a", 2], ["b", 1]]
 end
 

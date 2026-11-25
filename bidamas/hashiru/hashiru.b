@@ -951,7 +951,7 @@ EMPTY: the empty list natively, a word no number (odd), no block (an address pas
 EMPTY = 6
 
 @doc """
-MAP_KIND: the block kind of a native map: [kind, count, size 4, its entries], the entries a list of [key, value] lists kept sorted by key (key_lt) with one per key, so two equal maps are equal entry by entry.
+MAP_KIND: the block kind of a native map: [kind, count, size 4, its entries], the entries a list of [key, value] lists kept sorted by key (key_lt: nil, false, true, Ints by value, strings, then keywords by their bytes, the order map_entries walks) with one per key, so two equal maps are equal entry by entry.
 
     MAP_KIND #=> 7
 """
@@ -3153,7 +3153,8 @@ PRELUDE = [
   "(define (insert_string s l) (if (equal? (length l) 0) (list s) (if (string_lt s (first l)) (cons s l) (cons (first l) (insert_string s (rest l))))))",
   "(define (sort_strings l) (reduce (lambda (acc s) (insert_string s acc)) (list) l))",
   "(define (list_drop n l) (if (< n 1) l (if (equal? (length l) 0) l (list_drop (- n 1) (rest l)))))",
-  "(define (key_lt a b) (if (integer? a) (if (integer? b) (< a b) true) (if (integer? b) false (if (string? a) (if (string? b) (string_lt a b) true) (if (string? b) false (string_lt a b))))))",
+  "(define (key_rank k) (if (nil? k) 0 (if (boolean? k) 1 (if (integer? k) 2 (if (string? k) 3 (if (keyword? k) 5 4))))))",
+  "(define (key_lt a b) (if (< (key_rank a) (key_rank b)) true (if (< (key_rank b) (key_rank a)) false (if (integer? a) (< a b) (if (boolean? a) (if (equal? a b) false (equal? a false)) (if (nil? a) false (string_lt a b)))))))",
   "(define (alist_put k v l) (if (equal? (length l) 0) (cons (list k v) (list)) (if (equal? (first (first l)) k) (cons (list k v) (rest l)) (if (key_lt k (first (first l))) (cons (list k v) l) (cons (first l) (alist_put k v (rest l)))))))",
   "(define (alist_get l k) (if (equal? (length l) 0) nil (if (equal? (first (first l)) k) (first (rest (first l))) (alist_get (rest l) k))))",
   "(define (map_get m k) (alist_get (map_alist m) k))",
@@ -10761,7 +10762,7 @@ end
 @doc """
 map_programs: programs over native maps, in :show mode, with what each must write, as blue answers them.
 
-    length(map_programs) #=> 6
+    length(map_programs) #=> 7
 """
 def map_programs()
   [
@@ -10770,7 +10771,11 @@ def map_programs()
     ["(assoc (hash-map :a 1) :b 2)", "{a: 1, b: 2}"],
     ["(assoc (hash-map :a 1) :a 9)", "{a: 9}"],
     ["(equal? (hash-map :a 1 :b 2) (hash-map :b 2 :a 1))", "true"],
-    ["(list (get (hash-map :k 1) :k) (get (hash-map :k 1) :z))", "[1, nil]"]
+    ["(list (get (hash-map :k 1) :k) (get (hash-map :k 1) :z))", "[1, nil]"],
+    [
+      "(hash-map :a 2 nil 6 9 4 \"s\" 5 true 7 false 8)",
+      "{nil => 6, false => 8, true => 7, 9 => 4, \"s\" => 5, a: 2}"
+    ]
   ]
 end
 
@@ -10807,7 +10812,7 @@ test "a map literal, get and assoc become the prelude's map words"
     rc_op([], "map_wrap", [1])
   )
   assert length(rc_op([], "map_alist", [1])) > 0
-  assert length(map_programs) == 6
+  assert length(map_programs) == 7
 end
 
 @doc """

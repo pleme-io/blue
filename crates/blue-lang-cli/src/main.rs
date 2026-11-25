@@ -323,9 +323,10 @@ enum Cmd {
     /// QUERY is tatara-lisp data, or the name of a `query(name, …)` in the
     /// Bluefile of this directory or above. Several clauses are their
     /// conjunction: (match PATTERN) (reaches CAP) (annotated) (unannotated)
-    /// (calls NAME) (package NAME) (longer-than N) (kind function|macro|value)
-    /// (and …) (or …) (not C). CAP is process, filesystem, environment, clock,
-    /// network or host. A PATTERN is tatara's `match` pattern over the
+    /// (calls NAME) (package NAME) (longer-than N)
+    /// (kind function|macro|value|record|union) (and …) (or …) (not C). CAP
+    /// is process, filesystem, environment, clock, network or host. A PATTERN
+    /// is tatara's `match` pattern over the
     /// resolved tree `blue ast` prints, every reference written as what it
     /// resolved to: `(match `(retsu/first ,xs))` is every call to retsu's
     /// first, with its argument bound to xs. A file that cannot be resolved is

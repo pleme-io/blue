@@ -98,16 +98,7 @@ pub fn check_file(
 }
 
 fn name_span(def: &Spanned) -> Option<Span> {
-    let items = def.as_list()?;
-    if matches!(
-        items.first()?.as_symbol()?,
-        "defmacro"
-            | blue_lang_syntax::record::LOWERED_RECORD
-            | blue_lang_syntax::union::LOWERED_UNION
-    ) {
-        return Some(items.get(1)?.span);
-    }
-    Some(blue_lang_syntax::scope::defined_name_node(items)?.span)
+    blue_lang_syntax::scope::definition(def).map(|d| d.name.span)
 }
 
 const PLACEHOLDERS: &[&str] = &[

@@ -1150,9 +1150,12 @@ fn completion_json(rank: usize, c: blue_lang_mondou::Completion, index: &LineInd
 /// LSP `SymbolKind`.
 fn symbol_kind(kind: blue_lang_mondou::ItemKind) -> i64 {
     use blue_lang_mondou::ItemKind;
+    use blue_lang_syntax::scope::DefinitionKind;
     match kind {
-        ItemKind::Function | ItemKind::Macro => 12,
-        ItemKind::Value => 13,
+        ItemKind::Definition(DefinitionKind::Function | DefinitionKind::Macro) => 12,
+        ItemKind::Definition(DefinitionKind::Value) => 13,
+        ItemKind::Definition(DefinitionKind::Record) => 23,
+        ItemKind::Definition(DefinitionKind::Union) => 10,
         ItemKind::Test => 24,
         ItemKind::Use => 2,
     }

@@ -2,16 +2,12 @@
 //! where each is and how its signature reads. No body is resolved, so an
 //! edit inside one leaves the items of every other form as they were.
 
+use blue_lang_syntax::scope::DefinitionKind;
 use blue_lang_syntax::{Atom, Span, Spanned, SpannedForm};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemKind {
-    /// `def f(…)`.
-    Function,
-    /// `defmacro m(…)`.
-    Macro,
-    /// `x = …` at the top level.
-    Value,
+    Definition(DefinitionKind),
     /// `test "…" … end`.
     Test,
     /// `use("pkg", …)`.
@@ -30,6 +26,7 @@ pub struct Item {
     pub signature: String,
     /// The form's `@doc` text.
     pub doc: Option<String>,
+    pub binds: Vec<String>,
 }
 
 /// Every item of a file's documented parse: a documented definition is its
@@ -38,12 +35,31 @@ pub struct Item {
 pub fn of(documented: &[Spanned]) -> Vec<Item> {
     documented
         .iter()
-        .filter_map(|f| match blue_lang_syntax::doc::documented(f) {
-            Some((text, def)) => item(
+        .flat_map(|f| match blue_lang_syntax::doc::documented(f) {
+            Some((text, def)) => items(
                 &Spanned::new(f.span, def.form.clone()),
                 Some(text.to_string()),
             ),
-            None => item(f, None),
+            None => items(f, None),
+        })
+        .collect()
+}
+
+fn items(form: &Spanned, mut doc: Option<String>) -> Vec<Item> {
+    let defined = blue_lang_syntax::scope::definitions_in(form);
+    if defined.is_empty() {
+        return item(form, doc).into_iter().collect();
+    }
+    defined
+        .into_iter()
+        .map(|d| Item {
+            name: d.name().to_string(),
+            kind: ItemKind::Definition(d.kind),
+            span: d.form.span,
+            name_span: d.name.span,
+            signature: signature_of(d.form),
+            doc: doc.take(),
+            binds: d.binds.iter().map(|b| b.name().to_string()).collect(),
         })
         .collect()
 }
@@ -52,20 +68,6 @@ fn item(form: &Spanned, doc: Option<String>) -> Option<Item> {
     let items = form.as_list()?;
     let head = items.first()?.as_symbol()?;
     let (name, kind, name_span) = match head {
-        "define" | "define-typed" => {
-            let node = blue_lang_syntax::scope::defined_name_node(items)?;
-            let function = items.get(1).is_some_and(|t| t.as_list().is_some());
-            let kind = if function {
-                ItemKind::Function
-            } else {
-                ItemKind::Value
-            };
-            (node.as_symbol()?.to_string(), kind, node.span)
-        }
-        "defmacro" => {
-            let node = items.get(1)?;
-            (node.as_symbol()?.to_string(), ItemKind::Macro, node.span)
-        }
         "deftest" => {
             let node = items.get(1)?;
             match &node.form {
@@ -85,6 +87,7 @@ fn item(form: &Spanned, doc: Option<String>) -> Option<Item> {
         name_span,
         signature: signature_of(form),
         doc,
+        binds: Vec::new(),
     })
 }
 
@@ -126,8 +129,16 @@ mod tests {
                     ItemKind::Use,
                     "use(\"retsu\", [:size])".into()
                 ),
-                ("limit".into(), ItemKind::Value, "limit = 3".into()),
-                ("f".into(), ItemKind::Function, "def f(xs)".into()),
+                (
+                    "limit".into(),
+                    ItemKind::Definition(DefinitionKind::Value),
+                    "limit = 3".into()
+                ),
+                (
+                    "f".into(),
+                    ItemKind::Definition(DefinitionKind::Function),
+                    "def f(xs)".into()
+                ),
                 (
                     "f counts".into(),
                     ItemKind::Test,

@@ -418,7 +418,7 @@ A query is tatara-lisp data. Several clauses are their conjunction:
 | `(calls NAME)` | a reference in it resolves to `NAME`: `retsu/first` or `retsu::first` for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
 | `(package NAME)` | it is defined in bidama `NAME` |
 | `(longer-than N)` | its tree has more than `N` forms |
-| `(kind K)` | it is a `function`, `macro` or `value` |
+| `(kind K)` | it is a `function`, `macro`, `value`, `record` or `union` |
 | `(and C …)`, `(or C …)`, `(not C)` | the connectives |
 
 A pattern is tatara's `match` pattern, compiled by tatara's own matcher. A

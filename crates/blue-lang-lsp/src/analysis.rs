@@ -432,9 +432,15 @@ pub fn complete(
 /// The document's functions and macros, each with its own range.
 fn declarations(a: &blue_lang_mondou::Analysis, index: &LineIndex) -> Vec<Declaration> {
     use blue_lang_mondou::ItemKind;
+    use blue_lang_syntax::scope::DefinitionKind;
     a.items()
         .iter()
-        .filter(|i| matches!(i.kind, ItemKind::Function | ItemKind::Macro))
+        .filter(|i| {
+            matches!(
+                i.kind,
+                ItemKind::Definition(DefinitionKind::Function | DefinitionKind::Macro)
+            )
+        })
         .map(|i| Declaration {
             name: i.name.clone(),
             signature: i.signature.clone(),

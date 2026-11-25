@@ -12,7 +12,7 @@
 //! | `(calls NAME)` | a reference in it resolves to NAME: `retsu/first` (or `retsu::first`) for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
 //! | `(package NAME)` | it is defined in bidama NAME |
 //! | `(longer-than N)` | its tree has more than N forms |
-//! | `(kind K)` | it is a `function`, `macro` or `value` |
+//! | `(kind K)` | it is a `function`, `macro`, `value`, `record` or `union` |
 //! | `(and C …)`, `(or C …)`, `(not C)` | the connectives |
 //!
 //! **A pattern is tatara's `match` pattern, compiled by tatara's own
@@ -39,12 +39,13 @@ use std::collections::{BTreeSet, HashMap};
 
 use blue_lang_check::names::{key, Rule};
 use blue_lang_check::Namespace;
+use blue_lang_syntax::scope::{Declared, DefinitionKind};
 use blue_lang_syntax::{Atom, Sexp, Span, Spanned, SpannedForm};
 use blue_lang_waku::Capability;
 use tatara_lisp_eval::{Interpreter, Value};
 
 use crate::reach::{host_capability, HostReach};
-use crate::{Analysis, Engine, FileRef, ItemKind};
+use crate::{Analysis, Engine, FileRef};
 
 /// The steps one pattern test may take on one form.
 pub const MATCH_STEPS: usize = 100_000;
@@ -110,7 +111,7 @@ enum Clause {
     Calls(String),
     Package(String),
     LongerThan(usize),
-    Kind(ItemKind),
+    Kind(DefinitionKind),
 }
 
 /// One compiled pattern.
@@ -152,7 +153,7 @@ pub struct Hit {
     pub definition: String,
     /// Its runtime key: `retsu/first`, `%root/f`.
     pub key: String,
-    pub kind: ItemKind,
+    pub kind: DefinitionKind,
     /// The whole definition.
     pub def_span: Span,
     /// What the pattern bound, in the pattern's order, as tatara-lisp text.
@@ -172,13 +173,7 @@ impl Hit {
     /// ```
     #[must_use]
     pub fn json(&self, file: &str) -> serde_json::Value {
-        let kind = match self.kind {
-            ItemKind::Function => "function",
-            ItemKind::Macro => "macro",
-            ItemKind::Value => "value",
-            ItemKind::Test => "test",
-            ItemKind::Use => "use",
-        };
+        let kind = self.kind.word();
         serde_json::json!({
             "file": file,
             "line": self.line,
@@ -330,12 +325,16 @@ impl Query {
                 }
                 _ => return Err(bad("takes a count of forms")),
             },
-            "kind" => Clause::Kind(match word(one()?).as_deref() {
-                Some("function") => ItemKind::Function,
-                Some("macro") => ItemKind::Macro,
-                Some("value") => ItemKind::Value,
-                _ => return Err(bad("is function, macro or value")),
-            }),
+            "kind" => Clause::Kind(
+                word(one()?)
+                    .as_deref()
+                    .and_then(DefinitionKind::of_word)
+                    .ok_or_else(|| {
+                        let words: Vec<&str> =
+                            DefinitionKind::ALL.iter().map(|k| k.word()).collect();
+                        bad(&format!("is {}", words.join(", ")))
+                    })?,
+            ),
             other => {
                 return Err(bad(&format!(
                     "`{other}` is not a clause: match, reaches, annotated, unannotated, calls, package, longer-than, kind, and, or, not"
@@ -483,7 +482,7 @@ struct Site {
 
 /// What a clause sees of one definition.
 struct Def<'a> {
-    kind: ItemKind,
+    kind: DefinitionKind,
     annotated: bool,
     namespace: Namespace,
     resolved: &'a Spanned,
@@ -574,43 +573,58 @@ impl Analysis {
         };
         let mut hits = Vec::new();
         for (i, form) in self.entry_forms() {
-            let Some((name, kind, annotated)) = definition(form) else {
-                continue;
-            };
             let namespace = blue_lang_runtime::pipeline::namespace_of(&c.program, i);
-            let d = Def {
-                kind,
-                annotated,
-                namespace: namespace.clone(),
-                resolved: &tree[i],
-                forms: count_forms(form),
-                references: references.get(&i).unwrap_or(&none),
-                reach: self.host_reach_at(i).unwrap_or(&none_reach),
+            let (written, resolved) = if blue_lang_syntax::union::union_parts(form).is_some() {
+                (
+                    blue_lang_syntax::union::lower(vec![form.clone()]),
+                    blue_lang_syntax::union::lower(vec![tree[i].clone()]),
+                )
+            } else {
+                (Vec::new(), Vec::new())
             };
-            let Some(mut sites) = query.holds(&query.clause, &d)? else {
-                continue;
+            let pairs: Vec<(&Spanned, &Spanned)> = if written.is_empty() {
+                vec![(form, &tree[i])]
+            } else {
+                written.iter().zip(&resolved).collect()
             };
-            if sites.is_empty() {
-                sites.push(Site {
-                    span: form.span,
-                    bindings: Vec::new(),
-                });
-            }
-            sites.dedup();
-            for s in sites {
-                let (line, column) = Span::line_col(&self.text, s.span.start);
-                hits.push(Hit {
-                    file: file.clone(),
-                    span: s.span,
-                    line,
-                    column,
-                    definition: name.clone(),
-                    key: key(&namespace, &name),
-                    kind,
-                    def_span: form.span,
-                    bindings: s.bindings,
-                    reach: d.reach.clone(),
-                });
+            for (form, resolved) in pairs {
+                let Some(defined) = blue_lang_syntax::scope::definition(form) else {
+                    continue;
+                };
+                let d = Def {
+                    kind: defined.kind,
+                    annotated: defined.declared == Declared::Typed,
+                    namespace: namespace.clone(),
+                    resolved,
+                    forms: count_forms(form),
+                    references: references.get(&i).unwrap_or(&none),
+                    reach: self.host_reach_at(i).unwrap_or(&none_reach),
+                };
+                let Some(mut sites) = query.holds(&query.clause, &d)? else {
+                    continue;
+                };
+                if sites.is_empty() {
+                    sites.push(Site {
+                        span: form.span,
+                        bindings: Vec::new(),
+                    });
+                }
+                sites.dedup();
+                for s in sites {
+                    let (line, column) = Span::line_col(&self.text, s.span.start);
+                    hits.push(Hit {
+                        file: file.clone(),
+                        span: s.span,
+                        line,
+                        column,
+                        definition: defined.name().to_string(),
+                        key: key(&namespace, defined.key()),
+                        kind: defined.kind,
+                        def_span: form.span,
+                        bindings: s.bindings,
+                        reach: d.reach.clone(),
+                    });
+                }
             }
         }
         Ok(hits)
@@ -629,29 +643,6 @@ fn signature_of_definition(items: &[Spanned]) -> bool {
 /// May a pattern's test name `name`?
 fn may_name(name: &str) -> bool {
     host_capability(name).is_none() && !EVALUATES.contains(&name)
-}
-
-/// A definition form's name, kind and whether it is typed.
-fn definition(form: &Spanned) -> Option<(String, ItemKind, bool)> {
-    let items = form.as_list()?;
-    match items.first()?.as_symbol()? {
-        head @ ("define" | "define-typed") => {
-            let name = blue_lang_syntax::scope::defined_name_node(items)?.as_symbol()?;
-            let function = items.get(1).is_some_and(|t| t.as_list().is_some());
-            let kind = if function {
-                ItemKind::Function
-            } else {
-                ItemKind::Value
-            };
-            Some((name.to_string(), kind, head == "define-typed"))
-        }
-        "defmacro" => Some((
-            items.get(1)?.as_symbol()?.to_string(),
-            ItemKind::Macro,
-            false,
-        )),
-        _ => None,
-    }
 }
 
 fn count_forms(form: &Spanned) -> usize {

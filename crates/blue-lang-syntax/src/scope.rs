@@ -518,28 +518,18 @@ pub fn definitions_of(form: &Spanned) -> Vec<(String, Span, HeadKind)> {
 /// pass that rewrites definitions can find the symbol it renames.
 pub fn definition_nodes<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a Spanned, HeadKind)) {
     let Some(items) = form.as_list() else { return };
+    for b in bindings_of(form) {
+        let kind = if b.kind == DefinitionKind::Macro {
+            HeadKind::Macro
+        } else {
+            HeadKind::Value
+        };
+        out(b.node, kind);
+    }
     let head = items.first().and_then(Spanned::as_symbol);
     match head {
-        Some("defmacro") => {
-            if let Some(n) = items.get(1).filter(|n| n.as_symbol().is_some()) {
-                out(n, HeadKind::Macro);
-            }
-        }
-        Some(crate::record::LOWERED_RECORD) => {
-            if let Some(r) = crate::record::record_parts(form) {
-                out(r.name, HeadKind::Value);
-                out(r.predicate, HeadKind::Value);
-            }
-        }
-        Some(crate::union::LOWERED_UNION) => {
-            if let Some(u) = crate::union::declared(form) {
-                out(u.predicate, HeadKind::Value);
-            }
-        }
+        Some("defmacro" | crate::record::LOWERED_RECORD | crate::union::LOWERED_UNION) => {}
         Some("define" | "define-typed") => {
-            if let Some(n) = defined_name_node(items) {
-                out(n, HeadKind::Value);
-            }
             // `(define x e)`: `e` is evaluated right here, so its defines are
             // this frame's too. A function define opens a frame; stop.
             if items.get(1).is_some_and(|t| t.as_symbol().is_some()) {
@@ -568,6 +558,215 @@ pub fn definition_nodes<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a Spanned, 
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DefinitionKind {
+    Function,
+    Macro,
+    Value,
+    Record,
+    Union,
+}
+
+impl DefinitionKind {
+    pub const ALL: [DefinitionKind; 5] = [
+        DefinitionKind::Function,
+        DefinitionKind::Macro,
+        DefinitionKind::Value,
+        DefinitionKind::Record,
+        DefinitionKind::Union,
+    ];
+
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            DefinitionKind::Function => "function",
+            DefinitionKind::Macro => "macro",
+            DefinitionKind::Value => "value",
+            DefinitionKind::Record => "record",
+            DefinitionKind::Union => "union",
+        }
+    }
+
+    #[must_use]
+    pub fn of_word(word: &str) -> Option<DefinitionKind> {
+        DefinitionKind::ALL.into_iter().find(|k| k.word() == word)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Declared {
+    Def,
+    Typed,
+    Binding,
+    Macro,
+    Record,
+    Union,
+}
+
+impl Declared {
+    #[must_use]
+    pub fn rebindable(self) -> bool {
+        self == Declared::Binding
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Role {
+    Name,
+    Predicate,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Binding<'a> {
+    pub node: &'a Spanned,
+    pub role: Role,
+    pub kind: DefinitionKind,
+}
+
+impl<'a> Binding<'a> {
+    #[must_use]
+    pub fn name(&self) -> &'a str {
+        self.node.as_symbol().unwrap_or_default()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Definition<'a> {
+    pub form: &'a Spanned,
+    pub name: &'a Spanned,
+    pub kind: DefinitionKind,
+    pub declared: Declared,
+    pub binds: Vec<Binding<'a>>,
+}
+
+impl<'a> Definition<'a> {
+    #[must_use]
+    pub fn name(&self) -> &'a str {
+        self.name.as_symbol().unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn key(&self) -> &'a str {
+        self.binds
+            .first()
+            .map_or_else(|| self.name(), Binding::name)
+    }
+
+    fn of(
+        form: &'a Spanned,
+        name: &'a Spanned,
+        kind: DefinitionKind,
+        declared: Declared,
+        binds: &[(&'a Spanned, Role)],
+    ) -> Definition<'a> {
+        Definition {
+            form,
+            name,
+            kind,
+            declared,
+            binds: binds
+                .iter()
+                .map(|&(node, role)| Binding { node, role, kind })
+                .collect(),
+        }
+    }
+}
+
+#[must_use]
+pub fn definitions_in(form: &Spanned) -> Vec<Definition<'_>> {
+    let Some(items) = form.as_list() else {
+        return Vec::new();
+    };
+    match items.first().and_then(Spanned::as_symbol) {
+        Some(head @ ("define" | "define-typed")) => {
+            let Some(name) = defined_name_node(items) else {
+                return Vec::new();
+            };
+            let declared = match (items[1].as_symbol().is_some(), head) {
+                (true, _) => Declared::Binding,
+                (false, "define-typed") => Declared::Typed,
+                (false, _) => Declared::Def,
+            };
+            let lambda = items
+                .get(2)
+                .and_then(Spanned::as_list)
+                .and_then(|v| v.first())
+                .and_then(Spanned::as_symbol)
+                == Some("lambda");
+            let kind = if declared == Declared::Binding && !lambda {
+                DefinitionKind::Value
+            } else {
+                DefinitionKind::Function
+            };
+            vec![Definition::of(
+                form,
+                name,
+                kind,
+                declared,
+                &[(name, Role::Name)],
+            )]
+        }
+        Some("defmacro") => items
+            .get(1)
+            .filter(|n| n.as_symbol().is_some())
+            .map(|name| {
+                Definition::of(
+                    form,
+                    name,
+                    DefinitionKind::Macro,
+                    Declared::Macro,
+                    &[(name, Role::Name)],
+                )
+            })
+            .into_iter()
+            .collect(),
+        Some(crate::record::LOWERED_RECORD) => record_definition(form).into_iter().collect(),
+        Some(crate::union::LOWERED_UNION) => {
+            let whole = crate::union::union_parts(form).map(|u| (u.name, u.predicate));
+            let declared = crate::union::declared(form).map(|u| (u.name, u.predicate));
+            let Some((name, predicate)) = declared.or(whole) else {
+                return Vec::new();
+            };
+            let mut out = vec![Definition::of(
+                form,
+                name,
+                DefinitionKind::Union,
+                Declared::Union,
+                &[(predicate, Role::Predicate)],
+            )];
+            if whole.is_some() {
+                out.extend(items[3..].iter().filter_map(record_definition));
+            }
+            out
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn record_definition(form: &Spanned) -> Option<Definition<'_>> {
+    let r = crate::record::record_parts(form)?;
+    Some(Definition::of(
+        form,
+        r.name,
+        DefinitionKind::Record,
+        Declared::Record,
+        &[(r.name, Role::Name), (r.predicate, Role::Predicate)],
+    ))
+}
+
+#[must_use]
+pub fn definition(form: &Spanned) -> Option<Definition<'_>> {
+    definitions_in(form).into_iter().next()
+}
+
+#[must_use]
+pub fn bindings_of(form: &Spanned) -> Vec<Binding<'_>> {
+    definitions_in(form)
+        .into_iter()
+        .flat_map(|d| d.binds)
+        .collect()
 }
 
 #[must_use]

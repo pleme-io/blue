@@ -185,8 +185,7 @@ fn integration_test(form: &Spanned) -> bool {
 }
 
 fn name_span(form: &Spanned) -> Option<tatara_lisp::Span> {
-    let items = form.as_list()?;
-    blue_lang_syntax::scope::defined_name_node(items).map(|n| n.span)
+    blue_lang_syntax::scope::definition(form).map(|d| d.name.span)
 }
 
 /// A point the entry file declares for its project: the Bluefile row that

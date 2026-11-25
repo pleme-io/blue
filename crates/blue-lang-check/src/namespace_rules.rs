@@ -614,16 +614,7 @@ fn definitions(
 
 /// `(define (f …) …)` or a macro.
 fn is_function_def(form: &Spanned) -> bool {
-    form.as_list()
-        .is_some_and(|items| match items.first().and_then(Spanned::as_symbol) {
-            Some("define" | "define-typed") => items.get(1).is_some_and(|t| t.as_list().is_some()),
-            Some(
-                "defmacro"
-                | blue_lang_syntax::record::LOWERED_RECORD
-                | blue_lang_syntax::union::LOWERED_UNION,
-            ) => true,
-            _ => false,
-        })
+    scope::definition(form).is_some_and(|d| !d.declared.rebindable())
 }
 
 /// The one `x_` prefix (one to four letters) that at least 90% of eight or

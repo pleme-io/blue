@@ -145,14 +145,7 @@ pub fn redocument(src: &str, forms: Vec<Spanned>) -> Vec<Spanned> {
 /// The name a definition binds: `def f`, `defmacro m`, `x = …`.
 #[must_use]
 pub fn defined_name(def: &Spanned) -> Option<&str> {
-    let items = def.as_list()?;
-    if matches!(
-        items.first()?.as_symbol()?,
-        "defmacro" | crate::record::LOWERED_RECORD | crate::union::LOWERED_UNION
-    ) {
-        return items.get(1)?.as_symbol();
-    }
-    crate::scope::defined_name_node(items)?.as_symbol()
+    crate::scope::definition(def).map(|d| d.name())
 }
 
 /// Can `form` carry a `@doc`? A function, macro or top-level value.

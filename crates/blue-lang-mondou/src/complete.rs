@@ -7,6 +7,7 @@
 use std::collections::BTreeSet;
 
 use blue_lang_check::{NameTable, Namespace, ScopeKind};
+use blue_lang_syntax::scope::DefinitionKind;
 use blue_lang_syntax::Span;
 
 use crate::{Analysis, Engine, ItemKind};
@@ -152,19 +153,19 @@ impl Engine {
         let own = a.own_namespace();
         let table: &NameTable = a.checked().map_or(self.builtins(), |c| &c.names);
         let mut out = Vec::new();
-        let doc_of = |ns: &Namespace, name: &str| -> (Option<String>, Option<String>) {
+        let doc_of = |ns: &Namespace, name: &str| -> Described {
             match ns {
                 Namespace::Builtin | Namespace::Macro | Namespace::SpecialForm => {
                     match blue_lang_runtime::docs::doc_of(name) {
-                        Some(d) => (Some(d.signature.to_string()), Some(d.doc.to_string())),
-                        None => (None, None),
+                        Some(d) => (Some(d.signature.to_string()), Some(d.doc.to_string()), None),
+                        None => (None, None, None),
                     }
                 }
                 _ => match a.definition_of(self, ns, name) {
-                    Some(l) => self
-                        .item_at(a, &l)
-                        .map_or((None, None), |i| (Some(i.signature), i.doc)),
-                    None => (None, None),
+                    Some(l) => self.item_at(a, &l).map_or((None, None, None), |i| {
+                        (Some(i.signature), i.doc, defined_kind(i.kind))
+                    }),
+                    None => (None, None, None),
                 },
             }
         };
@@ -174,13 +175,13 @@ impl Engine {
                 if !spellable(&b.name) || !b.name.starts_with(prefix) {
                     continue;
                 }
-                let (signature, doc) = doc_of(&own, &b.name);
+                let (signature, doc, defined) = doc_of(&own, &b.name);
                 out.push(Completion {
                     label: b.name.clone(),
                     insert: None,
                     tier: Tier::Own,
                     namespace: own.to_string(),
-                    kind: kind_of(b.kind, signature.as_deref()),
+                    kind: kind_of(b.kind, defined),
                     signature,
                     doc,
                     edit: None,
@@ -196,13 +197,13 @@ impl Engine {
                 if !defined || !name.starts_with(prefix) {
                     continue;
                 }
-                let (signature, doc) = doc_of(&ns, name);
+                let (signature, doc, defined) = doc_of(&ns, name);
                 out.push(Completion {
                     label: name.clone(),
                     insert: None,
                     tier: Tier::Imported,
                     namespace: ns.to_string(),
-                    kind: kind_of(ScopeKind::Value, signature.as_deref()),
+                    kind: kind_of(ScopeKind::Value, defined),
                     signature,
                     doc,
                     edit: None,
@@ -220,7 +221,7 @@ impl Engine {
                 if !spellable(&b.name) || !b.name.starts_with(prefix) {
                     continue;
                 }
-                let (signature, doc) = doc_of(&scope.namespace, &b.name);
+                let (signature, doc, _) = doc_of(&scope.namespace, &b.name);
                 out.push(Completion {
                     label: b.name.clone(),
                     insert: None,
@@ -254,33 +255,24 @@ impl Engine {
                 continue;
             };
             for (_, text) in &package.files {
-                for item in self.memo.items(text).iter().cloned() {
-                    if !matches!(
-                        item.kind,
-                        ItemKind::Function | ItemKind::Value | ItemKind::Macro
-                    ) || !spellable(&item.name)
-                        || !item.name.starts_with(prefix)
-                    {
+                for (item, kind, name) in bound(&self.memo.items(text)) {
+                    if !spellable(&name) || !name.starts_with(prefix) {
                         continue;
                     }
-                    if import.is_some_and(|i| i.names.iter().any(|(n, _)| *n == item.name)) {
+                    if import.is_some_and(|i| i.names.iter().any(|(n, _)| *n == name)) {
                         continue;
                     }
                     let (insert, edit) = match import {
-                        Some(i) if i.listed => (None, list_edit(a, i, &item.name)),
-                        Some(_) => (Some(format!("{pkg}::{}", item.name)), None),
-                        None => (None, Some(use_edit(a, &imports, &pkg, &item.name))),
+                        Some(i) if i.listed => (None, list_edit(a, i, &name)),
+                        Some(_) => (Some(format!("{pkg}::{name}")), None),
+                        None => (None, Some(use_edit(a, &imports, &pkg, &name))),
                     };
                     out.push(Completion {
-                        label: item.name.clone(),
+                        label: name,
                         insert,
                         tier: Tier::Reachable,
                         namespace: Namespace::Bidama(pkg.clone()).to_string(),
-                        kind: if item.kind == ItemKind::Function {
-                            CompletionKind::Function
-                        } else {
-                            CompletionKind::Value
-                        },
+                        kind: completion_kind(kind),
                         signature: Some(item.signature),
                         doc: item.doc,
                         edit,
@@ -342,16 +334,12 @@ impl Engine {
             return;
         }
         for (_, text) in &package.files {
-            for item in self.memo.items(text).iter().cloned() {
-                if !matches!(
-                    item.kind,
-                    ItemKind::Function | ItemKind::Value | ItemKind::Macro
-                ) || !spellable(&item.name)
-                {
+            for (item, kind, name) in bound(&self.memo.items(text)) {
+                if !spellable(&name) {
                     continue;
                 }
                 push(Completion {
-                    label: item.name.clone(),
+                    label: name,
                     insert: None,
                     tier: if used {
                         Tier::Imported
@@ -359,11 +347,7 @@ impl Engine {
                         Tier::Reachable
                     },
                     namespace: Namespace::Bidama(pkg.to_string()).to_string(),
-                    kind: if item.kind == ItemKind::Function {
-                        CompletionKind::Function
-                    } else {
-                        CompletionKind::Value
-                    },
+                    kind: completion_kind(kind),
                     signature: Some(item.signature),
                     doc: item.doc,
                     edit: (!used).then(|| {
@@ -378,17 +362,26 @@ impl Engine {
     /// The item a definition location names, in whichever file holds it.
     #[must_use]
     pub fn item_at(&self, a: &Analysis, l: &crate::Located) -> Option<crate::Item> {
-        let inside = |i: &crate::Item| {
-            i.name_span == l.span || (i.span.start <= l.span.start && l.span.end <= i.span.end)
+        let named = |items: &[crate::Item]| {
+            items
+                .iter()
+                .find(|i| i.name_span == l.span)
+                .or_else(|| {
+                    items
+                        .iter()
+                        .filter(|i| i.span.start <= l.span.start && l.span.end <= i.span.end)
+                        .min_by_key(|i| i.span.end - i.span.start)
+                })
+                .cloned()
         };
         if matches!(&l.file, crate::FileRef::Document(id) if a.id.as_deref() == Some(id.as_str())) {
-            return a.items().iter().find(|i| inside(i)).cloned();
+            return named(a.items());
         }
         let text = match &l.file {
             crate::FileRef::Document(id) => self.document_text(id)?.to_string(),
             crate::FileRef::Path(_) => a.file_text(&l.file)?.to_string(),
         };
-        self.memo.items(&text).iter().find(|i| inside(i)).cloned()
+        named(&self.memo.items(&text))
     }
 }
 
@@ -404,13 +397,36 @@ fn edit_base<'a>(current: &'a Analysis, good: Option<&'a Analysis>) -> Option<&'
     (current.text.get(..header) == good.text.get(..header)).then_some(good)
 }
 
-fn kind_of(kind: ScopeKind, signature: Option<&str>) -> CompletionKind {
+type Described = (Option<String>, Option<String>, Option<DefinitionKind>);
+
+fn defined_kind(kind: ItemKind) -> Option<DefinitionKind> {
     match kind {
-        ScopeKind::SpecialForm | ScopeKind::Macro => CompletionKind::Keyword,
-        ScopeKind::Value if signature.is_some_and(|s| s.starts_with("def ")) => {
+        ItemKind::Definition(k) => Some(k),
+        ItemKind::Test | ItemKind::Use => None,
+    }
+}
+
+fn bound(items: &[crate::Item]) -> Vec<(crate::Item, DefinitionKind, String)> {
+    items
+        .iter()
+        .filter_map(|i| Some((i, defined_kind(i.kind)?)))
+        .flat_map(|(i, kind)| i.binds.iter().map(move |n| (i.clone(), kind, n.clone())))
+        .collect()
+}
+
+fn completion_kind(kind: DefinitionKind) -> CompletionKind {
+    match kind {
+        DefinitionKind::Function | DefinitionKind::Record | DefinitionKind::Union => {
             CompletionKind::Function
         }
-        ScopeKind::Value => CompletionKind::Value,
+        DefinitionKind::Value | DefinitionKind::Macro => CompletionKind::Value,
+    }
+}
+
+fn kind_of(kind: ScopeKind, defined: Option<DefinitionKind>) -> CompletionKind {
+    match kind {
+        ScopeKind::SpecialForm | ScopeKind::Macro => CompletionKind::Keyword,
+        ScopeKind::Value => defined.map_or(CompletionKind::Value, completion_kind),
     }
 }
 

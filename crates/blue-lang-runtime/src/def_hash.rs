@@ -23,6 +23,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use blue_lang_syntax::scope::{DefinitionKind, Role};
 use blue_lang_syntax::{Atom, Spanned, SpannedForm};
 
 /// The identity of one definition's resolved tree.
@@ -154,37 +155,24 @@ impl DefHashes {
     }
 }
 
+impl From<DefinitionKind> for DefKind {
+    fn from(kind: DefinitionKind) -> Self {
+        match kind {
+            DefinitionKind::Function => DefKind::Function,
+            DefinitionKind::Macro => DefKind::Macro,
+            DefinitionKind::Value | DefinitionKind::Record | DefinitionKind::Union => {
+                DefKind::Value
+            }
+        }
+    }
+}
+
 /// The key a top-level form binds and what it binds there, if it is a
 /// definition.
 #[must_use]
 pub fn defined(form: &Spanned) -> Option<(&str, DefKind)> {
-    let items = form.as_list()?;
-    match items.first()?.as_symbol()? {
-        "defmacro" => Some((items.get(1)?.as_symbol()?, DefKind::Macro)),
-        blue_lang_syntax::record::LOWERED_RECORD => {
-            Some((items.get(1)?.as_symbol()?, DefKind::Value))
-        }
-        blue_lang_syntax::union::LOWERED_UNION => {
-            Some((items.get(2)?.as_symbol()?, DefKind::Value))
-        }
-        "define" | "define-typed" => {
-            let node = blue_lang_syntax::scope::defined_name_node(items)?;
-            let function = items[1].as_list().is_some()
-                || items
-                    .get(2)
-                    .and_then(Spanned::as_list)
-                    .and_then(|v| v.first())
-                    .and_then(Spanned::as_symbol)
-                    == Some("lambda");
-            let kind = if function {
-                DefKind::Function
-            } else {
-                DefKind::Value
-            };
-            Some((node.as_symbol()?, kind))
-        }
-        _ => None,
-    }
+    let d = blue_lang_syntax::scope::definition(form)?;
+    Some((d.key(), d.kind.into()))
 }
 
 /// Hash every definition of a program, given its top-level forms as
@@ -240,14 +228,19 @@ fn hash_in_domain(
         .collect();
     let mut types: HashMap<&str, Vec<usize>> = HashMap::new();
     for (d, form) in forms.iter().enumerate() {
-        if let Some([h, n, p, ..]) = form.as_list() {
-            if let (Some("blue-record" | "blue-union"), Some(n), Some(p)) =
-                (h.as_symbol(), n.as_symbol(), p.as_symbol())
-            {
-                for s in [n.rsplit('/').next().unwrap_or(n), p] {
-                    types.entry(s).or_default().push(d);
-                }
-            }
+        let Some(def) = blue_lang_syntax::scope::definition(form)
+            .filter(|def| matches!(def.kind, DefinitionKind::Record | DefinitionKind::Union))
+        else {
+            continue;
+        };
+        let name = def.name();
+        let predicates = def
+            .binds
+            .iter()
+            .filter(|b| b.role == Role::Predicate)
+            .map(|b| b.name());
+        for s in std::iter::once(name.rsplit('/').next().unwrap_or(name)).chain(predicates) {
+            types.entry(s).or_default().push(d);
         }
     }
     for (n, ds) in types {

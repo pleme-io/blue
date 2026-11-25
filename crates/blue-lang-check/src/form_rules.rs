@@ -141,34 +141,9 @@ pub fn evaluator_names(
 }
 
 fn defined_name(form: &Spanned) -> Option<&str> {
-    let items = form.as_list()?;
-    if !matches!(
-        items.first().and_then(Spanned::as_symbol),
-        Some(
-            "define"
-                | "define-typed"
-                | "defmacro"
-                | blue_lang_syntax::record::LOWERED_RECORD
-                | blue_lang_syntax::union::LOWERED_UNION
-        )
-    ) {
-        return None;
-    }
-    match items.get(1)? {
-        s if s.as_symbol().is_some()
-            && matches!(
-                items[0].as_symbol(),
-                Some(
-                    "defmacro"
-                        | blue_lang_syntax::record::LOWERED_RECORD
-                        | blue_lang_syntax::union::LOWERED_UNION
-                )
-            ) =>
-        {
-            s.as_symbol()
-        }
-        s => s.as_list()?.first()?.as_symbol(),
-    }
+    blue_lang_syntax::scope::definition(form)
+        .filter(|d| !d.declared.rebindable())
+        .map(|d| d.name())
 }
 
 fn script_prefix(forms: &[&Spanned]) -> Option<String> {

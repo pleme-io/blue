@@ -62,19 +62,58 @@ Wave 0 has no dependencies. Each later wave depends only on earlier waves.
 | State | Unit | Title | Size | After |
 |---|---|---|---|---|
 | ❌ | U1 | Write doors keep meaning | M | ➖ |
-| ❌ | U2 | The nil test is a question | S | ➖ |
+| ⏳ | U2 | The nil test is a question | S | ➖ |
 | ❌ | U3 | One text for keys and floats | M | ➖ |
-| ❌ | U4 | Snake-case kinds at the rescue seam | M | ➖ |
+| ⏳ | U4 | Snake-case kinds at the rescue seam | M | ➖ |
 | ❌ | U5 | VM and walker mean one thing | M | ➖ |
-| ❌ | U6 | The native column can say no | M | ➖ |
-| ❌ | U7 | R19 sees purity and scope | M | ➖ |
+| ⏳ | U6 | The native column can say no | M | ➖ |
+| ⏳ | U7 | R19 sees purity and scope | M | ➖ |
 | ❌ | U8 | Gates and ratchets can say no | L | ➖ |
 | ❌ | U9 | Docs of record match main | L | ➖ |
 | ❌ | U10 | One capability vocabulary and the shebang hold | L | ➖ |
-| ❌ | U11 | Macro foundations | M | ➖ |
+| ⏳ | U11 | Macro foundations | M | ➖ |
 | ❌ | U12 | One definition recognizer | S | ➖ |
 | ❌ | U13 | Docs teach only canonical spellings | M | ➖ |
 | ❌ | U14 | settei has one engine and one reader | L | ➖ |
+
+U2, U4, U6, U7 and U11 land together (2026-11-25). U11 lands its first two
+commits. Its third commit adds the G30 and G31 rows to `spec/rows/macros.b`,
+with the DIAGNOSTICS text on the head that a project rule receives for
+`quote … end`. That commit waits for the tatara-lisp release that closes both
+gaps: the tatara-lisp release gate runs the rows of blue main against the
+candidate, so the two marks on main would turn that release red.
+
+Nine units are held for review fixes:
+
+- U1: a bare `?` that ends a branch with more code after it still cannot be
+  printed, so a canonical file of that shape fails `fmt --check`. The G1 ✅
+  row in GUARD-RETURN.md is wrong for a guard nested in the last statement of
+  a body.
+- U3: the exit text of a crashed process is still the Display of
+  tatara-lisp-eval, so a crash whose error data holds a map gets a new name on
+  each run, and its replay says "not reproduced". `deeta::read("-0")` gives
+  Int 0 where `json_parse` gives Float -0.0.
+- U5: the machine fix of B0102 does not see a `set!` of the name inside a
+  nested closure or block, so `blue check --fix` turns a program that returns
+  5 into one that raises `type_error`.
+- U8: R0003 refuses only one spelling of the silent guard. The direct land
+  builds 278 checks where CI builds 342, but the unit's ruling and
+  implementing.md say that it builds what CI builds.
+- U9: the rewritten STDLIB rows are false (`tsuushin::request` exists, the
+  test counts are wrong, and `heikou` has two states). The rescue and pipe row
+  passes under both precedences, four false TLS claims remain, and the floors
+  of the gap ledger go red when a gap closes.
+- U10: the tests of kensa and caligo assert the old "posture refuses" text,
+  so they go red at their next blue bump. The safety docs say that line 1
+  holds a script on every door, but `blue profile`, `blue trace` and
+  `blue test` run it with no hold.
+- U12: signature help on a predicate call shows the parameters of the record
+  constructor.
+- U13: row 85 of CANONICAL-FORMS.md and two other lines still teach the
+  spellings that the unit replaced.
+- U14: a `config` knob that only a file sets passes `knobs()`. Then each start
+  with `<APP>_CONFIG` set warns of a false `not_settable` refusal, and the
+  enforce posture stops that start.
 
 ### Wave 1: one table per concern
 
@@ -159,4 +198,3 @@ Wave 0 has no dependencies. Each later wave depends only on earlier waves.
 - pipeline-11 (one middle-end, kuzushi, for chuuzou and hashiru): PURE-BLUE B0 owns the backend plan. The docs-of-record unit (U9) fixes only the false henkan claims now.
 - r2services-10 (the service batteries in two repos): nix/docs/campaign-2026-11-09.md wave 1 owns the move into the bidama-<family> repos.
 - bidamas-15, the habu and himitsu parts: SAFETY row 14 owns secrets, and habu waits for its own track. The policy-record unit (U55) takes only heikou's second retry.
-

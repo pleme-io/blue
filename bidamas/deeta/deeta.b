@@ -678,9 +678,10 @@ test "a key is plain only when YAML cannot read it as something else"
 end
 
 @doc """
-parse: text to value; the format is an argument.
+parse: text to value; the format is an argument. `:scalar` reads one trimmed plain value as YAML 1.2's core schema resolves it in a document (null, a bool, an int in decimal, octal 0o or hex 0x, a float with its point, exponent or .inf and .nan, else the text), the grammar every layer of a setting reads a number by.
 
     parse("", :yaml, {documents: :all}) #=> []
+    parse(" 0x51 ", :scalar) #=> 81
 """
 def parse(text, format, opts?)
   options = if opts.nil?
@@ -703,10 +704,12 @@ def parse(text, format, opts?)
     one_or_all(yaml_documents(text), options[:documents])
   elsif format == :nix
     nix_document(text)
+  elsif format == :scalar
+    core_value(trim(text))
   else
     raise(
       :bad_option,
-      "parse reads :json, :yaml, :xml and :nix, not #{to_s(format)}"
+      "parse reads :json, :yaml, :xml, :nix and :scalar, not #{to_s(format)}"
     )
   end
 end
@@ -2091,6 +2094,29 @@ test "parse refuses a collection key, a repeated key and an unknown format"
   assert refused_kind(unlines(["a: 1", "a: 2"])) == :duplicate_key
   assert (parse("a", :toml) rescue :refused) == :refused
   assert (parse("a", :yaml, {document: 1}) rescue :refused) == :refused
+end
+
+test "parse :scalar reads one plain value as the core schema reads it in a document"
+  texts = [
+    "0x51",
+    "0o17",
+    "+81",
+    "081",
+    " 81 ",
+    "1e3",
+    ".inf",
+    "true",
+    "yes",
+    "",
+    "a b"
+  ]
+  assert map((t) -> parse(t, :scalar), texts) ==
+    [81, 15, 81, 81, 81, 1000.0, to_float("inf"), true, "yes", nil, "a b"]
+  map(
+    (t) -> assert parse(t, :scalar) == parse("v: #{t}", :yaml)["v"],
+    %w[0x51 +81 1e3 true x 1.50]
+  )
+  assert float?(parse(".nan", :scalar))
 end
 
 test "parse :json reads JSON into maps, as json_read does"

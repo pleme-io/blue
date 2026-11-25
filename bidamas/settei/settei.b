@@ -15,6 +15,8 @@ use("kyohi", %i[enforce exit_status refusal])
 use("moji", %i[env_key pad_right])
 use("retsu", %i[first flat_map index_of rest size take_while])
 
+legacy_names("0.1.1", [["coerce_as", "settei::scalar", ""]])
+
 def env_prefix(app)
   env_key([app, ""])
 end
@@ -149,32 +151,39 @@ def dotted(path)
   join(path, ".")
 end
 
+@doc """
+coerce: text read as the type of a plain record's default, by the one reader of that type.
+
+    coerce(1.5, "2") #=> 2.0
+"""
 def coerce(default, text)
-  coerce_as(kind_of(default), text)
+  scalar(kind_of(default), text)
 end
 
 @doc """
-coerce_as: environment text read as a knob type, nil when it does not read.
+scalar: the one reader of a knob type: text, as an environment variable, a flag, a form edit or a plain record's variable gives it, read as the type, nil when it does not read. A number reads by the grammar a config file reads a plain value by (deeta's :scalar, YAML 1.2's core schema), so 0x51, +81 and 1e3 read alike on every layer, and a float knob's value is always a Float; a bool takes true, 1, yes or on and false, 0, no or off, in any case; text is taken as written.
 
-    coerce_as(:int, "42") #=> 42
-    coerce_as(:bool, "maybe") #=> nil
+    scalar(:int, "0x51") #=> 81
+    scalar(:float, "2") #=> 2.0
+    scalar(:bool, " Yes") #=> true
+    scalar(:int, "eighty") #=> nil
 """
-def coerce_as(k, text)
-  if k == :text
+def scalar(t, text)
+  if t == :text
     text
-  elsif k == :int
-    to_int(text)
-  elsif k == :float
-    if to_int(text) != nil
-      to_float(text)
-    elsif contains?(text, ".")
-      to_float(text)
-    end
-  elsif k == :bool
-    if member?(downcase(text), %w[true 1 yes on])
+  elsif t == :bool
+    w = downcase(trim(text))
+    if member?(w, %w[true 1 yes on])
       true
-    elsif member?(downcase(text), %w[false 0 no off])
+    elsif member?(w, %w[false 0 no off])
       false
+    end
+  elsif t == :int or t == :float
+    v = deeta::parse(text, :scalar)
+    if t == :int and integer?(v)
+      v
+    elsif t == :float and (integer?(v) or float?(v))
+      to_float(v)
     end
   end
 end
@@ -590,14 +599,29 @@ def annotation_table()
 end
 
 @doc """
-fits?: whether a value is of a knob type; a whole number fits a float.
+fits?: whether a value is of a knob type; a whole number fits a float, and NaN, which no bound can judge, fits no knob.
 
     fits?(:float, 2) #=> true
     fits?(:int, "2") #=> false
+    fits?(:float, to_float("nan")) #=> false
 """
 def fits?(t, v)
   k = kind_of(v)
-  k == t or t == :float and k == :int
+  (k == t or t == :float and k == :int) and not (k == :float and v != v)
+end
+
+@doc """
+held: a value as a knob of its type holds it: a whole number given to a float knob is that Float, so a float knob holds a Float whatever layer set it.
+
+    held(:float, 2) #=> 2.0
+    held(:int, 2) #=> 2
+"""
+def held(t, v)
+  if t == :float and integer?(v)
+    to_float(v)
+  else
+    v
+  end
 end
 
 @doc """
@@ -699,7 +723,7 @@ def knob(default, ann?)
   end
   k = {
     knob: true,
-    default:,
+    default: held(t, default),
     type: t,
     doc: a[:doc] or "",
     min: a[:min],
@@ -968,7 +992,7 @@ def offer_of(app, layer, p, k, doc, lookup, given)
       lookup(name)
     end
     if text != nil
-      v = coerce_as(k[:type], text)
+      v = scalar(k[:type], text)
       if v.nil?
         {value: text, from: name}
       else
@@ -1063,7 +1087,7 @@ def settle_knob(app, acc, row, doc, lookup, given)
           )
         else
           settled = assoc(
-            assoc(s, :config, put_in(s[:config], p, o[:value])),
+            assoc(s, :config, put_in(s[:config], p, held(k[:type], o[:value]))),
             :sources,
             assoc(s[:sources], key, layer)
           )
@@ -1291,7 +1315,7 @@ def flag_key(path)
 end
 
 @doc """
-flag_kind: the hikisuu kind of a knob's flag: a switch for bool, int for int, text otherwise.
+flag_kind: the hikisuu kind of a knob's flag: a switch for bool, int for int, float for float, text otherwise.
 
     flag_kind(knob(false)) #=> :switch
 """
@@ -1300,6 +1324,8 @@ def flag_kind(k)
     :switch
   elsif k[:type] == :int
     :int
+  elsif k[:type] == :float
+    :float
   else
     :text
   end
@@ -1407,12 +1433,18 @@ def knob_flags(model, below)
       else
         flag
       end
-      floored = if k[:type] == :int and k[:min] != nil
+      numeric = member?(k[:type], %i[int float])
+      floored = if numeric and k[:min] != nil
         assoc(named, :min, k[:min])
       else
         named
       end
-      assoc(acc, flag_key(r[:path]), floored)
+      read = if numeric
+        assoc(floored, :read, (t) -> scalar(k[:type], t))
+      else
+        floored
+      end
+      assoc(acc, flag_key(r[:path]), read)
     end,
     {},
     flag_rows(model)
@@ -1464,8 +1496,6 @@ def given_flags(model, parsed)
       v = get(parsed, flag_key(r[:path]))
       if v.nil?
         acc
-      elsif r[:knob][:type] == :float
-        assoc(acc, dotted_key(r[:path]), coerce_as(:float, v) or v)
       else
         assoc(acc, dotted_key(r[:path]), v)
       end
@@ -2468,7 +2498,7 @@ def form_edit(f, key, text)
   r = form_row(f, key)
   k = r and find(knobs(f[:model]), (x) -> dotted_key(x[:path]) == key)[:knob]
   v = if k != nil
-    coerce_as(k[:type], text)
+    scalar(k[:type], text)
   end
   error = if r.nil?
     "no setting #{key}"
@@ -3692,6 +3722,10 @@ test "the words under one name per setting and one question per layer answer for
   assert model_clashes([]) == []
   assert leaf_paths({"a" => {"b" => 1}}, []) == [%w[a b]]
   assert flag_rows({t: knob("", {set_by: [:env]})}) == []
+  assert scalar(:int, "0o17") == 15
+  assert scalar(:bool, "maybe").nil?
+  assert held(:float, 2) == 2.0
+  assert float?(knob(2, {type: :float})[:default])
 end
 
 test "two knobs that render one flag are refused by name, and a frame flag is judged by the text it spells"
@@ -3742,6 +3776,97 @@ test "two knobs that render one flag are refused by name, and a frame flag is ju
       )
     end
   ).nil?
+end
+
+test "one text reads as one value on every layer that reads text, and as the config file reads it wherever the file takes it"
+  reads = fn(k, text)
+    m = {s: k}
+    e = settle("x", m, nil, env_of({"X_S" => text}), {})
+    env = if e[:refusals] == []
+      e[:config][:s]
+    else
+      :refused
+    end
+    flag = if k[:type] == :bool
+      env
+    else
+      o = line("x", m, {name: "x"}, ["--s", text], nil, no_env)
+      if o[:kind] == :run
+        o[:opts][:s]
+      else
+        :refused
+      end
+    end
+    row = form_row(
+      form_edit(form("x", m, settle("x", m, nil, no_env, {})), "s", text),
+      "s"
+    )
+    typed = if row[:error].nil?
+      row[:edit]
+    else
+      :refused
+    end
+    d = settle("x", m, deeta::parse("s: #{text}", :yaml), no_env, {})
+    file = if d[:refusals] != []
+      :refused
+    elsif d[:sources]["s"] == :file
+      d[:config][:s]
+    else
+      :absent
+    end
+    {env:, flag:, form: typed, file:}
+  end
+  corpus = [
+    "81",
+    "+81",
+    "081",
+    " 81",
+    "0x51",
+    "0o17",
+    "-7",
+    "1.5",
+    "2",
+    "1e3",
+    ".inf",
+    ".nan",
+    "true",
+    "TRUE",
+    "yes",
+    "1",
+    "off",
+    "eighty",
+    ""
+  ]
+  knobs_by_type = [knob(7), knob(1.5), knob(true), knob("a")]
+  broken = flat_map(
+    knobs_by_type,
+    fn(k)
+      flat_map(
+        corpus,
+        fn(t)
+          r = reads(k, t)
+          texts_agree = r[:env] == r[:flag] and r[:flag] == r[:form]
+          file_agrees = member?(r[:file], %i[refused absent]) or
+            r[:env] == r[:file] and (k[:type] != :float or float?(r[:env]))
+          if texts_agree and file_agrees
+            []
+          else
+            ["#{to_s(k[:type])} [#{t}]: #{to_s(r)}"]
+          end
+        end
+      )
+    end
+  )
+  assert broken == []
+  assert reads(knob(7), "0x51") == {env: 81, flag: 81, form: 81, file: 81}
+  assert reads(knob(7), "+81") == {env: 81, flag: 81, form: 81, file: 81}
+  assert reads(knob(1.5), "2")[:file] == 2.0
+  assert float?(reads(knob(1.5), "2")[:file])
+  assert reads(knob(1.5), ".nan") ==
+    {env: :refused, flag: :refused, form: :refused, file: :refused}
+  assert reads(knob(true), "yes") ==
+    {env: true, flag: true, form: true, file: :refused}
+  assert reads(knob("a"), " 81")[:env] == " 81"
 end
 
 test "a knob renamed twice is read by every old name, through settle and through the alias map"

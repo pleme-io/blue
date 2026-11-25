@@ -2,12 +2,15 @@
 hikisuu (引数) — command-line arguments: one declared spec is parsed into a record, rendered as help, and answered as shell completion.
 
 A spec is a plain record: `name`, `about`, `flags` (key to a default, or to
-a record with `default`, `about`, `min`, `kind` and `value`), `positional`
-(records with `name`, `about`, `many` and `optional`) and `commands` (names,
-or records with their own `about`, `flags` and `positional`). A flag's kind
-comes from its default: true or false is a switch, a whole number takes a
-number, text takes text. Its name comes from its key: `dry_run` is
-`--dry-run`. `parse` returns one record holding every flag, every positional
+a record with `default`, `about`, `min`, `kind`, `value` and `read`),
+`positional` (records with `name`, `about`, `many` and `optional`) and
+`commands` (names, or records with their own `about`, `flags` and
+`positional`). A flag's kind comes from its default: true or false is a
+switch, a whole number takes a whole number, a float takes a number, text
+takes text. A flag that names `read` has its value's text read by that
+function (nil when it does not read), so a caller that owns a reading, as
+settei owns a knob type's, keeps one reading for every layer. Its name comes
+from its key: `dry_run` is `--dry-run`. `parse` returns one record holding every flag, every positional
 and the command; every fault in the line is named in one `:usage` error.
 `command` is the program's door: help on `-h`, completion on `__complete`,
 the usage text and exit 64 on a bad line, and otherwise the record handed
@@ -50,37 +53,40 @@ def flag_text(key)
 end
 
 @doc """
-kind_of: the kind a flag default implies: switch, int or text.
+kind_of: the kind a flag default implies: switch, int, float or text.
 
     kind_of(false) #=> :switch
+    kind_of(1.5) #=> :float
 """
 def kind_of(default)
   if boolean?(default)
     :switch
   elsif integer?(default)
     :int
+  elsif float?(default)
+    :float
   elsif string?(default)
     :text
   end
 end
 
 @doc """
-flag_record: a flag entry as one record of key, text, kind, default, about, min and value.
+flag_record: a flag entry as one record of key, text, kind, default, about, min, value and read, the function that reads its value's text when the caller owns that reading (nil when it does not read).
 
     get(flag_record(:older_than_days, 14), :kind) #=> :int
 """
 def flag_record(key, entry)
   e = if map?(entry)
-    checked(entry, %i[default about min kind value])
+    checked(entry, %i[default about min kind value read])
   else
     {default: entry}
   end
   default = e[:default]
   kind = e[:kind] or kind_of(default)
-  if not member?(kind, %i[switch int text])
+  if not member?(kind, %i[switch int float text])
     raise(
       :bad_option,
-      "flag #{flag_text(key)} needs a default of true, false, a whole number or text, or kind: :int or :text"
+      "flag #{flag_text(key)} needs a default of true, false, a number or text, or kind: :int, :float or :text"
     )
   end
   if kind_of(default) != nil and kind_of(default) != kind
@@ -89,6 +95,9 @@ def flag_record(key, entry)
       "flag #{flag_text(key)} is kind #{to_s(kind)} with a default of another kind"
     )
   end
+  if e[:read] != nil and not procedure?(e[:read])
+    raise(:bad_option, "flag #{flag_text(key)} takes read: as a function")
+  end
   {
     key:,
     text: flag_text(key),
@@ -96,8 +105,9 @@ def flag_record(key, entry)
     default:,
     about: e[:about] or "",
     min: e[:min],
+    read: e[:read],
     value: e[:value] or
-      if kind == :int
+      if member?(kind, %i[int float])
         "N"
       else
         "TEXT"
@@ -222,17 +232,41 @@ read_value: a flag's text value read as its kind, with the fault named when it d
     read_value({text: "--n", kind: :int, min: 0}, "7") #=> {value: 7}
 """
 def read_value(f, raw)
-  if f[:kind] == :int
-    n = to_int(raw)
-    if n.nil? or not integer?(n) or to_s(n) != raw
+  numeric = member?(f[:kind], %i[int float])
+  if not numeric and f[:read].nil?
+    {value: raw}
+  else
+    n = if f[:read] != nil
+      f[:read](raw)
+    elsif f[:kind] == :int
+      canonical_int(raw)
+    else
+      to_float(raw)
+    end
+    if n.nil? and f[:kind] == :int
       {problem: "#{f[:text]} takes a whole number, not #{raw}"}
-    elsif f[:min] != nil and n < f[:min]
+    elsif n.nil? and f[:kind] == :float
+      {problem: "#{f[:text]} takes a number, not #{raw}"}
+    elsif n.nil?
+      {problem: "#{f[:text]} does not take #{raw}"}
+    elsif numeric and f[:min] != nil and n < f[:min]
       {problem: "#{f[:text]} takes #{to_s(f[:min])} or more, not #{raw}"}
     else
       {value: n}
     end
-  else
-    {value: raw}
+  end
+end
+
+@doc """
+canonical_int: a whole number written as blue prints it, else nil: hikisuu's own reading of an int flag that names no reader.
+
+    canonical_int("7") #=> 7
+    canonical_int("+7") #=> nil
+"""
+def canonical_int(raw)
+  n = to_int(raw)
+  if n != nil and integer?(n) and to_s(n) == raw
+    n
   end
 end
 
@@ -897,7 +931,7 @@ test "a bad spec is refused as bad_option, naming the flag"
   assert bad({name: "x", flags: {a: nil}}) ==
     [
       :bad_option,
-      "flag --a needs a default of true, false, a whole number or text, or kind: :int or :text"
+      "flag --a needs a default of true, false, a number or text, or kind: :int, :float or :text"
     ]
   assert bad({name: "x", flags: {a: {default: 1, kind: :text}}}) ==
     [:bad_option, "flag --a is kind text with a default of another kind"]
@@ -906,7 +940,7 @@ test "a bad spec is refused as bad_option, naming the flag"
   assert bad({name: "x", flags: {a: {default: 1, colour: :red}}}) ==
     [
       :bad_option,
-      "unknown option colour; this verb takes default, about, min, kind, value"
+      "unknown option colour; this verb takes default, about, min, kind, value, read"
     ]
   assert bad({name: "x", positional: [{name: "p"}]}) ==
     [:bad_option, "a positional needs name: as a symbol"]
@@ -920,6 +954,49 @@ test "a bad spec is refused as bad_option, naming the flag"
       :bad_option,
       "unknown option colour; this verb takes name, about, flags, positional, commands"
     ]
+end
+
+test "a float flag takes a number, and a flag that names its reader reads its value with it"
+  spec = {
+    name: "x",
+    flags: {
+      rate: 1.5,
+      n: {
+        default: 7,
+        read: fn(t)
+          if t == "seven"
+            7
+          end
+        end
+      },
+      w: {
+        kind: :text,
+        read: fn(t)
+          if t != "bad"
+            upcase(t)
+          end
+        end
+      }
+    }
+  }
+  assert parse(%w[--rate 2.5], spec)[:rate] == 2.5
+  assert parse(%w[--n seven], spec)[:n] == 7
+  assert parse(%w[--w ok], spec)[:w] == "OK"
+  refused = fn(args)
+    begin
+      parse(args, spec)
+      nil
+    rescue :usage as e
+      e.message
+    end
+  end
+  assert contains?(refused(%w[--rate fast]), "--rate takes a number, not fast")
+  assert contains?(refused(%w[--n 7]), "--n takes a whole number, not 7")
+  assert contains?(refused(%w[--w bad]), "--w does not take bad")
+  assert contains?(render(spec, nil), "--rate N")
+  assert canonical_int("+7").nil?
+  assert canonical_int("7") == 7
+  assert kind_of(1.5) == :float
 end
 
 test "two keys that spell one flag are refused as a key declared twice is, and so is a key that spells --help"

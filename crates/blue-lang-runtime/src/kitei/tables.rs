@@ -35,7 +35,7 @@ pub const RULES: &[(&str, &[&str], &str)] = &[
     ),
     (
         "R19",
-        &["measured_costs", "stage_call"],
+        &["compute_chain", "measured_costs"],
         "BLUE_SATURATE=off",
     ),
     ("R20", &["runs_apart", "measured_load"], "BLUE_POOL=fixed"),

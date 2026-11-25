@@ -274,7 +274,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-79 packages, 6923 definitions, 2402 tests.
+79 packages, 6933 definitions, 2409 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -458,7 +458,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>65 pages on why blue is shaped as it is</summary>
+<summary>66 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -469,6 +469,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](docs/BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)
 - [`Cargo.gen.lock` is committed, and that is a trade](docs/CARGO-GEN-LOCK.md): why Cargo.gen.lock is committed, and what that trade costs
 - [CLI-TUI — one way to build a command line and a terminal interface in blue](docs/CLI-TUI.md): one way to build a command line and a terminal interface in blue (layers 1 and 2 built)
+- [COHESION: one true blue](docs/COHESION.md): the cohesion refactor of blue; one model per domain, and refactor units in waves, each landable alone with its lock
 - [Competing languages — what blue takes, and what it refuses](docs/COMPETING-LANGUAGES.md): what blue takes from competing languages on packaging and the standard library, and what it refuses
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](docs/COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](docs/COMPOUNDING.md): every break blue's evolution causes ships its own fixer

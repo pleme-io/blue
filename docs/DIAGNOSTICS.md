@@ -54,7 +54,7 @@ it; `blue explain --list` lists them.
 | B0034 | negated-comparison | error | a negated equality is written with the other operator: `a != b`, never `not (a == b)` |
 | B0035 | else-nil | error | an `if` has no `else` whose body is empty or `nil` |
 | B0036 | builtin-synonym | error | a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message` |
-| B0037 | error-spelling | error | an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))` |
+| B0037 | error-spelling | error | an error is raised with `raise` and caught with `rescue` by its snake_case kind: never `throw(error(…))`, `try(…, catch(…))` or `rescue :type-mismatch` |
 | B0038 | swallowed-error | error | a `rescue` that catches every error and does nothing names the error `_` |
 | B0039 | duplicate-test-name | error | the tests of a file have distinct names |
 | B0040 | identifier-case | error | a function, parameter or local is named in lower snake_case (`retry_count`, never `retryCount`); a top-level constant may be UPPER_SNAKE |
@@ -64,7 +64,7 @@ it; `blue explain --list` lists them.
 | B0044 | eta-reduction | error | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` |
 | B0045 | redundant-conversion | warning | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain |
 | B0046 | map-pun | error | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` |
-| B0047 | nil-test | error | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x` |
+| B0047 | nil-test | error | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x`, and its negation `x != nil`, never `nil != x` |
 | B0048 | undeclared-field-read | error | a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field |
 | B0049 | fragment-not-composed | error | a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment |
 | B0050 | field-not-in-schema | error | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema |

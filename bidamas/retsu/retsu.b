@@ -182,8 +182,8 @@ def clamped_sum(n, lo, hi)
 end
 
 test "size is total where length is not"
-  # length(nil) errors where size(nil) answers. This is the whole reason the
-  # package exists, so it is the first thing asserted.
+  # length(nil) errors, where size answers 0 for nil. This is the whole
+  # reason the package exists, so it is the first thing asserted.
   assert size(nil) == 0
   assert size(blue::rest([1])) == 0
   assert size([]) == 0

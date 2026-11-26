@@ -4075,7 +4075,7 @@ test "one engine settles one model under both postures: audit keeps every good k
   assert refusal_mode(nil) == :audit
 end
 
-test "a start the enforce posture stops warns its notices first, as an audited start does", {
+test "a start the enforce posture stops warns its notices first", {
   kind: :integration
 }
   needs_blue(self_exe)

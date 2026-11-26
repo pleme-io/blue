@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ab350efd8a304fba97f7540dc1d48173fee1c5082b3d76d85fd3efbe435155e4",
+  "bluefile_b3": "b3:b050c76bea9ce273776efbb8af1ee91bd52bd64ad214b30d5946ec6291b6ce15",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -111,11 +111,19 @@
           "AGENTS.md",
           "Bluefile",
           "llms.txt",
+          ".githooks",
+          ".github",
+          "bench",
           "bidamas",
           "crates",
+          "eval",
           "examples",
+          "gen",
+          "kernel",
+          "nix",
           "rules",
-          "spec"
+          "spec",
+          "tree-sitter-blue"
         ],
         "stage": "ci"
       },
@@ -177,7 +185,8 @@
         "file": "gen/purity.b",
         "inputs": [
           "crates",
-          "gen/purity.baseline"
+          "gen/purity.baseline",
+          "Bluefile.lock"
         ],
         "stage": "ci"
       },
@@ -208,7 +217,8 @@
         "file": "gen/ci.b",
         "inputs": [
           ".github/workflows",
-          "Bluefile.lock"
+          "Bluefile.lock",
+          "gen/proof.b"
         ],
         "stage": "push"
       },
@@ -481,6 +491,11 @@
       "R0002": {
         "file": "rules/conventions.b",
         "def": "index_nil",
+        "severity": "error"
+      },
+      "R0003": {
+        "file": "rules/conventions.b",
+        "def": "silent_skip",
         "severity": "error"
       }
     },

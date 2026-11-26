@@ -43,8 +43,7 @@
         "type": "integer"
       },
       "off": {
-        "default": "",
-        "description": "relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together",
+        "description": "relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together; none when unset",
         "type": "string"
       }
     },
@@ -80,8 +79,7 @@
     "additionalProperties": false,
     "properties": {
       "baseline": {
-        "default": "",
-        "description": "the baseline file; the standard's own when empty",
+        "description": "the baseline file; the standard's own when unset",
         "type": "string",
         "x-set-by": [
           "flag"
@@ -209,18 +207,20 @@
         "type": "object"
       },
       "host": {
-        "default": "",
-        "description": "the host to switch; the machine's short name when empty",
+        "description": "the host to switch; the machine's short name when unset",
         "type": "string"
       },
       "kind": {
-        "default": "",
-        "description": "nixos or darwin; read from the machine when empty",
+        "description": "nixos or darwin; read from the machine when unset",
         "type": "string"
       },
       "narrate": {
-        "default": "",
-        "description": "how much to say: off, brief or full; computed when empty",
+        "description": "how much to say; full for a run and brief for a plan when unset, and empty text is refused as any other word is",
+        "enum": [
+          "off",
+          "brief",
+          "full"
+        ],
         "type": "string"
       },
       "phases": {
@@ -243,8 +243,7 @@
         "additionalProperties": false,
         "properties": {
           "events": {
-            "default": "",
-            "description": "the events file; the state directory's when empty",
+            "description": "the events file; the state directory's when unset",
             "type": "string"
           },
           "events_keep": {
@@ -254,8 +253,7 @@
             "type": "integer"
           },
           "history": {
-            "default": "",
-            "description": "the history file; the state directory's when empty",
+            "description": "the history file; the state directory's when unset",
             "type": "string"
           }
         },
@@ -349,8 +347,7 @@
         "type": "string"
       },
       "substituters_declared": {
-        "default": "",
-        "description": "the substituters file to check; empty checks none",
+        "description": "the substituters file to check; none is checked when unset",
         "type": "string"
       },
       "substituters_live": {

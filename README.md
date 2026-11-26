@@ -274,7 +274,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-79 packages, 6933 definitions, 2409 tests.
+79 packages, 6964 definitions, 2441 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -335,7 +335,7 @@ rendered:
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
 - [seikika](bidamas/CATALOG.md#seikika) (正規化) — canonicalization: one byte form for every blue value, and the root that names it.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
-- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused.
+- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a program's core model of knobs grouped by concern, settled from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, then flags, each value read by its knob's type and a bad one refused for its key alone.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
 - [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step.
 - [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
@@ -374,8 +374,8 @@ This table lists the gaps of the language and its runtime. Do not cite a ❌ row
 | Self-hosting on the implementation axis | ❌ not built | The parser, checker and runtime are Rust. `spec/rows/*.b` is the specification axis only. |
 | Comments inside a form | ✅ built | The formatter places each comment by its span. Tests: `comments_inside_a_body_are_placed`, `comments_inside_a_call_and_a_list_are_placed` (`crates/blue-lang-fmt/src/lib.rs`). |
 | Entropy | ✅ built | `random_bytes(n)` reads the kernel's non-blocking device under `Capability::Entropy` (`crates/blue-lang-runtime/src/entropy.rs`, test `a_draw_has_the_requested_length_of_byte_integers`). |
-| Encryption | ❌ not built | The `crypto` layer hashes, signs and verifies (`crates/blue-lang-runtime/src/crypto.rs`). A keypair comes from a seed the caller supplies. The ciphers in `angou` are classical and insecure by design. |
-| TLS | ❌ not built | `net` speaks NATS and HTTP over plain TCP. An `https://` URL and a NATS server that requires TLS are refused by name (`crates/blue-lang-runtime/src/net/http.rs`, `net/nats.rs`). The plan is HTTP2.md P4: rustls with ALPN `h2`. |
+| Encryption | ⏳ in progress | Built: beside hashing and signing, the `crypto` layer seals and opens with ChaCha20-Poly1305 (`chacha20poly1305_seal`, `chacha20poly1305_open`) and agrees keys with X25519 (`x25519_keypair`, `x25519_shared`), pure words of RFC 8439 and RFC 7748 (`crates/blue-lang-runtime/src/crypto.rs`; spec rows `crypto.chacha20poly1305`, `crypto.chacha20poly1305.tampered_tag` and `crypto.x25519`). A keypair comes from a seed the caller supplies. Not built: the `fuuin` verbs that seal a value, and key custody (SAFETY row 14). The ciphers in `angou` are classical and insecure by design. |
+| TLS | ⏳ in progress | Built: `http_request` speaks `https://` and the RESP client its `tls` target through one seam, rustls with the server's certificate verified against the Mozilla roots (`crates/blue-lang-runtime/src/net/tls.rs`); the wasm targets refuse TLS by name (G24 on the component). Not built: NATS over TLS (a server that requires it is refused by name, `crates/blue-lang-runtime/src/net/nats.rs`), `tls_*` words with ALPN `h2` (HTTP2.md P4), and TLS written in blue (PURE-BLUE R7). |
 | Import emission into a wasm module | ❌ not built | `blue_lang_waku::imports_of` derives the import table from a frame (`crates/blue-lang-waku/src/imports.rs`). Nothing writes that table into a `.wasm`, and no engine border uses it. |
 | Editor answers inside a broken buffer | ❌ not built | The parser does no error recovery. The language server answers from the newest revision that parsed (`crates/blue-lang-lsp/src/analysis.rs`). The plan is [CST-PLAN.md](docs/CST-PLAN.md). |
 | Project rules in the editor or as wasm | ❌ not built | `blue check` runs project rules in-process under the rule frame (`crates/blue-lang-runtime/src/project_rules.rs`). The language server does not run them. The ABI fits a wasm module, but nothing builds one. |
@@ -460,7 +460,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 <details>
 <summary>66 pages on why blue is shaped as it is</summary>
 
-- [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
+- [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil, and the one error model: absence, refusal and fault, each in its own channel
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
 - [arika (在り処): the design of record](docs/ARIKA.md): arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [Native async: the design of record](docs/ASYNC.md): Native async in blue, DESIGN: one ontology of every async concept as a blue word over parked processes, the mutually exclusive architectures as blueshift positions with defaults, the integration with every system blue already has, and one test matrix that runs every position against the same oracle

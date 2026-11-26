@@ -1292,6 +1292,7 @@ hadome::judge	pairs	hadome::failures	one key versus all keys
 hadome::judge	requires	hadome::parse	against recorded rows
 hadome::orphans	pairs	hadome::tighten	stale rows removed together
 hadome::parse	inverse	hadome::render	file to rows and back
+hadome::record	composes	hadome::tighten	banks every fall
 hadome::render	inverse	hadome::parse	file to rows and back
 hadome::render	pairs	hadome::tighten	tighten writes rendered rows
 hadome::shrunk	composes	hadome::judge	keys that fell

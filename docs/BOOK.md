@@ -1913,7 +1913,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 
 ## Explanation
 
-- [ABSENCE — no undeclared nil](ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
+- [ABSENCE — no undeclared nil](ABSENCE.md): no undeclared nil, and the one error model: absence, refusal and fault, each in its own channel
 - [API-EVOLUTION — the API is a versioned rendering of the one model](API-EVOLUTION.md): the API as a versioned rendering of one model (design)
 - [arika (在り処): the design of record](ARIKA.md): arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [Native async: the design of record](ASYNC.md): Native async in blue, DESIGN: one ontology of every async concept as a blue word over parked processes, the mutually exclusive architectures as blueshift positions with defaults, the integration with every system blue already has, and one test matrix that runs every position against the same oracle

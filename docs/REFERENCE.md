@@ -44,7 +44,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `-x` | `(- 0 x)` | Unary minus. The formatter writes 0 - x as -x. |
 | `use("retsu")` | `(use "retsu")` | Import a bidama by name, found on BLUE_PATH. Every definition it makes joins one flat namespace. |
 | `raise(:parse, "bad row")` | `(raise :parse "bad row")` | Raise an error; raise(:k, "m", {data: d, cause: e}) attaches data and the error it wraps, raise(e) raises e again. throw(error(…)) is read as this (B0037). |
-| `risky(x) rescue fallback` | `(try (risky x) (catch (_) fallback))` | The value of risky(x), or fallback when it raises. Binds loosest of all, below \|>. |
+| `risky(x) rescue fallback` | `(try (risky x) (catch (_) fallback))` | The value of risky(x), or fallback when it raises. It binds loosest of all, level with \|>, and the two read left to right: `-2 rescue 0 \|> abs()` is 2: the pipe takes the value of the whole rescue. |
 | <code>begin<br>&nbsp;&nbsp;risky(x)<br>rescue :timeout as e<br>&nbsp;&nbsp;wait(e)<br>end</code> | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
 | <code>test "isolated", {satisfies: [:nist_ac_6], target: parse}<br>&nbsp;&nbsp;assert parse(1)<br>end</code> | `(deftest "isolated" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))` | A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. It may also declare `kind:` (one of :unit, :property, :snapshot, :contract, :integration, :rendering, :e2e), `allow:` (the host capabilities it runs held to) and `fakes:`. Written satisfies, target, kind, allow, fakes, each list sorted (B0068). |
 | <code>@doc """<br>inc adds one to a number.<br><br>&nbsp;&nbsp;&nbsp;&nbsp;inc(1) #=&gt; 2<br>"""<br>def inc(n)<br>&nbsp;&nbsp;n + 1<br>end</code> | `(blue-doc "inc adds one to a number.\n\n    inc(1) #=> 2" (define (inc n) (+ n 1)))` | Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060). |
@@ -92,7 +92,7 @@ Higher binding power binds tighter.
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
 | `else` | The branch of `if` or `case` taken when nothing before it matched. |
 | `elsif` | A further condition in an `if` chain; an `else` holding only an `if` is written `elsif` (B0027). |
-| `rescue` | A clause of `begin` or `def`: `rescue :a, :b as e`, `rescue e` (every error, last). Inline, `x rescue fallback` is fallback when x raises; it binds loosest, below `\|>`. |
+| `rescue` | A clause of `begin` or `def`: `rescue :a, :b as e`, `rescue e` (every error, last). Inline, `x rescue fallback` is fallback when x raises; it binds loosest, level with `\|>`, and the two read left to right. |
 | `ensure` | The last clause of `begin` or `def`: statements that run whether the block returned or raised; the block's value or error is kept. |
 | `true` | The boolean true. |
 | `false` | The boolean false. Only `false` and `nil` are falsy; 0, "" and [] are truthy. |
@@ -145,7 +145,7 @@ Higher binding power binds tighter.
 | `hypot` | `hypot(x, y)` | 2 | — | sqrt(x * x + y * y) without the overflow: hypot(3, 4) is 5.0. |
 | `inc` | `inc(x)` | 1 | — | x + 1. |
 | `lcm` | `lcm(xs...)` | 0+ | — | Least common multiple of the arguments. |
-| `log` | `log(x[, base])` | 1..2 | — | Natural logarithm, or log to base: log(100, 10) is 2.0. |
+| `log` | `log(x[, base])` | 1..2 | — | Natural logarithm, or log to base: log(8, 2) is 3.0. |
 | `max` | `max(x, more...)` | 1+ | — | The largest argument. Takes numbers, not a list: apply(max, xs). Also defined by `kazu` (`kazu::max`): a file that lists it gets that one. |
 | `min` | `min(x, more...)` | 1+ | — | The smallest argument. Takes numbers, not a list: apply(min, xs). Also defined by `kazu` (`kazu::min`): a file that lists it gets that one. |
 | `mod` | `mod(a, b)` | 2 | native | Euclidean remainder, never negative; what % lowers to. |
@@ -161,7 +161,7 @@ Higher binding power binds tighter.
 | `to_float` | `to_float(x)` | 1 | — | A Float from a number or a numeric string. |
 | `to_int` | `to_int(x)` | 1 | — | An Int from a string or a number, truncating a Float; nil for text that is not an integer ("3.7" too). |
 | `to_int!` | `to_int!(x)` | 1 | — | Like to_int, but raises instead of returning nil. |
-| `truncate` | `truncate(x)` | 1 | — | The Int part of x, toward zero: truncate(-2.7) is -2. Also defined by `moji` (`moji::truncate`): a file that lists it gets that one. |
+| `truncate` | `truncate(x)` | 1 | — | The Int part of x, toward zero: truncate(-3.7) is -3. Also defined by `moji` (`moji::truncate`): a file that lists it gets that one. |
 | `unsigned_div` | `unsigned_div(a, b)` | 2 | — | The whole quotient of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
 | `unsigned_less?` | `unsigned_less?(a, b)` | 2 | — | Whether a is below b, each read as an unsigned 64-bit value: unsigned_less?(1, -1) is true. |
 | `unsigned_mod` | `unsigned_mod(a, b)` | 2 | — | The remainder of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
@@ -185,7 +185,7 @@ Higher binding power binds tighter.
 | `join_lines` | `join_lines(xs)` | 1 | — | The elements' text, one per line, with no newline after the last: what a string with a \n escape is written as (B0065). |
 | `line_break` | `line_break` | 0 | — | The one-character line-break string, "\n" (B0065). `newline` prints one. |
 | `replace` | `replace(s, from, to)` | 3 | — | Every occurrence of from replaced by to. |
-| `split` | `split(s, sep)` | 2 | — | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. Also defined by `happa` (`happa::split`): a file that lists it gets that one. |
+| `split` | `split(s, sep)` | 2 | — | The fields between separators, empty ones kept (okite D0012): split("a,b,,", ",") is ["a", "b", "", ""]. An empty sep splits into characters. Also defined by `happa` (`happa::split`): a file that lists it gets that one. |
 | `starts_with?` | `starts_with?(s, prefix)` | 2 | native | Whether s begins with prefix. |
 | `string` | `string(x)` | 1 | — | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
 | `text_bytes` | `text_bytes(s)` | 1 | — | The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes("é") is [195, 169]. |
@@ -305,8 +305,8 @@ Higher binding power binds tighter.
 | name | call | arity | home | meaning |
 |---|---|---|---|---|
 | `atom?` | `atom?(x)` | 1 | — | Whether x is a scalar rather than a list; false for nil. Also defined by `kuzushi` (`kuzushi::atom?`): a file that lists it gets that one. |
-| `bool?` | `bool?(x)` | 1 | — | Whether x is true or false. |
-| `boolean?` | `boolean?(x)` | 1 | native | The same as bool?. |
+| `bool?` | `bool?(x)` | 1 | — | The same as boolean?, which is how it is written (B0036). |
+| `boolean?` | `boolean?(x)` | 1 | native | Whether x is true or false. |
 | `cast` | `cast(type, x)` | 2 | — | x checked against, or narrowed to, the type a keyword names: cast(:float, 5) is 5.0. Type first. |
 | `chan?` | `chan?(x)` | 1 | — | Whether x is a channel. |
 | `empty?` | `empty?(xs)` | 1 | — | Whether xs is nil or has no elements. Also defined by `jisho` (`jisho::empty?`): a file that lists it gets that one. |
@@ -319,7 +319,7 @@ Higher binding power binds tighter.
 | `integer?` | `integer?(x)` | 1 | native | Whether x is an Int; integer?(1.0) is false. |
 | `is?` | `is?(x, type)` | 2 | — | Whether x has the type named by a keyword: is?(5, :int). Value first. Also defined by `yomi` (`yomi::is?`): a file that lists it gets that one. |
 | `keyword?` | `keyword?(x)` | 1 | native | Whether x is a keyword such as :done. |
-| `list?` | `list?(x)` | 1 | native | Whether x is a list. list?(nil) is true, so test x == nil first. |
+| `list?` | `list?(x)` | 1 | native | Whether x is a list. nil is not one: list?(nil) is false (okite D0010). |
 | `map?` | `map?(x)` | 1 | — | Whether x is a map. A parsed JSON object is not one. |
 | `negative?` | `negative?(n)` | 1 | — | Whether n < 0. |
 | `nil?` | `nil?(x)` | 1 | native | Whether x is nil (okite D0010). x.nil? says the same and is the spelling blue writes (B0047). |
@@ -410,7 +410,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | home | meaning |
 |---|---|---|---|---|
-| `exec_capture` | `exec_capture(cmd, args...)` | 1+ | native | Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of. |
+| `exec_capture` | `exec_capture(cmd, args...)` | 1+ | native | Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]], a keyed list read by field: cap.status, cap.stdout, cap.stderr. |
 | `exec_check` | `exec_check(cmd, args...)` | 1+ | native | Run a command, no shell; its exit status as an Int. Output passes through. |
 | `exec_exchange` | `exec_exchange(bytes, n, ms, cmd, args...)` | 4+ | native | One request and reply over a child's stdio, for binary protocols: bytes (Ints 0..=255) are written and stdin stays open until n bytes of stdout arrive, stdout closes or ms pass; stdin then closes, and a child still running at ms is ended. :stdout is the list of bytes read, :status -1 when the child had to be ended. |
 | `exec_into` | `exec_into(env, cmd, args...)` | 2+ | native | Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start. |
@@ -459,12 +459,12 @@ Higher binding power binds tighter.
 | `flash_open` | `flash_open(addr_or_wire)` | 1 | — | The Flash channel of a dual-pulse wire: a UDP socket bound to host:port (port 0 picks a free one), or the Flash channel opened on a wire tide_open made, so both share one socket. Needs the comm_flash capability; the host holds each wire to the Flash rate and kodou paces under it. |
 | `flash_put` | `flash_put(wire, peer, payload)` | 3 | — | Send one Flash frame (framing byte 0x02, then the payload) to host:port at once, ahead of any Tide frame still queued: the datagram's bytes. A datagram past 1280 bytes raises and sends nothing. The host holds each wire to flash_bytes_per_second (16384) a second and one second's worth at once, on the frame's clock (a whole-program clock provider, else the host's): a send past it raises :rate_limited, catchable because it breaches no capability, with data {bytes:, rate:, burst:, wait_ms:} (wait_ms nil when no wait fits), and sends nothing. kodou::emit paces under it. |
 | `flash_stats` | `flash_stats(wire)` | 1 | — | {address:, port:, sent:, received:, dropped:, malformed:, refused:, rate:} of the wire's Flash channel; dropped counts frames past its 256-frame inbox, refused the sends its rate refused, rate its bytes a second. |
-| `http_batch` | `http_batch(requests)` | 1 | — | Each request, a list [method, url, headers, body, timeout_ms] as http_request takes, sent at once, each on a thread of its own where the host gives threads, else one after another: the answers in the order the requests are listed, or the error of the first that failed in that order. Rule R18 writes it for a run of reads a definition makes one after another; --timings counts each batch. |
+| `http_batch` | `http_batch(requests)` | 1 | — | Each request, a list [method, url, headers, body, timeout_ms] as http_request takes, sent at once, each on a thread of its own where the host gives threads, else one after another: the answers in the order the requests are listed, or the error of the first that failed in that order. The cascade's rule PERFORMANCE R18 writes it for a run of reads a definition makes one after another; --timings counts each batch. |
 | `http_listen` | `http_listen(addr[, opts])` | 1..2 | — | A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. opts: max_request (bytes, 1 MiB by default; past it the request is answered 413) and spool (a directory: each body is also written there, whole and byte for byte, named by the request's body_file, and removed once the request is answered). |
 | `http_listener_port` | `http_listener_port(listener)` | 1 | — | The TCP port the listener is bound to. |
 | `http_next_request` | `http_next_request(listener, timeout_ms)` | 2 | — | {method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond. |
 | `http_pipe` | `http_pipe(method, url, headers, body_file, timeout_ms)` | 5 | — | One HTTP/1.1 request whose body and reply are files, never values: body_file (a path, or nil) is streamed to the upstream, and the reply's body is spooled to a temp file: {status:, headers:, body_file:}, body_file nil for HEAD, 204 and 304. Hand body_file to http_respond's {file:} and remove it with rm_rf once answered. One deadline for the whole call, reset per chunk; a failed or truncated exchange raises and leaves no spool. |
-| `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | — | One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. timeout_ms nil is measured: ten times the slowest answer the host gave this process, at least 1 s, or 30 s for a host not yet heard from. |
+| `http_request` | `http_request(method, url, headers, body, timeout_ms)` | 5 | — | One HTTP/1.1 request to an http:// url, or to an https:// url over TLS (rustls, the server's certificate verified against the Mozilla roots; the wasm targets refuse it by name): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises. timeout_ms nil is measured: ten times the slowest answer the host gave this process, at least 1 s, or 30 s for a host not yet heard from. |
 | `http_respond` | `http_respond(request, status, headers, body)` | 4 | — | Answer a request from http_next_request once and close its connection; headers as for http_request, body nil, a string, or {file: path}, whose bytes are streamed as they are. A second answer raises. nil. |
 | `nats_close` | `nats_close(conn)` | 1 | — | Close the connection; every later call on it raises. nil. |
 | `nats_connect` | `nats_connect(url[, timeout_ms])` | 1..2 | — | A NATS connection to nats://[user:pass@\|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect. |
@@ -481,7 +481,7 @@ Higher binding power binds tighter.
 | `pg_query` | `pg_query(conn, sql, params)` | 3 | — | One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text. |
 | `resp_close` | `resp_close(conn)` | 1 | — | Close the connection; every later call on it raises. nil. |
 | `resp_command` | `resp_command(conn, args)` | 2 | — | Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises. |
-| `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | — | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
+| `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | — | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true speaks TLS (rustls, the server's certificate verified against the Mozilla roots); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
 | `resp_next` | `resp_next(conn, timeout_ms)` | 2 | — | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
 | `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | — | Send every command in one write and return their replies in order. Raises naming the first server error. |
 | `serial_open` | `serial_open(path)` | 1 | — | A serial port (a USB CDC-ACM device, /dev/cu.*) opened raw: cfmakeraw, CLOCAL and CREAD, no line discipline, 921600 carried to the device. The handle is a connection: the tcp words and net_wait drive it unchanged. |
@@ -648,7 +648,7 @@ Higher binding power binds tighter.
 | `dotimes` | `(dotimes (i n) …)` | — | — | Lisp counted loop. In blue, map(fn(i) … end, range(n)). |
 | `let` | `(let ((x 1)) …)` | — | — | Lisp binding form; its binding list has no blue spelling. In blue, write x = 1. |
 | `letrec` | `(letrec ((f …)) …)` | — | — | Lisp recursive binding; its binding list has no blue spelling. In blue, use def. |
-| `match` | `(match v (pattern expr) …)` | — | — | Lisp pattern matching; its patterns have no blue spelling. blue's case compares values and does not destructure. |
+| `match` | `(match v (pattern expr) …)` | — | — | Lisp pattern matching; its patterns have no blue spelling. blue's case destructures in its when patterns instead: rect(w, h), [x, *rest] and {name:} bind the names they hold. |
 | `provide` | `(provide …)` | — | — | tatara-lisp's module export. A bidama exports every def. |
 | `read_forms` | `read_forms(text)` | 1 | — | The tatara-lisp forms in text as data: lists, symbols, keywords and literals, what `blue ast --resolved` prints read back. Text that does not read raises :parse_error. |
 | `require` | `(require …)` | — | — | tatara-lisp's module loader. In blue, use("pkg") imports a bidama. |

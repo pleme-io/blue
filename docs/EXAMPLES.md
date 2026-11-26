@@ -150,7 +150,7 @@ end
 
 ## Lists and maps
 
-Lists are values: every operation returns a new list. retsu's words are total (size, first, rest, last and is_empty accept [] and nil), so prefer them to length, car and cdr. A map is read with get and extended with assoc; grouping and counting return [key, value] pairs, because blue cannot list a map's keys.
+Lists are values: every operation returns a new list. retsu's words are total (size, first, rest, last and is_empty accept [] and nil), so prefer them to length, car and cdr. A map is read with get, extended with assoc and walked in key order with map_entries; grouping and counting return [key, value] pairs.
 
 `examples/03_lists_and_maps.b`:
 
@@ -261,7 +261,7 @@ end
 
 ## Errors and refusals
 
-Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the input is good. Tests read the kinds. Only at the boundary does the program raise, with throw(error(kind, why)); error(...) alone raises nothing. A caught error cannot be read (its kind and message are not reachable), which is why the refusals are data first. This is kueri's refusals / check.
+Decide what is wrong as DATA: a list of [kind, why] refusals, empty when the input is good. Tests read the kinds, and a caller can act on every refusal at once. Only at the boundary does the program raise, with raise(kind, why); a caller that rescues it reads the error as a record (e.kind, e.message, e.data, e.cause): its kind is the first refusal's, and every refusal's why reaches it only as text, joined into the message. This is kueri's refusals / check.
 
 `examples/05_errors.b`:
 

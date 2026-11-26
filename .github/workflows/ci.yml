@@ -3,6 +3,7 @@ jobs:
     outputs:
       held: "${{ steps.turn.outputs.held }}"
       proven: "${{ steps.proof.outputs.proven }}"
+      test-args: "${{ steps.proof.outputs.test-args }}"
     permissions:
       actions: "read"
       contents: "read"
@@ -23,8 +24,8 @@ jobs:
         run: "held=\"$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn \"$GITHUB_RUN_ID\" \"$GITHUB_REF_NAME\" \"$GITHUB_SHA\")\"\necho \"held=$held\" >> \"$GITHUB_OUTPUT\""
       - continue-on-error: true
         id: "proof"
-        name: "read the suite proof noted on this commit"
-        run: "echo \"proven=$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/proof.b -- --verify HEAD)\" >> \"$GITHUB_OUTPUT\""
+        name: "read the suite proof noted on this commit, and the crates it does not cover"
+        run: "proven=\"$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/proof.b -- --verify HEAD)\"\necho \"proven=$proven\" >> \"$GITHUB_OUTPUT\"\nargs=\"$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/proof.b -- --test-args \"$proven\")\" || args=\"--workspace --no-fail-fast\"\necho \"test-args=$args\" >> \"$GITHUB_OUTPUT\""
       - continue-on-error: true
         env:
           OUT: "${{ steps.blue.outputs.out-path }}"
@@ -45,11 +46,11 @@ jobs:
     secrets: "inherit"
     uses: "pleme-io/substrate/.github/workflows/cargo-ci.yml@main"
     with:
-      cargo-test: "${{ needs.blue.outputs.proven != 'true' }}"
+      cargo-test: "${{ needs.blue.outputs.proven != 'true' || needs.blue.outputs.test-args != '' }}"
       closure-artifact: "blue-closure"
       flake-check-shards: "${{ fromJSON(vars.BLUE_FLAKE_CHECK_SHARDS || '6') }}"
       runner: "${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}"
-      test-args: "--workspace --no-fail-fast"
+      test-args: "${{ needs.blue.outputs.test-args || '--workspace --no-fail-fast' }}"
       test-runner: "ubuntu-latest"
   consumers:
     if: "${{ needs.blue.outputs.held != 'false' }}"

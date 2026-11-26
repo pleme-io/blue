@@ -25,7 +25,7 @@ mutation testing for a blue package. Layers, lowest first: the defaults, `~/.con
 | Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
 |---|---|---|---|---|---|---|---|---|---|
 | `blue` | text | `unset` | any text |  | `HENI_BLUE` | `--blue` | file, env, flag |  | the blue that runs the tests; the one running heni when unset |
-| `finds` | bool | `false` | any bool |  | `HENI_FINDS` | `--finds` | flag |  | run no test; fail when a mutation no longer finds its text exactly once |
+| `finds` | bool | `false` | any bool |  |  | `--finds` | flag |  | run no test; fail when a mutation no longer finds its text exactly once |
 | `test` | text | `unset` | any text |  | `HENI_TEST` | `--test` | file, env, flag |  | the test file to run, relative to the package |
 
 
@@ -48,28 +48,28 @@ switching over: whether a system switch must run, may be skipped, or must wait. 
 | `guard.allow_unpublished` | bool | `false` | any bool |  | `KIRIKAE_GUARD__ALLOW_UNPUBLISHED` |  | file, env |  | build commits origin does not hold |
 | `guard.branch` | text | `main` | any text |  | `KIRIKAE_GUARD__BRANCH` |  | file, env |  | the branch a switch builds from |
 | `guard.fast_forward` | bool | `true` | any bool |  | `KIRIKAE_GUARD__FAST_FORWARD` |  | file, env |  | fast-forward the checkout to origin first |
-| `host` | text |  | any text |  | `KIRIKAE_HOST` |  | file, env |  | the host to switch; the machine's short name when empty |
-| `kind` | text |  | any text |  | `KIRIKAE_KIND` |  | file, env |  | nixos or darwin; read from the machine when empty |
-| `narrate` | text |  | any text |  | `KIRIKAE_NARRATE` |  | file, env |  | how much to say: off, brief or full; computed when empty |
+| `host` | text | `unset` | any text |  | `KIRIKAE_HOST` |  | file, env |  | the host to switch; the machine's short name when unset |
+| `kind` | text | `unset` | any text |  | `KIRIKAE_KIND` |  | file, env |  | nixos or darwin; read from the machine when unset |
+| `narrate` | text | `unset` | one of off, brief, full |  | `KIRIKAE_NARRATE` |  | file, env |  | how much to say; full for a run and brief for a plan when unset, and empty text is refused as any other word is |
 | `phases.plan` | bool | `true` | any bool |  | `KIRIKAE_PHASES__PLAN` |  | file, env |  | plan before switching |
 | `phases.verify` | bool | `true` | any bool |  | `KIRIKAE_PHASES__VERIFY` |  | file, env |  | verify the switched system |
-| `records.events` | text |  | any text |  | `KIRIKAE_RECORDS__EVENTS` |  | file, env |  | the events file; the state directory's when empty |
+| `records.events` | text | `unset` | any text |  | `KIRIKAE_RECORDS__EVENTS` |  | file, env |  | the events file; the state directory's when unset |
 | `records.events_keep` | int | `1000` | 0 or more |  | `KIRIKAE_RECORDS__EVENTS_KEEP` |  | file, env |  | how many events the file keeps |
-| `records.history` | text |  | any text |  | `KIRIKAE_RECORDS__HISTORY` |  | file, env |  | the history file; the state directory's when empty |
+| `records.history` | text | `unset` | any text |  | `KIRIKAE_RECORDS__HISTORY` |  | file, env |  | the history file; the state directory's when unset |
 | `wait.poll_seconds` | int | `15` | 0 or more | seconds | `KIRIKAE_WAIT__POLL_SECONDS` |  | file, env |  | poll this often while waiting |
 | `wait.seconds` | int | `0` | 0 or more | seconds | `KIRIKAE_WAIT__SECONDS` |  | file, env |  | wait this long before the run |
 
 
 ## kijun
 
-a fleet repository judged against its standard. Layers, lowest first: the defaults, `~/.config/kijun/kijun.yaml` (or the file `KIJUN_CONFIG` names), the `KIJUN_` environment, then the flags. `kijun --explain KEY` shows one setting and the layer it came from.
+a fleet repository judged against its standard. Layers, lowest first: the defaults, then the flags. `kijun --explain KEY` shows one setting and the layer it came from.
 
 | Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
 |---|---|---|---|---|---|---|---|---|---|
-| `baseline` | text |  | any text |  | `KIJUN_BASELINE` | `--baseline` | flag |  | the baseline file; the standard's own when empty |
-| `json` | bool | `false` | any bool |  | `KIJUN_JSON` | `--json` | flag |  | report as one JSON record |
-| `root` | text | `.` | any text |  | `KIJUN_ROOT` | `--root` | flag |  | the checkout to judge |
-| `tree` | bool | `false` | any bool |  | `KIJUN_TREE` | `--tree` | flag |  | also judge the merged module tree of each configuration |
+| `baseline` | text | `unset` | any text |  |  | `--baseline` | flag |  | the baseline file; the standard's own when unset |
+| `json` | bool | `false` | any bool |  |  | `--json` | flag |  | report as one JSON record |
+| `root` | text | `.` | any text |  |  | `--root` | flag |  | the checkout to judge |
+| `tree` | bool | `false` | any bool |  |  | `--tree` | flag |  | also judge the merged module tree of each configuration |
 
 
 ## gaisou
@@ -84,7 +84,7 @@ obligation discovery: the thresholds a mined edge meets before blue obligations 
 | `min_sources` | int | `2` | 1 or more |  | `GAISOU_MIN_SOURCES` |  | file, env |  | the independent sources an edge needs to be corroborated |
 | `min_support` | int | `3` | 1 or more |  | `GAISOU_MIN_SUPPORT` |  | file, env |  | the fewest sites (or changes) an edge needs before it is proposed |
 | `min_waivers` | int | `5` | 2 or more |  | `GAISOU_MIN_WAIVERS` |  | file, env |  | the waivers of one code with one reason before the reason is a candidate obligation |
-| `off` | text |  | any text |  | `GAISOU_OFF` |  | file, env |  | relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together |
+| `off` | text | `unset` | any text |  | `GAISOU_OFF` |  | file, env |  | relation kinds discovery leaves unmined, comma separated: implies, co-occurs, exclusive, trades, fixed-together; none when unset |
 
 
 ## tehai
@@ -99,7 +99,7 @@ the nix builders and substituters that answer: each declared one probed, and the
 | `max_handshake_ms` | int | `0` | 0 or more | milliseconds | `TEHAI_MAX_HANDSHAKE_MS` |  | file, env |  | a builder slower to answer is left out; 0 keeps every builder that answers |
 | `ssh` | text | `ssh` | any text |  | `TEHAI_SSH` |  | file, env |  | the ssh binary; a bare name is looked up on PATH, and the state says so |
 | `state` | text | `/var/run/tehai/state.json` | any text |  | `TEHAI_STATE` |  | file, env |  | the state record of the last check |
-| `substituters_declared` | text |  | any text |  | `TEHAI_SUBSTITUTERS_DECLARED` |  | file, env |  | the substituters file to check; empty checks none |
+| `substituters_declared` | text | `unset` | any text |  | `TEHAI_SUBSTITUTERS_DECLARED` |  | file, env |  | the substituters file to check; none is checked when unset |
 | `substituters_live` | text | `/var/run/tehai/substituters.conf` | any text |  | `TEHAI_SUBSTITUTERS_LIVE` |  | file, env |  | the substituters that answered |
 | `substituters_state` | text | `/var/run/tehai/substituters.json` | any text |  | `TEHAI_SUBSTITUTERS_STATE` |  | file, env |  | the state record of the last substituter check |
 | `timeout_s` | int | `2` | 1 or more | seconds | `TEHAI_TIMEOUT_S` |  | file, env |  | how long one probe may take |

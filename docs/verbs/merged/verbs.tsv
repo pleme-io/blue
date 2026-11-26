@@ -406,7 +406,7 @@ A	deeta	patch	pure	patch(doc, changes) -> doc	error,idempotent	-	absent	apply ch
 A	deeta	paths	pure	paths(doc, opts) -> [path]	-	-	absent	every leaf path, sorted	2		na
 A	deeta	put	pure	put(doc, path, value) -> doc	-	-	absent	new doc with the value set at the path	1	put(doc, path, value) -> doc	yes
 A	deeta	query	pure	query(doc, expression) -> [value]	error	-	absent	jq-style expression over a document	3	query(doc, expression) -> [value]	yes
-A	deeta	read	effect	read(path, opts) -> value	capability,error,serialize	-	partial:deeta	A JSON text as blue values, in the shapes `json_parse` gives, read by blue itself (R6a of docs/PURE-BLUE.md): an object as a list of [key, value] pairs (an empty one as the empty map), an array as a list, null as nil, a number with a fraction or an exponent as a Float and any other as an Int	1	read(path, opts) -> value	yes
+A	deeta	read	effect	read(path, opts) -> value	capability,error,serialize	-	partial:deeta	A JSON text as blue values, in the shapes `json_parse` gives, read by blue itself (R6a of docs/PURE-BLUE.md): an object as a list of [key, value] pairs (an empty one as the empty map), an array as a list, null as nil, and a number as `json_number` reads it, which refuses each text `json_parse` refuses	1	read(path, opts) -> value	yes
 A	deeta	render	pure	render(value, format, opts) -> text	error,serialize	tatara-lisp-script	partial:deeta	value to stable canonical text	1	render(value, format, opts) -> text	yes
 A	deeta	select	pure	select(doc, paths) -> doc	-	-	absent	keep only the listed paths	1	select(doc, paths) -> doc	yes
 A	deeta	stream	stream	stream(source, format, f, opts) -> count	cancel,error,resource	-	absent	call f per record of NDJSON, CSV or a JSON array	2	stream(source, format, f, opts) -> count	yes
@@ -747,13 +747,14 @@ E	habu	read	effect	read(path, {at:}) -> bytes	error	-	absent	file content or a P
 F	habu	rerun	effect	rerun(run, opts) -> run	retry	-	absent	run again, failed jobs only if asked	2		na
 E	habu	update	effect	update(path, f, opts) -> record	error,idempotent,ratelimit	-	absent	change an item with a function	1	update(path, f, opts) -> record	yes
 F	habu	wait	effect	wait(run, opts) -> result	cancel,deadline	-	absent	wait for a run to finish	2	wait(run, opts) -> result	yes
-F	hadome	failures	pure	failures(rows, kind, measurements) -> [failure]	test	-	exists:hadome	every key that grew or is new	0		na
+F	hadome	failures	pure	failures(rows, kind, measurements) -> [failure]	test	-	exists:hadome	every key that grew, is new, or is blind	0		na
 F	hadome	judge	pure	judge(rows, kind, key, measured) -> verdict	test	-	exists:hadome	whether a measure grew past its recorded size	0	judge(rows, kind, key, opts) -> verdict	no
 F	hadome	orphans	pure	orphans(rows, kind, live) -> [key]	test	-	exists:hadome	recorded keys that no longer exist	0		na
 F	hadome	parse	pure	parse(text) -> [row]	serialize	-	exists:hadome	a baseline file to rows	0	parse(text) -> [row]	yes
+F	hadome	record	effect	record(path, measured, opts) -> result	migrate,test	-	exists:hadome	write the ledger at `path` from the measured rows, of one kind or more, and answer a kyohi result: ok of the count of rows written, or the refusal that wrote nothing	1	record(path, measured, opts) -> result	yes
 F	hadome	render	pure	render(kind, measurements) -> text	serialize	-	exists:hadome	measurements as a baseline file, stable order	0	render(kind, measurements) -> text	yes
 F	hadome	shrunk	pure	shrunk(rows, kind, measurements) -> [key]	test	-	exists:hadome	keys that fell below their record and can be tightened	0		na
-F	hadome	tighten	pure	tighten(rows, kind, measurements) -> [row]	migrate,test	-	partial:hadome	rows lowered to the new sizes, never raised	1		na
+F	hadome	tighten	pure	tighten(rows, kind, measurements) -> [row]	migrate,test	-	exists:hadome	the rows of `kind` a record banks, as joeira-ratchet's bank does: each measured key at its recorded size or lower, never raised	1		na
 F	hadome	waive	decl	waive(key, reason, until) -> row	switch	-	absent	a dated, reasoned exception to a ratchet	1	waive(key, reason, until) -> row	yes
 E	haibi	check	pure	check(service, row) -> [refusal]	validate	haibi	partial:haibi	refuse a row that breaks the declared table	0	check(service, row) -> [refusal]	yes
 E	haibi	ddl	pure	ddl(service) -> text	serialize	haibi	exists:haibi	database schema statements from declared tables	0		na

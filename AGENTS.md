@@ -188,7 +188,10 @@ which formats it (B0064).
 
 A test that cannot run here says why with `tesuto::skip_for(why)`. `blue test`
 prints `SKIP name: why` and counts it apart from a pass; `BLUE_TEST_SKIP=refuse`
-makes each skip a failure, for a host where every test must run.
+makes each skip a failure, for a host where every test must run. A test that
+spawns blue opens with `tesuto::needs_blue(self_exe)`: an embedded host has no
+blue CLI, and a trailing guard, `if self_exe != nil … end` in any spelling,
+passed there with no assertion (blue's project rule R0003 rewrites it).
 
 ### One way to write each thing
 
@@ -211,30 +214,40 @@ meaning, and one bidama for each cross-cutting concern (errors and refusals in
 `kyohi`, entries and switches in `kousei`, configuration in `settei`). Reach
 for that bidama before writing the concern by hand.
 
-Configuration is a record of defaults, grouped by concern, that
-`settei::read(app, defaults)` resolves: the defaults, then
+Configuration is a core model: a record of knobs grouped by concern, each
+`settei::knob(default, annotations)` with its type, bounds and doc.
+`settei::settled(app, model)` resolves it: the defaults, then
 `~/.config/<app>/<app>.yaml` (or `<APP>_CONFIG`), then `<APP>_<GROUP>__<KEY>`
-in the environment, each value typed by its default. Read it by dotted path,
-`config.guard.branch`: a misspelt path raises and names the fields that
-exist, where `config["branch"]` returns nil. A program never reads its own
-settings with `getenv`. `bidamas/kakehashi/kirikae` is the worked example.
+in the environment, each value read by its knob's type and a bad one refused
+for its key alone and warned. `settei::command(app, model, frame, f)` adds the
+flags, help and `--explain KEY`. A program that must not start on a broken
+setting calls `settei::settled(app, model, {mode: :enforce})`, and every
+refusal stops it. Read the result by dotted path, `config.guard.branch`: a
+misspelt path raises and names the fields that exist, where `config["branch"]`
+returns nil. A program never reads its own settings with `getenv`.
+`bidamas/kakehashi/kirikae` is the worked example.
+`settei::read(app, defaults)` is the older record form: a plain record of
+defaults, every fault refused at once.
 
 Before you name a function, look for its verb: the graph rows in
 `bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in
 `docs/verbs/contracts.tsv`. A verb that exists is called as `space::verb` with that
 contract. A verb that is only a row is the work to do: build it to its contract. A
 meaning with no row gets a row first (TSV, then `blue verbs import`), named in plain
-English as `read`, `put`, `need` (raises) or `get` (nil), never a `_or` variant.
+English as `read`, `put`, `need` (raises) or `get` (nil), never a `_or` twin of a
+raising verb; a default for an absence is `umu::value_or`.
 The plan and the waves are `docs/VERB-ROADMAP.md`.
 
 ### The traps that cost the most
 
-Each one was checked against the runtime.
+A trap that says what an expression is, or that it raises, states a runtime
+fact: the markdown-laws check holds it to the spec row whose program is that
+expression, and conformance runs the row on every evaluator.
 
-- **`nil` is not `[]`** (okite D0004). `nil == []` is false, `list?(nil)` is
-  true, and `length(nil)` raises. Use retsu's `size`, `first`, `rest`,
-  `is_empty`, which accept both. The built-in `first([])` raises; retsu's
-  answers nil.
+- **`nil` is not `[]`, and not a list** (okite D0004, D0010). `nil == []` is
+  false, `list?(nil)` is false and `length(nil)` raises. Use retsu's `size`,
+  `first`, `rest`, `is_empty`, which accept both. The built-in `first([])`
+  raises; retsu's answers nil.
 - **`/` never truncates.** `7 / 2` is 3.5, while `6 / 2` stays the Int 3.
   Integer division is `floor(a / b)`. `%` is Euclidean: `-7 % 3` is 2.
 - **`==` is structural** (`equal?`): strings, lists and maps compare by
@@ -249,14 +262,20 @@ Each one was checked against the runtime.
   `xs.map { |x| … }` or `do … end`. `xs[0]` is `nth(0, xs)` and `m[:k]` is `get(m, :k)` (B0066); a key held in a variable is read with `get(m, key)`, since `m[key]` reads a position.
 - **Errors are raised and rescued.** `raise(:not_found, "no repo #{name}")`
   raises; `raise(:k, "m", {data: d, cause: e})` attaches data and the error
-  it wraps; `raise(e)` raises one again. `json_parse(text) rescue nil` is the
-  value or nil. A block catches by kind and binds the error:
+  it wraps; `raise(e)` raises one again. `x rescue fallback` is the fallback
+  when `x` raises. It cannot tell a failure from a value that is nil:
+  `json_parse(text) rescue nil` is nil both for text that is not JSON and for
+  the document `null`, so where null is a valid document, rescue the error
+  itself. A block catches by kind and binds the error:
   `begin … rescue :timeout, :refused as e … rescue e … ensure … end`, and a
   `def` takes the same clauses directly. The error reads as a record:
   `e.kind`, `e.message`, `e.data`, `e.cause`, `e.trace`. A catch-all that
   ignores the error is written `rescue _` (B0038). Retry a flaky step with
   `saishikou::retrying({times: 3, wait_ms: 500}, fn() fetch(url) end)`.
-  Return refusals as data (`kyohi`) where a caller must branch on several.
+  A failure travels in one of three channels: an absence (a umu option,
+  where a lookup still answers nil), a refusal a caller branches on (a kyohi
+  result, `kyohi::ok(v)` or `kyohi::refused(r)`, read with `?`) and a fault
+  (a raise). [`docs/ABSENCE.md`](docs/ABSENCE.md) §0 states the model.
 - **A named structure is `record point(x, y)`,** at a file's top level:
   `point(1, 2)` or `point({x: 1, y: 2})` constructs one, `point?(v)` tells it
   from any other map, `p.x` reads a field and `point(**p, x: 3)` is an updated
@@ -290,10 +309,12 @@ Each one was checked against the runtime.
   takes two numbers, and shuugou's `remove(xs, v)` reverses the built-in's
   order (REFERENCE.md marks each). **Do not prefix** your names (`kz_count`
   is an error, B0013/B0014): callers write `kazu::count`.
-- **Maps cannot be walked.** `get(m, k)` and `assoc(m, k, v)` work, but no
-  word lists a map's keys. When you need entries, keep `[key, value]` pairs,
-  as shuugou's `group_by` and `frequencies` do. A parsed JSON object is such a
-  pair list, not a map: read it with `json_get` or deeta.
+- **A map walks in one key order.** `get(m, k)` reads it and `assoc(m, k, v)`
+  extends it; `map_entries({b: 2, a: 1})` is `[[:a, 1], [:b, 2]]`: every entry,
+  ordered by key and total over every key kind, the order jisho's `keys`,
+  `values` and `entries` read. An object `json_parse` gives is a
+  `[key, value]` pair list, not a map: read it with `json_get` or deeta, or
+  parse with `json_read`, which gives maps.
 - **A function with no parameters is called bare** (B0023, `blue explain
   B0023`): `now_ms`, `argv`, `kueri::count_all`, never `now_ms()`. `blue fmt
   --write` rewrites the old spelling and the check stage refuses it. Pass
@@ -314,8 +335,11 @@ Each one was checked against the runtime.
   *argv)`; `apply(f, xs)` with `f` a name is written that way (B0042).
 - **Names with `-` do not exist in blue.** tatara-lisp's kebab-case words are
   unreachable. A keyword may end in `?` or `!` (`[:pair?]`), as a name may.
-- **Deep recursion aborts.** Prefer `map`, `filter` and `reduce` over
-  hand-written recursion on long lists, and `sort_keyed(key, xs)` for sorting.
+- **Deep recursion is refused, not aborted.** A call deeper than the
+  call-depth budget (`max_call_depth`) raises an error that `rescue` catches
+  (spec rows `fn.deep_recursion` and `fn.deep_recursion.catchable`). Prefer
+  `map`, `filter` and `reduce` over hand-written recursion on long lists, and
+  `sort_keyed(key, xs)` for sorting.
 
 The rest of blue's semantics is Ruby's, except where
 [`bidamas/okite/RULES.md`](bidamas/okite/RULES.md) says otherwise.

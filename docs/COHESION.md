@@ -191,3 +191,136 @@ Four units are held for review fixes:
 - pipeline-11 (one middle-end, kuzushi, for chuuzou and hashiru): PURE-BLUE B0 owns the backend plan. The docs-of-record unit (U9) fixes only the false henkan claims now.
 - r2services-10 (the service batteries in two repos): nix/docs/campaign-2026-11-09.md wave 1 owns the move into the bidama-<family> repos.
 - bidamas-15, the habu and himitsu parts: SAFETY row 14 owns secrets, and habu waits for its own track. The policy-record unit (U55) takes only heikou's second retry.
+
+## 7. The freeze
+
+The operator ruled a feature freeze on 2026-11-25: ROADMAP R21 in [ROADMAP.md](ROADMAP.md). It holds until every exit criterion in §8 is met.
+
+While the freeze holds, main takes only:
+
+- the units of this plan, and the fixes their reviews ask for;
+- a bug fix with its lock;
+- a security fix;
+- release, ledger, regen and lock mechanics.
+
+Everything else waits. A new word, form, operator, bidama, CLI verb, flag, Bluefile entry, switch, capability, evaluator rung, placement or design track does not land, unless a unit of this plan needs it. An open track in [ROADMAP.md](ROADMAP.md) keeps its row and its state; its next step waits. A consumer repository uses blue as it is. A change to blue that a consumer needs is a bug fix, or it waits.
+
+A change that is not a unit names its clause in its first sentence: fix, security or mechanics.
+
+## 8. 100 %: the exit criteria
+
+blue is fully cohesive when all six criteria hold. Each one is checked, never claimed.
+
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | Every unit in §5 is ✅: its lock is green on main. A unit leaves the plan only by an operator ruling that names its new owner. | the §5 tables |
+| 2 | Every confirmed finding is fixed, or deferred in §6 to a named owner. | each unit's finding list in its commits |
+| 3 | A re-audit with the 25 lenses of [cohesion/LENSES.md](cohesion/LENSES.md), run on main after criterion 1, confirms no new finding of medium severity or higher. | the re-audit's report, linked in this row |
+| 4 | Every gate in §10.3 is live on main and has had a red run on a broken input. | each gate's red-run receipt |
+| 5 | Every conformance column passes each row or pends on a named gap. No divergence between evaluators lacks a gap id. | `checks.conformance` and its columns |
+| 6 | The consumers sweep is green at the final pin: every fleet repository that uses blue builds and passes its tests. | `blue gen/consumers.b sweep` |
+
+When all six hold, the cohesion row in [ROADMAP.md](ROADMAP.md) turns ✅ with these links, and the freeze ends.
+
+## 9. What it takes
+
+§5 holds each unit's state. This section names the work around the units and the order it forces.
+
+### 9.1 The chains
+
+A unit starts when every unit in its After column is ✅. The longest chains are four units long:
+
+- U10 > U28 > U72 > U75: one capability vocabulary, one door builder, the run record as a closed world, one replay verb.
+- U3 > U22 > U48 > U74 and U9 > U20 > U48 > U74: one text, one value walk, one codec door, JSON keys as keywords.
+
+So U10 is on the critical path. U1 blocks U15, U17 and U58; U10 blocks U28, U37 and U67, and through U28 also U56, U58, U59, U72 and U75; U13 blocks U27 and U39.
+
+| Wave | Units | S | M | L |
+|---|---|---|---|---|
+| 0 | 14 | 2 | 8 | 4 |
+| 1 | 30 | 3 | 14 | 13 |
+| 2 | 29 | 0 | 14 | 15 |
+| 3 | 3 | 0 | 2 | 1 |
+
+### 9.2 Work beyond the units
+
+- **tatara-lisp releases.** One release carries U3's ordered map text and U11's linear lift and nested quasiquote. Their branches are `cohesion/u3-one-text-for-keys-and-floats` and `cohesion/u11-macro-foundations` in tatara-lisp. blue's bump lands with U11's last commit, which removes the G30 and G31 marks. A later release carries U24's bridge for callers in Lisp order. tatara-lisp's release runs blue main's conformance against the candidate, so a blue pending mark that only the release closes waits for the release, never the reverse.
+- **The consumers sweep.** A unit that changes a spelling lands after its consumers are rewritten by its fixer (`blue gen/consumers.b sweep`, then `fix REPO`), as the agent guide requires. U16, U17, U24, U27, U46, U53 and U74 change spellings. U10 already has branches in televisao and blackmatter-claude (`cohesion/u10-one-capability-vocabulary`).
+- **The re-audit** (criterion 3), and a red run of each §10.3 gate (criterion 4).
+
+### 9.3 How a wave runs
+
+1. Each unit is built in its own worktree (`blue-uN`, branch `cohesion/uN-slug`) from one base, with its locks and a red run.
+2. A reviewer reads the diff and checks the main lock against the base. A unit goes back only for a blocking issue, or for a should issue that changes behaviour or the truth of a claim.
+3. One integrator picks every approved unit onto `cohesion/wave-N`, regenerates once, records each ledger once, and runs the land's gates. The wave lands with `git land`.
+4. A held unit carries into the next round with its review.
+5. Waves overlap: a wave builds on the previous wave's integration head while that one lands.
+
+Two traps hold when agents share one repository. `git stash` is shared by every worktree, so a guard ref makes it fail while waves run. A running workflow agent cannot take a message: a message starts a second copy that writes in the same worktree.
+
+### 9.4 Pace, measured on wave 0
+
+- Wave 0 has 14 units. Its first pass took 9 hours with 58 agents and approved 5 units. A second pass approved 5 more in about 5 hours. 4 units need a third pass.
+- One land takes about 2 hours 15 minutes of CI (run 45676636213).
+- With 8 builders in parallel, that pace gives about 2 to 3 days for wave 1, 2 to 3 days for wave 2, and about 1 day each for wave 3 and the re-audit. This projection comes from one wave. Each land updates it.
+
+## 10. No drift
+
+The drift came from many parallel sessions. Each made a good local decision, and no step merged the concepts. Git merges code; nothing merged the ideas. These rules make that merge part of every change. They hold after the freeze ends.
+
+### 10.1 One table per concern
+
+Each concern has one table. A new meaning is a row in it. A second table for the same concern is refused.
+
+| Concern | The one table | Units |
+|---|---|---|
+| grammar: operators, powers, reserved words, forms | one grammar table that every reader is derived from and gated against | U18 |
+| spellings | FORMS, and RULES rows with machine fixes | U15 |
+| words and verbs | `docs/verbs/contracts.tsv` and the verb graph | U25, U53 |
+| types and binders | one type grammar in blue-lang-syntax, with one accepts relation | U19, U49 |
+| patterns | one pattern language for `case` and `receive` | U63 |
+| absence and errors | umu, kyohi's ledger, snake-case kinds | U4, U23, U46 |
+| data and codecs | one value walk, and one codec door in deeta | U22, U48 |
+| capabilities | `Capability::ALL` | U10 |
+| switches and bounds | one switch registry | U29, U65 |
+| levers | one lever table | U36 |
+| configuration | settei | U14, U60 |
+| time | one clock per run | U31 |
+| doors | one door builder | U28 |
+| definitions and names | one recognizer and one resolver in blue-lang-syntax | U12, U73 |
+| facts | mondou's emitter, ROADMAP R6 | U40 |
+| renderings | one source for each rendered file | U39 |
+| ratchets and ledgers | the hadome ratchet ledger | U8 |
+
+### 10.2 The concept merge
+
+After the freeze, a change that adds a meaning lands only when all five hold. A meaning is a word, form, operator, flag, entry, switch, capability, evaluator or placement.
+
+1. No word or form already has the meaning: `blue arika word NAME` and `blue arika like FILE` find none. A near miss is extended, never copied.
+2. The change adds a row to the one table in §10.1 that owns its concern.
+3. It carries its contract row or rule row with a witness, and its fixer when it replaces a spelling.
+4. It carries spec rows that every evaluator column judges, or a pending mark that names a gap.
+5. Its docs link checked evidence for every claim they make.
+
+### 10.3 Gates that fail on a second way
+
+| Gate | It refuses | Units |
+|---|---|---|
+| the reuse census, `blue census --reuse` | a definition copied between scopes | live |
+| the reader differential | a reader that disagrees with the one grammar table | U18 |
+| the verb graph check | a word with no contract row, or a second word for one contract | U25, U53 |
+| canonical forms | an older spelling with no machine fix | U15 |
+| markdown laws | a doc claim with no checked evidence, and a doc that teaches a refused spelling | U9, U13 |
+| conformance columns | an evaluator that disagrees with the walker and names no gap | U6, U59 |
+| the switch registry | an unknown switch value | U29 |
+| hadome ratchets | a rise with no receipt, and a blind measure read as green | U8 |
+
+### 10.4 The re-audit
+
+The lenses of [cohesion/LENSES.md](cohesion/LENSES.md) run again at three times:
+
+- at 100 %, for criterion 3;
+- before each minor version of blue;
+- after any two weeks that land more than 150 commits on main.
+
+A confirmed finding of a re-audit becomes a unit of this plan, and the plan stays open until a re-audit is clean.

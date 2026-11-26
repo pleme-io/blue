@@ -2,6 +2,8 @@
 
 # blue — the agent guide
 
+**Feature freeze (operator, 2026-11-25; ROADMAP R21 in [ROADMAP.md](docs/ROADMAP.md)).** Until every exit criterion in [COHESION.md](docs/COHESION.md) §8 holds, main takes only the cohesion plan's units and the fixes their reviews ask for, a bug fix with its lock, a security fix, and release, ledger, regen and lock mechanics. A new word, form, operator, bidama, CLI verb, flag, Bluefile entry, switch, capability, evaluator rung, placement or design track waits, unless a unit needs it. A change that is not a unit names its clause (fix, security or mechanics) in its first sentence. After the freeze, a new meaning lands only through the concept merge of COHESION.md §10.2: no word has it yet, and it becomes a row in the one table that owns its concern.
+
 No `pending-shikumi:` — M2 closed 2026-09-29. `BlueConfig`
 (`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
 eight bounds and resources, each with a shipped overridable default: `solver_max_steps`,

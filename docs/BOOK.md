@@ -1909,6 +1909,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [Safety first: blue's posture, row by row](SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
 - [Settings](SETTINGS.md): every setting of each blue program with a core model, rendered from the model by settei (generated)
 - [blue — the agent guide](../AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
+- [The cohesion audit's lenses](cohesion/LENSES.md): the 25 lenses of the cohesion audit, each the brief one auditor follows, and the method that turns their findings into units; docs/COHESION.md's re-audit runs them again
 - [Implementing blue — the detail behind the agent guide](implementing.md): the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
 
 ## Explanation

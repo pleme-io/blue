@@ -52,6 +52,7 @@ def state(axes_map, payload)
         routed
         stale_hosts
         held_hosts
+        iface_addr
         table
         priority
       ]
@@ -348,7 +349,79 @@ def netstat_argv()
 end
 
 def ifconfig_argv()
-  %w[/sbin/ifconfig -l]
+  ["/sbin/ifconfig"]
+end
+
+@doc """
+parse_ifconfig: the IPv4 address of each interface in darwin `ifconfig` output, one {iface:, addr:} per `inet` line, in order.
+
+    parse_ifconfig("en0: flags=8863<UP> mtu 1500\n\tinet 192.0.2.7 netmask 0xffffff00\n")[:value] #=> [{iface: "en0", addr: "192.0.2.7"}]
+"""
+def parse_ifconfig(text)
+  ok(reduce(ifconfig_line, {cur: "", rows: []}, split(text, line_break))[:rows])
+end
+
+@doc """
+ifconfig_line: one line of `ifconfig` folded into `acc`: an interface header names the current interface, and an `inet` line adds its address to the rows.
+
+    ifconfig_line({cur: "en0", rows: []}, "\tinet 192.0.2.7 netmask 0xffffff00")[:rows] #=> [{iface: "en0", addr: "192.0.2.7"}]
+"""
+def ifconfig_line(acc, l)
+  fs = fields(l)
+  if is_empty(fs)
+    acc
+  elsif not starts_with?(l, " ") and
+      not starts_with?(l, "\t") and
+      ends_with?(first(fs), ":")
+    assoc(acc, :cur, replace(first(fs), ":", ""))
+  elsif first(fs) == "inet" and size(fs) >= 2 and ipv4?(fs[1])
+    assoc(acc, :rows, append(acc[:rows], [{iface: acc[:cur], addr: fs[1]}]))
+  else
+    acc
+  end
+end
+
+@doc """
+addrs_of: the IPv4 addresses `rows` give `iface`.
+
+    addrs_of([{iface: "en0", addr: "192.0.2.7"}, {iface: "lo0", addr: "127.0.0.1"}], "en0") #=> ["192.0.2.7"]
+"""
+def addrs_of(rows, iface)
+  map((r) -> r[:addr], filter((r) -> r[:iface] == iface, rows))
+end
+
+@doc """
+iface_addr_of: the address the host now holds on the gateway interface, read from `addrs_r`; nil when it could not be read, "" when the interface holds none.
+
+    iface_addr_of({ok: true, value: [{iface: "en0", addr: "192.0.2.7"}]}, "en0") #=> "192.0.2.7"
+    iface_addr_of(nil, "en0") #=> nil
+"""
+def iface_addr_of(addrs_r, iface)
+  if addrs_r.nil? or not ok?(addrs_r)
+    nil
+  else
+    xs = addrs_of(addrs_r[:value], iface)
+    if is_empty(xs)
+      ""
+    else
+      first(xs)
+    end
+  end
+end
+
+@doc """
+addr_moved?: darwin pins a host route to the interface address it was added through, so a route this side added from `applied_addr` is dead once the interface holds another. It is true only when both addresses were read and differ.
+
+    addr_moved?(:darwin, "192.0.2.177", "192.0.2.122") #=> true
+    addr_moved?(:darwin, "", "192.0.2.122") #=> false
+    addr_moved?(:darwin, "192.0.2.177", nil) #=> false
+"""
+def addr_moved?(platform, applied_addr, iface_addr)
+  platform == :darwin and
+    string?(applied_addr) and
+    not is_empty(applied_addr) and
+    not is_empty(iface_addr) and
+    applied_addr != iface_addr
 end
 
 def route_add_argv(host, gateway)
@@ -859,10 +932,18 @@ def assemble(cfg, obs)
   end
   routes_ok = ok?(routes_r) and (cfg[:platform] == :darwin or ok?(obs[:rules]))
   table_r = obs[:table]
+  iface_addr = iface_addr_of(obs[:addrs], gw_iface)
   stale_hosts = if not routes_ok or not ok?(table_r) or is_empty(gw_addr)
     []
   elsif cfg[:platform] == :nixos
     stale_in_table(table_r[:value], gw_addr)
+  elsif addr_moved?(cfg[:platform], cfg[:applied_addr], iface_addr)
+    unique(
+      append(
+        stale_via(routes, gw_addr, cfg[:applied]),
+        filter((h) -> member?(h, routed), cfg[:applied])
+      )
+    )
   else
     stale_via(routes, gw_addr, cfg[:applied])
   end
@@ -912,6 +993,11 @@ def assemble(cfg, obs)
       routed:,
       stale_hosts:,
       held_hosts:,
+      iface_addr: if iface_addr.nil?
+        ""
+      else
+        iface_addr
+      end,
       table: cfg[:table],
       priority: cfg[:priority]
     }
@@ -944,6 +1030,7 @@ def observe(cfg)
   else
     {
       routes: from_capture(capture(netstat_argv), parse_netstat),
+      addrs: from_capture(capture(ifconfig_argv), parse_ifconfig),
       rules: ok([]),
       table: ok([]),
       status: from_capture(capture(status_argv(ts)), parse_backend_state),
@@ -1086,6 +1173,38 @@ def applied_of(doc)
 end
 
 @doc """
+applied_addr_of: the interface address a state document says this side added its routes through; "" when it names none.
+
+    applied_addr_of(nil) #=> ""
+"""
+def applied_addr_of(doc)
+  a = as_json(doc, "applied_addr")
+  if string?(a)
+    a
+  else
+    ""
+  end
+end
+
+@doc """
+next_applied_addr: the interface address the routes this side holds after a run were added through. A dry run or a failure keeps the record; no held host clears it; a bypass records the address it added through.
+
+    next_applied_addr("192.0.2.177", {kind: :bypass}, [], false, "192.0.2.122", ["a"]) #=> "192.0.2.122"
+    next_applied_addr("192.0.2.177", {kind: :noop}, [], false, "192.0.2.122", []) #=> ""
+"""
+def next_applied_addr(prev, o, failed, dry_run, iface_addr, applied)
+  if dry_run or not is_empty(failed)
+    prev
+  elsif is_empty(applied)
+    ""
+  elsif o[:kind] == :bypass
+    iface_addr
+  else
+    prev
+  end
+end
+
+@doc """
 read_applied: the hosts the state document at `path` says this side applied.
 
     read_applied("/nonexistent/ukai/state.json") #=> []
@@ -1180,7 +1299,11 @@ end
 def run(cfg)
   now = now_ms
   last = read_state(cfg[:state_path])
-  cfg2 = assoc(cfg, :applied, applied_of(last))
+  cfg2 = assoc(
+    assoc(cfg, :applied, applied_of(last)),
+    :applied_addr,
+    applied_addr_of(last)
+  )
   s = assemble(cfg2, observe(cfg2))
   o = decide(s)
   argvs = plan(o, cfg2)
@@ -1197,7 +1320,15 @@ def run(cfg)
       (r) -> "#{join(r[:argv], " ")}: #{blue::trim(r[:stderr])}",
       failed
     ),
-    applied:
+    applied:,
+    applied_addr: next_applied_addr(
+      cfg2[:applied_addr],
+      o,
+      failed,
+      cfg2[:dry_run],
+      s[:iface_addr],
+      applied
+    )
   }
   persist(
     [
@@ -1233,6 +1364,7 @@ end
 def measured(routes_text, netcheck_text)
   {
     routes: parse_netstat(routes_text),
+    addrs: parse_ifconfig(fairu::fixture("ukai", "ifconfig.txt")),
     rules: ok([]),
     status: parse_backend_state(fairu::fixture("ukai", "status-running.json")),
     netcheck: parse_netcheck(netcheck_text),
@@ -1691,6 +1823,87 @@ test "a detour outlives no detour: with no corporate tunnel every route this sid
   assert decide(held) == {kind: :refused, reason: :enforcement_blocks_egress}
   assert held_of(%w[a b], %w[b a c b], ["a"]) == ["b"]
   assert held_of([], ["a"], []) == []
+end
+
+test "ifconfig: each interface's IPv4 address, and none from an interface with only inet6"
+  rows = parse_ifconfig(fairu::fixture("ukai", "ifconfig.txt"))[:value]
+  assert addrs_of(rows, "en0") == ["192.0.2.122"]
+  assert addrs_of(rows, "lo0") == ["127.0.0.1"]
+  assert addrs_of(rows, "utun1") == []
+  assert iface_addr_of({ok: true, value: rows}, "en7") == ""
+  assert iface_addr_of(bad("ifconfig exited 1"), "en0").nil?
+  assert ifconfig_line({cur: "", rows: []}, "en9: flags=0 mtu 1500")[:cur] ==
+    "en9"
+end
+
+test "an address change on the same gateway retracts every route this side added through the old address and adds it back through the current one; an unchanged or unread address retracts nothing"
+  full = concat(
+    replace(
+      fairu::fixture("ukai", "netstat-site-moved.txt"),
+      "192.168.50.1",
+      "192.168.60.1"
+    ),
+    unlines(
+      [
+        "0/1                utun7              UScg                utun7       ",
+        "128.0/1            utun7              UScg                utun7       "
+      ]
+    )
+  )
+  cfg = assoc(cfg_for(:darwin, moved_applied), :applied_addr, "192.0.2.177")
+  obs = measured(full, fairu::fixture("ukai", "netcheck-bypassed.json"))
+  s = assemble(cfg, obs)
+  assert s[:stale] == :present
+  assert s[:iface_addr] == "192.0.2.122"
+  o = decide(s)
+  assert outcome_label(o) == "bypass+retract"
+  argvs = plan(o, cfg)
+  assert take(3, argvs) ==
+    [
+      %w[/sbin/route -n delete -host 192.200.0.102],
+      %w[/sbin/route -n delete -host 199.38.181.93],
+      %w[/sbin/route -n delete -host 5.161.218.233]
+    ]
+  assert member?(
+    %w[/sbin/route -n add -host 199.38.181.93 192.168.60.1],
+    argvs
+  ) == true
+  applied = next_applied(moved_applied, o, [], false)
+  assert member?("199.38.181.93", applied) == true
+  assert next_applied_addr(
+    "192.0.2.177",
+    o,
+    [],
+    false,
+    s[:iface_addr],
+    applied
+  ) == "192.0.2.122"
+  blocked = assemble(
+    cfg,
+    measured(full, fairu::fixture("ukai", "netcheck-blocked.json"))
+  )
+  assert outcome_label(decide(blocked)) ==
+    "refused:enforcement_blocks_egress+retract"
+  same = assoc(cfg, :applied_addr, "192.0.2.122")
+  assert assemble(same, obs)[:stale] == :none
+  assert outcome_label(decide(assemble(same, obs))) == "bypass"
+  unread = assemble(cfg, assoc(obs, :addrs, bad("ifconfig exited 1")))
+  assert unread[:stale] == :none
+  assert assemble(cfg_for(:darwin, moved_applied), obs)[:stale] == :none
+end
+
+test "the applied address: a bypass records the address it added through, no held host clears it, a dry run or a failure keeps it"
+  assert next_applied_addr("a", {kind: :bypass}, [], false, "b", ["h"]) == "b"
+  assert next_applied_addr("a", {kind: :noop}, [], false, "b", []) == ""
+  assert next_applied_addr("a", {kind: :refused}, [], false, "b", ["h"]) == "a"
+  assert next_applied_addr("a", {kind: :bypass}, ["x"], false, "b", ["h"]) ==
+    "a"
+  assert next_applied_addr("a", {kind: :bypass}, [], true, "b", ["h"]) == "a"
+  assert applied_addr_of(nil) == ""
+  assert applied_addr_of(
+    json_parse(json_stringify({applied_addr: "192.0.2.1"}))
+  ) == "192.0.2.1"
+  assert addr_moved?(:nixos, "192.0.2.1", "192.0.2.2") == false
 end
 
 test "the beat fails when the overlay reaches nothing or is down, names why, and is ok only through a working overlay"

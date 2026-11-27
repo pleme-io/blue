@@ -70,5 +70,41 @@
     "file": "ukai.b",
     "find": "      difference(as_set(applied), as_set(o[:retract][:hosts]))",
     "replace": "      applied"
+  },
+  {
+    "name": "an address change on the same gateway leaves the dead routes",
+    "file": "ukai.b",
+    "find": "  elsif addr_moved?(cfg[:platform], cfg[:applied_addr], iface_addr)\n",
+    "replace": "  elsif false\n"
+  },
+  {
+    "name": "an address change retracts only the routes through an old gateway",
+    "file": "ukai.b",
+    "find": "        filter((h) -> member?(h, routed), cfg[:applied])\n",
+    "replace": "        []\n"
+  },
+  {
+    "name": "an unchanged address reads as moved",
+    "file": "ukai.b",
+    "find": "    applied_addr != iface_addr\n",
+    "replace": "    true\n"
+  },
+  {
+    "name": "an unread address reads as moved",
+    "file": "ukai.b",
+    "find": "    not is_empty(iface_addr) and\n",
+    "replace": "    true and\n"
+  },
+  {
+    "name": "a bypass keeps the old applied address",
+    "file": "ukai.b",
+    "find": "  elsif o[:kind] == :bypass\n    iface_addr\n",
+    "replace": "  elsif o[:kind] == :bypass\n    prev\n"
+  },
+  {
+    "name": "no held host keeps the applied address",
+    "file": "ukai.b",
+    "find": "  elsif is_empty(applied)\n    \"\"\n",
+    "replace": "  elsif is_empty(applied)\n    prev\n"
   }
 ]

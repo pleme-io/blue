@@ -1,19 +1,20 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "a148f17c0a3eb1d0b8ba0e742041cc2a3a53f9e75729963c5d8637a40d3db3ec",
+  "cargo_lock_sha256": "04f319290458681fd873ddfd29358cea4ff963e4f0b86c3469bf1325059f6c47",
   "manifest_sha256": {
-    "Cargo.toml": "427b8dd52fe845be6a3776440596cd79ca025865387ff900663b75f46b8b4bd2",
+    "Cargo.toml": "f7d533603ecdfa984488b8c8eccd63198447a1abd0d9bfa233e46f203237ff47",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "5a96c865ae9f1d00903fe7b73ec9e613c86859e677a7aa094309eceb6c15d6c5",
+    "crates/blue-lang-cli/Cargo.toml": "6ce99d35059361287ca253c46bc6dc647f87f5a1ceb4981b290d748cc76e0f0d",
     "crates/blue-lang-component/Cargo.toml": "70bb98db843f6b7db73b1541f1e5f3fcdf7b880f3b3cf21bf25384a5ba8e1b52",
     "crates/blue-lang-danpen-diff/Cargo.toml": "b7e792141144a87f38bf6e6f78365ddd1c3feabbae5097bc43e560fc2223dfbf",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
     "crates/blue-lang-host/Cargo.toml": "397f5d3f4efe6ea7ad812e187bb8c35f2db0c67d66182c2b49b92af8fd3debd7",
     "crates/blue-lang-ios/Cargo.toml": "21c49295c9761896613ed93a938a165cf62e3e5d2119462ee670fc6335a7bf88",
+    "crates/blue-lang-ir/Cargo.toml": "441a79539dfd242496f197ab77d59b89a73100ad215bfd3a49f676a597750fe8",
     "crates/blue-lang-kernel/Cargo.toml": "ade0db0e2d949194ab8c8441e2e8d6dba03a4b60e1587dda9a92441fe4043ba6",
     "crates/blue-lang-kiwari/Cargo.toml": "0fc2e8eebc9c29350a8e8ec7ad48771ade15f1b72638b78daf1740317b460b66",
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
@@ -1254,6 +1255,16 @@
             "tree": "target"
           },
           {
+            "name": "blue_lang_ir",
+            "package_key": "blue-lang-ir-0.0.192",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "blue_lang_lsp",
             "package_key": "blue-lang-lsp-0.0.192",
             "kind": "normal",
@@ -1586,6 +1597,72 @@
           {
             "name": "tatara_lisp_eval",
             "package_key": "tatara-lisp-eval-0.4.26",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "blue-lang-ir-0.0.192": {
+        "runtime_dependencies": [
+          {
+            "name": "blue_lang_check",
+            "package_key": "blue-lang-check-0.0.192",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_runtime",
+            "package_key": "blue-lang-runtime-0.0.192",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_syntax",
+            "package_key": "blue-lang-syntax-0.0.192",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_waku",
+            "package_key": "blue-lang-waku-0.0.192",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tatara_lisp",
+            "package_key": "tatara-lisp-0.4.26",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -20541,6 +20618,13 @@
           "path": "src/main.rs"
         }
       ]
+    },
+    "blue-lang-ir-0.0.192": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_ir",
+        "path": "src/lib.rs"
+      }
     },
     "blue-lang-kernel-0.0.192": {
       "edition": "2021",

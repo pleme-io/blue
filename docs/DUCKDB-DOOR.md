@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the plan for the DuckDB door, dlopen'd C API behind pg-shaped builtins, and the tier that never rewrites the engine
+---
+
 # The DuckDB door — plan, written before code
 
 Status: DESIGN, opened 2026-11-27. The unit exists because a measured gap

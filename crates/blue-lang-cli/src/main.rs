@@ -270,6 +270,15 @@ enum Cmd {
     },
     /// Print the tatara-lisp form after type erasure — what actually runs.
     Erase { file: PathBuf },
+    /// Print the mid-level IR (docs/BACKENDS-PLAN.md, Phase 1): the checked
+    /// program lowered to type-preserving SSA blocks — one module per
+    /// package-or-file with its posture, record and union layouts, declared
+    /// types, and a seam call at every posture/backend crossing (host words
+    /// under a capability, calls into a module of another posture, the
+    /// check stage's recorded boundary checks). Refuses a program with
+    /// error-severity diagnostics, and names the first construct the IR
+    /// does not model yet.
+    Ir { file: PathBuf },
     /// Check a program against every rule in the registry — unbound names,
     /// unused bindings, types, waivers — and report the typing analysis.
     ///
@@ -1353,6 +1362,45 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 println!("{form}");
             }
             Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Ir { file } => {
+            // The pipeline's own door, never a reassembly of its stages: the
+            // IR lowers the CHECKED program (`check_entry`), the same thing
+            // `blue run` and `blue check` build.
+            use pipeline::{check_entry, Checking};
+            let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
+            let src = read(&file)?;
+            let checked = check_entry(
+                uses::Entry {
+                    path: Some(&file),
+                    text: &src,
+                },
+                &loader,
+                None,
+                Checking::Program,
+            )?;
+            if !checked.outcome.ok() {
+                for d in checked.outcome.errors() {
+                    eprintln!("{}", pipeline::render(&checked.program, d));
+                }
+                return Ok(ExitCode::FAILURE);
+            }
+            match blue_lang_ir::lower(&checked) {
+                Ok(modules) => {
+                    for module in modules {
+                        println!("{module}");
+                    }
+                    Ok(ExitCode::SUCCESS)
+                }
+                Err(refusal) => {
+                    let head = refusal.to_string();
+                    let at = checked
+                        .program
+                        .locate(refusal.top_level, refusal.span, &head);
+                    Err(CliError::Usage(at.to_string()))
+                }
+            }
         }
 
         Cmd::Check { hook: true, .. } => {

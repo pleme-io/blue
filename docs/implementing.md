@@ -56,6 +56,7 @@ bidama that does not check does not build.
 | interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`); NATS and HTTP spoken over std TCP (`net`, host-gated as `Capability::Network`) | `blue-lang-runtime` |
 | one evaluation session — contexts, live redefinition, pure frame, budget, interrupt, expansion (`session`); its JSON-lines protocol (`session::protocol`, `blue serve`); values as blue text (`literal`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
+| the mid-level IR of the stacked backends plan: modules, postures, records/unions, SSA blocks, seam calls; lowered from a `Checked` program (`blue ir`) | `blue-lang-ir` |
 | the conformance suite: `spec/rows/*.b` on every evaluator, and the missing-row gate (`checks.conformance`; format and pending mechanism in `spec/README.md`) | `blue-lang-test/tests/conformance/` |
 | Bluefile (the `WORDS` table) + version solver + `Bluefile.lock` | `blue-lang-pkg` |
 | `image` and `workload`: specs and per-entry refusals, the rendered objects, the structural diff (`deploy`); the CLI doors in `blue-lang-cli/src/deploy.rs`; the lowering and the distroless gate in `nix/project.nix`, `nix/image-gate.b` | `blue-lang-pkg` |

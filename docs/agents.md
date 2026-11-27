@@ -117,6 +117,7 @@ Every verb with its flags: [`docs/COMMANDS.md`](COMMANDS.md).
 | `blue new NAME` / `watch` | a project, bidama or script; rerun on save |
 | `blue eval` / `repl` / `serve` | a pure session, once, interactive, or JSON lines |
 | `blue doc NAME` / `explain B0001` / `reference` | a word, a diagnostic code, the language |
+| `blue ir FILE` | the checked program as the mid-level IR: modules, postures, typed SSA blocks, seam calls ([`docs/BACKENDS-PLAN.md`](BACKENDS-PLAN.md)) |
 | `blue query` / `verbs` | code queries; the verb graph |
 | `blue profile` / `trace NAME` | calls and time; one function's calls |
 | `blue replay` / `crash` / `receipt verify` | rerun a crash; dump, bisect, immunize; check a receipt |

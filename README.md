@@ -193,6 +193,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue fmt FILE...` | Format a program. |
 | `blue ast FILE` | Print the tatara-lisp form, annotations intact. |
 | `blue erase FILE` | Print the tatara-lisp form after type erasure — what actually runs. |
+| `blue ir FILE` | Print the mid-level IR (docs/BACKENDS-PLAN.md, Phase 1): the checked program lowered to type-preserving SSA blocks — one module per package-or-file with its posture, record and union layouts, declared types, and a seam call at every posture/backend crossing (host words under a capability, calls into a module of another posture, the check stage's recorded boundary checks). |
 | `blue check [FILE]` | Check a program against every rule in the registry — unbound names, unused bindings, types, waivers — and report the typing analysis. |
 | `blue query QUERY [PATHS]...` | Every definition under PATH (files, or directories of `.b` files; `.` when none) that satisfies QUERY, one line per hit: `file:line:col: definition  name = value…`. |
 | `blue migrate FILES...` | Make every reference each FILE makes to another bidama's definition explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping a file only when its resolved tree is proven unchanged. |
@@ -267,7 +268,7 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 98: 43 fix themselves, 8 suggest a fix |
 | Bluefile words | 34 |
-| Commands | 67 |
+| Commands | 68 |
 
 ## The standard library
 
@@ -458,12 +459,13 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>66 pages on why blue is shaped as it is</summary>
+<summary>68 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
 - [arika (在り処): the design of record](docs/ARIKA.md): arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [Native async: the design of record](docs/ASYNC.md): Native async in blue, DESIGN: one ontology of every async concept as a blue word over parked processes, the mutually exclusive architectures as blueshift positions with defaults, the integration with every system blue already has, and one test matrix that runs every position against the same oracle
+- [Stacked backends, the canonical flat seam, and capability-enforced codegen — the plan](docs/BACKENDS-PLAN.md): the ratified plan for blue-ir, blue-seam, the heapless posture, tiered native backends and capability-enforced codegen
 - [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](docs/BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](docs/BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](docs/BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)
@@ -478,6 +480,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [CST plan: a lossless tree, resilient parsing, surface blame](docs/CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [The data framework: one model, every rendering, nothing written twice](docs/DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
+- [The DuckDB door — plan, written before code](docs/DUCKDB-DOOR.md): the plan for the DuckDB door, dlopen'd C API behind pg-shaped builtins, and the tier that never rewrites the engine
 - [ENGINE: an HD-2D tactics engine in blue](docs/ENGINE.md): one game engine written in blue for HD-2D tactics games on iPhone, with Rust only at the GPU, audio and UIKit seams (design, 2026-11-10)
 - [The two engines W3.4 and W4.2 wait on](docs/ENGINES.md): The plan for the two engines W3.4 and W4.2 waited on, an effect graph and equality saturation over a measured cost model, each phase with its lever, switch and lock
 - [Facts decide](docs/FACTS.md): how facts decide and defaults follow; the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language

@@ -1,0 +1,18 @@
+[package]
+name = "blue-lang-ir"
+description = "The type-preserving mid-level IR lowered from a checked program: postures, records, unions, capabilities and explicit seams for the stacked backends."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+blue-lang-check = { workspace = true }
+blue-lang-runtime = { workspace = true }
+blue-lang-syntax = { workspace = true }
+blue-lang-waku = { workspace = true }
+tatara-lisp = { workspace = true }
+thiserror = { workspace = true }

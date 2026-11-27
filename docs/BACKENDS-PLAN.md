@@ -1,6 +1,13 @@
+---
+kind: explanation
+summary: the ratified plan for blue-ir, blue-seam, the heapless posture, tiered native backends and capability-enforced codegen
+---
+
 # Stacked backends, the canonical flat seam, and capability-enforced codegen — the plan
 
-Status: DESIGN, ratified by the operator 2026-11-27. Not yet started.
+Status: DESIGN, ratified by the operator 2026-11-27. Phase 1 (blue-ir) built
+2026-11-27: `crates/blue-lang-ir`, `blue ir FILE`, awaiting the operator's
+review at the Phase 1 check-in gate before Phase 2.
 
 Interlocks, read before Phase 1:
 - The cohesion wave owns erasure, blueshift and the pipeline surface this

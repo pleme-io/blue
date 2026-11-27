@@ -410,6 +410,7 @@ dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-ir",
  "blue-lang-lsp",
  "blue-lang-mondou",
  "blue-lang-pkg",
@@ -498,6 +499,18 @@ dependencies = [
  "objc2-ui-kit",
  "png",
  "tatara-lisp-eval",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "blue-lang-ir"
+version = "0.0.192"
+dependencies = [
+ "blue-lang-check",
+ "blue-lang-runtime",
+ "blue-lang-syntax",
+ "blue-lang-waku",
+ "tatara-lisp",
  "thiserror 2.0.19",
 ]
 

@@ -28,6 +28,7 @@ blue-lang-lsp = { workspace = true }
 blue-lang-mondou = { workspace = true }
 tameshi = { version = "0.1.12", default-features = false, features = ["merkle"] }
 blue-lang-art = { workspace = true }
+blue-lang-ir = { workspace = true }
 katsuji = "0.1"
 blue-lang-waku = { workspace = true }
 blue-lang-bidama = { workspace = true }

@@ -1917,6 +1917,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [API-EVOLUTION — the API is a versioned rendering of the one model](API-EVOLUTION.md): the API as a versioned rendering of one model (design)
 - [arika (在り処): the design of record](ARIKA.md): arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [Native async: the design of record](ASYNC.md): Native async in blue, DESIGN: one ontology of every async concept as a blue word over parked processes, the mutually exclusive architectures as blueshift positions with defaults, the integration with every system blue already has, and one test matrix that runs every position against the same oracle
+- [Stacked backends, the canonical flat seam, and capability-enforced codegen — the plan](BACKENDS-PLAN.md): the ratified plan for blue-ir, blue-seam, the heapless posture, tiered native backends and capability-enforced codegen
 - [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)
@@ -1931,6 +1932,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [CST plan: a lossless tree, resilient parsing, surface blame](CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [The data framework: one model, every rendering, nothing written twice](DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
+- [The DuckDB door — plan, written before code](DUCKDB-DOOR.md): the plan for the DuckDB door, dlopen'd C API behind pg-shaped builtins, and the tier that never rewrites the engine
 - [ENGINE: an HD-2D tactics engine in blue](ENGINE.md): one game engine written in blue for HD-2D tactics games on iPhone, with Rust only at the GPU, audio and UIKit seams (design, 2026-11-10)
 - [The two engines W3.4 and W4.2 wait on](ENGINES.md): The plan for the two engines W3.4 and W4.2 waited on, an effect graph and equality saturation over a measured cost model, each phase with its lever, switch and lock
 - [Facts decide](FACTS.md): how facts decide and defaults follow; the one mechanism behind every automatic choice blue makes, the contract each default meets, and the waves that spread it through the whole language

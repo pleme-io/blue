@@ -52,6 +52,9 @@ def state(axes_map, payload)
         routed
         stale_hosts
         held_hosts
+        lost_hosts
+        orphan_hosts
+        peer_hosts
         iface_addr
         table
         priority
@@ -91,29 +94,37 @@ def blind(what)
 end
 
 @doc """
-decide: noop, bypass, refused or blind, over a total state. A route this host applied through a gateway that is no longer its own is retracted beside any answer but blind, so a move between networks never strands it. A route it applied through its own gateway is a detour, so a noop, which needs no detour, retracts it too.
+decide: noop, bypass, refused or blind, over a total state. A route this host applied through a gateway that is no longer its own is retracted beside any answer but blind, so a move between networks never strands it. A route it applied through its own gateway is a detour, so a noop, which needs no detour, retracts it too. A bypass retracts a peer endpoint that no peer still names.
 """
 def decide(s)
   o = decide_kind(s)
   stale = o[:kind] != :blind and s[:stale] == :present
   held = o[:kind] == :noop and s[:held] == :present
-  if stale or held
+  orphans = if o[:kind] == :bypass and list?(s[:orphan_hosts])
+    s[:orphan_hosts]
+  else
+    []
+  end
+  if stale or held or not is_empty(orphans)
     assoc(
       o,
       :retract,
       retract_set(
         s,
         append(
-          if stale
-            as_set(s[:stale_hosts])
-          else
-            []
-          end,
-          if held
-            as_set(s[:held_hosts])
-          else
-            []
-          end
+          append(
+            if stale
+              as_set(s[:stale_hosts])
+            else
+              []
+            end,
+            if held
+              as_set(s[:held_hosts])
+            else
+              []
+            end
+          ),
+          orphans
         )
       )
     )
@@ -451,6 +462,15 @@ end
 
 def status_argv(tailscale)
   [tailscale, "status", "--json"]
+end
+
+@doc """
+netmap_argv: the argv that prints the overlay's network map, whose peers name the endpoints they answer on.
+
+    netmap_argv("tailscale") #=> ["tailscale", "debug", "netmap"]
+"""
+def netmap_argv(tailscale)
+  [tailscale, "debug", "netmap"]
 end
 
 def ip_route_argv(ip)
@@ -797,6 +817,126 @@ def parse_getent(text)
 end
 
 @doc """
+public_ipv4?: true for an IPv4 address a peer can be reached on across the internet; false for a private, shared, loopback, link-local, multicast or reserved one, and for anything not IPv4.
+
+    public_ipv4?("203.0.113.7") #=> true
+    public_ipv4?("192.168.50.3") #=> false
+"""
+def public_ipv4?(s)
+  if not ipv4?(s)
+    false
+  else
+    os = map(to_int, split(s, "."))
+    a = os[0]
+    b = os[1]
+    not (
+      a == 0 or
+      a == 10 or
+      a == 127 or
+      a >= 224 or
+      a == 169 and b == 254 or
+      a == 172 and b >= 16 and b <= 31 or
+      a == 192 and b == 168 or
+      a == 100 and b >= 64 and b <= 127
+    )
+  end
+end
+
+@doc """
+endpoint_host: the IPv4 address of an `address:port` endpoint, or "" for an IPv6 or malformed one.
+
+    endpoint_host("203.0.113.7:41641") #=> "203.0.113.7"
+    endpoint_host("[2001:db8::1]:41641") #=> ""
+"""
+def endpoint_host(ep)
+  ps = split(ep, ":")
+  if size(ps) == 2 and ipv4?(ps[0])
+    ps[0]
+  else
+    ""
+  end
+end
+
+@doc """
+parse_peer_endpoints: the public IPv4 addresses every peer in a network map names as an endpoint, unique and sorted. A map with no peers is an empty list, not a failure.
+
+    parse_peer_endpoints("{\"Peers\": [{\"Endpoints\": [\"203.0.113.7:41641\", \"192.168.1.9:41641\"]}]}")[:value] #=> ["203.0.113.7"]
+"""
+def parse_peer_endpoints(text)
+  doc = json_parse(text) rescue nil
+  peers = as_json(doc, "Peers")
+  if doc.nil?
+    bad("netmap: not JSON")
+  elsif peers.nil?
+    ok([])
+  else
+    ok(
+      sorted(
+        unique(
+          filter(
+            public_ipv4?,
+            map(
+              endpoint_host,
+              reduce(
+                fn(acc, p)
+                  eps = as_json(p, "Endpoints")
+                  if list?(eps)
+                    append(acc, filter(string?, eps))
+                  else
+                    acc
+                  end
+                end,
+                [],
+                peers
+              )
+            )
+          )
+        )
+      )
+    )
+  end
+end
+
+@doc """
+lost_of: the hosts this side applied that no route carries and that are not stale: routes something else took away.
+
+    lost_of(["a", "b", "c"], ["a"], ["c"]) #=> ["b"]
+"""
+def lost_of(applied, routed, stale)
+  filter(
+    (h) -> not member?(h, routed) and not member?(h, stale),
+    unique(applied)
+  )
+end
+
+@doc """
+recent_rewrites: the times in `times` no older than `window_ms` before `now`; anything not a number is dropped.
+
+    recent_rewrites([100, 900, "x"], 1000, 500) #=> [900]
+"""
+def recent_rewrites(times, now, window_ms)
+  if not list?(times)
+    []
+  else
+    filter((t) -> integer?(t) and t <= now and now - t <= window_ms, times)
+  end
+end
+
+@doc """
+next_rewrites: the loss times the next run sees: the recent ones, plus `now` when this run found routes taken away under a full tunnel.
+
+    next_rewrites([100, 900], 1000, 500, true) #=> [900, 1000]
+"""
+def next_rewrites(times, now, window_ms, lost_now)
+  kept = recent_rewrites(times, now, window_ms)
+  if lost_now
+    append(kept, [now])
+  else
+    kept
+  end
+end
+
+@doc """
 stale_via: the hosts in `applied` that a host route still sends through a gateway other than `gateway`, the routes a move between networks leaves behind.
 
     stale_via([{dest: "192.0.2.9", gateway: "192.168.50.1", flags: "UGHS", iface: "en0"}], "192.168.60.1", ["192.0.2.9"]) #=> ["192.0.2.9"]
@@ -864,10 +1004,7 @@ infer_enforcement: a host this side applied and no route now carries was removed
 """
 def infer_enforcement(targets, routed, applied, stale, overlay)
   present = filter((h) -> member?(h, routed), targets)
-  lost = filter(
-    (h) -> not member?(h, routed) and not member?(h, stale),
-    applied
-  )
+  lost = lost_of(applied, routed, stale)
   if not is_empty(lost)
     :routes_rewritten
   elsif is_empty(present)
@@ -918,9 +1055,20 @@ def assemble(cfg, obs)
   derp_r = obs[:derp]
   ctl_r = obs[:control]
   targets_ok = ok?(derp_r) and ok?(ctl_r)
+  peers_ok = obs[:peers] != nil and ok?(obs[:peers])
+  peer_hosts = if peers_ok
+    obs[:peers][:value]
+  else
+    []
+  end
   hosts = if targets_ok
     sorted(
-      unique(append(append(derp_r[:value], ctl_r[:value]), cfg[:extra_hosts]))
+      unique(
+        append(
+          append(append(derp_r[:value], ctl_r[:value]), cfg[:extra_hosts]),
+          peer_hosts
+        )
+      )
     )
   else
     []
@@ -960,10 +1108,39 @@ def assemble(cfg, obs)
   else
     :present
   end
+  lost_hosts = if routes_ok
+    lost_of(cfg[:applied], routed, stale_hosts)
+  else
+    []
+  end
+  orphan_hosts = if routes_ok and targets_ok and peers_ok
+    filter(
+      (h) -> member?(h, routed) and not member?(h, hosts),
+      as_set(cfg[:peer_applied])
+    )
+  else
+    []
+  end
+  strikes = size(
+    recent_rewrites(cfg[:rewrites_ms], cfg[:now], cfg[:rewrite_window_ms])
+  ) +
+    if corp == :full and not is_empty(lost_hosts)
+      1
+    else
+      0
+    end
   enforcement = if not routes_ok or overlay == :unread or not targets_ok
     :unread
+  elsif integer?(cfg[:rewrite_limit]) and strikes >= cfg[:rewrite_limit]
+    :routes_rewritten
   else
-    infer_enforcement(hosts, routed, cfg[:applied], stale_hosts, overlay)
+    infer_enforcement(
+      hosts,
+      routed,
+      difference(as_set(cfg[:applied]), as_set(lost_hosts)),
+      stale_hosts,
+      overlay
+    )
   end
   state(
     {
@@ -993,6 +1170,9 @@ def assemble(cfg, obs)
       routed:,
       stale_hosts:,
       held_hosts:,
+      lost_hosts:,
+      orphan_hosts:,
+      peer_hosts:,
       iface_addr: if iface_addr.nil?
         ""
       else
@@ -1022,6 +1202,7 @@ def observe(cfg)
         capture(getent_argv(cfg[:getent], host)),
         parse_getent
       ),
+      peers: peers_observed(cfg),
       table: from_capture(
         capture(ip_table_argv(ip, cfg[:table])),
         parse_ip_route
@@ -1036,8 +1217,22 @@ def observe(cfg)
       status: from_capture(capture(status_argv(ts)), parse_backend_state),
       netcheck: from_capture(capture(netcheck_argv(ts)), parse_netcheck),
       derp: from_capture(capture(derp_map_argv(ts)), parse_derp_map),
-      control: from_capture(capture(dscacheutil_argv(host)), parse_dscacheutil)
+      control: from_capture(capture(dscacheutil_argv(host)), parse_dscacheutil),
+      peers: peers_observed(cfg)
     }
+  end
+end
+
+@doc """
+peers_observed: the peer endpoints read from the network map, or an empty list without a read when peer endpoints are configured off.
+
+    peers_observed({peers: false})[:value] #=> []
+"""
+def peers_observed(cfg)
+  if cfg[:peers]
+    from_capture(capture(netmap_argv(cfg[:tailscale])), parse_peer_endpoints)
+  else
+    ok([])
   end
 end
 
@@ -1205,6 +1400,43 @@ def next_applied_addr(prev, o, failed, dry_run, iface_addr, applied)
 end
 
 @doc """
+strings_of: the strings of the list a state document holds at `key`; [] for no document or no list.
+
+    strings_of(nil, "peers") #=> []
+"""
+def strings_of(doc, key)
+  xs = as_json(doc, key)
+  if xs.nil? or not list?(xs)
+    []
+  else
+    filter((x) -> string?(x), xs)
+  end
+end
+
+@doc """
+rewrites_of: the times a state document says routes were taken away under a full tunnel; [] when it names none.
+
+    rewrites_of(nil) #=> []
+"""
+def rewrites_of(doc)
+  xs = as_json(doc, "rewrites_ms")
+  if xs.nil? or not list?(xs)
+    []
+  else
+    filter((x) -> integer?(x), xs)
+  end
+end
+
+@doc """
+next_peers: the applied hosts that are peer endpoints after a run: those the last record or this run named as peer endpoints, among what this side still holds.
+
+    next_peers(["a"], ["b"], ["a", "b", "c"]) #=> ["a", "b"]
+"""
+def next_peers(prev, now_peers, applied)
+  sorted(filter((h) -> member?(h, applied), unique(append(prev, now_peers))))
+end
+
+@doc """
 read_applied: the hosts the state document at `path` says this side applied.
 
     read_applied("/nonexistent/ukai/state.json") #=> []
@@ -1230,6 +1462,9 @@ def config()
     getent: getenv("UKAI_GETENT", "getent"),
     table: to_int(getenv("UKAI_TABLE", "5280")),
     priority: to_int(getenv("UKAI_PRIORITY", "5200")),
+    peers: getenv("UKAI_PEER_ENDPOINTS", "1") != "0",
+    rewrite_limit: to_int(getenv("UKAI_REWRITE_LIMIT", "3")),
+    rewrite_window_ms: to_int(getenv("UKAI_REWRITE_WINDOW_S", "900")) * 1000,
     dry_run: getenv("UKAI_DRY_RUN", "1") != "0",
     state_path: getenv("UKAI_STATE", "/var/run/ukai/state.json")
   }
@@ -1299,17 +1534,28 @@ end
 def run(cfg)
   now = now_ms
   last = read_state(cfg[:state_path])
-  cfg2 = assoc(
-    assoc(cfg, :applied, applied_of(last)),
-    :applied_addr,
-    applied_addr_of(last)
+  cfg2 = reduce(
+    (c, kv) -> assoc(c, kv[0], kv[1]),
+    cfg,
+    [
+      [:applied, applied_of(last)],
+      [:applied_addr, applied_addr_of(last)],
+      [:peer_applied, strings_of(last, "peers")],
+      [:rewrites_ms, rewrites_of(last)],
+      [:now, now]
+    ]
   )
   s = assemble(cfg2, observe(cfg2))
   o = decide(s)
   argvs = plan(o, cfg2)
   results = act(argvs, cfg2[:dry_run])
   failed = filter((r) -> r[:status] != 0 and r[:status] != nil, results)
-  applied = next_applied(cfg2[:applied], o, failed, cfg2[:dry_run])
+  held_now = if cfg2[:dry_run]
+    cfg2[:applied]
+  else
+    difference(as_set(cfg2[:applied]), as_set(s[:lost_hosts]))
+  end
+  applied = next_applied(held_now, o, failed, cfg2[:dry_run])
   record = {
     checked_ms: now,
     outcome: outcome_label(o),
@@ -1321,6 +1567,13 @@ def run(cfg)
       failed
     ),
     applied:,
+    peers: next_peers(cfg2[:peer_applied], s[:peer_hosts], applied),
+    rewrites_ms: next_rewrites(
+      cfg2[:rewrites_ms],
+      now,
+      cfg2[:rewrite_window_ms],
+      not cfg2[:dry_run] and s[:corp] == :full and not is_empty(s[:lost_hosts])
+    ),
     applied_addr: next_applied_addr(
       cfg2[:applied_addr],
       o,
@@ -1628,9 +1881,113 @@ test "enforcement: removed routes and blocked egress are told apart, and each re
     fairu::fixture("ukai", "netstat-full-no-bypass.txt"),
     fairu::fixture("ukai", "netcheck-blocked.json")
   )
-  s = assemble(cfg_for(:darwin, ["199.38.181.93"]), obs)
-  assert s[:enforcement] == :routes_rewritten
-  assert decide(s) == {kind: :refused, reason: :enforcement_rewrites_routes}
+  base = assoc(
+    assoc(
+      assoc(cfg_for(:darwin, ["199.38.181.93"]), :rewrite_limit, 3),
+      :rewrite_window_ms,
+      900_000
+    ),
+    :now,
+    1_000_000
+  )
+  first_loss = assemble(base, obs)
+  assert first_loss[:lost_hosts] == ["199.38.181.93"]
+  assert first_loss[:enforcement] == :unknown
+  o = decide(first_loss)
+  assert o[:kind] == :bypass
+  assert member?("199.38.181.93", o[:routes][:add]) == true
+  third = assemble(assoc(base, :rewrites_ms, [500_000, 900_000]), obs)
+  assert third[:enforcement] == :routes_rewritten
+  assert decide(third) == {kind: :refused, reason: :enforcement_rewrites_routes}
+  aged = assemble(assoc(base, :rewrites_ms, [1, 2]), obs)
+  assert decide(aged)[:kind] == :bypass
+  calm = assemble(
+    assoc(assoc(base, :applied, []), :rewrites_ms, [900_000, 950_000, 990_000]),
+    measured(
+      fairu::fixture("ukai", "netstat-full-bypassed.txt"),
+      fairu::fixture("ukai", "netcheck-bypassed.json")
+    )
+  )
+  assert calm[:lost_hosts] == []
+  assert decide(calm) == {kind: :refused, reason: :enforcement_rewrites_routes}
+  split = assemble(
+    assoc(
+      assoc(base, :applied, ["203.0.113.8"]),
+      :rewrites_ms,
+      [900_000, 950_000]
+    ),
+    measured(
+      fairu::fixture("ukai", "netstat-site-moved.txt"),
+      fairu::fixture("ukai", "netcheck-blocked.json")
+    )
+  )
+  assert split[:lost_hosts] == ["203.0.113.8"]
+  assert split[:enforcement] != :routes_rewritten
+end
+
+test "lost routes: the hosts taken away, the loss times kept inside the window, and a loss under no full tunnel never counts"
+  assert lost_of(%w[a b c b], ["a"], ["c"]) == ["b"]
+  assert lost_of(["a"], ["a"], []) == []
+  assert recent_rewrites([100, 900, "x", 2000], 1000, 500) == [900]
+  assert recent_rewrites(nil, 1000, 500) == []
+  assert next_rewrites([100, 900], 1000, 500, true) == [900, 1000]
+  assert next_rewrites([100, 900], 1000, 500, false) == [900]
+  assert rewrites_of(nil) == []
+  assert rewrites_of(json_parse(json_stringify({rewrites_ms: [5, "x"]}))) == [5]
+end
+
+test "peer endpoints: each peer's public IPv4 endpoint joins the bypass, a private, shared, link-local or IPv6 one never does, and one no peer names any more is retracted while control and relay routes stay"
+  r = parse_peer_endpoints(fixture("netmap.json"))
+  assert r[:value] == %w[198.51.100.30 203.0.113.107 203.0.113.61]
+  assert ok?(parse_peer_endpoints("nope")) == false
+  assert parse_peer_endpoints("{}")[:value] == []
+  assert public_ipv4?("172.32.0.1") == true
+  assert public_ipv4?("172.31.0.1") == false
+  assert public_ipv4?("100.128.0.1") == true
+  assert public_ipv4?("224.0.0.1") == false
+  assert public_ipv4?("not-an-ip") == false
+  assert endpoint_host("203.0.113.7") == ""
+  assert netmap_argv("/bin/ts") == %w[/bin/ts debug netmap]
+  assert peers_observed({peers: false})[:value] == []
+  bypassed = measured(
+    fairu::fixture("ukai", "netstat-full-bypassed.txt"),
+    fairu::fixture("ukai", "netcheck-bypassed.json")
+  )
+  s = assemble(cfg_for(:darwin, []), assoc(bypassed, :peers, r))
+  assert member?("192.168.50.3", s[:hosts]) == false
+  o = decide(s)
+  assert o[:kind] == :bypass
+  assert member?("203.0.113.107", o[:routes][:add]) == true
+  text = concat(
+    fairu::fixture("ukai", "netstat-full-bypassed.txt"),
+    unlines(
+      [
+        "203.0.113.9        192.168.60.1       UGHS                  en0       ",
+        "203.0.113.10       192.168.60.1       UGHS                  en0       "
+      ]
+    )
+  )
+  routed = measured(text, fairu::fixture("ukai", "netcheck-bypassed.json"))
+  cfg = assoc(
+    cfg_for(:darwin, %w[203.0.113.9 203.0.113.10 199.38.181.93]),
+    :peer_applied,
+    %w[203.0.113.9 199.38.181.93]
+  )
+  so = assemble(cfg, assoc(routed, :peers, r))
+  assert so[:orphan_hosts] == ["203.0.113.9"]
+  oo = decide(so)
+  assert outcome_label(oo) == "bypass+retract"
+  assert oo[:retract][:hosts] == ["203.0.113.9"]
+  quiet = assoc(fill(first(tesuto::axis_states(axes))), :orphan_hosts, ["x"])
+  assert decide(quiet)[:kind] != :bypass
+  assert decide(quiet)[:retract].nil?
+  su = assemble(cfg, assoc(routed, :peers, bad("tailscale exited 1")))
+  assert su[:orphan_hosts] == []
+  assert outcome_label(decide(su)) == "bypass"
+  assert next_peers(["203.0.113.9"], ["203.0.113.107"], ["203.0.113.107"]) ==
+    ["203.0.113.107"]
+  assert strings_of(json_parse(json_stringify({peers: ["a", 3]})), "peers") ==
+    ["a"]
 end
 
 test "an unreadable observation is blind, naming what could not be read"

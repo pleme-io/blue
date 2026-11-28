@@ -106,5 +106,71 @@
     "file": "ukai.b",
     "find": "  elsif is_empty(applied)\n    \"\"\n",
     "replace": "  elsif is_empty(applied)\n    prev\n"
+  },
+  {
+    "name": "a lost route strikes under no full tunnel too",
+    "file": "ukai.b",
+    "find": "    if corp == :full and not is_empty(lost_hosts)\n",
+    "replace": "    if not is_empty(lost_hosts)\n"
+  },
+  {
+    "name": "the strike limit is never reached",
+    "file": "ukai.b",
+    "find": "  elsif integer?(cfg[:rewrite_limit]) and strikes >= cfg[:rewrite_limit]\n",
+    "replace": "  elsif integer?(cfg[:rewrite_limit]) and strikes > cfg[:rewrite_limit]\n"
+  },
+  {
+    "name": "lost hosts still count as applied",
+    "file": "ukai.b",
+    "find": "      difference(as_set(cfg[:applied]), as_set(lost_hosts)),\n",
+    "replace": "      as_set(cfg[:applied]),\n"
+  },
+  {
+    "name": "an old loss never ages out",
+    "file": "ukai.b",
+    "find": "    filter((t) -> integer?(t) and t <= now and now - t <= window_ms, times)\n",
+    "replace": "    filter((t) -> integer?(t) and t <= now, times)\n"
+  },
+  {
+    "name": "a loss is never recorded",
+    "file": "ukai.b",
+    "find": "  if lost_now\n    append(kept, [now])\n",
+    "replace": "  if false\n    append(kept, [now])\n"
+  },
+  {
+    "name": "a private endpoint is public",
+    "file": "ukai.b",
+    "find": "      a == 192 and b == 168 or\n",
+    "replace": "      false or\n"
+  },
+  {
+    "name": "peer endpoints never join the bypass",
+    "file": "ukai.b",
+    "find": "          peer_hosts\n        )\n",
+    "replace": "          []\n        )\n"
+  },
+  {
+    "name": "an orphan is retracted under any answer",
+    "file": "ukai.b",
+    "find": "  orphans = if o[:kind] == :bypass and list?(s[:orphan_hosts])\n",
+    "replace": "  orphans = if list?(s[:orphan_hosts])\n"
+  },
+  {
+    "name": "an unread map still retracts orphans",
+    "file": "ukai.b",
+    "find": "  orphan_hosts = if routes_ok and targets_ok and peers_ok\n",
+    "replace": "  orphan_hosts = if routes_ok and targets_ok\n"
+  },
+  {
+    "name": "a control route can be an orphan",
+    "file": "ukai.b",
+    "find": "      as_set(cfg[:peer_applied])\n",
+    "replace": "      as_set(cfg[:applied])\n"
+  },
+  {
+    "name": "an IPv6 endpoint yields a host",
+    "file": "ukai.b",
+    "find": "  if size(ps) == 2 and ipv4?(ps[0])\n",
+    "replace": "  if size(ps) >= 2\n"
   }
 ]

@@ -1,0 +1,10 @@
+{
+  "SelfNode": {"Name": "self.example.ts.net.", "Endpoints": ["198.51.100.20:41641", "192.168.1.65:41641"]},
+  "Peers": [
+    {"Name": "far.example.ts.net.", "Endpoints": ["203.0.113.107:41641", "203.0.113.107:25204", "192.168.50.3:41641"]},
+    {"Name": "near.example.ts.net.", "Endpoints": ["198.51.100.30:33316", "192.168.50.64:41641", "10.5.0.2:41641"]},
+    {"Name": "phone.example.ts.net.", "Endpoints": ["203.0.113.61:37970", "[2001:db8::1]:41641", "172.20.10.2:41641", "169.254.6.20:41641"]},
+    {"Name": "router.example.ts.net.", "Endpoints": null},
+    {"Name": "relayed.example.ts.net."}
+  ]
+}

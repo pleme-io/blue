@@ -56,6 +56,7 @@ def state(axes_map, payload)
         lost_hosts
         orphan_hosts
         peer_hosts
+        fingerprint
         iface_addr
         table
         priority
@@ -818,7 +819,7 @@ def parse_getent(text)
 end
 
 @doc """
-public_ipv4?: true for an IPv4 address a peer can be reached on across the internet; false for a private, shared, loopback, link-local, multicast or reserved one, and for anything not IPv4.
+public_ipv4?: true for an IPv4 address a peer can be reached on across the internet; false for a private, shared, loopback, link-local, protocol-assignment (192.0.0/24), benchmarking (198.18/15), multicast or reserved one, and for anything not IPv4.
 
     public_ipv4?("203.0.113.7") #=> true
     public_ipv4?("192.168.50.3") #=> false
@@ -838,6 +839,8 @@ def public_ipv4?(s)
       a == 169 and b == 254 or
       a == 172 and b >= 16 and b <= 31 or
       a == 192 and b == 168 or
+      a == 192 and b == 0 and os[2] == 0 or
+      a == 198 and (b == 18 or b == 19) or
       a == 100 and b >= 64 and b <= 127
     )
   end
@@ -935,6 +938,98 @@ def next_rewrites(times, now, window_ms, lost_now)
   else
     kept
   end
+end
+
+@doc """
+parse_public_ip: the public IPv4 address netcheck saw this node's traffic leave from (its GlobalV4, without the port), or "" when it saw none.
+
+    parse_public_ip("{\"UDP\": true, \"GlobalV4\": \"203.0.113.7:41641\"}")[:value] #=> "203.0.113.7"
+"""
+def parse_public_ip(text)
+  doc = json_parse(text) rescue nil
+  if doc.nil?
+    bad("netcheck: not JSON")
+  else
+    ok(endpoint_host(get_str(doc, "GlobalV4", "")))
+  end
+end
+
+@doc """
+fingerprint: the network this node sits on, as one string: the tunnel, the physical gateway, its address there and the public address its traffic leaves from. nil when a part could not be read, so an unread run never reads as a change.
+
+    fingerprint(:full, "192.0.2.1", "192.0.2.122", {ok: true, value: "203.0.113.7"}) #=> "full|192.0.2.1|192.0.2.122|203.0.113.7"
+    fingerprint(:unread, "192.0.2.1", "192.0.2.122", {ok: true, value: ""}) #=> nil
+"""
+def fingerprint(corp, gw_addr, iface_addr, public_r)
+  if corp == :unread or iface_addr.nil? or public_r.nil? or not ok?(public_r)
+    nil
+  else
+    join([to_s(corp), gw_addr, iface_addr, public_r[:value]], "|")
+  end
+end
+
+@doc """
+next_epoch: whether a network change has settled and the overlay should restart, and what the next run remembers. A new fingerprint must hold for `settle` runs in a row; the restart then waits out `cooldown_ms` after the last one. An unread fingerprint, the first one seen, or a change that reverts before it settles restarts nothing.
+
+    next_epoch({epoch: "a"}, "b", 1000, 2, 600, 0)[:pending] #=> "b"
+    next_epoch({epoch: "a", pending: "b", runs: 1}, "b", 1000, 2, 600, 0)[:restart] #=> true
+"""
+def next_epoch(prev, fp, now, settle, cooldown_ms, last_restart_ms)
+  last = if integer?(last_restart_ms)
+    last_restart_ms
+  else
+    0
+  end
+  if fp.nil?
+    assoc(prev, :restart, false)
+  elsif not string?(prev[:epoch]) or is_empty(prev[:epoch])
+    {epoch: fp, pending: "", runs: 0, restart: false}
+  elsif fp == prev[:epoch]
+    {epoch: fp, pending: "", runs: 0, restart: false}
+  else
+    runs = if fp == prev[:pending] and integer?(prev[:runs])
+      prev[:runs] + 1
+    else
+      1
+    end
+    if runs >= settle and now - last >= cooldown_ms
+      {epoch: fp, pending: "", runs: 0, restart: true}
+    else
+      {epoch: prev[:epoch], pending: fp, runs:, restart: false}
+    end
+  end
+end
+
+@doc """
+restart_argv: the command that restarts the overlay daemon, so its control session starts over on the network it now sits on.
+
+    restart_argv(:darwin, "") #=> ["/bin/launchctl", "kickstart", "-k", "system/com.tailscale.tailscaled"]
+    restart_argv(:nixos, "/bin/systemctl") #=> ["/bin/systemctl", "restart", "tailscaled.service"]
+"""
+def restart_argv(platform, systemctl)
+  if platform == :nixos
+    [systemctl, "restart", "tailscaled.service"]
+  else
+    %w[/bin/launchctl kickstart -k system/com.tailscale.tailscaled]
+  end
+end
+
+@doc """
+epoch_of: the network memory a state document holds: the settled fingerprint, a pending one and how many runs it has held.
+
+    epoch_of(nil) #=> {epoch: "", pending: "", runs: 0}
+"""
+def epoch_of(doc)
+  runs = as_json(doc, "epoch_runs")
+  {
+    epoch: get_str(doc, "epoch", ""),
+    pending: get_str(doc, "epoch_pending", ""),
+    runs: if integer?(runs)
+      runs
+    else
+      0
+    end
+  }
 end
 
 @doc """
@@ -1174,6 +1269,7 @@ def assemble(cfg, obs)
       lost_hosts:,
       orphan_hosts:,
       peer_hosts:,
+      fingerprint: fingerprint(corp, gw_addr, iface_addr, obs[:public_ip]),
       iface_addr: if iface_addr.nil?
         ""
       else
@@ -1190,6 +1286,7 @@ observe: read routes and overlay status into one typed state.
 """
 def observe(cfg)
   ts = cfg[:tailscale]
+  nc = capture(netcheck_argv(ts))
   host = cfg[:control_host]
   if cfg[:platform] == :nixos
     ip = cfg[:ip]
@@ -1197,7 +1294,8 @@ def observe(cfg)
       routes: from_capture(capture(ip_route_argv(ip)), parse_ip_route),
       rules: from_capture(capture(ip_rule_argv(ip)), parse_ip_rules),
       status: from_capture(capture(status_argv(ts)), parse_backend_state),
-      netcheck: from_capture(capture(netcheck_argv(ts)), parse_netcheck),
+      netcheck: from_capture(nc, parse_netcheck),
+      public_ip: from_capture(nc, parse_public_ip),
       derp: from_capture(capture(derp_map_argv(ts)), parse_derp_map),
       control: from_capture(
         capture(getent_argv(cfg[:getent], host)),
@@ -1216,7 +1314,8 @@ def observe(cfg)
       rules: ok([]),
       table: ok([]),
       status: from_capture(capture(status_argv(ts)), parse_backend_state),
-      netcheck: from_capture(capture(netcheck_argv(ts)), parse_netcheck),
+      netcheck: from_capture(nc, parse_netcheck),
+      public_ip: from_capture(nc, parse_public_ip),
       derp: from_capture(capture(derp_map_argv(ts)), parse_derp_map),
       control: from_capture(capture(dscacheutil_argv(host)), parse_dscacheutil),
       peers: peers_observed(cfg)
@@ -1447,12 +1546,20 @@ def read_applied(path)
 end
 
 @doc """
-tunables: the settings ukai reads through settei: whether peer endpoints join the bypass, and how many losses of its routes inside the window refuse the bypass until the window passes (UKAI_PEER_ENDPOINTS, UKAI_REWRITE_LIMIT, UKAI_REWRITE_WINDOW_S).
+tunables: the settings ukai reads through settei: whether peer endpoints join the bypass; how many losses of its routes inside the window refuse the bypass until the window passes; whether a settled network change restarts the overlay, after how many runs and how long after the last restart, and the systemctl that does it on nixos (UKAI_PEER_ENDPOINTS, UKAI_REWRITE_LIMIT, UKAI_REWRITE_WINDOW_S, UKAI_RESTART_ON_CHANGE, UKAI_SETTLE_RUNS, UKAI_RESTART_COOLDOWN_S, UKAI_SYSTEMCTL).
 
     tunables["rewrite_limit"] #=> 3
 """
 def tunables()
-  {"peer_endpoints" => true, "rewrite_limit" => 3, "rewrite_window_s" => 900}
+  {
+    "peer_endpoints" => true,
+    "rewrite_limit" => 3,
+    "rewrite_window_s" => 900,
+    "restart_on_change" => true,
+    "settle_runs" => 2,
+    "restart_cooldown_s" => 600,
+    "systemctl" => "systemctl"
+  }
 end
 
 def config()
@@ -1476,6 +1583,10 @@ def config()
     peers: tuned["peer_endpoints"],
     rewrite_limit: tuned["rewrite_limit"],
     rewrite_window_ms: tuned["rewrite_window_s"] * 1000,
+    restart_on_change: tuned["restart_on_change"],
+    settle_runs: tuned["settle_runs"],
+    restart_cooldown_ms: tuned["restart_cooldown_s"] * 1000,
+    systemctl: tuned["systemctl"],
     dry_run: getenv("UKAI_DRY_RUN", "1") != "0",
     state_path: getenv("UKAI_STATE", "/var/run/ukai/state.json")
   }
@@ -1560,7 +1671,24 @@ def run(cfg)
   o = decide(s)
   argvs = plan(o, cfg2)
   results = act(argvs, cfg2[:dry_run])
-  failed = filter((r) -> r[:status] != 0 and r[:status] != nil, results)
+  ep = next_epoch(
+    epoch_of(last),
+    s[:fingerprint],
+    now,
+    cfg2[:settle_runs],
+    cfg2[:restart_cooldown_ms],
+    as_json(last, "restarted_ms")
+  )
+  restart = ep[:restart] and cfg2[:restart_on_change] and not cfg2[:dry_run]
+  restarted = if restart
+    act([restart_argv(cfg2[:platform], cfg2[:systemctl])], false)
+  else
+    []
+  end
+  failed = filter(
+    (r) -> r[:status] != 0 and r[:status] != nil,
+    append(results, restarted)
+  )
   held_now = if cfg2[:dry_run]
     cfg2[:applied]
   else
@@ -1585,6 +1713,14 @@ def run(cfg)
       cfg2[:rewrite_window_ms],
       not cfg2[:dry_run] and s[:corp] == :full and not is_empty(s[:lost_hosts])
     ),
+    epoch: ep[:epoch],
+    epoch_pending: ep[:pending],
+    epoch_runs: ep[:runs],
+    restarted_ms: if restart
+      now
+    else
+      as_json(last, "restarted_ms")
+    end,
     applied_addr: next_applied_addr(
       cfg2[:applied_addr],
       o,
@@ -1614,7 +1750,11 @@ def run(cfg)
   write_stdout(
     unlines(
       [
-        "#{outcome_label(o)} #{row_key(s)} planned=#{to_s(size(argvs))} failed=#{to_s(size(failed))}"
+        "#{outcome_label(o)} #{row_key(s)} planned=#{to_s(size(argvs))} failed=#{to_s(size(failed))}#{if restart
+  " restarted=overlay"
+else
+  ""
+end}"
       ]
     )
   )
@@ -1960,6 +2100,10 @@ test "peer endpoints: each peer's public IPv4 endpoint joins the bypass, a priva
   assert public_ipv4?("224.0.0.1") == false
   assert public_ipv4?("not-an-ip") == false
   assert endpoint_host("203.0.113.7") == ""
+  assert public_ipv4?("192.0.0.6") == false
+  assert public_ipv4?("192.0.1.6") == true
+  assert public_ipv4?("198.18.0.1") == false
+  assert public_ipv4?("198.20.0.1") == true
   assert netmap_argv("/bin/ts") == %w[/bin/ts debug netmap]
   assert peers_observed({peers: false})[:value] == []
   bypassed = measured(
@@ -2410,4 +2554,49 @@ test "the released words keep their behaviour through their new homes"
     matrix_text(every_state),
     "#{join(map(to_s, axis_names), "\t")}\toutcome"
   )
+end
+
+test "a network change restarts the overlay once it settles: a new fingerprint held for the settle runs and past the cooldown restarts, a flap or an unread run does not"
+  assert fingerprint(
+    :split,
+    "192.0.2.1",
+    "192.0.2.122",
+    {ok: true, value: ""}
+  ) == "split|192.0.2.1|192.0.2.122|"
+  assert fingerprint(:full, "192.0.2.1", nil, {ok: true, value: "x"}).nil?
+  assert fingerprint(:full, "g", "a", bad("netcheck exited 1")).nil?
+  first_seen = next_epoch(epoch_of(nil), "a", 1000, 2, 600, 0)
+  assert first_seen == {epoch: "a", pending: "", runs: 0, restart: false}
+  one = next_epoch(first_seen, "b", 1000, 2, 600, 0)
+  assert one == {epoch: "a", pending: "b", runs: 1, restart: false}
+  two = next_epoch(one, "b", 1030, 2, 600, 0)
+  assert two == {epoch: "b", pending: "", runs: 0, restart: true}
+  flap = next_epoch(one, "a", 1030, 2, 600, 0)
+  assert flap == {epoch: "a", pending: "", runs: 0, restart: false}
+  other = next_epoch(one, "c", 1030, 2, 600, 0)
+  assert other[:runs] == 1
+  assert other[:pending] == "c"
+  unread = next_epoch(one, nil, 1030, 2, 600, 0)
+  assert unread[:restart] == false
+  assert unread[:pending] == "b"
+  cooling = next_epoch(one, "b", 1030, 2, 600, 900)
+  assert cooling == {epoch: "a", pending: "b", runs: 2, restart: false}
+  assert next_epoch(cooling, "b", 1600, 2, 600, 900)[:restart] == true
+  assert ok?(parse_public_ip(fixture("netcheck-bypassed.json"))) == true
+  assert parse_public_ip("{}")[:value] == ""
+  assert ok?(parse_public_ip("nope")) == false
+  assert restart_argv(:nixos, "/bin/systemctl") ==
+    %w[/bin/systemctl restart tailscaled.service]
+  assert first(restart_argv(:darwin, "")) == "/bin/launchctl"
+  doc = json_parse(
+    json_stringify({epoch: "a", epoch_pending: "b", epoch_runs: 1})
+  )
+  assert epoch_of(doc) == {epoch: "a", pending: "b", runs: 1}
+  assert tunables["settle_runs"] == 2
+  obs = measured(
+    fairu::fixture("ukai", "netstat-full-bypassed.txt"),
+    fairu::fixture("ukai", "netcheck-bypassed.json")
+  )
+  s = assemble(cfg_for(:darwin, []), assoc(obs, :public_ip, ok("203.0.113.7")))
+  assert s[:fingerprint] == "full|192.168.60.1|192.0.2.122|203.0.113.7"
 end

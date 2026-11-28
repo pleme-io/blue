@@ -172,5 +172,53 @@
     "file": "ukai.b",
     "find": "  if size(ps) == 2 and ipv4?(ps[0])\n",
     "replace": "  if size(ps) >= 2\n"
+  },
+  {
+    "name": "the protocol-assignment block is public",
+    "file": "ukai.b",
+    "find": "      a == 192 and b == 0 and os[2] == 0 or\n",
+    "replace": "      false or\n"
+  },
+  {
+    "name": "the benchmarking block is public",
+    "file": "ukai.b",
+    "find": "      a == 198 and (b == 18 or b == 19) or\n",
+    "replace": "      false or\n"
+  },
+  {
+    "name": "a change restarts before it settles",
+    "file": "ukai.b",
+    "find": "    if runs >= settle and now - last >= cooldown_ms\n",
+    "replace": "    if now - last >= cooldown_ms\n"
+  },
+  {
+    "name": "the cooldown never holds a restart",
+    "file": "ukai.b",
+    "find": "    if runs >= settle and now - last >= cooldown_ms\n",
+    "replace": "    if runs >= settle\n"
+  },
+  {
+    "name": "a flap still counts toward the restart",
+    "file": "ukai.b",
+    "find": "  elsif fp == prev[:epoch]\n    {epoch: fp, pending: \"\", runs: 0, restart: false}\n",
+    "replace": "  elsif false\n    {epoch: fp, pending: \"\", runs: 0, restart: false}\n"
+  },
+  {
+    "name": "the first fingerprint restarts",
+    "file": "ukai.b",
+    "find": "  elsif not string?(prev[:epoch]) or is_empty(prev[:epoch])\n",
+    "replace": "  elsif false\n"
+  },
+  {
+    "name": "a new pending fingerprint keeps the old count",
+    "file": "ukai.b",
+    "find": "      prev[:runs] + 1\n    else\n      1\n",
+    "replace": "      prev[:runs] + 1\n    else\n      prev[:runs] + 1\n"
+  },
+  {
+    "name": "an unread netcheck still fingerprints",
+    "file": "ukai.b",
+    "find": "  if corp == :unread or iface_addr.nil? or public_r.nil? or not ok?(public_r)\n",
+    "replace": "  if corp == :unread or iface_addr.nil?\n"
   }
 ]

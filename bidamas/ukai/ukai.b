@@ -1944,6 +1944,8 @@ test "lost routes: the hosts taken away, the loss times kept inside the window, 
   assert next_rewrites([100, 900], 1000, 500, true) == [900, 1000]
   assert next_rewrites([100, 900], 1000, 500, false) == [900]
   assert rewrites_of(nil) == []
+  assert tunables["rewrite_window_s"] == 900
+  assert tunables["peer_endpoints"] == true
   assert rewrites_of(json_parse(json_stringify({rewrites_ms: [5, "x"]}))) == [5]
 end
 

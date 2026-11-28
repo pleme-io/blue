@@ -1269,7 +1269,16 @@ def assemble(cfg, obs)
       lost_hosts:,
       orphan_hosts:,
       peer_hosts:,
-      fingerprint: fingerprint(corp, gw_addr, iface_addr, obs[:public_ip]),
+      fingerprint: fingerprint(
+        corp,
+        gw_addr,
+        if cfg[:platform] == :nixos
+          ""
+        else
+          iface_addr
+        end,
+        obs[:public_ip]
+      ),
       iface_addr: if iface_addr.nil?
         ""
       else
@@ -2201,6 +2210,10 @@ test "nixos is policy routing: a table route and a rule per host"
   cfg = assoc(assoc(cfg_for(:nixos, []), :corp_pattern, "ppp"), :ip, "/bin/ip")
   o = decide(assemble(cfg, obs))
   assert o[:kind] == :bypass
+  assert get(
+    assemble(cfg, assoc(obs, :public_ip, ok("203.0.113.7"))),
+    :fingerprint
+  ) == "full|192.168.1.1||203.0.113.7"
   assert plan(o, cfg) ==
     [
       %w[

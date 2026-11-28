@@ -220,5 +220,11 @@
     "file": "ukai.b",
     "find": "  if corp == :unread or iface_addr.nil? or public_r.nil? or not ok?(public_r)\n",
     "replace": "  if corp == :unread or iface_addr.nil?\n"
+  },
+  {
+    "name": "nixos fingerprints an address it never reads",
+    "file": "ukai.b",
+    "find": "        if cfg[:platform] == :nixos\n          \"\"\n        else\n          iface_addr\n        end,\n",
+    "replace": "        iface_addr,\n"
   }
 ]

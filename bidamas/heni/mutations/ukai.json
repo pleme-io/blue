@@ -226,5 +226,23 @@
     "file": "ukai.b",
     "find": "        if cfg[:platform] == :nixos\n          \"\"\n        else\n          iface_addr\n        end,\n",
     "replace": "        iface_addr,\n"
+  },
+  {
+    "name": "churn never degrades the beat",
+    "file": "ukai.b",
+    "find": "  if integer?(limit) and n >= limit and b[:verdict] == \"ok\"\n",
+    "replace": "  if false\n"
+  },
+  {
+    "name": "churn degrades below the limit",
+    "file": "ukai.b",
+    "find": "  if integer?(limit) and n >= limit and b[:verdict] == \"ok\"\n",
+    "replace": "  if integer?(limit) and n > 0 and b[:verdict] == \"ok\"\n"
+  },
+  {
+    "name": "churn overwrites a failed beat",
+    "file": "ukai.b",
+    "find": "  if integer?(limit) and n >= limit and b[:verdict] == \"ok\"\n",
+    "replace": "  if integer?(limit) and n >= limit\n"
   }
 ]

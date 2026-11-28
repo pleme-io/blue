@@ -1528,11 +1528,38 @@ rewrites_of: the times a state document says routes were taken away under a full
     rewrites_of(nil) #=> []
 """
 def rewrites_of(doc)
-  xs = as_json(doc, "rewrites_ms")
+  rewrites_of_key(doc, "rewrites_ms")
+end
+
+@doc """
+rewrites_of_key: the times a state document holds at `key`; [] when it names none.
+
+    rewrites_of_key(nil, "restarts_ms") #=> []
+"""
+def rewrites_of_key(doc, key)
+  xs = as_json(doc, key)
   if xs.nil? or not list?(xs)
     []
   else
     filter((x) -> integer?(x), xs)
+  end
+end
+
+@doc """
+churn_beat: the beat, degraded when the overlay restarted `limit` or more times in the last hour: the network keeps changing (a dual-WAN that switches, a tunnel that flaps), and every restart drops the overlay for a moment. A beat already failed or degraded stays as it is.
+
+    churn_beat({verdict: "ok", detail: "bypass"}, [1, 2, 3, 4], 4)[:verdict] #=> "degraded"
+"""
+def churn_beat(b, restarts, limit)
+  n = size(restarts)
+  if integer?(limit) and n >= limit and b[:verdict] == "ok"
+    assoc(
+      assoc(b, :verdict, "degraded"),
+      :detail,
+      "#{b[:detail]}; overlay restarted #{to_s(n)} times in an hour: the network keeps changing"
+    )
+  else
+    b
   end
 end
 
@@ -1555,7 +1582,7 @@ def read_applied(path)
 end
 
 @doc """
-tunables: the settings ukai reads through settei: whether peer endpoints join the bypass; how many losses of its routes inside the window refuse the bypass until the window passes; whether a settled network change restarts the overlay, after how many runs and how long after the last restart, and the systemctl that does it on nixos (UKAI_PEER_ENDPOINTS, UKAI_REWRITE_LIMIT, UKAI_REWRITE_WINDOW_S, UKAI_RESTART_ON_CHANGE, UKAI_SETTLE_RUNS, UKAI_RESTART_COOLDOWN_S, UKAI_SYSTEMCTL).
+tunables: the settings ukai reads through settei: whether peer endpoints join the bypass; how many losses of its routes inside the window refuse the bypass until the window passes; whether a settled network change restarts the overlay, after how many runs and how long after the last restart, how many restarts in an hour degrade the beat, and the systemctl that does it on nixos (UKAI_PEER_ENDPOINTS, UKAI_REWRITE_LIMIT, UKAI_REWRITE_WINDOW_S, UKAI_RESTART_ON_CHANGE, UKAI_SETTLE_RUNS, UKAI_RESTART_COOLDOWN_S, UKAI_RESTART_ALARM_PER_HOUR, UKAI_SYSTEMCTL).
 
     tunables["rewrite_limit"] #=> 3
 """
@@ -1567,6 +1594,7 @@ def tunables()
     "restart_on_change" => true,
     "settle_runs" => 2,
     "restart_cooldown_s" => 600,
+    "restart_alarm_per_hour" => 4,
     "systemctl" => "systemctl"
   }
 end
@@ -1595,6 +1623,7 @@ def config()
     restart_on_change: tuned["restart_on_change"],
     settle_runs: tuned["settle_runs"],
     restart_cooldown_ms: tuned["restart_cooldown_s"] * 1000,
+    restart_alarm: tuned["restart_alarm_per_hour"],
     systemctl: tuned["systemctl"],
     dry_run: getenv("UKAI_DRY_RUN", "1") != "0",
     state_path: getenv("UKAI_STATE", "/var/run/ukai/state.json")
@@ -1698,6 +1727,12 @@ def run(cfg)
     (r) -> r[:status] != 0 and r[:status] != nil,
     append(results, restarted)
   )
+  restarts = next_rewrites(
+    rewrites_of_key(last, "restarts_ms"),
+    now,
+    3_600_000,
+    restart
+  )
   held_now = if cfg2[:dry_run]
     cfg2[:applied]
   else
@@ -1730,6 +1765,7 @@ def run(cfg)
     else
       as_json(last, "restarted_ms")
     end,
+    restarts_ms: restarts,
     applied_addr: next_applied_addr(
       cfg2[:applied_addr],
       o,
@@ -1745,12 +1781,16 @@ def run(cfg)
       [
         path_join(path_dirname(cfg2[:state_path]), "beat.json"),
         json_stringify(
-          beat(
-            s,
-            o,
-            record[:failed],
-            now,
-            poll_of(as_json(last, "checked_ms"), now)
+          churn_beat(
+            beat(
+              s,
+              o,
+              record[:failed],
+              now,
+              poll_of(as_json(last, "checked_ms"), now)
+            ),
+            restarts,
+            cfg2[:restart_alarm]
           )
         )
       ]
@@ -2606,6 +2646,20 @@ test "a network change restarts the overlay once it settles: a new fingerprint h
   )
   assert epoch_of(doc) == {epoch: "a", pending: "b", runs: 1}
   assert tunables["settle_runs"] == 2
+  assert tunables["restart_alarm_per_hour"] == 4
+  calm = {verdict: "ok", detail: "bypass", at_unix_ms: 1, poll_seconds: 30}
+  assert churn_beat(calm, [1, 2, 3], 4) == calm
+  churned = churn_beat(calm, [1, 2, 3, 4], 4)
+  assert churned[:verdict] == "degraded"
+  assert churned[:detail] ==
+    "bypass; overlay restarted 4 times in an hour: the network keeps changing"
+  down = {verdict: "failed", detail: "overlay down"}
+  assert churn_beat(down, [1, 2, 3, 4], 4) == down
+  assert churn_beat(calm, [1, 2, 3, 4], nil) == calm
+  assert rewrites_of_key(
+    json_parse(json_stringify({restarts_ms: [7, "x"]})),
+    "restarts_ms"
+  ) == [7]
   obs = measured(
     fairu::fixture("ukai", "netstat-full-bypassed.txt"),
     fairu::fixture("ukai", "netcheck-bypassed.json")

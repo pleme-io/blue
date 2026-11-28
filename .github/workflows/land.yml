@@ -64,12 +64,6 @@ jobs:
 
   resolve:
     uses: pleme-io/substrate/.github/workflows/runner-resolve.yml@main
-    with:
-      # 2026-11-28: pinned to rio while plo's GitHub egress flakes every
-      # ~10 minutes — GitHub cancels any job whose runner disconnects
-      # mid-flight, and three land runs died to it. The explicit label wins
-      # over every resolver tier. Remove this pin when plo's path is stable.
-      runner: rio
 
   fast-forward:
     needs: [resolve, ci, prose]

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:d50159e9c501d8775cbec6d716f5471ab4d19326f47926f769fdde1a68530460",
+  "bluefile_b3": "b3:6610490b7deceb96d257db877102ddd56188a1863485da4e966d3695e6c6e04d",
   "manifest": {
     "schema": 1,
     "name": "ukai",
@@ -10,6 +10,7 @@
       "fairu": "^0.1.0",
       "kyohi": "^0.1.0",
       "retsu": "^0.1.0",
+      "settei": "^0.1.0",
       "shisutemu": "^0.1.0",
       "shuugou": "^0.1.0",
       "tesuto": "^0.1.0"

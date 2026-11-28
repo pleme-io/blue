@@ -8,6 +8,7 @@ use("deeta", %i[as_json get_str])
 use("fairu")
 use("kyohi", %i[ok ok?])
 use("retsu", %i[first is_empty last rest size])
+use("settei")
 use("shisutemu", %i[read_or status_of stderr_of stdout_of])
 use("shuugou", %i[as_set difference unique])
 use("tesuto")
@@ -1445,7 +1446,17 @@ def read_applied(path)
   applied_of(read_state(path))
 end
 
+@doc """
+tunables: the settings ukai reads through settei: whether peer endpoints join the bypass, and how many losses of its routes inside the window refuse the bypass until the window passes (UKAI_PEER_ENDPOINTS, UKAI_REWRITE_LIMIT, UKAI_REWRITE_WINDOW_S).
+
+    tunables["rewrite_limit"] #=> 3
+"""
+def tunables()
+  {"peer_endpoints" => true, "rewrite_limit" => 3, "rewrite_window_s" => 900}
+end
+
 def config()
+  tuned = settei::read("ukai", tunables)
   {
     platform: if getenv("UKAI_PLATFORM", "darwin") == "nixos"
       :nixos
@@ -1462,9 +1473,9 @@ def config()
     getent: getenv("UKAI_GETENT", "getent"),
     table: to_int(getenv("UKAI_TABLE", "5280")),
     priority: to_int(getenv("UKAI_PRIORITY", "5200")),
-    peers: getenv("UKAI_PEER_ENDPOINTS", "1") != "0",
-    rewrite_limit: to_int(getenv("UKAI_REWRITE_LIMIT", "3")),
-    rewrite_window_ms: to_int(getenv("UKAI_REWRITE_WINDOW_S", "900")) * 1000,
+    peers: tuned["peer_endpoints"],
+    rewrite_limit: tuned["rewrite_limit"],
+    rewrite_window_ms: tuned["rewrite_window_s"] * 1000,
     dry_run: getenv("UKAI_DRY_RUN", "1") != "0",
     state_path: getenv("UKAI_STATE", "/var/run/ukai/state.json")
   }
